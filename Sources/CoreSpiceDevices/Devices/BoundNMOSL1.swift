@@ -45,9 +45,11 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
     public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
         // Small-signal model: stamp gm and gds
         let op = operatingPoint(state: state)
-        let dIdx = stamper.nodeIndex(drain)
+        let effectiveDrain = op.reversed ? source : drain
+        let effectiveSource = op.reversed ? drain : source
+        let dIdx = stamper.nodeIndex(effectiveDrain)
         let gIdx = stamper.nodeIndex(gate)
-        let sIdx = stamper.nodeIndex(source)
+        let sIdx = stamper.nodeIndex(effectiveSource)
 
         // gds: drain-source conductance
         if op.gds != 0 {
@@ -115,36 +117,57 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
         let gds: Double   // output conductance dIds/dVds
         let vgs: Double
         let vds: Double
+        let reversed: Bool // true when source and drain are swapped (Vds < 0)
     }
 
     private func operatingPoint(state: SolutionState) -> OperatingPointResult {
-        let vgs = state.voltage(at: gate) - state.voltage(at: source)
-        let vds = state.voltage(at: drain) - state.voltage(at: source)
+        let rawVgs = state.voltage(at: gate) - state.voltage(at: source)
+        let rawVds = state.voltage(at: drain) - state.voltage(at: source)
         let vth = parameters.vto
         let beta = parameters.beta
         let lambda = parameters.lambda
 
+        // MOSFET is symmetric: when Vds < 0, swap source and drain
+        let reversed = rawVds < 0
+        let vgs: Double
+        let vds: Double
+        if reversed {
+            vds = -rawVds
+            vgs = state.voltage(at: gate) - state.voltage(at: drain)
+        } else {
+            vds = rawVds
+            vgs = rawVgs
+        }
+
         if vgs < vth {
             // Cutoff
-            return OperatingPointResult(ids: 0, gm: 0, gds: 0, vgs: vgs, vds: vds)
+            return OperatingPointResult(ids: 0, gm: 0, gds: 0, vgs: rawVgs, vds: rawVds, reversed: reversed)
         }
 
         let vgst = vgs - vth
 
+        let ids: Double
+        let gm: Double
+        let gds: Double
+
         if vds < vgst {
             // Linear region: Ids = beta * (Vgst * Vds - 0.5 * Vds^2) * (1 + lambda * Vds)
-            let ids = beta * (vgst * vds - 0.5 * vds * vds) * (1.0 + lambda * vds)
-            let gm = beta * vds * (1.0 + lambda * vds)
-            let gds = beta * (vgst - vds) * (1.0 + lambda * vds)
+            ids = beta * (vgst * vds - 0.5 * vds * vds) * (1.0 + lambda * vds)
+            gm = beta * vds * (1.0 + lambda * vds)
+            gds = beta * (vgst - vds) * (1.0 + lambda * vds)
                     + beta * (vgst * vds - 0.5 * vds * vds) * lambda
-            return OperatingPointResult(ids: ids, gm: gm, gds: gds, vgs: vgs, vds: vds)
         } else {
             // Saturation region: Ids = 0.5 * beta * Vgst^2 * (1 + lambda * Vds)
-            let ids = 0.5 * beta * vgst * vgst * (1.0 + lambda * vds)
-            let gm = beta * vgst * (1.0 + lambda * vds)
-            let gds = 0.5 * beta * vgst * vgst * lambda
-            return OperatingPointResult(ids: ids, gm: gm, gds: gds, vgs: vgs, vds: vds)
+            ids = 0.5 * beta * vgst * vgst * (1.0 + lambda * vds)
+            gm = beta * vgst * (1.0 + lambda * vds)
+            gds = 0.5 * beta * vgst * vgst * lambda
         }
+
+        if reversed {
+            // When reversed, current flows in opposite direction relative to terminal labels
+            return OperatingPointResult(ids: -ids, gm: gm, gds: gds, vgs: rawVgs, vds: rawVds, reversed: true)
+        }
+        return OperatingPointResult(ids: ids, gm: gm, gds: gds, vgs: vgs, vds: vds, reversed: false)
     }
 
     /// Stamp the linearised model around the operating point.
@@ -155,9 +178,12 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
     ///
     /// The last term is the equivalent current source (RHS).
     private func stampLinearized(into stamper: inout MatrixStamper, op: OperatingPointResult) {
-        let dIdx = stamper.nodeIndex(drain)
+        // When Vds < 0, source and drain are physically swapped
+        let effectiveDrain = op.reversed ? source : drain
+        let effectiveSource = op.reversed ? drain : source
+        let dIdx = stamper.nodeIndex(effectiveDrain)
         let gIdx = stamper.nodeIndex(gate)
-        let sIdx = stamper.nodeIndex(source)
+        let sIdx = stamper.nodeIndex(effectiveSource)
 
         // Conductance stamps: gds between drain and source
         if op.gds != 0 {

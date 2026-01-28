@@ -37,16 +37,18 @@ public struct CoefficientGenerator: Sendable {
         let sinPhi = Float(sin(block.phi))
 
         // m00 = loss * cos(theta/2) * e^(i*phi)
-        // m01 = loss * i * sin(theta/2)
-        // m10 = loss * i * sin(theta/2)
+        // m01 = loss * i * sin(theta/2) * e^(i*phi)
+        //      = loss * sin(theta/2) * (i*cosφ - sinφ) = loss * sinT * (-sinφ + i*cosφ)
+        // m10 = loss * i * sin(theta/2) * e^(-i*phi)
+        //      = loss * sin(theta/2) * (i*cosφ + sinφ) = loss * sinT * (sinφ + i*cosφ)
         // m11 = loss * cos(theta/2) * e^(-i*phi)
         return MZICoefficients(
             m00_real: loss * cosT * cosPhi,
             m00_imag: loss * cosT * sinPhi,
-            m01_real: 0,
-            m01_imag: loss * sinT,
-            m10_real: 0,
-            m10_imag: loss * sinT,
+            m01_real: loss * sinT * (-sinPhi),
+            m01_imag: loss * sinT * cosPhi,
+            m10_real: loss * sinT * sinPhi,
+            m10_imag: loss * sinT * cosPhi,
             m11_real: loss * cosT * cosPhi,
             m11_imag: -loss * cosT * sinPhi
         )

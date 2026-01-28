@@ -59,12 +59,12 @@ public struct BoundCapacitor: BoundDevice, Sendable {
         case .backwardEuler:
             ieq = geq * vPrev
         case .trapezoidal:
-            // I_prev approximation: geq * V_prev - I_cap_prev
-            // For trapezoidal companion: Ieq = geq * V_prev + I_cap_prev
-            // where I_cap_prev = C * (V_prev - V_prev_prev) / dt_prev
-            // Simplified: current flowing into the cap at previous time
-            // Ieq = geq * V_prev (same form, the trapezoidal coefficient already accounts for the factor of 2)
-            ieq = geq * vPrev
+            // Trapezoidal companion: Ieq = Geq * V_prev + I_cap_prev
+            // where I_cap_prev is the capacitor current at the previous time step.
+            let vPrevPrev = state.twoPreviousVoltage(at: posNode) - state.twoPreviousVoltage(at: negNode)
+            let dtPrev = integration.previousTimeStep ?? integration.timeStep
+            let iCapPrev = capacitance * (vPrev - vPrevPrev) / dtPrev
+            ieq = geq * vPrev + iCapPrev
         }
 
         // Stamp the equivalent current source

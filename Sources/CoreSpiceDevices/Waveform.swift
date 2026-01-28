@@ -57,7 +57,7 @@ public enum Waveform: Sendable {
         case .dc:
             return []
 
-        case .pulse(_, _, let delay, let rise, _, let width, let period):
+        case .pulse(_, _, let delay, let rise, let fall, let width, let period):
             var result: [Double] = []
             guard period > 0 else { return [] }
             var cycleStart = delay
@@ -66,7 +66,7 @@ public enum Waveform: Sendable {
                     cycleStart,
                     cycleStart + rise,
                     cycleStart + rise + width,
-                    cycleStart + rise + width + rise, // using fall time approximation
+                    cycleStart + rise + width + fall,
                 ]
                 for edge in edges {
                     if interval.contains(edge) {

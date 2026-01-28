@@ -9,15 +9,18 @@ public struct SolutionState: Sendable {
 
     public let variables: [Double]
     public let previousVariables: [Double]?
+    public let twoPreviousVariables: [Double]?
     private let variableMap: [MNAVariable: Int]
 
     public init(
         variables: [Double],
         previousVariables: [Double]? = nil,
+        twoPreviousVariables: [Double]? = nil,
         variableMap: [MNAVariable: Int]
     ) {
         self.variables = variables
         self.previousVariables = previousVariables
+        self.twoPreviousVariables = twoPreviousVariables
         self.variableMap = variableMap
     }
 
@@ -53,5 +56,15 @@ public struct SolutionState: Sendable {
         guard let prev = previousVariables else { return current(through: branch) }
         guard let idx = variableMap[.branchCurrent(branch)] else { return 0.0 }
         return prev[idx]
+    }
+
+    /// Returns the voltage at the given node from two iterations ago.
+    ///
+    /// Falls back to `previousVoltage` when no two-previous state exists.
+    public func twoPreviousVoltage(at node: Node) -> Double {
+        guard let tp = twoPreviousVariables else { return previousVoltage(at: node) }
+        if node == .ground { return 0.0 }
+        guard let idx = variableMap[.nodeVoltage(node)] else { return 0.0 }
+        return tp[idx]
     }
 }

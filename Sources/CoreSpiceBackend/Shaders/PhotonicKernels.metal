@@ -52,9 +52,9 @@ kernel void applyLayer512_odd(
     uint batch = tid.y;
     if (pair >= desc.count) return;
 
-    uint idx0 = batch * 512 + (desc.offset + pair * 2 + 1);
+    uint idx0 = batch * 512 + (desc.offset + pair * 2);
     uint idx1 = idx0 + 1;
-    if ((idx1 % 512) >= 512) return;
+    if ((idx1 % 512) == 0) return;
 
     float2 a = state[idx0];
     float2 b = state[idx1];

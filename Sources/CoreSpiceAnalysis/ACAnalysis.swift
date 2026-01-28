@@ -122,6 +122,13 @@ public struct ACAnalysis: Analysis, Sendable {
                 device.stampAC(into: &stamper, state: dcState, omega: omega)
             }
 
+            // Add Gmin to diagonal for numerical grounding
+            matrixStorage.withLock { mat in
+                for i in 0..<dim {
+                    mat.addValue(row: i, col: i, value: ComplexPair(real: dcConfig.gmin, imag: 0))
+                }
+            }
+
             // Extract for solving
             let currentMatrix = matrixStorage.withLock { $0 }
             let currentRHS = rhsStorage.withLock { $0 }

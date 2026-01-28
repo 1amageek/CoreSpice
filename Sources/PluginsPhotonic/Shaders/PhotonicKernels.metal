@@ -59,7 +59,7 @@ kernel void applyLayer512_odd(
     uint batch = tid.y;
     if (pair >= desc.count) return;
 
-    uint idx0 = batch * 512 + (desc.offset + pair * 2 + 1);
+    uint idx0 = batch * 512 + (desc.offset + pair * 2);
     uint idx1 = idx0 + 1;
 
     // Guard against out-of-bounds access at the port boundary

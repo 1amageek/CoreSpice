@@ -39,15 +39,25 @@ public struct ConvergenceConfig: Sendable {
     /// Tests whether the Newton update vector `dx` is small enough
     /// relative to the current solution `x` to declare convergence.
     ///
-    /// For each element `i`, checks: `|dx[i]| < reltol * |x[i]| + vntol`.
+    /// For each element `i`, checks: `|dx[i]| < reltol * |x[i]| + tol`
+    /// where `tol` is `vntol` for voltage variables and `abstol` for
+    /// branch current variables.
     ///
     /// - Parameters:
     ///   - dx: The Newton update vector (difference between successive iterates).
     ///   - x: The current solution vector.
+    ///   - branchCurrentIndices: Set of indices corresponding to branch currents.
+    ///     When nil, all variables use `vntol`.
     /// - Returns: `true` if all elements satisfy the convergence criterion.
-    public func isConverged(dx: [Double], x: [Double]) -> Bool {
+    public func isConverged(dx: [Double], x: [Double], branchCurrentIndices: Set<Int>? = nil) -> Bool {
         for i in 0..<dx.count {
-            if abs(dx[i]) > reltol * abs(x[i]) + vntol {
+            let tol: Double
+            if let indices = branchCurrentIndices, indices.contains(i) {
+                tol = reltol * abs(x[i]) + abstol
+            } else {
+                tol = reltol * abs(x[i]) + vntol
+            }
+            if abs(dx[i]) > tol {
                 return false
             }
         }

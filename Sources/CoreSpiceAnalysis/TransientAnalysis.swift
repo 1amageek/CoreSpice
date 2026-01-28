@@ -151,7 +151,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
                     // Newton-Raphson solve
                     let nr = NewtonRaphsonSolver(config: convergenceConfig)
-                    let newtonResult: [Double]
+                    let newtonResult: (solution: [Double], iterations: Int)
 
                     do {
                         newtonResult = try nr.solve(
@@ -203,7 +203,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                     // LTE check (skip for the very first step)
                     if acceptedSteps > 0 {
                         let lte = lteEstimator.estimate(
-                            current: newtonResult,
+                            current: newtonResult.solution,
                             previous: currentSolution,
                             twoPrevious: twoPreviousSolution,
                             timeStep: dt,
@@ -253,7 +253,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         stepAccepted = true
                         twoPreviousSolution = previousSolution
                         previousSolution = currentSolution
-                        currentSolution = newtonResult
+                        currentSolution = newtonResult.solution
                         previousDt = dt
                         currentTime += dt
                         acceptedSteps += 1
@@ -266,7 +266,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                             id: analysisID,
                             time: currentTime,
                             timeStep: dt,
-                            iterations: convergenceConfig.maxIterations,
+                            iterations: newtonResult.iterations,
                             lte: lte
                         )))
 
@@ -285,7 +285,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         stepAccepted = true
                         twoPreviousSolution = nil
                         previousSolution = currentSolution
-                        currentSolution = newtonResult
+                        currentSolution = newtonResult.solution
                         previousDt = dt
                         currentTime += dt
                         acceptedSteps += 1

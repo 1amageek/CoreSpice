@@ -16,17 +16,31 @@ public struct WavelengthModel: Sendable {
     /// Chromatic dispersion coefficient.
     public let dispersion: Double
 
+    /// Arm length imbalance in meters.
+    ///
+    /// The physical path length difference between the two MZI arms.
+    /// When zero, no wavelength-dependent phase shift is applied.
+    public let armLengthImbalance: Double
+
     public init(
         centerWavelength: Double = 1550e-9,
         groupIndex: Double = 4.2,
-        dispersion: Double = 0
+        dispersion: Double = 0,
+        armLengthImbalance: Double = 0
     ) {
         self.centerWavelength = centerWavelength
         self.groupIndex = groupIndex
         self.dispersion = dispersion
+        self.armLengthImbalance = armLengthImbalance
     }
 
     /// Computes the effective phase at a specific wavelength.
+    ///
+    /// The phase shift due to wavelength deviation is:
+    /// `Δφ = -2π · n_g · ΔΛ · L / λ₀²`
+    ///
+    /// The negative sign reflects that increasing wavelength decreases
+    /// the effective refractive index, reducing the accumulated phase.
     ///
     /// - Parameters:
     ///   - basePhase: The nominal phase at center wavelength (radians).
@@ -34,7 +48,7 @@ public struct WavelengthModel: Sendable {
     /// - Returns: Adjusted phase accounting for group index shift.
     public func effectivePhase(basePhase: Double, wavelength: Double) -> Double {
         let deltaLambda = wavelength - centerWavelength
-        let phaseShift = 2.0 * .pi * groupIndex * deltaLambda / (centerWavelength * centerWavelength)
+        let phaseShift = -2.0 * .pi * groupIndex * deltaLambda * armLengthImbalance / (centerWavelength * centerWavelength)
         return basePhase + phaseShift
     }
 }

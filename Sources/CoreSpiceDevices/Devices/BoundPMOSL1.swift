@@ -47,9 +47,11 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
 
     public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
         let op = operatingPoint(state: state)
-        let dIdx = stamper.nodeIndex(drain)
+        let effectiveDrain = op.reversed ? source : drain
+        let effectiveSource = op.reversed ? drain : source
+        let dIdx = stamper.nodeIndex(effectiveDrain)
         let gIdx = stamper.nodeIndex(gate)
-        let sIdx = stamper.nodeIndex(source)
+        let sIdx = stamper.nodeIndex(effectiveSource)
 
         // gds: drain-source conductance (current from source to drain)
         // For PMOS, Isd > 0 so stamp as source-to-drain
@@ -116,39 +118,60 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
         let gds: Double   // output conductance dIsd/dVsd
         let vsg: Double
         let vsd: Double
+        let reversed: Bool // true when source and drain are swapped (Vsd < 0)
     }
 
     private func operatingPoint(state: SolutionState) -> OperatingPointResult {
         // PMOS uses source-gate and source-drain voltages
-        let vsg = state.voltage(at: source) - state.voltage(at: gate)
-        let vsd = state.voltage(at: source) - state.voltage(at: drain)
+        let rawVsg = state.voltage(at: source) - state.voltage(at: gate)
+        let rawVsd = state.voltage(at: source) - state.voltage(at: drain)
 
         // Vtp is stored as negative, so |Vtp| = -vto
         let vtpAbs = -parameters.vto
         let beta = parameters.beta
         let lambda = parameters.lambda
 
+        // PMOS is symmetric: when Vsd < 0, swap source and drain
+        let reversed = rawVsd < 0
+        let vsg: Double
+        let vsd: Double
+        if reversed {
+            vsd = -rawVsd
+            vsg = state.voltage(at: drain) - state.voltage(at: gate)
+        } else {
+            vsd = rawVsd
+            vsg = rawVsg
+        }
+
         if vsg < vtpAbs {
             // Cutoff
-            return OperatingPointResult(isd: 0, gm: 0, gds: 0, vsg: vsg, vsd: vsd)
+            return OperatingPointResult(isd: 0, gm: 0, gds: 0, vsg: rawVsg, vsd: rawVsd, reversed: reversed)
         }
 
         let vsgOverdrive = vsg - vtpAbs
 
+        let isd: Double
+        let gm: Double
+        let gds: Double
+
         if vsd < vsgOverdrive {
             // Linear region: Isd = beta * (Vov * Vsd - 0.5 * Vsd^2) * (1 + lambda * Vsd)
-            let isd = beta * (vsgOverdrive * vsd - 0.5 * vsd * vsd) * (1.0 + lambda * vsd)
-            let gm = beta * vsd * (1.0 + lambda * vsd)
-            let gds = beta * (vsgOverdrive - vsd) * (1.0 + lambda * vsd)
+            isd = beta * (vsgOverdrive * vsd - 0.5 * vsd * vsd) * (1.0 + lambda * vsd)
+            gm = beta * vsd * (1.0 + lambda * vsd)
+            gds = beta * (vsgOverdrive - vsd) * (1.0 + lambda * vsd)
                     + beta * (vsgOverdrive * vsd - 0.5 * vsd * vsd) * lambda
-            return OperatingPointResult(isd: isd, gm: gm, gds: gds, vsg: vsg, vsd: vsd)
         } else {
             // Saturation region: Isd = 0.5 * beta * Vov^2 * (1 + lambda * Vsd)
-            let isd = 0.5 * beta * vsgOverdrive * vsgOverdrive * (1.0 + lambda * vsd)
-            let gm = beta * vsgOverdrive * (1.0 + lambda * vsd)
-            let gds = 0.5 * beta * vsgOverdrive * vsgOverdrive * lambda
-            return OperatingPointResult(isd: isd, gm: gm, gds: gds, vsg: vsg, vsd: vsd)
+            isd = 0.5 * beta * vsgOverdrive * vsgOverdrive * (1.0 + lambda * vsd)
+            gm = beta * vsgOverdrive * (1.0 + lambda * vsd)
+            gds = 0.5 * beta * vsgOverdrive * vsgOverdrive * lambda
         }
+
+        if reversed {
+            // When reversed, current flows in opposite direction relative to terminal labels
+            return OperatingPointResult(isd: -isd, gm: gm, gds: gds, vsg: rawVsg, vsd: rawVsd, reversed: true)
+        }
+        return OperatingPointResult(isd: isd, gm: gm, gds: gds, vsg: vsg, vsd: vsd, reversed: false)
     }
 
     /// Stamp the linearised PMOS model around the operating point.
@@ -157,9 +180,12 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
     ///   `I_stamp = Isd0 + gm * (Vsg - Vsg0) + gds * (Vsd - Vsd0)`
     ///   `       = gm * Vsg + gds * Vsd + (Isd0 - gm*Vsg0 - gds*Vsd0)`
     private func stampLinearized(into stamper: inout MatrixStamper, op: OperatingPointResult) {
-        let dIdx = stamper.nodeIndex(drain)
+        // When Vsd < 0, source and drain are physically swapped
+        let effectiveDrain = op.reversed ? source : drain
+        let effectiveSource = op.reversed ? drain : source
+        let dIdx = stamper.nodeIndex(effectiveDrain)
         let gIdx = stamper.nodeIndex(gate)
-        let sIdx = stamper.nodeIndex(source)
+        let sIdx = stamper.nodeIndex(effectiveSource)
 
         // Conductance stamps: gds between source and drain
         // Current leaves source, enters drain

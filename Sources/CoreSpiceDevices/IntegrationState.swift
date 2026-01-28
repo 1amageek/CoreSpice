@@ -13,11 +13,13 @@ public struct IntegrationState: Sendable {
     public let method: IntegrationMethod
     public let timeStep: Double
     public let currentTime: Double
+    public let previousTimeStep: Double?
 
-    public init(method: IntegrationMethod, timeStep: Double, currentTime: Double) {
+    public init(method: IntegrationMethod, timeStep: Double, currentTime: Double, previousTimeStep: Double? = nil) {
         self.method = method
         self.timeStep = timeStep
         self.currentTime = currentTime
+        self.previousTimeStep = previousTimeStep
     }
 
     /// Coefficient for the companion model: `C * coefficient` or `L / coefficient`.

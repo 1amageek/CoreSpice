@@ -41,11 +41,12 @@ public struct LTEEstimator: Sendable {
                 lte = abs(diff) * 0.5
 
             case .trapezoidal:
-                if let tp = twoPrevious, let pdt = previousTimeStep, pdt > 0 {
+                if let tp = twoPrevious, let _ = previousTimeStep {
                     // Second-order estimate using three-point difference:
-                    // LTE ~ h^3/12 * |x'''| ~ |d2x| / (12 * h)
+                    // d2 = x_n - 2*x_{n-1} + x_{n-2} ≈ h²·x''
+                    // LTE for trapezoidal ≈ |d2| / 12
                     let d2 = current[i] - 2.0 * previous[i] + tp[i]
-                    lte = abs(d2) / (12.0 * timeStep)
+                    lte = abs(d2) / 12.0
                 } else {
                     lte = abs(diff) * 0.5
                 }

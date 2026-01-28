@@ -36,7 +36,7 @@ public struct NewtonRaphsonSolver: Sendable {
     ///   - observer: Optional event dispatcher for Newton iteration events.
     ///   - analysisID: The analysis identifier for event correlation.
     ///   - cancellation: Token for cooperative cancellation.
-    /// - Returns: The converged solution vector.
+    /// - Returns: A tuple of the converged solution vector and the number of iterations performed.
     /// - Throws: ``AnalysisError/convergenceFailure(iterations:residualNorm:)`` if iteration
     ///   does not converge, ``AnalysisError/cancelled`` if cancelled, or solver errors.
     public func solve(
@@ -50,7 +50,7 @@ public struct NewtonRaphsonSolver: Sendable {
         observer: EventDispatcher?,
         analysisID: AnalysisID,
         cancellation: CancellationToken
-    ) throws -> [Double] {
+    ) throws -> (solution: [Double], iterations: Int) {
         var x = initialGuess
         let n = x.count
 
@@ -124,15 +124,20 @@ public struct NewtonRaphsonSolver: Sendable {
                 throw AnalysisError.singularMatrix
             }
 
-            // Update solution with damping
+            // Save previous solution for convergence check
+            let previousX = x
+
+            // Update solution: dx is the full new solution from G*x = s,
+            // not a correction. With damping=1 this is direct substitution.
             let damping = 1.0
             for i in 0..<n {
-                x[i] += damping * dx[i]
+                x[i] = (1.0 - damping) * x[i] + damping * dx[i]
             }
 
-            // Compute residual norm (infinity norm of update)
-            let residualNorm = dx.map { abs($0) }.max() ?? 0.0
-            let converged = config.isConverged(dx: dx, x: x)
+            // Compute residual norm (infinity norm of solution change)
+            let update = (0..<n).map { x[$0] - previousX[$0] }
+            let residualNorm = update.map { abs($0) }.max() ?? 0.0
+            let converged = config.isConverged(dx: update, x: x)
 
             observer?.emit(.newtonIterationFinished(NewtonResultInfo(
                 id: analysisID,
@@ -146,7 +151,7 @@ public struct NewtonRaphsonSolver: Sendable {
                 // Write back final state
                 matrix = currentMatrix
                 rhs = currentRHS
-                return x
+                return (x, iter + 1)
             }
         }
 
