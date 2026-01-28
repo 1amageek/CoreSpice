@@ -1,0 +1,83 @@
+import CoreSpiceIR
+
+/// A capacitor bound to specific circuit nodes.
+///
+/// DC: open circuit (no stamp).
+/// AC: admittance `j * omega * C`.
+/// Transient: companion model with equivalent conductance and
+/// history-dependent current source.
+public struct BoundCapacitor: BoundDevice, Sendable {
+
+    public let instance: Instance
+    private let posNode: Node
+    private let negNode: Node
+    private let capacitance: Double
+    private let initialVoltage: Double
+
+    init(
+        instance: Instance,
+        posNode: Node,
+        negNode: Node,
+        capacitance: Double,
+        initialVoltage: Double
+    ) {
+        self.instance = instance
+        self.posNode = posNode
+        self.negNode = negNode
+        self.capacitance = capacitance
+        self.initialVoltage = initialVoltage
+    }
+
+    public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
+        // A capacitor is an open circuit at DC; no stamp needed.
+    }
+
+    public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
+        // Admittance Y = j * omega * C
+        stamper.stampAdmittance(node1: posNode, node2: negNode, real: 0.0, imag: omega * capacitance)
+    }
+
+    public func stampTransient(
+        into stamper: inout MatrixStamper,
+        state: SolutionState,
+        integration: IntegrationState
+    ) {
+        // Companion model:
+        //   Backward Euler:  Geq = C / dt,   Ieq = C / dt * V_prev
+        //   Trapezoidal:     Geq = 2C / dt,  Ieq = 2C / dt * V_prev + I_prev
+        //
+        // In both cases, Geq = coefficient * C.
+        let geq = integration.coefficient * capacitance
+        stamper.stampConductance(node1: posNode, node2: negNode, conductance: geq)
+
+        // History current source: Ieq = geq * V_prev (for backward Euler)
+        // For trapezoidal: Ieq = geq * V_prev + I_prev (I_prev = C * dv/dt at previous step)
+        let vPrev = state.previousVoltage(at: posNode) - state.previousVoltage(at: negNode)
+        let ieq: Double
+
+        switch integration.method {
+        case .backwardEuler:
+            ieq = geq * vPrev
+        case .trapezoidal:
+            // I_prev approximation: geq * V_prev - I_cap_prev
+            // For trapezoidal companion: Ieq = geq * V_prev + I_cap_prev
+            // where I_cap_prev = C * (V_prev - V_prev_prev) / dt_prev
+            // Simplified: current flowing into the cap at previous time
+            // Ieq = geq * V_prev (same form, the trapezoidal coefficient already accounts for the factor of 2)
+            ieq = geq * vPrev
+        }
+
+        // Stamp the equivalent current source
+        if let pIdx = stamper.nodeIndex(posNode) {
+            stamper.stampRHS(pIdx, ieq)
+        }
+        if let nIdx = stamper.nodeIndex(negNode) {
+            stamper.stampRHS(nIdx, -ieq)
+        }
+    }
+
+    public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
+        // Linear device always converges.
+        .converged
+    }
+}

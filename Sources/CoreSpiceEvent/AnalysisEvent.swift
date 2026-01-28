@@ -1,0 +1,17 @@
+public enum AnalysisEvent: Sendable {
+    case analysisStarted(AnalysisStartedInfo)
+    case analysisFinished(AnalysisFinishedInfo)
+    case progressUpdate(ProgressInfo)
+    case sweepPointStarted(SweepPointInfo)
+    case sweepPointFinished(SweepPointResultInfo)
+    case newtonIterationStarted(NewtonInfo)
+    case newtonIterationFinished(NewtonResultInfo)
+    case newtonConvergenceFailure(NewtonFailureInfo)
+    case timeStepCompleted(TimeStepInfo)
+    case timeStepRejected(TimeStepRejectInfo)
+    case gpuDispatchStarted(GpuDispatchInfo)
+    case gpuDispatchFinished(GpuDispatchResultInfo)
+    case metricSample(MetricSampleInfo)
+    case warning(DiagnosticInfo)
+    case error(DiagnosticInfo)
+}
