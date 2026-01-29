@@ -48,4 +48,21 @@ struct DetectorTests {
             #expect(Bool(false))
         }
     }
+
+    @Test
+    func detectsDC() {
+        let src = """
+        v1 1 0 1
+        .dc v1 0 5 1
+        .end
+        """
+        if case .dcSweep(let source, let start, let stop, let step)? = AnalysisDetector.detect(source: src) {
+            #expect(source.lowercased() == "v1")
+            #expect(start == 0)
+            #expect(stop == 5)
+            #expect(step == 1)
+        } else {
+            #expect(Bool(false))
+        }
+    }
 }

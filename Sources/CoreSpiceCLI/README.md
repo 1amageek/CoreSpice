@@ -8,14 +8,14 @@ Command-line front end for CoreSpice. Supports batch execution against a SPICE d
 
 ## Batch Usage
 ```bash
-corespice -b <deck.cir> [--op | --tran tstep tstop | --ac dec|lin points start stop | --dc start stop step] \
+corespice -b <deck.cir> [--op | --tran tstep tstop | --ac dec|lin points start stop | --dc source start stop step] \
          [-r out.raw] [--csv out.csv] [--psf out.psf]
 ```
 - `-b <deck.cir>`: required; loads the SPICE netlist.
 - Analysis flags (optional): override auto-detection of `.tran/.ac/.dc/.op` in the deck.
 - Output flags: emit results via built-in exporters (RAW, CSV, PSF).
 - Exit status is non-zero on parse/compile/run errors.
-- Note: `--dc` parsing works but execution is currently **not implemented** and will report an error.
+- Monte Carlo: if the deck contains `.mc <runs> <analysis> [seed=n]`, the CLI runs the Monte Carlo loop with deterministic RNG per run. CSV export writes stats (mean/stddev/min/max/p5/p95) for each variable; RAW/PSF export the first run for compatibility.
 
 ## Interactive Shell
 ```bash
@@ -27,7 +27,7 @@ Prompts with `corespice>`. Commands:
 - `op` — run operating-point analysis.
 - `tran <tstep> <tstop>` — run transient analysis with fixed initial/max step.
 - `ac dec|lin <points> <start> <stop>` — run AC sweep.
-- `dc <start> <stop> <step>` — currently unimplemented; returns an explicit error.
+- `dc <source> <start> <stop> <step>` — run DC sweep of the named source (e.g., `dc V1 0 1 0.1`).
 - `write raw|csv|psf <path>` — export the last result.
 - `help` — show command summary.
 - `quit`/`exit` — leave the shell.

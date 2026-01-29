@@ -25,6 +25,12 @@ public enum AnalysisKind: String, Sendable, Hashable, Codable {
     /// Sensitivity analysis.
     case sensitivity = "sens"
 
+    /// Fourier analysis.
+    case fourier = "four"
+
+    /// Monte Carlo analysis.
+    case monteCarlo = "mc"
+
     /// The RAW file plot type string for this analysis kind.
     public var rawPlotType: String {
         switch self {
@@ -36,6 +42,8 @@ public enum AnalysisKind: String, Sendable, Hashable, Codable {
         case .transferFunction: return "Transfer Function"
         case .poleZero: return "Pole-Zero Analysis"
         case .sensitivity: return "Sensitivity Analysis"
+        case .fourier: return "Fourier Analysis"
+        case .monteCarlo: return "Monte Carlo Analysis"
         }
     }
 
@@ -44,7 +52,8 @@ public enum AnalysisKind: String, Sendable, Hashable, Codable {
         switch self {
         case .ac, .noise, .poleZero:
             return true
-        case .operatingPoint, .dc, .transient, .transferFunction, .sensitivity:
+        case .operatingPoint, .dc, .transient, .transferFunction, .sensitivity,
+             .fourier, .monteCarlo:
             return false
         }
     }

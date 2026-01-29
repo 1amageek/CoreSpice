@@ -336,6 +336,10 @@ extension AnalysisKind {
             return "tf"
         case .poleZero:
             return "pz"
+        case .fourier:
+            return "four"
+        case .monteCarlo:
+            return "mc"
         }
     }
 }

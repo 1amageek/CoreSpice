@@ -1,5 +1,7 @@
 import CoreSpiceParsedIR
 import CoreSpiceIR
+import Foundation
+import Synchronization
 
 /// Lowers a parsed netlist to CircuitIR.
 ///
@@ -38,13 +40,18 @@ public struct NetlistLowering: Sendable {
         /// These values override any parameters defined in the netlist.
         public var parameterOverrides: [String: Double]
 
+        /// Seed for deterministic randomness (used by rand/gauss in expressions).
+        /// When nil, system randomness is used.
+        public var randomSeed: UInt64?
+
         public init(
             maxExpansionDepth: Int = 64,
             flattenSubcircuits: Bool = true,
             expandModels: Bool = true,
             evaluateExpressions: Bool = true,
             temperature: Double = 27.0,
-            parameterOverrides: [String: Double] = [:]
+            parameterOverrides: [String: Double] = [:],
+            randomSeed: UInt64? = nil
         ) {
             self.maxExpansionDepth = maxExpansionDepth
             self.flattenSubcircuits = flattenSubcircuits
@@ -52,6 +59,7 @@ public struct NetlistLowering: Sendable {
             self.evaluateExpressions = evaluateExpressions
             self.temperature = temperature
             self.parameterOverrides = parameterOverrides
+            self.randomSeed = randomSeed
         }
 
         /// Default configuration for circuit simulation.
@@ -77,6 +85,14 @@ public struct NetlistLowering: Sendable {
         let context = LoweringContext(maxDepth: configuration.maxExpansionDepth)
         context.temperature = configuration.temperature
 
+        // Deterministic random generator per lowering run.
+        let rngMutex = Mutex(SeededRandom(seed: configuration.randomSeed))
+        let randomUniform: @Sendable () -> Double = {
+            rngMutex.withLock { generator in
+                generator.nextDouble()
+            }
+        }
+
         // Register models and subcircuits
         for model in netlist.models {
             context.registerModel(model)
@@ -86,7 +102,7 @@ public struct NetlistLowering: Sendable {
         }
 
         // Evaluate global parameters
-        let evaluator = ExpressionEvaluator(context: context)
+        let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
         if configuration.evaluateExpressions {
             for (name, expr) in netlist.parameters {
                 let value = try evaluator.evaluate(expr)
@@ -103,12 +119,47 @@ public struct NetlistLowering: Sendable {
         var builder = Netlist()
 
         // Expand components
-        let expander = SubcircuitExpander(context: context, configuration: configuration)
+        let expander = SubcircuitExpander(
+            context: context,
+            configuration: configuration,
+            randomUniform: randomUniform
+        )
         for component in netlist.components {
             try expander.expandComponent(component, into: &builder, prefix: "")
         }
 
         return try builder.build()
+    }
+}
+
+// MARK: - Deterministic RNG
+
+fileprivate struct SeededRandom {
+    private var state: UInt64
+
+    init(seed: UInt64?) {
+        if let seed, seed != 0 {
+            self.state = seed
+        } else {
+            // Fallback to a time-based seed
+            self.state = UInt64(Date().timeIntervalSince1970.bitPattern)
+            if self.state == 0 { self.state = 0x9E3779B97F4A7C15 }
+        }
+    }
+
+    mutating func next() -> UInt64 {
+        // XorShift64*
+        var x = state
+        x ^= x >> 12
+        x ^= x << 25
+        x ^= x >> 27
+        state = x
+        return x &* 0x2545F4914F6CDD1D
+    }
+
+    mutating func nextDouble() -> Double {
+        let v = next() >> 11 // use top 53 bits
+        return Double(v) / Double(1 << 53)
     }
 }
 

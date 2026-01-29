@@ -6,9 +6,15 @@ public struct ExpressionEvaluator: Sendable {
 
     /// The context providing parameter values.
     private let context: LoweringContext
+    /// Source of random numbers in [0, 1).
+    private let randomUniform: @Sendable () -> Double
 
-    public init(context: LoweringContext) {
+    public init(
+        context: LoweringContext,
+        randomUniform: @escaping @Sendable () -> Double = { Double.random(in: 0..<1) }
+    ) {
         self.context = context
+        self.randomUniform = randomUniform
     }
 
     /// Evaluates an expression to a numeric value.
@@ -231,13 +237,13 @@ public struct ExpressionEvaluator: Sendable {
 
         // Random (deterministic seed for reproducibility in SPICE)
         case "rand", "random":
-            return Double.random(in: 0..<1)
+            return randomUniform()
 
         case "gauss", "agauss":
             guard args.count >= 2 else { throw argCountError(name, expected: 2, got: args.count) }
             // Simple Box-Muller for Gaussian
-            let u1 = Double.random(in: 0..<1)
-            let u2 = Double.random(in: 0..<1)
+            let u1 = randomUniform()
+            let u2 = randomUniform()
             let z = sqrt(-2 * log(u1)) * cos(2 * .pi * u2)
             return args[0] + args[1] * z
 

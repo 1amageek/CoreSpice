@@ -262,6 +262,193 @@ extension WaveformData {
         )
     }
 
+    // MARK: - From Transfer Function Result
+
+    /// Creates waveform data from a transfer function result.
+    ///
+    /// The result is a single data point with three variables:
+    /// gain, input impedance, and output impedance.
+    public static func from(
+        transferFunctionResult: TransferFunctionResult,
+        title: String? = nil
+    ) -> WaveformData {
+        let variables = [
+            VariableDescriptor(
+                name: "gain",
+                unit: .dimensionless,
+                type: .voltage,
+                index: 0
+            ),
+            VariableDescriptor(
+                name: "Zin",
+                unit: .ohm,
+                type: .voltage,
+                index: 1
+            ),
+            VariableDescriptor(
+                name: "Zout",
+                unit: .ohm,
+                type: .voltage,
+                index: 2
+            ),
+        ]
+
+        let metadata = SimulationMetadata(
+            title: title,
+            analysisType: .transferFunction,
+            pointCount: 1,
+            variableCount: 3
+        )
+
+        let sweepVariable = VariableDescriptor(
+            name: "point",
+            unit: .dimensionless,
+            type: .parameter,
+            index: 0
+        )
+
+        return WaveformData(
+            metadata: metadata,
+            sweepVariable: sweepVariable,
+            sweepValues: [0.0],
+            variables: variables,
+            realData: [[
+                transferFunctionResult.gain,
+                transferFunctionResult.inputImpedance,
+                transferFunctionResult.outputImpedance,
+            ]]
+        )
+    }
+
+    // MARK: - From Fourier Result
+
+    /// Creates waveform data from a Fourier analysis result.
+    ///
+    /// The sweep variable is the harmonic number, and each analyzed signal
+    /// has magnitude and phase variables.
+    public static func from(
+        fourierResult: FourierResult,
+        title: String? = nil
+    ) -> WaveformData {
+        // Use the first variable's harmonics to determine point count
+        guard let firstEntry = fourierResult.harmonics.first else {
+            return WaveformData.empty(analysisType: .fourier)
+        }
+
+        let harmonicComponents = firstEntry.value
+        let pointCount = harmonicComponents.count
+
+        var variables: [VariableDescriptor] = []
+        var realData: [[Double]] = Array(repeating: [], count: pointCount)
+
+        var varIndex = 0
+        for (varName, components) in fourierResult.harmonics.sorted(by: { $0.key < $1.key }) {
+            variables.append(VariableDescriptor(
+                name: "\(varName)_mag",
+                unit: .volt,
+                type: .voltage,
+                index: varIndex
+            ))
+            variables.append(VariableDescriptor(
+                name: "\(varName)_phase",
+                unit: .degree,
+                type: .voltage,
+                index: varIndex + 1
+            ))
+            varIndex += 2
+
+            for (i, comp) in components.enumerated() {
+                realData[i].append(comp.magnitude)
+                realData[i].append(comp.phase)
+            }
+        }
+
+        let metadata = SimulationMetadata(
+            title: title,
+            analysisType: .fourier,
+            pointCount: pointCount,
+            variableCount: variables.count
+        )
+
+        let sweepVariable = VariableDescriptor(
+            name: "harmonic",
+            unit: .dimensionless,
+            type: .parameter,
+            index: 0
+        )
+
+        let sweepValues = harmonicComponents.map { Double($0.harmonic) }
+
+        return WaveformData(
+            metadata: metadata,
+            sweepVariable: sweepVariable,
+            sweepValues: sweepValues,
+            variables: variables,
+            realData: realData
+        )
+    }
+
+    // MARK: - From Sensitivity Result
+
+    /// Creates waveform data from a sensitivity analysis result.
+    ///
+    /// Each data point corresponds to a parameter, with sensitivity and
+    /// normalized sensitivity as variables.
+    public static func from(
+        sensitivityResult: SensitivityResult,
+        title: String? = nil
+    ) -> WaveformData {
+        let entries = sensitivityResult.sensitivities
+        guard !entries.isEmpty else {
+            return WaveformData.empty(analysisType: .sensitivity)
+        }
+
+        let variables = [
+            VariableDescriptor(
+                name: "sensitivity",
+                unit: .dimensionless,
+                type: .voltage,
+                index: 0
+            ),
+            VariableDescriptor(
+                name: "normalized_sensitivity",
+                unit: .dimensionless,
+                type: .voltage,
+                index: 1
+            ),
+        ]
+
+        var realData: [[Double]] = []
+        var sweepValues: [Double] = []
+
+        for (i, entry) in entries.enumerated() {
+            sweepValues.append(Double(i))
+            realData.append([entry.sensitivity, entry.normalizedSensitivity])
+        }
+
+        let metadata = SimulationMetadata(
+            title: title,
+            analysisType: .sensitivity,
+            pointCount: entries.count,
+            variableCount: 2
+        )
+
+        let sweepVariable = VariableDescriptor(
+            name: "parameter",
+            unit: .dimensionless,
+            type: .parameter,
+            index: 0
+        )
+
+        return WaveformData(
+            metadata: metadata,
+            sweepVariable: sweepVariable,
+            sweepValues: sweepValues,
+            variables: variables,
+            realData: realData
+        )
+    }
+
     // MARK: - Empty Waveform
 
     /// Creates an empty waveform data for the specified analysis type.

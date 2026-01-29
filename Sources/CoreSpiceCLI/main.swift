@@ -80,10 +80,14 @@ struct CLI {
         var session = Session()
         let source = try String(contentsOfFile: deckPath, encoding: .utf8)
         try await session.loadNetlist(source: source, fileName: deckPath)
-        let analysis = overrideAnalysis ?? detectAnalysis(in: source) ?? .op
-        let waveform = try await session.run(analysis)
-
-        try await export(waveform: waveform, outputs: outputs)
+        if let mc = session.monteCarloSpec {
+            let parametric = try await session.runMonteCarlo(spec: mc, inner: mc.analysis)
+            try await export(parametric: parametric, outputs: outputs)
+        } else {
+            let analysis = overrideAnalysis ?? detectAnalysis(in: source) ?? .op
+            let waveform = try await session.run(analysis)
+            try await export(waveform: waveform, outputs: outputs)
+        }
     }
 
     // MARK: REPL command handling
@@ -103,9 +107,14 @@ struct CLI {
             print("loaded \(path)")
         case "run":
             guard session.isLoaded else { throw CLIError.state("no netlist loaded; use 'source <path>'") }
-            let analysis = detectAnalysis(in: session.lastSource) ?? .op
-            _ = try await session.run(analysis)
-            print("analysis complete")
+            if let mc = session.monteCarloSpec {
+                _ = try await session.runMonteCarlo(spec: mc, inner: mc.analysis)
+                print("monte carlo complete (\(mc.iterations) runs)")
+            } else {
+                let analysis = detectAnalysis(in: session.lastSource) ?? .op
+                _ = try await session.run(analysis)
+                print("analysis complete")
+            }
         case "op":
             guard session.isLoaded else { throw CLIError.state("no netlist loaded") }
             _ = try await session.run(.op)
@@ -134,11 +143,12 @@ struct CLI {
             print("ac complete")
         case "dc":
             guard session.isLoaded else { throw CLIError.state("no netlist loaded") }
-            guard tokens.count >= 4 else { throw CLIError.invalidArguments("usage: dc <start> <stop> <step>") }
-            let start = Double(tokens[1]) ?? 0
-            let stop = Double(tokens[2]) ?? 0
-            let step = Double(tokens[3]) ?? 0
-            _ = try await session.run(.dcSweep(start: start, stop: stop, step: step))
+            guard tokens.count >= 5 else { throw CLIError.invalidArguments("usage: dc <source> <start> <stop> <step>") }
+            let source = tokens[1]
+            let start = Double(tokens[2]) ?? 0
+            let stop = Double(tokens[3]) ?? 0
+            let step = Double(tokens[4]) ?? 0
+            _ = try await session.run(.dcSweep(source: source, start: start, stop: stop, step: step))
             print("dc sweep complete")
         case "write":
             guard tokens.count >= 3 else { throw CLIError.invalidArguments("usage: write raw|csv|psf <path>") }
@@ -173,6 +183,36 @@ struct CLI {
         }
     }
 
+    private func export(parametric: ParametricWaveformData, outputs: OutputTargets) async throws {
+        // Export stats to CSV if requested; otherwise export first run for RAW/PSF.
+        if let csv = outputs.csv {
+            var lines: [String] = []
+            lines.append("variable,point,mean,stdev,min,max,p5,p95")
+            guard let firstRun = parametric.runs.first else { return }
+            for variable in firstRun.waveform.variables {
+                if let stats = parametric.statistics(forVariable: variable.name) {
+                    for (idx, mean) in stats.mean.enumerated() {
+                        let p5 = stats.percentile5[idx]
+                        let p95 = stats.percentile95[idx]
+                        let sd = stats.standardDeviation[idx]
+                        let mn = stats.minimum[idx]
+                        let mx = stats.maximum[idx]
+                        lines.append("\(variable.name),\(idx),\(mean),\(sd),\(mn),\(mx),\(p5),\(p95)")
+                    }
+                }
+            }
+            try lines.joined(separator: "\n").write(toFile: csv, atomically: true, encoding: .utf8)
+        }
+
+        // For RAW/PSF output, export first run to keep format compatibility.
+        if let raw = outputs.raw, let first = parametric.runs.first?.waveform {
+            _ = try await SPICEIO.exportToRAW(first, path: raw)
+        }
+        if let psf = outputs.psf, let first = parametric.runs.first?.waveform {
+            _ = try await SPICEIO.exportToPSF(first, path: psf)
+        }
+    }
+
     private func parseOutputs(args: [String]) -> OutputTargets {
         var result = OutputTargets()
         if let idx = args.firstIndex(of: "-r"), idx + 1 < args.count {
@@ -203,11 +243,12 @@ struct CLI {
                 : .linear(start: start, stop: stop, points: points)
             return .ac(sweep: sweep)
         }
-        if let idx = args.firstIndex(of: "--dc"), idx + 3 < args.count {
-            let start = Double(args[idx + 1]) ?? 0
-            let stop = Double(args[idx + 2]) ?? 0
-            let step = Double(args[idx + 3]) ?? 0
-            return .dcSweep(start: start, stop: stop, step: step)
+        if let idx = args.firstIndex(of: "--dc"), idx + 4 < args.count {
+            let source = args[idx + 1]
+            let start = Double(args[idx + 2]) ?? 0
+            let stop = Double(args[idx + 3]) ?? 0
+            let step = Double(args[idx + 4]) ?? 0
+            return .dcSweep(source: source, start: start, stop: stop, step: step)
         }
         if args.contains("--op") { return .op }
         return nil
@@ -216,7 +257,7 @@ struct CLI {
     private func printHelp() {
         print("""
 Usage:
-  corespice -b <deck.cir> [--tran tstep tstop | --ac dec|lin points start stop | --dc start stop step] [-r out.raw] [--csv out.csv] [--psf out.psf]
+  corespice -b <deck.cir> [--tran tstep tstop | --ac dec|lin points start stop | --dc source start stop step] [-r out.raw] [--csv out.csv] [--psf out.psf]
   corespice            # interactive shell
 
 Commands (REPL):
@@ -234,36 +275,36 @@ Commands (REPL):
 
 struct Session {
     private(set) var plan: ExecutionPlan?
+    private let registry = DeviceRegistry.standard()
     private(set) var devices: [any BoundDevice] = []
     private(set) var lastWaveform: WaveformData?
+    private(set) var lastParametric: ParametricWaveformData?
     private(set) var lastSource: String = ""
+    private(set) var parsedNetlist: ParsedNetlist?
+    private(set) var monteCarloSpec: MonteCarloSpec?
 
     var isLoaded: Bool { plan != nil }
 
     mutating func loadNetlist(source: String, fileName: String?) async throws {
         lastSource = source
-        _ = fileName
-        let ir = try await SPICEIO.parseAndLower(source, configuration: .default)
+        let parseResult = await SPICEIO.parse(source, fileName: fileName)
+        let netlist = try parseResult.get()
+        parsedNetlist = netlist
+        monteCarloSpec = netlist.analyses.compactMap { analysis in
+            if case .monteCarlo(let spec) = analysis { return spec }
+            return nil
+        }.first
+
+        let ir = try SPICEIO.lower(netlist, configuration: .default)
         let compiler = StandardCompiler()
         let compiled = try compiler.compile(ir: ir)
 
-        let registry = DeviceRegistry.standard()
-        var context = BindingContext(
-            variableMap: compiled.topology.variableMap,
-            matrixDimension: compiled.topology.dimension
-        )
-        var bound: [any BoundDevice] = []
-        bound.reserveCapacity(ir.instances.count)
-        for instance in ir.instances {
-            guard let desc = registry.descriptor(for: instance.typeName) else {
-                throw CLIError.state("no descriptor for device \(instance.typeName)")
-            }
-            bound.append(try desc.bind(instance: instance, context: &context))
-        }
+        let bound = try bindDevices(plan: compiled, overrideSource: nil)
 
         self.plan = compiled
         self.devices = bound
         self.lastWaveform = nil
+        self.lastParametric = nil
     }
 
     mutating func run(_ command: AnalysisCommand) async throws -> WaveformData {
@@ -308,13 +349,230 @@ struct Session {
                 cancellation: cancellation
             )
             waveform = WaveformData.from(acResult: result, topology: plan.topology.circuitTopology, title: "AC")
-        case .dcSweep(let start, let stop, let step):
+        case .dcSweep(let source, let start, let stop, let step):
             guard step != 0 else { throw CLIError.invalidArguments("dc sweep step cannot be zero") }
-            throw CLIError.state("dc sweep is not implemented yet")
+            let values = strideInclusive(from: start, through: stop, by: step)
+            var results: [DCResult] = []
+            results.reserveCapacity(values.count)
+
+            for value in values {
+                let devices = try bindDevices(plan: plan, overrideSource: (source, value))
+                let dc = DCAnalysis()
+                let result = try await dc.run(
+                    plan: plan,
+                    devices: devices,
+                    solver: solver,
+                    observer: nil,
+                    cancellation: cancellation
+                )
+                results.append(result)
+            }
+
+            let sweepResult = SweepResult(parameterName: source, values: values, results: results)
+            waveform = WaveformData.from(sweepResult: sweepResult, topology: plan.topology.circuitTopology, title: "DC Sweep")
         }
 
         self.lastWaveform = waveform
+        self.lastParametric = nil
         return waveform
+    }
+
+    mutating func runMonteCarlo(
+        spec: MonteCarloSpec,
+        inner: ParsedAnalysisCommand
+    ) async throws -> ParametricWaveformData {
+        guard let netlist = parsedNetlist else {
+            throw CLIError.state("no parsed netlist for Monte Carlo")
+        }
+
+        var runs: [ParametricWaveformData.Run] = []
+        let baseSeed = UInt64(spec.seed ?? 1)
+
+        for i in 0..<spec.iterations {
+            let seed = baseSeed &+ UInt64(i)
+            let config = NetlistLowering.Configuration(randomSeed: seed)
+            let ir = try SPICEIO.lower(netlist, configuration: config)
+            let compiler = StandardCompiler()
+            let compiled = try compiler.compile(ir: ir)
+
+            let registry = DeviceRegistry.standard()
+            var context = BindingContext(
+                variableMap: compiled.topology.variableMap,
+                matrixDimension: compiled.topology.dimension
+            )
+            var bound: [any BoundDevice] = []
+            for instance in ir.instances {
+                guard let desc = registry.descriptor(for: instance.typeName) else {
+                    throw CLIError.state("no descriptor for device \(instance.typeName)")
+                }
+                bound.append(try desc.bind(instance: instance, context: &context))
+            }
+
+            let waveform = try await Self.runParsedAnalysis(
+                inner,
+                plan: compiled,
+                devices: bound,
+                registry: registry
+            )
+            let run = ParametricWaveformData.Run(
+                index: i,
+                parameters: ["run": Double(i)],
+                waveform: waveform
+            )
+            runs.append(run)
+        }
+
+        let parametric = ParametricWaveformData(
+            runs: runs,
+            analysisType: runs.first?.waveform.metadata.analysisType ?? .transient,
+            title: "Monte Carlo",
+            parameterNames: ["run"]
+        )
+
+        self.lastParametric = parametric
+        self.lastWaveform = runs.first?.waveform
+        return parametric
+    }
+
+    private static func runParsedAnalysis(
+        _ analysis: ParsedAnalysisCommand,
+        plan: ExecutionPlan,
+        devices: [any BoundDevice],
+        registry: DeviceRegistry
+    ) async throws -> WaveformData {
+        let cancellation = CancellationToken()
+        let solver = SparseLUSolver()
+
+        switch analysis {
+        case .op:
+            let result = try await DCAnalysis().run(
+                plan: plan,
+                devices: devices,
+                solver: solver,
+                observer: nil,
+                cancellation: cancellation
+            )
+            return WaveformData.from(dcResult: result, topology: plan.topology.circuitTopology, title: "Operating Point")
+
+        case .transient(let spec):
+            let stop = spec.stopTime.numericValue ?? 0
+            let step = spec.stepTime?.numericValue ?? (stop / 50.0)
+            let config = TransientConfig(
+                stopTime: stop,
+                maxTimeStep: step,
+                initialTimeStep: step
+            )
+            let result = try await TransientAnalysis(config: config).run(
+                plan: plan,
+                devices: devices,
+                solver: solver,
+                observer: nil,
+                cancellation: cancellation
+            )
+            return WaveformData.from(transientResult: result, topology: plan.topology.circuitTopology, title: "Transient")
+
+        case .ac(let spec):
+            let sweep: FrequencySweep
+            let points = spec.numberOfPoints
+            let start = spec.startFrequency.numericValue ?? 1.0
+            let stop = spec.stopFrequency.numericValue ?? 1e6
+            switch spec.scaleType {
+            case .decade: sweep = .decade(start: start, stop: stop, pointsPerDecade: points)
+            case .octave: sweep = .decade(start: start, stop: stop, pointsPerDecade: points) // TODO: octave mode
+            case .linear: sweep = .linear(start: start, stop: stop, points: points)
+            }
+            let result = try await ACAnalysis(sweep: sweep).run(
+                plan: plan,
+                devices: devices,
+                solver: solver,
+                observer: nil,
+                cancellation: cancellation
+            )
+            return WaveformData.from(acResult: result, topology: plan.topology.circuitTopology, title: "AC")
+
+        case .dc(let spec):
+            let start = spec.startValue.numericValue ?? 0
+            let stop = spec.stopValue.numericValue ?? 0
+            let step = spec.stepValue.numericValue ?? 0
+            guard step != 0 else { throw CLIError.invalidArguments("dc sweep step cannot be zero") }
+            let values = strideInclusive(from: start, through: stop, by: step)
+            var results: [DCResult] = []
+            for value in values {
+                let devices = try bindDevices(plan: plan, registry: registry, overrideSource: (spec.source, value))
+                let dc = DCAnalysis()
+                let result = try await dc.run(
+                    plan: plan,
+                    devices: devices,
+                    solver: solver,
+                    observer: nil,
+                    cancellation: cancellation
+                )
+                results.append(result)
+            }
+            let sweepResult = SweepResult(parameterName: spec.source, values: values, results: results)
+            return WaveformData.from(sweepResult: sweepResult, topology: plan.topology.circuitTopology, title: "DC Sweep")
+
+        case .monteCarlo:
+            // Nested Monte Carlo is not supported
+            throw CLIError.state("nested Monte Carlo not supported")
+
+        case .noise, .poleZero, .sensitivity, .transferFunction, .fourier:
+            throw CLIError.state("analysis not supported in CLI Monte Carlo")
+        }
+    }
+
+    private func bindDevices(
+        plan: ExecutionPlan,
+        overrideSource: (String, Double)?
+    ) throws -> [any BoundDevice] {
+        try Self.bindDevices(plan: plan, registry: registry, overrideSource: overrideSource)
+    }
+
+    private static func bindDevices(
+        plan: ExecutionPlan,
+        registry: DeviceRegistry,
+        overrideSource: (String, Double)?
+    ) throws -> [any BoundDevice] {
+        var context = BindingContext(
+            variableMap: plan.topology.variableMap,
+            matrixDimension: plan.topology.dimension
+        )
+
+        var devices: [any BoundDevice] = []
+        devices.reserveCapacity(plan.ir.instances.count)
+
+        let overrideName = overrideSource?.0.lowercased()
+        let overrideValue = overrideSource?.1
+
+        for instance in plan.ir.instances {
+            let inst: Instance
+            if let overrideName, let overrideValue, instance.name.lowercased() == overrideName {
+                var params = instance.parameters
+                switch instance.typeName {
+                case "vsource":
+                    params["v"] = .real(overrideValue)
+                case "isource":
+                    params["i"] = .real(overrideValue)
+                default:
+                    params["v"] = .real(overrideValue)
+                }
+                inst = Instance(
+                    name: instance.name,
+                    typeName: instance.typeName,
+                    nodes: instance.nodes,
+                    parameters: params
+                )
+            } else {
+                inst = instance
+            }
+
+            guard let desc = registry.descriptor(for: inst.typeName) else {
+                throw CLIError.state("no descriptor for device \(inst.typeName)")
+            }
+            devices.append(try desc.bind(instance: inst, context: &context))
+        }
+
+        return devices
     }
 }
 
@@ -322,7 +580,7 @@ enum AnalysisCommand {
     case op
     case tran(tstep: Double, tstop: Double)
     case ac(sweep: FrequencySweep)
-    case dcSweep(start: Double, stop: Double, step: Double)
+    case dcSweep(source: String, start: Double, stop: Double, step: Double)
 }
 
 struct OutputTargets {
@@ -377,13 +635,14 @@ enum AnalysisDetector {
             }
             if lower.hasPrefix(".dc") {
                 let parts = lower.split(separator: " ").map(String.init)
-                if parts.count >= 4,
-                   let start = Double(parts[2]),
-                   let stop = Double(parts[3]) {
+                if parts.count >= 4 {
+                    let source = parts[1]
+                    let start = Double(parts[2]) ?? 0
+                    let stop = Double(parts[3]) ?? 0
                     let step = parts.count >= 5 ? (Double(parts[4]) ?? 0) : (stop - start) / 10.0
-                    return .dcSweep(start: start, stop: stop, step: step)
+                    return .dcSweep(source: source, start: start, stop: stop, step: step)
                 }
-                return .dcSweep(start: 0, stop: 1, step: 0.1)
+                return .dcSweep(source: "v1", start: 0, stop: 1, step: 0.1)
             }
             if lower.hasPrefix(".op") {
                 return .op
@@ -391,4 +650,40 @@ enum AnalysisDetector {
         }
         return nil
     }
+}
+
+// MARK: - ParsedParameterValue Helpers
+
+private extension ParsedParameterValue {
+    var numericValue: Double? {
+        switch self {
+        case .numeric(let n): return n
+        case .expression(let expr):
+            // Very limited evaluation: allow simple numeric literals inside.
+            if case .literal(let n) = expr { return n }
+            return nil
+        default:
+            return nil
+        }
+    }
+}
+
+// MARK: - Utilities
+
+private func strideInclusive(from start: Double, through stop: Double, by step: Double) -> [Double] {
+    guard step != 0 else { return [] }
+    var values: [Double] = []
+    var current = start
+    if step > 0 {
+        while current <= stop + step * 0.5 {
+            values.append(current)
+            current += step
+        }
+    } else {
+        while current >= stop + step * 0.5 {
+            values.append(current)
+            current += step
+        }
+    }
+    return values
 }

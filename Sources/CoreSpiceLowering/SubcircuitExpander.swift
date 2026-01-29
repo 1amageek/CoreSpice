@@ -6,13 +6,16 @@ public struct SubcircuitExpander: Sendable {
 
     private let context: LoweringContext
     private let configuration: NetlistLowering.Configuration
+    private let randomUniform: @Sendable () -> Double
 
     public init(
         context: LoweringContext,
-        configuration: NetlistLowering.Configuration
+        configuration: NetlistLowering.Configuration,
+        randomUniform: @escaping @Sendable () -> Double
     ) {
         self.context = context
         self.configuration = configuration
+        self.randomUniform = randomUniform
     }
 
     /// Expands a component into the netlist builder.
@@ -33,7 +36,7 @@ public struct SubcircuitExpander: Sendable {
         let typeName = try mapComponentType(component.type, modelName: component.modelName)
 
         // Evaluate parameters
-        let evaluator = ExpressionEvaluator(context: context)
+        let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
         var evaluatedParams: [String: ParameterValue] = [:]
         for (name, value) in component.parameters {
             let evaluated = try evaluator.evaluate(value)
@@ -94,7 +97,7 @@ public struct SubcircuitExpander: Sendable {
         let instancePrefix = prefix.isEmpty ? component.name : "\(prefix).\(component.name)"
 
         // Evaluate instance parameters
-        let evaluator = ExpressionEvaluator(context: context)
+        let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
         var instanceParams: [String: Double] = [:]
 
         // Start with subcircuit defaults

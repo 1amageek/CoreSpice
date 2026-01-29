@@ -73,6 +73,15 @@ public enum SPICEIO {
         return try lowering.lower(netlist)
     }
 
+    /// Lowers a parsed SPICE netlist to CircuitIR with the given configuration.
+    public static func lower(
+        _ netlist: ParsedNetlist,
+        configuration: NetlistLowering.Configuration = .default
+    ) throws -> CircuitIR {
+        let lowering = NetlistLowering(configuration: configuration)
+        return try lowering.lower(netlist)
+    }
+
     /// Exports waveform data to RAW format.
     ///
     /// - Parameters:
