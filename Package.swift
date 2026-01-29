@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "CoreSpice", targets: ["CoreSpice"]),
         .library(name: "CoreSpiceIO", targets: ["CoreSpiceIO"]),
         .library(name: "PluginsPhotonic", targets: ["PluginsPhotonic"]),
+        .executable(name: "corespice", targets: ["CoreSpiceCLI"]),
     ],
     targets: [
         // --- C module: Metal互換型 ---
@@ -92,6 +93,24 @@ let package = Package(
                                "CoreSpiceExporterRAW", "CoreSpiceExporterCSV",
                                "CoreSpiceExporterPSF"]),
 
+        // CLI executable
+        .executableTarget(
+            name: "CoreSpiceCLI",
+            dependencies: [
+                "CoreSpice",
+                "CoreSpiceIO",
+                "CoreSpiceAnalysis",
+                "CoreSpiceDevices",
+                "CoreSpiceCompile",
+                "CoreSpiceExporter",
+                "CoreSpiceExporterRAW",
+                "CoreSpiceExporterCSV",
+                "CoreSpiceExporterPSF",
+                "CoreSpiceBackend"
+            ],
+            path: "Sources/CoreSpiceCLI"
+        ),
+
         // ==========================================================================
         // Tests
         // ==========================================================================
@@ -110,5 +129,12 @@ let package = Package(
         .testTarget(name: "CoreSpiceParserSPICETests", dependencies: ["CoreSpiceParserSPICE"]),
         .testTarget(name: "CoreSpiceLoweringTests", dependencies: ["CoreSpiceLowering", "CoreSpiceIR"]),
         .testTarget(name: "CoreSpiceExporterTests", dependencies: ["CoreSpiceExporterRAW", "CoreSpiceExporterCSV", "CoreSpiceExporterPSF", "CoreSpiceWaveform"]),
+        .testTarget(
+            name: "CoreSpiceCLITests",
+            dependencies: [
+                "CoreSpiceCLI"
+            ],
+            path: "Tests/CoreSpiceCLITests"
+        ),
     ]
 )
