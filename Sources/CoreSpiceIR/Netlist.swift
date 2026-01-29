@@ -43,16 +43,52 @@ public struct Netlist: Sendable {
     ///   - typeName: Device type identifier (e.g. "resistor", "vsource").
     ///   - nodeNames: Ordered list of node names the instance connects to.
     ///   - parameters: Parameter values keyed by parameter name.
-    /// - Throws: `NetlistError.duplicateInstanceName` if the name is already in use.
+    /// - Throws: `NetlistError.duplicateInstanceName` if the name is already in use,
+    ///           or other validation errors.
     public mutating func addInstance(
         name: String,
         typeName: String,
         nodes nodeNames: [String],
         parameters: [String: ParameterValue] = [:]
     ) throws {
+        // Check for duplicate instance name
         guard !instanceNames.contains(name) else {
             throw NetlistError.duplicateInstanceName(name)
         }
+
+        // Check for empty instance name
+        guard !name.isEmpty else {
+            throw NetlistError.invalidParameterValue(
+                instance: "(unnamed)",
+                parameter: "name",
+                message: "Instance name cannot be empty"
+            )
+        }
+
+        // Check for empty node names
+        for nodeName in nodeNames {
+            guard !nodeName.isEmpty else {
+                throw NetlistError.invalidParameterValue(
+                    instance: name,
+                    parameter: "nodes",
+                    message: "Node name cannot be empty"
+                )
+            }
+        }
+
+        // Validate parameter values
+        for (key, value) in parameters {
+            if case .real(let v) = value {
+                guard v.isFinite else {
+                    throw NetlistError.invalidParameterValue(
+                        instance: name,
+                        parameter: key,
+                        message: "Parameter value must be finite (got \(v))"
+                    )
+                }
+            }
+        }
+
         instanceNames.insert(name)
         let resolvedNodes = nodeNames.map { self.node($0) }
         instances.append(

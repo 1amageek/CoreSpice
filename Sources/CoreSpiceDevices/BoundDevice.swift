@@ -19,4 +19,35 @@ public protocol BoundDevice: Sendable {
 
     /// Check whether the device has converged between Newton iterations.
     func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult
+
+    /// Return waveform breakpoints within the given time interval.
+    ///
+    /// Breakpoints are times where the waveform has discontinuities
+    /// (e.g., pulse edges) that require precise timestep placement.
+    func breakpoints(in interval: ClosedRange<Double>) -> [Double]
+}
+
+// Default implementation for devices without time-varying waveforms
+extension BoundDevice {
+    public func breakpoints(in interval: ClosedRange<Double>) -> [Double] {
+        return []
+    }
+}
+
+/// A device that has initial conditions for transient analysis.
+public protocol InitialConditionDevice: BoundDevice {
+    /// Whether this device has explicit initial conditions set.
+    var hasInitialCondition: Bool { get }
+}
+
+/// A device with an initial voltage condition.
+public protocol VoltageInitialConditionDevice: InitialConditionDevice {
+    /// The initial voltage across the device.
+    var initialVoltage: Double { get }
+}
+
+/// A device with an initial current condition.
+public protocol CurrentInitialConditionDevice: InitialConditionDevice {
+    /// The initial current through the device.
+    var initialCurrent: Double { get }
 }

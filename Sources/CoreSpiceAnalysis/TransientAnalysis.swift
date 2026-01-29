@@ -88,11 +88,15 @@ public struct TransientAnalysis: Analysis, Sendable {
             var acceptedSteps = 0
             var rejectedSteps = 0
 
-            // Breakpoint management
+            // Breakpoint management: collect from device waveforms
             var breakpointMgr = BreakpointManager()
-            // Collect breakpoints from source waveforms would be done via
-            // device waveform queries in a full implementation. For now the
-            // breakpoint manager is available for external use.
+            let breakpointInterval = 0.0...config.stopTime
+            for device in devices {
+                let deviceBreakpoints = device.breakpoints(in: breakpointInterval)
+                if !deviceBreakpoints.isEmpty {
+                    breakpointMgr.addBreakpoints(deviceBreakpoints)
+                }
+            }
 
             // LTE estimator
             let lteEstimator = LTEEstimator()
@@ -126,13 +130,6 @@ public struct TransientAnalysis: Analysis, Sendable {
                 if dt <= 0 {
                     break
                 }
-
-                // Build the integration state for this step
-                let integrationState = IntegrationState(
-                    method: method,
-                    timeStep: dt,
-                    currentTime: currentTime + dt
-                )
 
                 // Attempt Newton-Raphson for this timestep
                 var stepAccepted = false
@@ -297,7 +294,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                             id: analysisID,
                             time: currentTime,
                             timeStep: dt,
-                            iterations: convergenceConfig.maxIterations,
+                            iterations: newtonResult.iterations,  // Fixed: use actual iteration count
                             lte: 0.0
                         )))
 

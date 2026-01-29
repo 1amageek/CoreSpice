@@ -238,18 +238,19 @@ public struct DCAnalysis: Analysis, Sendable {
                 variableMap: variableMap,
                 solver: &mutableSolver,
                 stampFunction: { stamper, state in
-                    // Scale source contributions by the stepping factor
-                    let scaledState = SolutionState(
-                        variables: state.variables,
-                        variableMap: variableMap
-                    )
+                    // Stamp each device, applying source scaling to independent sources
                     for device in devices {
-                        device.stampDC(into: &stamper, state: scaledState)
+                        if let vsource = device as? BoundVoltageSource {
+                            // Scale voltage source by the stepping factor
+                            vsource.stampDCScaled(into: &stamper, state: state, factor: factor)
+                        } else if let isource = device as? BoundCurrentSource {
+                            // Scale current source by the stepping factor
+                            isource.stampDCScaled(into: &stamper, state: state, factor: factor)
+                        } else {
+                            // Non-source devices stamp normally
+                            device.stampDC(into: &stamper, state: state)
+                        }
                     }
-                    // Scale RHS by factor (source stepping applies to independent sources)
-                    // This is a simplified approach; a full implementation would
-                    // scale only source device stamps.
-                    _ = factor  // Factor used for convergence progression
                 },
                 observer: observer,
                 analysisID: analysisID,

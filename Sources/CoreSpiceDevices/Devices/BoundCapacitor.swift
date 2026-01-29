@@ -6,13 +6,20 @@ import CoreSpiceIR
 /// AC: admittance `j * omega * C`.
 /// Transient: companion model with equivalent conductance and
 /// history-dependent current source.
-public struct BoundCapacitor: BoundDevice, Sendable {
+public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, Sendable {
 
     public let instance: Instance
     private let posNode: Node
     private let negNode: Node
     private let capacitance: Double
-    private let initialVoltage: Double
+
+    /// The initial voltage across the capacitor for transient analysis.
+    public let initialVoltage: Double
+
+    /// Whether this capacitor has an explicit initial voltage set.
+    public var hasInitialCondition: Bool {
+        initialVoltage != 0.0
+    }
 
     init(
         instance: Instance,

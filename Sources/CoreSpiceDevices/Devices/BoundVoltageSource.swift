@@ -56,4 +56,19 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
         // Linear device always converges.
         .converged
     }
+
+    public func breakpoints(in interval: ClosedRange<Double>) -> [Double] {
+        waveform.breakpoints(in: interval)
+    }
+
+    /// Stamp with a scaling factor for source stepping convergence aid.
+    ///
+    /// - Parameters:
+    ///   - stamper: The matrix stamper to use.
+    ///   - state: The current solution state.
+    ///   - factor: Scaling factor (0.0 to 1.0) applied to the source voltage.
+    public func stampDCScaled(into stamper: inout MatrixStamper, state: SolutionState, factor: Double) {
+        let scaledVoltage = dcVoltage * factor
+        stamper.stampVoltageSource(posNode: posNode, negNode: negNode, branch: branch, voltage: scaledVoltage)
+    }
 }

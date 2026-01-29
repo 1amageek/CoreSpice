@@ -134,8 +134,32 @@ public struct ACAnalysis: Analysis, Sendable {
             let currentRHS = rhsStorage.withLock { $0 }
 
             // Solve the complex linear system
-            try complexSolver.factorize(matrix: currentMatrix)
-            let solution = try complexSolver.solve(rhs: currentRHS)
+            do {
+                try complexSolver.factorize(matrix: currentMatrix)
+            } catch {
+                observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+                    id: analysisID,
+                    type: .ac,
+                    status: .failed,
+                    timestamp: Timestamp(),
+                    wallTime: Timestamp().elapsed(since: startTimestamp)
+                )))
+                throw AnalysisError.singularMatrix
+            }
+
+            let solution: [ComplexPair]
+            do {
+                solution = try complexSolver.solve(rhs: currentRHS)
+            } catch {
+                observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+                    id: analysisID,
+                    type: .ac,
+                    status: .failed,
+                    timestamp: Timestamp(),
+                    wallTime: Timestamp().elapsed(since: startTimestamp)
+                )))
+                throw AnalysisError.internalError("Complex solve failed at frequency \(freq) Hz: \(error)")
+            }
 
             // NaN/Inf check
             for val in solution {

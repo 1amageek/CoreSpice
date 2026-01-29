@@ -1,0 +1,332 @@
+import Foundation
+
+/// Unified waveform data container for simulation results.
+///
+/// `WaveformData` provides a format-agnostic representation of simulation
+/// waveforms that can be exported to various file formats (RAW, CSV, PSF).
+public struct WaveformData: Sendable {
+
+    /// Metadata about the simulation.
+    public let metadata: SimulationMetadata
+
+    /// The sweep variable (time, frequency, or sweep source).
+    public let sweepVariable: VariableDescriptor
+
+    /// The sweep values (x-axis data).
+    public let sweepValues: [Double]
+
+    /// Descriptors for all data variables.
+    public let variables: [VariableDescriptor]
+
+    /// Internal storage for the waveform data.
+    private let storage: WaveformStorage
+
+    /// Whether this waveform contains complex data.
+    public var isComplex: Bool {
+        storage.isComplex
+    }
+
+    /// The number of data points.
+    public var pointCount: Int {
+        sweepValues.count
+    }
+
+    /// The number of variables (excluding sweep).
+    public var variableCount: Int {
+        variables.count
+    }
+
+    /// Creates a real-valued waveform.
+    public init(
+        metadata: SimulationMetadata,
+        sweepVariable: VariableDescriptor,
+        sweepValues: [Double],
+        variables: [VariableDescriptor],
+        realData: [[Double]]
+    ) {
+        self.metadata = metadata
+        self.sweepVariable = sweepVariable
+        self.sweepValues = sweepValues
+        self.variables = variables
+        self.storage = .real(realData)
+    }
+
+    /// Creates a complex-valued waveform.
+    public init(
+        metadata: SimulationMetadata,
+        sweepVariable: VariableDescriptor,
+        sweepValues: [Double],
+        variables: [VariableDescriptor],
+        complexData: [[(real: Double, imag: Double)]]
+    ) {
+        self.metadata = metadata
+        self.sweepVariable = sweepVariable
+        self.sweepValues = sweepValues
+        self.variables = variables
+        self.storage = .complex(complexData)
+    }
+
+    // MARK: - Data Access
+
+    /// Gets a real value for a variable at a point index.
+    ///
+    /// For complex data, returns the real part.
+    public func realValue(variable: Int, point: Int) -> Double? {
+        storage.realValue(point: point, variable: variable)
+    }
+
+    /// Gets a complex value for a variable at a point index.
+    ///
+    /// For real data, returns the value with zero imaginary part.
+    public func complexValue(variable: Int, point: Int) -> (real: Double, imag: Double)? {
+        storage.complexValue(point: point, variable: variable)
+    }
+
+    /// Gets the magnitude of a complex value.
+    public func magnitude(variable: Int, point: Int) -> Double? {
+        guard let (r, i) = complexValue(variable: variable, point: point) else { return nil }
+        return (r * r + i * i).squareRoot()
+    }
+
+    /// Gets the phase of a complex value in radians.
+    public func phase(variable: Int, point: Int) -> Double? {
+        guard let (r, i) = complexValue(variable: variable, point: point) else { return nil }
+        return atan2(i, r)
+    }
+
+    /// Gets the magnitude in decibels.
+    public func magnitudeDB(variable: Int, point: Int) -> Double? {
+        guard let mag = magnitude(variable: variable, point: point) else { return nil }
+        return 20.0 * log10(max(mag, 1e-300))
+    }
+
+    /// Gets the phase in degrees.
+    public func phaseDegrees(variable: Int, point: Int) -> Double? {
+        guard let ph = phase(variable: variable, point: point) else { return nil }
+        return ph * 180.0 / .pi
+    }
+
+    // MARK: - Waveform Extraction
+
+    /// Returns a real waveform for the named variable.
+    public func realWaveform(named name: String) -> RealWaveform? {
+        guard let descriptor = variables.first(where: { $0.name == name }) else {
+            return nil
+        }
+        return realWaveform(at: descriptor.index)
+    }
+
+    /// Returns a real waveform at the given variable index.
+    public func realWaveform(at index: Int) -> RealWaveform? {
+        guard index < variables.count else { return nil }
+        var values = [Double]()
+        values.reserveCapacity(pointCount)
+        for point in 0..<pointCount {
+            guard let v = realValue(variable: index, point: point) else { return nil }
+            values.append(v)
+        }
+        return RealWaveform(
+            name: variables[index].name,
+            unit: variables[index].unit,
+            sweepValues: sweepValues,
+            values: values
+        )
+    }
+
+    /// Returns a complex waveform for the named variable.
+    public func complexWaveform(named name: String) -> ComplexWaveform? {
+        guard let descriptor = variables.first(where: { $0.name == name }) else {
+            return nil
+        }
+        return complexWaveform(at: descriptor.index)
+    }
+
+    /// Returns a complex waveform at the given variable index.
+    public func complexWaveform(at index: Int) -> ComplexWaveform? {
+        guard index < variables.count else { return nil }
+        var values = [(real: Double, imag: Double)]()
+        values.reserveCapacity(pointCount)
+        for point in 0..<pointCount {
+            guard let v = complexValue(variable: index, point: point) else { return nil }
+            values.append(v)
+        }
+        return ComplexWaveform(
+            name: variables[index].name,
+            unit: variables[index].unit,
+            sweepValues: sweepValues,
+            values: values
+        )
+    }
+
+    /// Finds a variable descriptor by name.
+    public func variable(named name: String) -> VariableDescriptor? {
+        variables.first { $0.name == name }
+    }
+
+    /// Finds the index of a variable by name.
+    public func variableIndex(named name: String) -> Int? {
+        variables.firstIndex { $0.name == name }
+    }
+
+    // MARK: - Bulk Data Access
+
+    /// Returns all real data as a 2D array [point][variable].
+    ///
+    /// Returns nil if this waveform contains complex data.
+    public var allRealData: [[Double]]? {
+        switch storage {
+        case .real(let data):
+            return data
+        case .complex:
+            return nil
+        }
+    }
+
+    /// Returns all complex data as a 2D array [point][(real, imag)].
+    ///
+    /// Returns nil if this waveform contains only real data.
+    public var allComplexData: [[(real: Double, imag: Double)]]? {
+        switch storage {
+        case .real:
+            return nil
+        case .complex(let data):
+            return data
+        }
+    }
+
+    /// Returns all real data, converting complex to real part if needed.
+    public var allRealValues: [[Double]] {
+        switch storage {
+        case .real(let data):
+            return data
+        case .complex(let data):
+            return data.map { $0.map { $0.real } }
+        }
+    }
+
+    /// Returns all complex data, converting real to complex if needed.
+    public var allComplexValues: [[(real: Double, imag: Double)]] {
+        switch storage {
+        case .real(let data):
+            return data.map { $0.map { (real: $0, imag: 0.0) } }
+        case .complex(let data):
+            return data
+        }
+    }
+}
+
+// MARK: - Waveform Types
+
+/// A real-valued waveform with sweep values.
+public struct RealWaveform: Sendable {
+
+    /// The waveform name.
+    public let name: String
+
+    /// The unit of the values.
+    public let unit: SIUnit
+
+    /// The sweep (x-axis) values.
+    public let sweepValues: [Double]
+
+    /// The waveform (y-axis) values.
+    public let values: [Double]
+
+    public init(
+        name: String,
+        unit: SIUnit,
+        sweepValues: [Double],
+        values: [Double]
+    ) {
+        self.name = name
+        self.unit = unit
+        self.sweepValues = sweepValues
+        self.values = values
+    }
+
+    /// Returns the value at the given sweep index.
+    public subscript(index: Int) -> Double {
+        values[index]
+    }
+
+    /// The number of points.
+    public var count: Int {
+        values.count
+    }
+
+    /// Returns (sweep, value) pairs.
+    public var points: [(sweep: Double, value: Double)] {
+        zip(sweepValues, values).map { ($0, $1) }
+    }
+}
+
+/// A complex-valued waveform with sweep values.
+public struct ComplexWaveform: Sendable {
+
+    /// The waveform name.
+    public let name: String
+
+    /// The unit of the values.
+    public let unit: SIUnit
+
+    /// The sweep (x-axis) values.
+    public let sweepValues: [Double]
+
+    /// The complex (y-axis) values.
+    public let values: [(real: Double, imag: Double)]
+
+    public init(
+        name: String,
+        unit: SIUnit,
+        sweepValues: [Double],
+        values: [(real: Double, imag: Double)]
+    ) {
+        self.name = name
+        self.unit = unit
+        self.sweepValues = sweepValues
+        self.values = values
+    }
+
+    /// Returns the complex value at the given sweep index.
+    public subscript(index: Int) -> (real: Double, imag: Double) {
+        values[index]
+    }
+
+    /// The number of points.
+    public var count: Int {
+        values.count
+    }
+
+    /// Returns the magnitude waveform.
+    public var magnitude: RealWaveform {
+        let mags = values.map { ($0.real * $0.real + $0.imag * $0.imag).squareRoot() }
+        return RealWaveform(
+            name: "\(name)_mag",
+            unit: unit,
+            sweepValues: sweepValues,
+            values: mags
+        )
+    }
+
+    /// Returns the magnitude in dB waveform.
+    public var magnitudeDB: RealWaveform {
+        let dbs = values.map { 20.0 * log10(max(($0.real * $0.real + $0.imag * $0.imag).squareRoot(), 1e-300)) }
+        return RealWaveform(
+            name: "\(name)_dB",
+            unit: .decibel,
+            sweepValues: sweepValues,
+            values: dbs
+        )
+    }
+
+    /// Returns the phase waveform in degrees.
+    public var phaseDegrees: RealWaveform {
+        let phases = values.map { atan2($0.imag, $0.real) * 180.0 / .pi }
+        return RealWaveform(
+            name: "\(name)_phase",
+            unit: .degree,
+            sweepValues: sweepValues,
+            values: phases
+        )
+    }
+}

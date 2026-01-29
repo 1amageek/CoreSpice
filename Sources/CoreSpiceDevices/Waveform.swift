@@ -25,6 +25,13 @@ public enum Waveform: Sendable {
     /// Piecewise-linear waveform.
     case pwl(points: [PWLPoint])
 
+    /// The DC operating point value (value at time 0).
+    ///
+    /// For DC analysis, this is the effective source value.
+    public var dcValue: Double {
+        value(at: 0.0)
+    }
+
     /// Evaluate the waveform at the given time.
     public func value(at time: Double) -> Double {
         switch self {

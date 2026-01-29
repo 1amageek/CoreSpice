@@ -33,6 +33,9 @@ public struct DeviceRegistry: Sendable {
         registry.register(CCCSDescriptor())
         registry.register(NMOSL1Descriptor())
         registry.register(PMOSL1Descriptor())
+        registry.register(DiodeDescriptor())
+        registry.register(NPNDescriptor())
+        registry.register(PNPDescriptor())
         return registry
     }
 }

@@ -6,14 +6,22 @@ import CoreSpiceIR
 /// AC: impedance `j * omega * L` (stamped via branch equation).
 /// Transient: companion model with equivalent resistance and
 /// history-dependent voltage source.
-public struct BoundInductor: BoundDevice, Sendable {
+public struct BoundInductor: BoundDevice, CurrentInitialConditionDevice, Sendable {
 
     public let instance: Instance
     private let posNode: Node
     private let negNode: Node
     private let inductance: Double
-    private let initialCurrent: Double
+
+    /// The initial current through the inductor for transient analysis.
+    public let initialCurrent: Double
+
     private let branch: Branch
+
+    /// Whether this inductor has an explicit initial current set.
+    public var hasInitialCondition: Bool {
+        initialCurrent != 0.0
+    }
 
     init(
         instance: Instance,

@@ -5,11 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Test Commands
 
 ```bash
-swift build                                              # Build all targets
-swift test --timeout 30                                  # Run all tests (always use timeout)
-swift test --filter CoreSpiceAnalysisTests --timeout 30  # Run one test module
-swift test --filter CoreSpiceIRTests.NodeTests --timeout 30  # Run one test suite
-swift test --filter CoreSpiceIRTests.groundNodeIsZero --timeout 30  # Run one test
+swift build                                          # Build all targets
+swift test                                           # Run all tests
+swift test --filter CoreSpiceAnalysisTests           # Run one test module
+swift test --filter CoreSpiceIRTests.NodeTests       # Run one test suite
+swift test --filter CoreSpiceIRTests.groundNodeIsZero  # Run one test
 ```
 
 Platform: macOS 26+, Swift 6.2. Uses Swift Testing framework (`@Suite`, `@Test`).
@@ -17,17 +17,27 @@ Platform: macOS 26+, Swift 6.2. Uses Swift Testing framework (`@Suite`, `@Test`)
 ## Module Dependency Graph
 
 ```
-SharedTypes (C)    CoreSpiceEvent (no deps)
-     │                    │
-     │              CoreSpiceIR
-     │              ╱          ╲
-     │    CoreSpiceDevices   CoreSpiceCompile
-     │         │                  │
-     ├─── CoreSpiceBackend        │
-     │         │                  │
-     │    CoreSpiceAnalysis ──────┘
-     │         │
-     │    CoreSpice (umbrella, re-exports all)
+SharedTypes (C)    CoreSpiceEvent (no deps)    CoreSpiceParsedIR (no deps)
+     │                    │                           │
+     │              CoreSpiceIR ──────────────────────┤
+     │              ╱          ╲                      │
+     │    CoreSpiceDevices   CoreSpiceCompile    CoreSpiceParser
+     │         │                  │                   │
+     ├─── CoreSpiceBackend        │            CoreSpiceParserSPICE
+     │         │                  │                   │
+     │    CoreSpiceAnalysis ──────┘            CoreSpiceLowering
+     │         │                                      │
+     │         ├──────── CoreSpiceWaveform ───────────┤
+     │         │              │                       │
+     │    CoreSpice      CoreSpiceExporter            │
+     │    (umbrella)          │                       │
+     │                   ┌────┴────┬──────────┐       │
+     │                   │         │          │       │
+     │              ExporterRAW ExporterCSV ExporterPSF│
+     │                   │         │          │       │
+     │                   └────┬────┴──────────┘       │
+     │                        │                       │
+     │                   CoreSpiceIO (umbrella, re-exports all I/O)
      │
      └─── PluginsPhotonic (depends on IR, Devices, Compile, Backend, Event, SharedTypes)
 ```
@@ -56,6 +66,33 @@ Every `BoundDevice` stamps into the Modified Nodal Analysis system through `Matr
 1. **DC**: Newton-Raphson with Gmin stepping → source stepping fallback chain.
 2. **AC**: DC operating point first, then complex frequency sweep `(G + jωC) * V = Is`.
 3. **Transient**: DC for t=0, then adaptive timestep with Backward Euler → Trapezoidal, LTE-based step control.
+
+### SPICE I/O Architecture
+
+The I/O system follows a compiler architecture pattern: **Frontend → IR → Backend**.
+
+**Input Pipeline:**
+```
+SPICE Source → SPICEParser → ParsedNetlist → NetlistLowering → CircuitIR
+```
+
+- **`NetlistParser`** protocol (`CoreSpiceParser`): Defines `parse(source:fileName:)`. Implementation: `SPICEParser`.
+- **`ParsedNetlist`** (`CoreSpiceParsedIR`): AST representation with components, models, subcircuits, analyses.
+- **`NetlistLowering`** (`CoreSpiceLowering`): Evaluates expressions, expands subcircuits, resolves models → `CircuitIR`.
+
+**Output Pipeline:**
+```
+AnalysisResult → WaveformData → WaveformExporter → File (.raw, .csv, .psf)
+```
+
+- **`WaveformData`** (`CoreSpiceWaveform`): Unified waveform IR with sweep values, variables, real/complex data.
+- **`WaveformExporter`** protocol (`CoreSpiceExporter`): Defines `export(data:to:configuration:)`. Implementations: `RAWExporter`, `CSVExporter`, `PSFExporter`.
+- **`ExportConfiguration`**: Variable filtering (wildcards), sweep range filtering, precision, compression.
+
+**Key Types:**
+- `ParsedExpression`: AST for parameter expressions (literals, identifiers, operators, functions).
+- `VariableDescriptor`: Metadata for waveform variables (name, unit, type).
+- `ParametricWaveformData`: Multi-run results with statistics (mean, stddev, percentiles).
 
 ### Photonic Plugin
 
