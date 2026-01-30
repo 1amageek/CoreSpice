@@ -12,13 +12,17 @@ using namespace metal;
 // SpiceComplex
 //
 // Double-precision complex number used by the SPICE simulation engine.
-// Metal shaders that need complex arithmetic operate on this type directly.
+// CPU only — Metal does not support double-precision floats.
+// GPU acceleration targets batch-level parallelism (Monte Carlo, sweeps),
+// not the inner MNA solver which requires double precision for convergence.
 // ---------------------------------------------------------------------------
 
+#ifndef __METAL_VERSION__
 typedef struct __attribute__((packed)) {
     double real;
     double imag;
 } SpiceComplex;
+#endif
 
 // ---------------------------------------------------------------------------
 // MZICoefficients

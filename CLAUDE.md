@@ -50,7 +50,7 @@ CoreSpice is a SPICE circuit simulator with a photonic MZI mesh plugin. The simu
 
 ### Key Protocols
 
-- **`Analysis`** (`CoreSpiceAnalysis`): Defines `run(plan:devices:solver:observer:cancellation:)`. Implementations: `DCAnalysis`, `ACAnalysis`, `TransientAnalysis`, `SweepAnalysis`.
+- **`Analysis`** (`CoreSpiceAnalysis`): Defines `run(plan:devices:solver:observer:cancellation:)`. Implementations: `DCAnalysis`, `ACAnalysis`, `TransientAnalysis`, `SweepAnalysis`, `TransferFunctionAnalysis`, `FourierAnalysis`, `SensitivityAnalysis`, `MonteCarloAnalysis`, `NoiseAnalysis`, `PoleZeroAnalysis`.
 - **`DeviceDescriptor`** (`CoreSpiceDevices`): Declares device ports/parameters and produces a `BoundDevice` via `bind(instance:context:)`.
 - **`BoundDevice`** (`CoreSpiceDevices`): Stamps device equations into the MNA matrix via `stampDC`, `stampAC`, `stampTransient`. Built-in: R, C, L, V/I sources, controlled sources, NMOS/PMOS Level 1.
 - **`LinearSolver`** / **`ComplexLinearSolver`** (`CoreSpiceCompile`): LU factorization and solve for real/complex sparse systems.
@@ -63,9 +63,15 @@ Every `BoundDevice` stamps into the Modified Nodal Analysis system through `Matr
 
 ### Analysis Pipeline
 
-1. **DC**: Newton-Raphson with Gmin stepping → source stepping fallback chain.
-2. **AC**: DC operating point first, then complex frequency sweep `(G + jωC) * V = Is`.
-3. **Transient**: DC for t=0, then adaptive timestep with Backward Euler → Trapezoidal, LTE-based step control.
+1. **DC** (`.dc`): Newton-Raphson with Gmin stepping → source stepping fallback chain.
+2. **AC** (`.ac`): DC operating point first, then complex frequency sweep `(G + jωC) * V = Is`.
+3. **Transient** (`.tran`): DC for t=0, then adaptive timestep with Backward Euler → Trapezoidal, LTE-based step control.
+4. **Transfer Function** (`.tf`): DC operating point → small-signal gain `V_out/V_in`, input impedance `Z_in`, output impedance `Z_out` via unit excitation.
+5. **Fourier** (`.fourier`): Transient simulation → DFT at fundamental frequency. Extracts harmonic magnitudes, phases, and THD.
+6. **Sensitivity** (`.sens`): Finite-difference perturbation of each device parameter. Runs N+1 DC solves (baseline + one per parameter). Reports absolute and normalized sensitivities.
+7. **Monte Carlo** (`.mc`): Repeated inner analysis with random parameter variations (Gaussian/uniform). Supports deterministic seeding. Collects per-run results and statistics.
+8. **Noise** (`.noise`): DC operating point → per-device noise contribution at each frequency → output-referred and input-referred spectral density. Integrated RMS noise over bandwidth.
+9. **Pole-Zero** (`.pz`): DC operating point → extract G/C matrices from AC stamps → generalized eigenvalue problem (LAPACK QZ) for poles/zeros. DC gain from LAPACK `dgesv_` dense solve of G matrix.
 
 ### SPICE I/O Architecture
 
