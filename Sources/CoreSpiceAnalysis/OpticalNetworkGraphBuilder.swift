@@ -2,6 +2,14 @@ import CoreSpiceCompile
 import CoreSpiceDevices
 import CoreSpiceIR
 
+/// Errors produced during optical network graph construction.
+public enum OpticalGraphError: Error, Sendable {
+    /// Multiple devices output to the same optical node.
+    case multipleProducers(opticalNodeId: Int, deviceIndices: [Int])
+    /// The optical network contains a cycle and cannot be topologically sorted.
+    case cyclicDependency(deviceIndicesInCycle: [Int])
+}
+
 /// Builds an `OpticalNetworkGraph` from bound devices by inspecting
 /// their optical port declarations.
 ///
@@ -19,10 +27,14 @@ public struct OpticalNetworkGraphBuilder {
     /// Builds an optical network graph from the circuit IR and bound devices.
     ///
     /// Returns `nil` if the circuit has no optical nodes or no optical devices.
+    ///
+    /// - Throws: `OpticalGraphError.multipleProducers` if two or more devices
+    ///   output to the same optical node, or `OpticalGraphError.cyclicDependency`
+    ///   if the optical network contains a feedback loop.
     public func build(
         from ir: CircuitIR,
         devices: [any BoundDevice]
-    ) -> OpticalNetworkGraph? {
+    ) throws -> OpticalNetworkGraph? {
         guard !ir.opticalNodes.isEmpty else { return nil }
 
         // Collect optical port info from each device
@@ -58,10 +70,18 @@ public struct OpticalNetworkGraphBuilder {
 
         guard !deviceInfos.isEmpty else { return nil }
 
-        // Build dependency graph: optical node → index into deviceInfos that produces it
+        // Build dependency graph: optical node → index into deviceInfos that produces it.
+        // Detect multiple producers for the same optical node.
         var nodeProducer: [Int: Int] = [:]  // opticalNode.id → deviceInfos index
         for (i, info) in deviceInfos.enumerated() {
             for node in info.outputNodes {
+                if let existingProducer = nodeProducer[node.id] {
+                    throw OpticalGraphError.multipleProducers(
+                        opticalNodeId: node.id,
+                        deviceIndices: [deviceInfos[existingProducer].deviceIndex,
+                                        info.deviceIndex]
+                    )
+                }
                 nodeProducer[node.id] = i
             }
         }
@@ -100,6 +120,14 @@ public struct OpticalNetworkGraphBuilder {
                     queue.append(neighbor)
                 }
             }
+        }
+
+        // Detect cycles: if not all devices were sorted, a cycle exists
+        if sorted.count < count {
+            let unsortedIndices = (0..<count)
+                .filter { idx in !sorted.contains(where: { $0.deviceIndex == deviceInfos[idx].deviceIndex }) }
+                .map { deviceInfos[$0].deviceIndex }
+            throw OpticalGraphError.cyclicDependency(deviceIndicesInCycle: unsortedIndices)
         }
 
         // Build evaluation entries

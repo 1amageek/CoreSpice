@@ -39,7 +39,7 @@ struct OpticalPipelineTests {
 
         // Build optical network graph from bound devices
         let graphBuilder = OpticalNetworkGraphBuilder()
-        if let graph = graphBuilder.build(from: ir, devices: devices) {
+        if let graph = try graphBuilder.build(from: ir, devices: devices) {
             plan = ExecutionPlan(
                 ir: plan.ir,
                 topology: plan.topology,
@@ -409,6 +409,149 @@ struct OpticalPipelineTests {
         let vWG = abs(wgResult.voltage(at: pdWG))
         #expect(vDirect > 0, "Direct link PD should have voltage")
         #expect(vWG < vDirect, "Waveguide should attenuate, reducing PD voltage")
+    }
+
+    // MARK: - GraphBuilder Validation
+
+    @Test("GraphBuilder rejects multiple producers for same optical node")
+    func graphBuilderRejectsMultipleProducers() throws {
+        // Two lasers both output to the same optical node
+        var netlist = Netlist()
+        let _ = netlist.branch()  // V1
+        let _ = netlist.branch()  // V2
+        try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["a1", "0"],
+                                parameters: ["v": .real(1.5)])
+        try netlist.addInstance(name: "V2", typeName: "vsource", nodes: ["a2", "0"],
+                                parameters: ["v": .real(1.5)])
+        try netlist.addInstance(name: "LD1", typeName: "laser", nodes: ["a1", "0"],
+                                opticalNodes: ["shared_opt"],
+                                parameters: ["ith": .real(20e-3)])
+        try netlist.addInstance(name: "LD2", typeName: "laser", nodes: ["a2", "0"],
+                                opticalNodes: ["shared_opt"],
+                                parameters: ["ith": .real(20e-3)])
+        try netlist.addInstance(name: "PD1", typeName: "photodiode", nodes: ["pd", "0"],
+                                opticalNodes: ["shared_opt"],
+                                parameters: ["resp": .real(0.8)])
+        try netlist.addInstance(name: "RL", typeName: "resistor", nodes: ["pd", "0"],
+                                parameters: ["r": .real(1e3)])
+
+        #expect(throws: OpticalGraphError.self) {
+            try compileWithOptics(netlist)
+        }
+    }
+
+    @Test("GraphBuilder rejects cyclic optical topology")
+    func graphBuilderRejectsCycle() throws {
+        // Create a cycle: WG1 out→in, WG2 out→in forming a loop
+        // Device A: in=opt1, out=opt2
+        // Device B: in=opt2, out=opt1  → cycle
+        var netlist = Netlist()
+        let _ = netlist.branch()
+        try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["a", "0"],
+                                parameters: ["v": .real(1.5)])
+        // Waveguide A: opt1 → opt2
+        try netlist.addInstance(name: "WG_A", typeName: "waveguide", nodes: [],
+                                opticalNodes: ["opt1", "opt2"],
+                                parameters: ["length": .real(0.01), "loss": .real(0.5)])
+        // Waveguide B: opt2 → opt1 (creates cycle)
+        try netlist.addInstance(name: "WG_B", typeName: "waveguide", nodes: [],
+                                opticalNodes: ["opt2", "opt1"],
+                                parameters: ["length": .real(0.01), "loss": .real(0.5)])
+
+        #expect(throws: OpticalGraphError.self) {
+            try compileWithOptics(netlist)
+        }
+    }
+
+    // MARK: - Noise with Optical State
+
+    @Test("Photodiode shot noise includes optical power contribution")
+    func photodiodeShotNoiseWithOpticalPower() async throws {
+        // Laser → PD + R_load
+        // Verify noise analysis uses actual optical power, not zero
+        var netlist = Netlist()
+        let _ = netlist.branch()  // V1
+        let pdOut = netlist.node("pd_out")
+
+        try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["vcc", "0"],
+                                parameters: ["v": .real(1.5)])
+        try netlist.addInstance(name: "RS", typeName: "resistor", nodes: ["vcc", "la"],
+                                parameters: ["r": .real(10.0)])
+        try netlist.addInstance(name: "LD1", typeName: "laser", nodes: ["la", "0"],
+                                opticalNodes: ["opt"],
+                                parameters: ["ith": .real(20e-3), "slope_eff": .real(0.3),
+                                              "is": .real(1e-14), "n": .real(2.0), "rs": .real(5.0)])
+        try netlist.addInstance(name: "PD1", typeName: "photodiode", nodes: ["pd_out", "0"],
+                                opticalNodes: ["opt"],
+                                parameters: ["resp": .real(0.8), "idark": .real(1e-9),
+                                              "is": .real(1e-14)])
+        try netlist.addInstance(name: "RL", typeName: "resistor", nodes: ["pd_out", "0"],
+                                parameters: ["r": .real(1e3)])
+
+        let (plan, devices) = try compileWithOptics(netlist)
+
+        let noiseAnalysis = NoiseAnalysis(
+            outputNode: pdOut,
+            sweep: FrequencySweep.single(1e6)
+        )
+        let solver = SparseLUSolver()
+        let token = CancellationToken()
+        let noiseResult = try await noiseAnalysis.run(
+            plan: plan, devices: devices, solver: solver,
+            observer: nil, cancellation: token
+        )
+
+        // Find PD shot noise contribution
+        let pdShot = noiseResult.deviceContributions.first { $0.noiseName.contains("PD1") }
+        #expect(pdShot != nil, "Should have PD1 noise contribution")
+
+        if let pdShot = pdShot {
+            // Shot noise with optical power: 2q(R×P + I_dark)
+            // With P > 0, this should be significantly larger than 2q×I_dark alone
+            let q = 1.602176634e-19
+            let darkOnlyShotNoise = 2.0 * q * 1e-9  // 2q × I_dark = ~3.2e-28 A²/Hz
+            // The actual shot noise should include R×P contribution
+            // and be much larger than dark-only
+            #expect(pdShot.spectralDensity[0] > darkOnlyShotNoise * 10,
+                    "PD shot noise with optical power (\(pdShot.spectralDensity[0])) should be >> dark-only (\(darkOnlyShotNoise))")
+        }
+    }
+
+    // MARK: - StandardCompiler Pipeline Integration
+
+    @Test("StandardCompiler + bind + graph builder produces valid optical network")
+    func standardCompilerPipelineIntegration() throws {
+        // Verify the standard compile → bind → graph build pipeline
+        // produces a non-nil optical network for circuits with optical devices.
+        // This is the bug that Finding 1 identified: StandardCompiler alone
+        // does NOT set opticalNetwork, so post-binding integration is required.
+        var netlist = Netlist()
+        let _ = netlist.branch()
+        try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["a", "0"],
+                                parameters: ["v": .real(1.5)])
+        try netlist.addInstance(name: "LD1", typeName: "laser", nodes: ["a", "0"],
+                                opticalNodes: ["opt"],
+                                parameters: ["ith": .real(20e-3)])
+        try netlist.addInstance(name: "PD1", typeName: "photodiode", nodes: ["pd", "0"],
+                                opticalNodes: ["opt"],
+                                parameters: ["resp": .real(0.8)])
+        try netlist.addInstance(name: "RL", typeName: "resistor", nodes: ["pd", "0"],
+                                parameters: ["r": .real(1e3)])
+
+        let ir = try netlist.build()
+        let compiler = StandardCompiler()
+        let compiledPlan = try compiler.compile(ir: ir)
+
+        // StandardCompiler alone should NOT set opticalNetwork
+        #expect(compiledPlan.opticalNetwork == nil,
+                "StandardCompiler should not set opticalNetwork (by design)")
+
+        // After binding + graph builder, opticalNetwork should be set
+        let (fullPlan, _) = try compileWithOptics(netlist)
+        #expect(fullPlan.opticalNetwork != nil,
+                "Post-binding graph builder should produce optical network")
+        #expect(fullPlan.opticalNetwork!.evaluationOrder.count == 2,
+                "Should have laser + PD in evaluation order")
     }
 
     // MARK: - Regression

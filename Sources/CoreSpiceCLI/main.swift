@@ -297,9 +297,12 @@ struct Session {
 
         let ir = try SPICEIO.lower(netlist, configuration: .default)
         let compiler = StandardCompiler()
-        let compiled = try compiler.compile(ir: ir)
+        var compiled = try compiler.compile(ir: ir)
 
         let bound = try bindDevices(plan: compiled, overrideSource: nil)
+
+        // Build optical network graph if circuit contains optical devices
+        compiled = try Self.integrateOpticalNetwork(plan: compiled, devices: bound)
 
         self.plan = compiled
         self.devices = bound
@@ -410,9 +413,12 @@ struct Session {
                 bound.append(try desc.bind(instance: instance, context: &context))
             }
 
+            // Build optical network graph for this Monte Carlo iteration
+            let mcPlan = try Self.integrateOpticalNetwork(plan: compiled, devices: bound)
+
             let waveform = try await Self.runParsedAnalysis(
                 inner,
-                plan: compiled,
+                plan: mcPlan,
                 devices: bound,
                 registry: registry
             )
@@ -577,6 +583,26 @@ struct Session {
         }
 
         return devices
+    }
+
+    /// Builds the optical network graph from bound devices and returns
+    /// an updated execution plan. If no optical devices are present,
+    /// returns the original plan unchanged.
+    private static func integrateOpticalNetwork(
+        plan: ExecutionPlan,
+        devices: [any BoundDevice]
+    ) throws -> ExecutionPlan {
+        let graphBuilder = OpticalNetworkGraphBuilder()
+        guard let graph = try graphBuilder.build(from: plan.ir, devices: devices) else {
+            return plan
+        }
+        return ExecutionPlan(
+            ir: plan.ir,
+            topology: plan.topology,
+            matrixStructure: plan.matrixStructure,
+            deviceNames: plan.deviceNames,
+            opticalNetwork: graph
+        )
     }
 }
 

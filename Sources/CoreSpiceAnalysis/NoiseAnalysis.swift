@@ -101,8 +101,9 @@ public struct NoiseAnalysis: Analysis, Sendable {
             // Pre-populate trackers from first frequency point
             if let firstFreq = frequencies.first {
                 for noisyDevice in noisyDevices {
-                    let contributions = noisyDevice.noiseContributions(
-                        state: dcState, frequency: firstFreq
+                    let contributions = noiseContributions(
+                        for: noisyDevice, state: dcState,
+                        opticalState: dcOpticalState, frequency: firstFreq
                     )
                     for source in contributions {
                         sourceTrackers.append(SourceTracker(
@@ -173,8 +174,9 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 var trackerIdx = 0
 
                 for noisyDevice in noisyDevices {
-                    let contributions = noisyDevice.noiseContributions(
-                        state: dcState, frequency: freq
+                    let contributions = noiseContributions(
+                        for: noisyDevice, state: dcState,
+                        opticalState: dcOpticalState, frequency: freq
                     )
 
                     for source in contributions {
@@ -283,6 +285,26 @@ public struct NoiseAnalysis: Analysis, Sendable {
     }
 
     // MARK: - Private
+
+    /// Returns noise contributions for a device, using optical state when available.
+    ///
+    /// If the device conforms to `OptoelectronicDevice`, the optical-aware
+    /// overload is called so that optical-power-dependent noise (e.g.,
+    /// photodiode shot noise `2q(I_photo + I_dark)`) uses the actual
+    /// DC optical power rather than zero.
+    private func noiseContributions(
+        for device: any NoisyDevice,
+        state: SolutionState,
+        opticalState: OpticalState,
+        frequency: Double
+    ) -> [NoiseSource] {
+        if let optoDevice = device as? OptoelectronicDevice {
+            return optoDevice.noiseContributions(
+                state: state, opticalState: opticalState, frequency: frequency
+            )
+        }
+        return device.noiseContributions(state: state, frequency: frequency)
+    }
 
     /// Integrates noise spectral density over frequency using the trapezoidal rule.
     /// Returns RMS noise in Vrms.
