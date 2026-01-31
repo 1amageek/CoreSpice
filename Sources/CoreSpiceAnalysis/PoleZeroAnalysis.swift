@@ -2,7 +2,6 @@ import CoreSpiceCompile
 import CoreSpiceDevices
 import CoreSpiceIR
 import CoreSpiceEvent
-import Synchronization
 import Foundation
 import Accelerate
 
@@ -208,23 +207,15 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
         dim: Int,
         variableMap: [MNAVariable: Int]
     ) -> (g: [[Double]], c: [[Double]]) {
-        let matrixStorage = Mutex(ComplexSparseMatrix(structure: plan.matrixStructure))
-        let rhsStorage = Mutex([ComplexPair](repeating: ComplexPair(), count: dim))
+        var matrix = ComplexSparseMatrix(structure: plan.matrixStructure)
 
         var stamper = ComplexMatrixStamper(
             variableMap: variableMap,
             stampMatrix: { row, col, re, im in
-                matrixStorage.withLock {
-                    $0.addValue(row: row, col: col, value: ComplexPair(real: re, imag: im))
-                }
+                matrix.addValue(row: row, col: col, value: ComplexPair(real: re, imag: im))
             },
-            stampRHS: { row, re, im in
-                rhsStorage.withLock { rhs in
-                    rhs[row] = ComplexPair(
-                        real: rhs[row].real + re,
-                        imag: rhs[row].imag + im
-                    )
-                }
+            stampRHS: { _, _, _ in
+                // RHS not needed for G/C extraction
             }
         )
 
@@ -234,8 +225,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
             device.stampAC(into: &stamper, state: dcState, omega: omega)
         }
 
-        let complexMatrix = matrixStorage.withLock { $0 }
-        let dense = complexMatrix.toDense()
+        let dense = matrix.toDense()
 
         // Separate real (G) and imaginary (C) parts
         var g = Array(repeating: Array(repeating: 0.0, count: dim), count: dim)

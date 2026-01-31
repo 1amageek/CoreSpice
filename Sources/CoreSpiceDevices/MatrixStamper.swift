@@ -4,16 +4,20 @@ import CoreSpiceIR
 ///
 /// Devices call the stamp helpers during analysis setup to contribute
 /// their linearised element equations to the global system.
-public struct MatrixStamper: Sendable {
+///
+/// `MatrixStamper` is intentionally **not** `Sendable`. Stamping is always
+/// single-threaded, so the closures can capture mutable local state directly
+/// without synchronisation overhead.
+public struct MatrixStamper {
 
-    public var stampMatrix: @Sendable (_ row: Int, _ col: Int, _ value: Double) -> Void
-    public var stampRHS: @Sendable (_ row: Int, _ value: Double) -> Void
+    public var stampMatrix: (_ row: Int, _ col: Int, _ value: Double) -> Void
+    public var stampRHS: (_ row: Int, _ value: Double) -> Void
     private let variableMap: [MNAVariable: Int]
 
     public init(
         variableMap: [MNAVariable: Int],
-        stampMatrix: @escaping @Sendable (_ row: Int, _ col: Int, _ value: Double) -> Void,
-        stampRHS: @escaping @Sendable (_ row: Int, _ value: Double) -> Void
+        stampMatrix: @escaping (_ row: Int, _ col: Int, _ value: Double) -> Void,
+        stampRHS: @escaping (_ row: Int, _ value: Double) -> Void
     ) {
         self.variableMap = variableMap
         self.stampMatrix = stampMatrix

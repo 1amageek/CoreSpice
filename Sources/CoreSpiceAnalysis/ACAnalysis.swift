@@ -2,7 +2,6 @@ import CoreSpiceCompile
 import CoreSpiceDevices
 import CoreSpiceIR
 import CoreSpiceEvent
-import Synchronization
 import Foundation
 
 /// AC small-signal frequency-domain analysis.
@@ -71,11 +70,11 @@ public struct ACAnalysis: Analysis, Sendable {
         // Phase 2: AC frequency sweep
         var complexSolver = ComplexSparseLUSolver()
         var solutions: [[ComplexPair]] = []
+        solutions.reserveCapacity(frequencies.count)
 
-        // Use Mutex-protected storage for the @Sendable closures
-        // required by ComplexMatrixStamper.
-        let matrixStorage = Mutex(ComplexSparseMatrix(structure: plan.matrixStructure))
-        let rhsStorage = Mutex([ComplexPair](repeating: ComplexPair(), count: dim))
+        var matrix = ComplexSparseMatrix(structure: plan.matrixStructure)
+        var rhs = [ComplexPair](repeating: ComplexPair(), count: dim)
+        var solutionBuf = [ComplexPair](repeating: ComplexPair(), count: dim)
 
         for (idx, freq) in frequencies.enumerated() {
             if cancellation.isCancelled {
@@ -93,28 +92,22 @@ public struct ACAnalysis: Analysis, Sendable {
             )))
 
             // Clear the complex system
-            matrixStorage.withLock { $0.clear() }
-            rhsStorage.withLock { localRhs in
-                for i in 0..<dim {
-                    localRhs[i] = ComplexPair()
-                }
+            matrix.clear()
+            for i in 0..<dim {
+                rhs[i] = ComplexPair()
             }
 
             // Stamp AC model: (G + j*omega*C) * V = I_s
             var stamper = ComplexMatrixStamper(
                 variableMap: variableMap,
                 stampMatrix: { row, col, re, im in
-                    matrixStorage.withLock {
-                        $0.addValue(row: row, col: col, value: ComplexPair(real: re, imag: im))
-                    }
+                    matrix.addValue(row: row, col: col, value: ComplexPair(real: re, imag: im))
                 },
                 stampRHS: { row, re, im in
-                    rhsStorage.withLock { localRhs in
-                        localRhs[row] = ComplexPair(
-                            real: localRhs[row].real + re,
-                            imag: localRhs[row].imag + im
-                        )
-                    }
+                    rhs[row] = ComplexPair(
+                        real: rhs[row].real + re,
+                        imag: rhs[row].imag + im
+                    )
                 }
             )
 
@@ -123,19 +116,13 @@ public struct ACAnalysis: Analysis, Sendable {
             }
 
             // Add Gmin to diagonal for numerical grounding
-            matrixStorage.withLock { mat in
-                for i in 0..<dim {
-                    mat.addValue(row: i, col: i, value: ComplexPair(real: dcConfig.gmin, imag: 0))
-                }
+            for i in 0..<dim {
+                matrix.addValue(row: i, col: i, value: ComplexPair(real: dcConfig.gmin, imag: 0))
             }
-
-            // Extract for solving
-            let currentMatrix = matrixStorage.withLock { $0 }
-            let currentRHS = rhsStorage.withLock { $0 }
 
             // Solve the complex linear system
             do {
-                try complexSolver.factorize(matrix: currentMatrix)
+                try complexSolver.factorize(matrix: matrix)
             } catch {
                 observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                     id: analysisID,
@@ -147,9 +134,8 @@ public struct ACAnalysis: Analysis, Sendable {
                 throw AnalysisError.singularMatrix
             }
 
-            let solution: [ComplexPair]
             do {
-                solution = try complexSolver.solve(rhs: currentRHS)
+                try complexSolver.solve(rhs: rhs, into: &solutionBuf)
             } catch {
                 observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                     id: analysisID,
@@ -162,7 +148,7 @@ public struct ACAnalysis: Analysis, Sendable {
             }
 
             // NaN/Inf check
-            for val in solution {
+            for val in solutionBuf {
                 if val.real.isNaN || val.real.isInfinite ||
                    val.imag.isNaN || val.imag.isInfinite {
                     let code: DiagnosticCode = (val.real.isNaN || val.imag.isNaN)
@@ -178,7 +164,7 @@ public struct ACAnalysis: Analysis, Sendable {
                 }
             }
 
-            solutions.append(solution)
+            solutions.append(solutionBuf)
 
             observer?.emit(.sweepPointFinished(SweepPointResultInfo(
                 id: analysisID,

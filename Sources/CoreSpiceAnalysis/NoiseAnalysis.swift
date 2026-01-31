@@ -2,7 +2,6 @@ import CoreSpiceCompile
 import CoreSpiceDevices
 import CoreSpiceIR
 import CoreSpiceEvent
-import Synchronization
 import Foundation
 
 /// Noise (.noise) analysis.
@@ -118,8 +117,12 @@ public struct NoiseAnalysis: Analysis, Sendable {
 
             // Phase 2: Frequency sweep
             var complexSolver = ComplexSparseLUSolver()
-            let matrixStorage = Mutex(ComplexSparseMatrix(structure: plan.matrixStructure))
-            let rhsStorage = Mutex([ComplexPair](repeating: ComplexPair(), count: dim))
+            var matrix = ComplexSparseMatrix(structure: plan.matrixStructure)
+            var rhs = [ComplexPair](repeating: ComplexPair(), count: dim)
+
+            // Pre-allocate buffers for the inner noise solve loop
+            var noiseRHS = [ComplexPair](repeating: ComplexPair(), count: dim)
+            var noiseSolutionBuf = [ComplexPair](repeating: ComplexPair(), count: dim)
 
             for (freqIdx, freq) in frequencies.enumerated() {
                 if cancellation.isCancelled {
@@ -129,25 +132,19 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 let omega = 2.0 * .pi * freq
 
                 // Build AC matrix Y = G + jωC
-                matrixStorage.withLock { $0.clear() }
-                rhsStorage.withLock { rhs in
-                    for i in 0..<dim { rhs[i] = ComplexPair() }
-                }
+                matrix.clear()
+                for i in 0..<dim { rhs[i] = ComplexPair() }
 
                 var stamper = ComplexMatrixStamper(
                     variableMap: variableMap,
                     stampMatrix: { row, col, re, im in
-                        matrixStorage.withLock {
-                            $0.addValue(row: row, col: col, value: ComplexPair(real: re, imag: im))
-                        }
+                        matrix.addValue(row: row, col: col, value: ComplexPair(real: re, imag: im))
                     },
                     stampRHS: { row, re, im in
-                        rhsStorage.withLock { rhs in
-                            rhs[row] = ComplexPair(
-                                real: rhs[row].real + re,
-                                imag: rhs[row].imag + im
-                            )
-                        }
+                        rhs[row] = ComplexPair(
+                            real: rhs[row].real + re,
+                            imag: rhs[row].imag + im
+                        )
                     }
                 )
 
@@ -156,15 +153,12 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 }
 
                 // Add Gmin to diagonal
-                matrixStorage.withLock { mat in
-                    for i in 0..<dim {
-                        mat.addValue(row: i, col: i, value: ComplexPair(real: dcConfig.gmin, imag: 0))
-                    }
+                for i in 0..<dim {
+                    matrix.addValue(row: i, col: i, value: ComplexPair(real: dcConfig.gmin, imag: 0))
                 }
 
-                let acMatrix = matrixStorage.withLock { $0 }
                 do {
-                    try complexSolver.factorize(matrix: acMatrix)
+                    try complexSolver.factorize(matrix: matrix)
                 } catch {
                     throw AnalysisError.singularMatrix
                 }
@@ -179,8 +173,8 @@ public struct NoiseAnalysis: Analysis, Sendable {
                     )
 
                     for source in contributions {
-                        // Create RHS with unit current injection at noise source nodes
-                        var noiseRHS = [ComplexPair](repeating: ComplexPair(), count: dim)
+                        // Clear and set RHS with unit current injection at noise source nodes
+                        for i in 0..<dim { noiseRHS[i] = ComplexPair() }
 
                         let posIdx = variableMap[.nodeVoltage(source.positiveNode)]
                         let negIdx = variableMap[.nodeVoltage(source.negativeNode)]
@@ -193,9 +187,8 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         }
 
                         // Solve for transfer function: Y * v = i_noise
-                        let noiseSolution: [ComplexPair]
                         do {
-                            noiseSolution = try complexSolver.solve(rhs: noiseRHS)
+                            try complexSolver.solve(rhs: noiseRHS, into: &noiseSolutionBuf)
                         } catch {
                             throw AnalysisError.internalError(
                                 "Failed to solve noise transfer function: \(error)"
@@ -203,8 +196,8 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         }
 
                         // Transfer function H(f) = V_out for unit current injection
-                        let hReal = noiseSolution[outputIndex].real
-                        let hImag = noiseSolution[outputIndex].imag
+                        let hReal = noiseSolutionBuf[outputIndex].real
+                        let hImag = noiseSolutionBuf[outputIndex].imag
                         let hMagSquared = hReal * hReal + hImag * hImag
 
                         // Output noise contribution = |H(f)|² × S_n(f)

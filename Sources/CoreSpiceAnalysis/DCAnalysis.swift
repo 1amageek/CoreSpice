@@ -54,6 +54,10 @@ public struct DCAnalysis: Analysis, Sendable {
         )))
 
         do {
+            // Share one solver instance across all phases so that
+            // the SymbolicAnalysis cache and workspace buffers are reused.
+            var mutableSolver = solver
+
             // Phase 1: Direct Newton-Raphson
             let result: DCResult
             do {
@@ -62,7 +66,7 @@ public struct DCAnalysis: Analysis, Sendable {
                     initialGuess: [Double](repeating: 0, count: dim),
                     plan: plan,
                     devices: devices,
-                    solver: solver,
+                    solver: &mutableSolver,
                     variableMap: variableMap,
                     observer: observer,
                     analysisID: analysisID,
@@ -76,7 +80,7 @@ public struct DCAnalysis: Analysis, Sendable {
                     let stepped = try solveWithGminStepping(
                         plan: plan,
                         devices: devices,
-                        solver: solver,
+                        solver: &mutableSolver,
                         variableMap: variableMap,
                         observer: observer,
                         analysisID: analysisID,
@@ -88,7 +92,7 @@ public struct DCAnalysis: Analysis, Sendable {
                     result = try solveWithSourceStepping(
                         plan: plan,
                         devices: devices,
-                        solver: solver,
+                        solver: &mutableSolver,
                         variableMap: variableMap,
                         observer: observer,
                         analysisID: analysisID,
@@ -137,7 +141,7 @@ public struct DCAnalysis: Analysis, Sendable {
         initialGuess: [Double],
         plan: ExecutionPlan,
         devices: [any BoundDevice],
-        solver: any LinearSolver,
+        solver: inout any LinearSolver,
         variableMap: [MNAVariable: Int],
         observer: EventDispatcher?,
         analysisID: AnalysisID,
@@ -145,7 +149,6 @@ public struct DCAnalysis: Analysis, Sendable {
     ) throws -> DCResult {
         var matrix = SparseMatrix(structure: plan.matrixStructure)
         var rhs = [Double](repeating: 0, count: plan.topology.dimension)
-        var mutableSolver = solver
 
         let nr = NewtonRaphsonSolver(config: config)
         let result = try nr.solve(
@@ -154,7 +157,7 @@ public struct DCAnalysis: Analysis, Sendable {
             rhs: &rhs,
             devices: devices,
             variableMap: variableMap,
-            solver: &mutableSolver,
+            solver: &solver,
             stampFunction: { stamper, state in
                 for device in devices {
                     device.stampDC(into: &stamper, state: state)
@@ -175,7 +178,7 @@ public struct DCAnalysis: Analysis, Sendable {
     private func solveWithGminStepping(
         plan: ExecutionPlan,
         devices: [any BoundDevice],
-        solver: any LinearSolver,
+        solver: inout any LinearSolver,
         variableMap: [MNAVariable: Int],
         observer: EventDispatcher?,
         analysisID: AnalysisID,
@@ -194,7 +197,7 @@ public struct DCAnalysis: Analysis, Sendable {
                 initialGuess: x,
                 plan: plan,
                 devices: devices,
-                solver: solver,
+                solver: &solver,
                 variableMap: variableMap,
                 observer: observer,
                 analysisID: analysisID,
@@ -214,7 +217,7 @@ public struct DCAnalysis: Analysis, Sendable {
     private func solveWithSourceStepping(
         plan: ExecutionPlan,
         devices: [any BoundDevice],
-        solver: any LinearSolver,
+        solver: inout any LinearSolver,
         variableMap: [MNAVariable: Int],
         observer: EventDispatcher?,
         analysisID: AnalysisID,
@@ -223,12 +226,10 @@ public struct DCAnalysis: Analysis, Sendable {
         let dim = plan.topology.dimension
         var x = [Double](repeating: 0, count: dim)
         var totalIterations = 0
+        var matrix = SparseMatrix(structure: plan.matrixStructure)
+        var rhs = [Double](repeating: 0, count: dim)
 
         for factor in sourceStepping.sourceFactors() {
-            var matrix = SparseMatrix(structure: plan.matrixStructure)
-            var rhs = [Double](repeating: 0, count: dim)
-            var mutableSolver = solver
-
             let nr = NewtonRaphsonSolver(config: config)
             let result = try nr.solve(
                 initialGuess: x,
@@ -236,7 +237,7 @@ public struct DCAnalysis: Analysis, Sendable {
                 rhs: &rhs,
                 devices: devices,
                 variableMap: variableMap,
-                solver: &mutableSolver,
+                solver: &solver,
                 stampFunction: { stamper, state in
                     // Stamp each device, applying source scaling to independent sources
                     for device in devices {

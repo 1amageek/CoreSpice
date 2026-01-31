@@ -2,7 +2,6 @@ import CoreSpiceCompile
 import CoreSpiceDevices
 import CoreSpiceIR
 import CoreSpiceEvent
-import Synchronization
 
 /// Transfer function (.tf) analysis.
 ///
@@ -90,14 +89,13 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
             }
 
             // Phase 2: Build the linearized G matrix at the operating point
-            let matrixStorage = Mutex(SparseMatrix(structure: plan.matrixStructure))
-            let rhsStorage = Mutex([Double](repeating: 0, count: dim))
+            var gMatrix = SparseMatrix(structure: plan.matrixStructure)
 
             // Stamp all devices at the operating point
             var stamper = MatrixStamper(
                 variableMap: variableMap,
                 stampMatrix: { row, col, val in
-                    matrixStorage.withLock { $0.addValue(row: row, col: col, value: val) }
+                    gMatrix.addValue(row: row, col: col, value: val)
                 },
                 stampRHS: { _, _ in
                     // Discard RHS contributions from device stamps.
@@ -110,13 +108,9 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
             }
 
             // Add Gmin to diagonal for numerical stability
-            matrixStorage.withLock { mat in
-                for i in 0..<dim {
-                    mat.addValue(row: i, col: i, value: dcConfig.gmin)
-                }
+            for i in 0..<dim {
+                gMatrix.addValue(row: i, col: i, value: dcConfig.gmin)
             }
-
-            let gMatrix = matrixStorage.withLock { $0 }
 
             // Phase 3: Factor the matrix
             var mutableSolver = solver

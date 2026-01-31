@@ -91,13 +91,26 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             // Initialize state
             var currentTime: Double = 0.0
-            var currentSolution = initialSolution
-            var previousSolution = initialSolution
-            var twoPreviousSolution: [Double]? = nil
 
-            // Saved results
+            // 3-buffer rotation: avoids allocation/deallocation per timestep.
+            // currentBuf/previousBuf/twoPreviousBuf are swapped (O(1)) instead
+            // of copied (O(n)) when advancing timesteps.
+            var currentBuf = initialSolution
+            var previousBuf = [Double](repeating: 0, count: dim)
+            var twoPreviousBuf = [Double](repeating: 0, count: dim)
+            var hasTwoPrevious = false
+            // Initialize previousBuf to initialSolution
+            for i in 0..<dim { previousBuf[i] = initialSolution[i] }
+
+            // Saved results (pre-allocate estimated capacity)
+            let estimatedSteps = max(
+                Int(config.stopTime / (config.initialTimeStep ?? config.maxTimeStep / 10.0)),
+                64
+            )
             var timePoints: [Double] = [0.0]
-            var solutions: [[Double]] = [currentSolution]
+            timePoints.reserveCapacity(estimatedSteps)
+            var solutions: [[Double]] = [currentBuf]
+            solutions.reserveCapacity(estimatedSteps)
 
             // Timestep control
             let initialDt = config.initialTimeStep ?? (config.maxTimeStep / 10.0)
@@ -172,7 +185,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
                     do {
                         newtonResult = try nr.solve(
-                            initialGuess: currentSolution,
+                            initialGuess: currentBuf,
                             matrix: &matrix,
                             rhs: &rhs,
                             devices: devices,
@@ -181,8 +194,8 @@ public struct TransientAnalysis: Analysis, Sendable {
                             stampFunction: { stamper, state in
                                 let transientState = SolutionState(
                                     variables: state.variables,
-                                    previousVariables: currentSolution,
-                                    twoPreviousVariables: previousSolution,
+                                    previousVariables: currentBuf,
+                                    twoPreviousVariables: previousBuf,
                                     variableMap: variableMap
                                 )
                                 for device in devices {
@@ -222,8 +235,8 @@ public struct TransientAnalysis: Analysis, Sendable {
                     if acceptedSteps > 0 {
                         let lte = lteEstimator.estimate(
                             current: newtonResult.solution,
-                            previous: currentSolution,
-                            twoPrevious: twoPreviousSolution,
+                            previous: currentBuf,
+                            twoPrevious: hasTwoPrevious ? twoPreviousBuf : nil,
                             timeStep: dt,
                             previousTimeStep: previousDt,
                             method: method
@@ -267,19 +280,20 @@ public struct TransientAnalysis: Analysis, Sendable {
                         // Update dt for the next step (will be clamped by maxTimeStep later)
                         let nextDt = min(optimalNext, config.maxTimeStep)
 
-                        // Accept this step
+                        // Accept this step — O(1) buffer rotation
                         stepAccepted = true
-                        twoPreviousSolution = previousSolution
-                        previousSolution = currentSolution
-                        currentSolution = newtonResult.solution
+                        swap(&twoPreviousBuf, &previousBuf)
+                        swap(&previousBuf, &currentBuf)
+                        for i in 0..<dim { currentBuf[i] = newtonResult.solution[i] }
+                        hasTwoPrevious = true
                         previousDt = dt
                         currentTime += dt
                         acceptedSteps += 1
 
                         // Save the time point
                         timePoints.append(currentTime)
-                        solutions.append(currentSolution)
-                        onStepAccepted?(currentTime, currentSolution)
+                        solutions.append(currentBuf)
+                        onStepAccepted?(currentTime, currentBuf)
 
                         observer?.emit(.timeStepCompleted(TimeStepInfo(
                             id: analysisID,
@@ -301,25 +315,25 @@ public struct TransientAnalysis: Analysis, Sendable {
                         // to avoid LTE artifacts from the 3-point formula spanning
                         // across a waveform discontinuity.
                         if breakpointMgr.isAtBreakpoint(currentTime) {
-                            twoPreviousSolution = nil
+                            hasTwoPrevious = false
                             method = .backwardEuler
                         }
 
                         // Update dt for next iteration
                         dt = nextDt
                     } else {
-                        // First step: no LTE check, just accept
+                        // First step: no LTE check, just accept — O(1) buffer rotation
                         stepAccepted = true
-                        twoPreviousSolution = nil
-                        previousSolution = currentSolution
-                        currentSolution = newtonResult.solution
+                        swap(&previousBuf, &currentBuf)
+                        for i in 0..<dim { currentBuf[i] = newtonResult.solution[i] }
+                        // hasTwoPrevious stays false
                         previousDt = dt
                         currentTime += dt
                         acceptedSteps += 1
 
                         timePoints.append(currentTime)
-                        solutions.append(currentSolution)
-                        onStepAccepted?(currentTime, currentSolution)
+                        solutions.append(currentBuf)
+                        onStepAccepted?(currentTime, currentBuf)
 
                         observer?.emit(.timeStepCompleted(TimeStepInfo(
                             id: analysisID,

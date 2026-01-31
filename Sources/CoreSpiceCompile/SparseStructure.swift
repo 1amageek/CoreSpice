@@ -3,7 +3,7 @@
 /// Stores only the structural positions of non-zero entries.
 /// The actual numeric values are held separately by ``SparseMatrix``
 /// or ``ComplexSparseMatrix``.
-public struct SparseStructure: Sendable {
+public struct SparseStructure: Sendable, Equatable {
 
     /// The number of rows (and columns) in the square matrix.
     public let dimension: Int

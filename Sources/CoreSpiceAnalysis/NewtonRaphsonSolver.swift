@@ -2,7 +2,6 @@ import CoreSpiceCompile
 import CoreSpiceDevices
 import CoreSpiceIR
 import CoreSpiceEvent
-import Synchronization
 
 /// Reusable Newton-Raphson nonlinear iteration engine.
 ///
@@ -62,12 +61,14 @@ public struct NewtonRaphsonSolver: Sendable {
             }
         )
 
-        // Use a Mutex-protected container so the @Sendable closures in
-        // MatrixStamper can safely write into the matrix and RHS.
-        // Although the stamping is single-threaded, the MatrixStamper
-        // interface requires @Sendable closures.
-        let matrixStorage = Mutex(matrix)
-        let rhsStorage = Mutex(rhs)
+        // Pre-allocate working buffers (reused across iterations)
+        var previousX = [Double](repeating: 0, count: n)
+        var dx = [Double](repeating: 0, count: n)
+
+        // Use local copies so non-@Sendable escaping closures can capture them.
+        // The stamping is single-threaded — no synchronisation needed.
+        var localMatrix = matrix
+        var localRHS = rhs
 
         // Adaptive damping state
         var previousUpdateNorm: Double = .infinity
@@ -83,12 +84,10 @@ public struct NewtonRaphsonSolver: Sendable {
                 maxIterations: config.maxIterations
             )))
 
-            // Clear matrix and RHS
-            matrixStorage.withLock { $0.clear() }
-            rhsStorage.withLock { localRhs in
-                for i in 0..<n {
-                    localRhs[i] = 0.0
-                }
+            // Clear matrix and RHS (zero alloc — reuse existing buffers)
+            localMatrix.clear()
+            for i in 0..<n {
+                localRHS[i] = 0.0
             }
 
             // Build the Jacobian and residual from the current solution
@@ -96,50 +95,43 @@ public struct NewtonRaphsonSolver: Sendable {
             var stamper = MatrixStamper(
                 variableMap: variableMap,
                 stampMatrix: { row, col, val in
-                    matrixStorage.withLock { $0.addValue(row: row, col: col, value: val) }
+                    localMatrix.addValue(row: row, col: col, value: val)
                 },
                 stampRHS: { row, val in
-                    rhsStorage.withLock { $0[row] += val }
+                    localRHS[row] += val
                 }
             )
 
             stampFunction(&stamper, state)
 
             // Add Gmin to diagonal for numerical stability
-            matrixStorage.withLock { mat in
-                for i in 0..<n {
-                    mat.addValue(row: i, col: i, value: config.gmin)
-                }
+            for i in 0..<n {
+                localMatrix.addValue(row: i, col: i, value: config.gmin)
             }
-
-            // Extract the current matrix and rhs for solving
-            let currentMatrix = matrixStorage.withLock { $0 }
-            let currentRHS = rhsStorage.withLock { $0 }
 
             // Factorize and solve the linear system
             do {
-                try solver.factorize(matrix: currentMatrix)
+                try solver.factorize(matrix: localMatrix)
             } catch {
-                // Write back to inout parameters
-                matrix = currentMatrix
-                rhs = currentRHS
+                matrix = localMatrix
+                rhs = localRHS
                 throw AnalysisError.singularMatrix
             }
 
-            let dx: [Double]
             do {
-                dx = try solver.solve(rhs: currentRHS)
+                try solver.solve(rhs: localRHS, into: &dx)
             } catch {
-                matrix = currentMatrix
-                rhs = currentRHS
+                matrix = localMatrix
+                rhs = localRHS
                 throw AnalysisError.singularMatrix
             }
 
-            // Save previous solution for convergence check
-            let previousX = x
-
-            // Compute raw update norm for adaptive damping
-            let rawUpdateNorm = (0..<n).map { abs(dx[$0] - x[$0]) }.max() ?? 0.0
+            // Compute raw update norm for adaptive damping (manual loop — no temp array)
+            var rawUpdateNorm = 0.0
+            for i in 0..<n {
+                let d = abs(dx[i] - x[i])
+                if d > rawUpdateNorm { rawUpdateNorm = d }
+            }
 
             // Adaptive damping: reduce step when divergence is detected
             var damping = 1.0
@@ -149,17 +141,26 @@ public struct NewtonRaphsonSolver: Sendable {
             }
             previousUpdateNorm = rawUpdateNorm
 
+            // Save previous solution via O(1) pointer swap, then compute new x
+            swap(&x, &previousX)
+            // Now: previousX = old x, x = stale buffer (will be overwritten)
+
             // Update solution: dx is the full new solution from G*x = s,
             // not a correction. With damping=1 this is direct substitution.
             for i in 0..<n {
-                x[i] = (1.0 - damping) * x[i] + damping * dx[i]
+                x[i] = (1.0 - damping) * previousX[i] + damping * dx[i]
             }
 
-            // Compute residual norm (infinity norm of solution change)
-            let update = (0..<n).map { x[$0] - previousX[$0] }
-            let residualNorm = update.map { abs($0) }.max() ?? 0.0
+            // Compute residual norm (manual loop — no temp array)
+            var residualNorm = 0.0
+            for i in 0..<n {
+                let d = abs(x[i] - previousX[i])
+                if d > residualNorm { residualNorm = d }
+            }
+
             var converged = config.isConverged(
-                dx: update, x: x, branchCurrentIndices: branchCurrentIndices
+                previousX: previousX, currentX: x,
+                branchCurrentIndices: branchCurrentIndices
             )
 
             // Poll per-device convergence when global convergence is met
@@ -186,19 +187,22 @@ public struct NewtonRaphsonSolver: Sendable {
 
             if converged {
                 // Write back final state
-                matrix = currentMatrix
-                rhs = currentRHS
+                matrix = localMatrix
+                rhs = localRHS
                 return (x, iter + 1)
             }
         }
 
         // Failed to converge after maximum iterations
-        let finalMatrix = matrixStorage.withLock { $0 }
-        let finalRHS = rhsStorage.withLock { $0 }
-        matrix = finalMatrix
-        rhs = finalRHS
+        matrix = localMatrix
+        rhs = localRHS
 
-        let residual = finalRHS.map { abs($0) }.max() ?? 0.0
+        var residual = 0.0
+        for i in 0..<localRHS.count {
+            let a = abs(localRHS[i])
+            if a > residual { residual = a }
+        }
+
         observer?.emit(.newtonConvergenceFailure(NewtonFailureInfo(
             id: analysisID,
             iteration: config.maxIterations,

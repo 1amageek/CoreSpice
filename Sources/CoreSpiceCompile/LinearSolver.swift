@@ -7,7 +7,7 @@ public protocol LinearSolver: Sendable {
     /// Factorizes the given matrix.
     ///
     /// After a successful call the solver is ready to accept
-    /// calls to ``solve(rhs:)``.
+    /// calls to ``solve(rhs:)`` or ``solve(rhs:into:)``.
     ///
     /// - Throws: ``CompileError/singularMatrix`` if the matrix is singular.
     mutating func factorize(matrix: SparseMatrix) throws
@@ -19,6 +19,25 @@ public protocol LinearSolver: Sendable {
     /// - Parameter rhs: Right-hand-side vector of length equal to the matrix dimension.
     /// - Returns: The solution vector `x`.
     func solve(rhs: [Double]) throws -> [Double]
+
+    /// Solves `A * x = rhs` using the stored factorization, writing
+    /// the result into a pre-allocated buffer.
+    ///
+    /// This is the zero-allocation variant of ``solve(rhs:)``.
+    /// The `result` array must have length equal to the matrix dimension.
+    ///
+    /// - Parameters:
+    ///   - rhs: Right-hand-side vector.
+    ///   - result: Pre-allocated output buffer for the solution vector `x`.
+    mutating func solve(rhs: [Double], into result: inout [Double]) throws
+}
+
+extension LinearSolver {
+    /// Default implementation delegates to the allocating ``solve(rhs:)`` variant.
+    public mutating func solve(rhs: [Double], into result: inout [Double]) throws {
+        let r = try solve(rhs: rhs)
+        for i in r.indices { result[i] = r[i] }
+    }
 }
 
 /// A solver for complex-valued sparse linear systems.
@@ -29,4 +48,15 @@ public protocol ComplexLinearSolver: Sendable {
 
     /// Solves `A * x = rhs` using the stored factorization.
     func solve(rhs: [ComplexPair]) throws -> [ComplexPair]
+
+    /// Solves `A * x = rhs` into a pre-allocated buffer (zero-allocation).
+    mutating func solve(rhs: [ComplexPair], into result: inout [ComplexPair]) throws
+}
+
+extension ComplexLinearSolver {
+    /// Default implementation delegates to the allocating ``solve(rhs:)`` variant.
+    public mutating func solve(rhs: [ComplexPair], into result: inout [ComplexPair]) throws {
+        let r = try solve(rhs: rhs)
+        for i in r.indices { result[i] = r[i] }
+    }
 }

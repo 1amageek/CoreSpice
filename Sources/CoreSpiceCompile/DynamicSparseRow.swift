@@ -10,6 +10,11 @@ struct DynamicSparseRow<Value: Sendable>: Sendable {
     /// The number of overflow entries in this row.
     var count: Int { entries.count }
 
+    /// Removes all entries, keeping allocated capacity for reuse.
+    mutating func clear() {
+        entries.removeAll(keepingCapacity: true)
+    }
+
     /// Sets the value at the given column, inserting or updating as needed.
     mutating func set(column: Int, value: Value) {
         if let idx = entries.firstIndex(where: { $0.column >= column }) {

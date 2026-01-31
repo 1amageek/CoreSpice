@@ -66,6 +66,30 @@ public struct Permutation: Sendable, Equatable {
         return result
     }
 
+    /// Applies the permutation, writing results into a pre-allocated destination.
+    ///
+    /// Zero-allocation variant of ``apply(to:)``.
+    /// - Parameters:
+    ///   - source: Array in original order.
+    ///   - dest: Pre-allocated destination array (must be same length as source).
+    public func apply<T>(from source: [T], into dest: inout [T]) {
+        for i in 0..<source.count {
+            dest[forward[i]] = source[i]
+        }
+    }
+
+    /// Applies the inverse permutation, writing results into a pre-allocated destination.
+    ///
+    /// Zero-allocation variant of ``applyInverse(to:)``.
+    /// - Parameters:
+    ///   - source: Array in reordered order.
+    ///   - dest: Pre-allocated destination array (must be same length as source).
+    public func applyInverse<T>(from source: [T], into dest: inout [T]) {
+        for i in 0..<source.count {
+            dest[i] = source[forward[i]]
+        }
+    }
+
     /// Composes this permutation with another.
     ///
     /// Returns a permutation that applies `self` first, then `other`.

@@ -16,16 +16,20 @@ public struct ComplexStampValue: Sendable {
 ///
 /// Used during AC (small-signal) analysis where impedances and
 /// admittances are complex-valued functions of frequency.
-public struct ComplexMatrixStamper: Sendable {
+///
+/// `ComplexMatrixStamper` is intentionally **not** `Sendable`. Stamping is
+/// always single-threaded, so the closures can capture mutable local state
+/// directly without synchronisation overhead.
+public struct ComplexMatrixStamper {
 
-    public var stampMatrix: @Sendable (_ row: Int, _ col: Int, _ real: Double, _ imag: Double) -> Void
-    public var stampRHS: @Sendable (_ row: Int, _ real: Double, _ imag: Double) -> Void
+    public var stampMatrix: (_ row: Int, _ col: Int, _ real: Double, _ imag: Double) -> Void
+    public var stampRHS: (_ row: Int, _ real: Double, _ imag: Double) -> Void
     private let variableMap: [MNAVariable: Int]
 
     public init(
         variableMap: [MNAVariable: Int],
-        stampMatrix: @escaping @Sendable (_ row: Int, _ col: Int, _ real: Double, _ imag: Double) -> Void,
-        stampRHS: @escaping @Sendable (_ row: Int, _ real: Double, _ imag: Double) -> Void
+        stampMatrix: @escaping (_ row: Int, _ col: Int, _ real: Double, _ imag: Double) -> Void,
+        stampRHS: @escaping (_ row: Int, _ real: Double, _ imag: Double) -> Void
     ) {
         self.variableMap = variableMap
         self.stampMatrix = stampMatrix

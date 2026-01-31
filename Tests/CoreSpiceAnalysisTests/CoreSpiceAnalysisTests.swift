@@ -53,12 +53,18 @@ struct CoreSpiceAnalysisTests {
 
     @Test func convergenceCheck() {
         let config = ConvergenceConfig(reltol: 1e-3, vntol: 1e-6)
-        // Small dx relative to x should converge
-        let converged = config.isConverged(dx: [1e-8, 1e-8], x: [5.0, 2.5])
+        // Small change relative to x should converge
+        let converged = config.isConverged(
+            previousX: [5.0 - 1e-8, 2.5 - 1e-8],
+            currentX: [5.0, 2.5]
+        )
         #expect(converged)
 
-        // Large dx should not converge
-        let notConverged = config.isConverged(dx: [1.0, 0.5], x: [5.0, 2.5])
+        // Large change should not converge
+        let notConverged = config.isConverged(
+            previousX: [4.0, 2.0],
+            currentX: [5.0, 2.5]
+        )
         #expect(!notConverged)
     }
 

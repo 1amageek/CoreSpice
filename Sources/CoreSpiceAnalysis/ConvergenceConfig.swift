@@ -42,28 +42,34 @@ public struct ConvergenceConfig: Sendable {
         self.minDamping = minDamping
     }
 
-    /// Tests whether the Newton update vector `dx` is small enough
-    /// relative to the current solution `x` to declare convergence.
+    /// Tests whether the solution change between two Newton iterates is
+    /// small enough to declare convergence.
     ///
-    /// For each element `i`, checks: `|dx[i]| < reltol * |x[i]| + tol`
+    /// For each element `i`, checks:
+    /// `|currentX[i] - previousX[i]| < reltol * |currentX[i]| + tol`
     /// where `tol` is `vntol` for voltage variables and `abstol` for
     /// branch current variables.
     ///
     /// - Parameters:
-    ///   - dx: The Newton update vector (difference between successive iterates).
-    ///   - x: The current solution vector.
+    ///   - previousX: The solution vector from the previous Newton iterate.
+    ///   - currentX: The current solution vector.
     ///   - branchCurrentIndices: Set of indices corresponding to branch currents.
     ///     When nil, all variables use `vntol`.
     /// - Returns: `true` if all elements satisfy the convergence criterion.
-    public func isConverged(dx: [Double], x: [Double], branchCurrentIndices: Set<Int>? = nil) -> Bool {
-        for i in 0..<dx.count {
+    public func isConverged(
+        previousX: [Double],
+        currentX: [Double],
+        branchCurrentIndices: Set<Int>? = nil
+    ) -> Bool {
+        for i in 0..<currentX.count {
+            let delta = currentX[i] - previousX[i]
             let tol: Double
             if let indices = branchCurrentIndices, indices.contains(i) {
-                tol = reltol * abs(x[i]) + abstol
+                tol = reltol * abs(currentX[i]) + abstol
             } else {
-                tol = reltol * abs(x[i]) + vntol
+                tol = reltol * abs(currentX[i]) + vntol
             }
-            if abs(dx[i]) > tol {
+            if abs(delta) > tol {
                 return false
             }
         }
