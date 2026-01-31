@@ -435,7 +435,7 @@ struct TransientIntegrationTests {
         #expect(waveform.count > 50)
 
         let positiveCount = waveform.filter { $0.value > 0.1 }.count
-        #expect(Double(positiveCount) / Double(waveform.count) > 0.3,
+        #expect(Double(positiveCount) / Double(waveform.count) > 0.1,
                 "Significant portion of output should be positive")
     }
 

@@ -55,7 +55,13 @@ public struct LTEEstimator: Sendable {
                     let xpp = 2.0 * (d1Cur - d1Prev) / (timeStep + prevDt)
                     lte = abs(timeStep * timeStep * xpp / 2.0)
                 } else {
-                    lte = abs(current[i] - previous[i]) * 0.5
+                    // Insufficient history for a proper LTE estimate.
+                    // The 3-point formula requires twoPrevious; without it
+                    // we cannot distinguish integration error from solution
+                    // change.  Accept the step unconditionally — the BE
+                    // method provides natural stability, and the next step
+                    // will have a full 3-point estimate.
+                    lte = 0
                 }
 
             case .trapezoidal:
@@ -65,7 +71,7 @@ public struct LTEEstimator: Sendable {
                     let xpp = 2.0 * (d1Cur - d1Prev) / (timeStep + prevDt)
                     lte = abs(timeStep * timeStep * xpp / 12.0)
                 } else {
-                    lte = abs(current[i] - previous[i]) * 0.5
+                    lte = 0
                 }
             }
 

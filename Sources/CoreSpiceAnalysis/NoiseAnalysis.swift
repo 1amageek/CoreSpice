@@ -79,6 +79,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 variables: dcResult.variables,
                 variableMap: variableMap
             )
+            let dcOpticalState = dcResult.opticalState ?? OpticalState()
 
             guard let outputIndex = variableMap[.nodeVoltage(outputNode)] else {
                 throw AnalysisError.invalidConfiguration(
@@ -149,7 +150,11 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 )
 
                 for device in devices {
-                    device.stampAC(into: &stamper, state: dcState, omega: omega)
+                    if let optoDevice = device as? OptoelectronicDevice {
+                        optoDevice.stampAC(into: &stamper, state: dcState, opticalState: dcOpticalState, omega: omega)
+                    } else {
+                        device.stampAC(into: &stamper, state: dcState, omega: omega)
+                    }
                 }
 
                 // Add Gmin to diagonal

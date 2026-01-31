@@ -324,10 +324,11 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         }
 
         if reversed {
-            // When reversed, current flows in opposite direction relative to terminal labels
+            // When reversed, stamps use effective (swapped) terminals.
+            // Store effective voltages and positive current so ieq formula is consistent.
             return OperatingPointResult(
-                isd: -isd, gm: gm, gds: gds, gmbs: gmbs,
-                vsg: rawVsg, vsd: rawVsd, vbs: rawVbs, reversed: true
+                isd: isd, gm: gm, gds: gds, gmbs: gmbs,
+                vsg: vsg, vsd: vsd, vbs: vbs, reversed: true
             )
         }
         return OperatingPointResult(
@@ -402,9 +403,10 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
             }
         }
 
-        // Equivalent current source: Ieq = Isd - gm*Vsg - gds*Vsd - gmbs*Vbs
-        // Positive Ieq means current from source to drain
-        let ieq = op.isd - op.gm * op.vsg - op.gds * op.vsd - op.gmbs * op.vbs
+        // Equivalent current source: Ieq = Isd - (matrix conductance contribution at operating point)
+        // The gmbs stamps encode -gmbs (since dIsd/dVbs < 0 for PMOS, gmbs is stored as positive magnitude).
+        // Matrix body-effect contribution at S row: -gmbs*Vbs, so ieq must use +gmbs*Vbs to compensate.
+        let ieq = op.isd - op.gm * op.vsg - op.gds * op.vsd + op.gmbs * op.vbs
 
         // Current leaves source (negative contribution) and enters drain (positive)
         if let sIdx {
@@ -463,8 +465,8 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
             // Linear region
             let ratio1 = (vsgOverdrive - vsd) / (2.0 * vsgOverdrive - vsd)
             let ratio2 = vsgOverdrive / (2.0 * vsgOverdrive - vsd)
-            cgs = coxWL * (1.0 - ratio1 * ratio1) / 2.0 + cgsOverlap
-            cgd = coxWL * (1.0 - ratio2 * ratio2) / 2.0 + cgdOverlap
+            cgs = coxWL * 2.0 / 3.0 * (1.0 - ratio1 * ratio1) + cgsOverlap
+            cgd = coxWL * 2.0 / 3.0 * (1.0 - ratio2 * ratio2) + cgdOverlap
             cgb = cgbOverlap
         } else {
             // Saturation

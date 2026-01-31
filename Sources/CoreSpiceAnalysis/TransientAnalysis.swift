@@ -110,6 +110,12 @@ public struct TransientAnalysis: Analysis, Sendable {
             // Initialize previousBuf to initialSolution
             for i in 0..<dim { previousBuf[i] = initialSolution[i] }
 
+            // Optical state buffers (mirroring electrical buffer rotation)
+            let evaluator = OpticalNetworkEvaluator()
+            let opticalNodeCount = plan.opticalNetwork?.opticalNodeCount ?? 0
+            var currentOpticalState = OpticalState(nodeCount: opticalNodeCount)
+            var previousOpticalState = OpticalState(nodeCount: opticalNodeCount)
+
             // Saved results (pre-allocate estimated capacity)
             let estimatedSteps = max(
                 Int(config.stopTime / (config.initialTimeStep ?? config.maxTimeStep / 10.0)),
@@ -206,12 +212,30 @@ public struct TransientAnalysis: Analysis, Sendable {
                                     twoPreviousVariables: previousBuf,
                                     variableMap: variableMap
                                 )
-                                for device in devices {
-                                    device.stampTransient(
-                                        into: &stamper,
-                                        state: transientState,
-                                        integration: currentIntegration
+                                // Evaluate optical network at each NR iteration
+                                if let graph = plan.opticalNetwork {
+                                    currentOpticalState = evaluator.evaluate(
+                                        graph: graph,
+                                        devices: devices,
+                                        electricalState: transientState,
+                                        previousOpticalState: currentOpticalState
                                     )
+                                }
+                                for device in devices {
+                                    if let optoDevice = device as? OptoelectronicDevice {
+                                        optoDevice.stampTransient(
+                                            into: &stamper,
+                                            state: transientState,
+                                            opticalState: currentOpticalState,
+                                            integration: currentIntegration
+                                        )
+                                    } else {
+                                        device.stampTransient(
+                                            into: &stamper,
+                                            state: transientState,
+                                            integration: currentIntegration
+                                        )
+                                    }
                                 }
                             },
                             observer: observer,
@@ -227,6 +251,9 @@ public struct TransientAnalysis: Analysis, Sendable {
                             if let gminResult = tryGminStepping(
                                 currentBuf: currentBuf,
                                 previousBuf: previousBuf,
+                                opticalState: &currentOpticalState,
+                                evaluator: evaluator,
+                                opticalNetwork: plan.opticalNetwork,
                                 matrix: &matrix,
                                 rhs: &rhs,
                                 devices: devices,
@@ -284,7 +311,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         let lte = lteEstimator.estimate(
                             current: newtonResult.solution,
                             previous: currentBuf,
-                            twoPrevious: hasTwoPrevious ? twoPreviousBuf : nil,
+                            twoPrevious: hasTwoPrevious ? previousBuf : nil,
                             timeStep: dt,
                             previousTimeStep: previousDt,
                             method: method,
@@ -342,6 +369,27 @@ public struct TransientAnalysis: Analysis, Sendable {
                             }
                         }
                         hasTwoPrevious = true
+
+                        // Commit capacitor state for trapezoidal companion model.
+                        // After buffer rotation: currentBuf=V_n, previousBuf=V_{n-1}.
+                        let commitState = SolutionState(
+                            variables: currentBuf,
+                            previousVariables: previousBuf,
+                            variableMap: variableMap
+                        )
+                        let commitIntegration = IntegrationState(
+                            method: method,
+                            timeStep: dt,
+                            currentTime: currentTime + dt,
+                            previousTimeStep: previousDt
+                        )
+                        for device in devices {
+                            if let cap = device as? BoundCapacitor {
+                                cap.commitTransientStep(state: commitState, integration: commitIntegration)
+                            }
+                        }
+
+                        previousOpticalState = currentOpticalState
                         previousDt = dt
                         currentTime += dt
                         acceptedSteps += 1
@@ -391,6 +439,26 @@ public struct TransientAnalysis: Analysis, Sendable {
                             }
                         }
                         // hasTwoPrevious stays false
+
+                        // Commit capacitor state (first step is always BE).
+                        let commitState = SolutionState(
+                            variables: currentBuf,
+                            previousVariables: previousBuf,
+                            variableMap: variableMap
+                        )
+                        let commitIntegration = IntegrationState(
+                            method: method,
+                            timeStep: dt,
+                            currentTime: currentTime + dt,
+                            previousTimeStep: previousDt
+                        )
+                        for device in devices {
+                            if let cap = device as? BoundCapacitor {
+                                cap.commitTransientStep(state: commitState, integration: commitIntegration)
+                            }
+                        }
+
+                        previousOpticalState = currentOpticalState
                         previousDt = dt
                         currentTime += dt
                         acceptedSteps += 1
@@ -473,6 +541,9 @@ public struct TransientAnalysis: Analysis, Sendable {
     private func tryGminStepping(
         currentBuf: [Double],
         previousBuf: [Double],
+        opticalState: inout OpticalState,
+        evaluator: OpticalNetworkEvaluator,
+        opticalNetwork: OpticalNetworkGraph?,
         matrix: inout SparseMatrix,
         rhs: inout [Double],
         devices: [any BoundDevice],
@@ -506,12 +577,30 @@ public struct TransientAnalysis: Analysis, Sendable {
                             twoPreviousVariables: previousBuf,
                             variableMap: variableMap
                         )
-                        for device in devices {
-                            device.stampTransient(
-                                into: &stamper,
-                                state: transientState,
-                                integration: integration
+                        // Evaluate optical network
+                        if let graph = opticalNetwork {
+                            opticalState = evaluator.evaluate(
+                                graph: graph,
+                                devices: devices,
+                                electricalState: transientState,
+                                previousOpticalState: opticalState
                             )
+                        }
+                        for device in devices {
+                            if let optoDevice = device as? OptoelectronicDevice {
+                                optoDevice.stampTransient(
+                                    into: &stamper,
+                                    state: transientState,
+                                    opticalState: opticalState,
+                                    integration: integration
+                                )
+                            } else {
+                                device.stampTransient(
+                                    into: &stamper,
+                                    state: transientState,
+                                    integration: integration
+                                )
+                            }
                         }
                     },
                     observer: observer,

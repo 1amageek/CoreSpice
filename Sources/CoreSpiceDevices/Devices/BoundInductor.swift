@@ -121,7 +121,7 @@ public struct BoundInductor: BoundDevice, CurrentInitialConditionDevice, Sendabl
         // The inductor branch equation becomes:
         //   V(pos) - V(neg) = Req * I_branch - Veq
         //   Rewritten: V(pos) - V(neg) - Req * I_branch = -Veq
-        let bIdx_resolved = branchIdx ?? stamper.branchIndex(branch)!
+        guard let bIdx_resolved = branchIdx ?? stamper.branchIndex(branch) else { return }
         let pIdx_resolved = posIdx ?? stamper.nodeIndex(posNode)
         let nIdx_resolved = negIdx ?? stamper.nodeIndex(negNode)
 

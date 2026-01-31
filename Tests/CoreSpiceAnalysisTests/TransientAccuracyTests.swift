@@ -24,17 +24,48 @@ struct TransientAccuracyTests {
         })?.offset ?? 0
     }
 
-    /// Find local maxima in a waveform.
-    private func findPeaks(in waveform: [(time: Double, value: Double)]) -> [(time: Double, value: Double)] {
+    /// Find local maxima in a waveform with minimum time separation.
+    ///
+    /// Without separation filtering, adaptive timestep controllers that
+    /// use very small steps can produce spurious local maxima from
+    /// numerical noise at the peak of an oscillation.
+    private func findPeaks(
+        in waveform: [(time: Double, value: Double)],
+        minSeparation: Double = 0
+    ) -> [(time: Double, value: Double)] {
         guard waveform.count > 2 else { return [] }
-        var peaks: [(time: Double, value: Double)] = []
+
+        // Find all local maxima
+        var rawPeaks: [(time: Double, value: Double)] = []
         for i in 1..<(waveform.count - 1) {
             if waveform[i].value > waveform[i - 1].value &&
                waveform[i].value > waveform[i + 1].value {
-                peaks.append(waveform[i])
+                rawPeaks.append(waveform[i])
             }
         }
-        return peaks
+
+        guard minSeparation > 0 else { return rawPeaks }
+
+        // Merge peaks that are closer than minSeparation,
+        // keeping the one with the highest value in each cluster.
+        var filtered: [(time: Double, value: Double)] = []
+        var cluster: [(time: Double, value: Double)] = []
+
+        for peak in rawPeaks {
+            if let last = cluster.last, peak.time - last.time < minSeparation {
+                cluster.append(peak)
+            } else {
+                if let best = cluster.max(by: { $0.value < $1.value }) {
+                    filtered.append(best)
+                }
+                cluster = [peak]
+            }
+        }
+        if let best = cluster.max(by: { $0.value < $1.value }) {
+            filtered.append(best)
+        }
+
+        return filtered
     }
 
     /// Linear interpolation of a waveform at a specific time.
@@ -100,7 +131,8 @@ struct TransientAccuracyTests {
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
         let waveform = result.voltageWaveform(at: out)
-        let peaks = findPeaks(in: waveform)
+        let Td = 2.0 * .pi / omegaD
+        let peaks = findPeaks(in: waveform, minSeparation: Td * 0.5)
 
         #expect(peaks.count >= 2,
                 "Underdamped RLC should have >=2 peaks, got \(peaks.count)")
@@ -175,47 +207,45 @@ struct TransientAccuracyTests {
 
     // MARK: - V3: Convergence Order (Richardson Extrapolation)
 
-    @Test("V3: RL integration convergence order is 2nd-order (trapezoidal)")
+    @Test("V3: RC integration convergence order is 2nd-order (trapezoidal)")
     func convergenceOrder() async throws {
-        // Run RL circuit with step sizes h, h/2, h/4.
-        // Uses inductor (not capacitor) because the inductor's trapezoidal
-        // companion model uses exact solution variables (branch current,
-        // node voltages) rather than finite-difference approximations.
+        // Run RC circuit with step sizes h, h/2, h/4.
+        // Uses RC (not RL) to avoid branch current variables whose tight
+        // absolute tolerance (abstol=1e-12) prevents the adaptive step
+        // controller from reaching maxTimeStep.
         //
-        // V(out) = V * exp(-t/tau) where tau = L/R
+        // V(out) = 1 - exp(-t/tau) where tau = RC
         // For 2nd-order method: error ratio ~ 4.0 when halving step
         // For 1st-order method: error ratio ~ 2.0
-        let R = 100.0
-        let L = 1e-3
-        let tau = L / R  // 10us
+        let R = 1000.0
+        let C_val = 1e-6
+        let tau = R * C_val  // 1ms
         let tStar = tau  // measure at t=tau
-        let analyticalValue = 1.0 * exp(-1.0)  // exp(-1) = 0.3679
+        let analyticalValue = 1.0 - exp(-1.0)  // 1 - e^(-1) = 0.6321
 
-        let h: Double = 2e-6  // base step = tau/5 (coarse enough for measurable error)
+        let h: Double = 100e-6  // base step = tau/10
 
-        // Helper to build and run the RL circuit with given maxTimeStep
         func runWithStep(_ maxStep: Double) async throws -> (TransientResult, Node) {
             var netlist = Netlist()
             let _ = netlist.node("in")
             let out = netlist.node("out")
             let _ = netlist.branch() // V1
-            let _ = netlist.branch() // L1
             try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["in", "0"],
                                     parameters: [
                                         "v1": .real(0.0), "v2": .real(1.0),
                                         "td": .real(0.0), "tr": .real(1e-9),
-                                        "tf": .real(1e-9), "pw": .real(100e-6),
-                                        "per": .real(200e-6)
+                                        "tf": .real(1e-9), "pw": .real(10e-3),
+                                        "per": .real(20e-3)
                                     ])
             try netlist.addInstance(name: "R1", typeName: "resistor", nodes: ["in", "out"],
                                     parameters: ["r": .real(R)])
-            try netlist.addInstance(name: "L1", typeName: "inductor", nodes: ["out", "0"],
-                                    parameters: ["l": .real(L)])
+            try netlist.addInstance(name: "C1", typeName: "capacitor", nodes: ["out", "0"],
+                                    parameters: ["c": .real(C_val)])
 
             let config = TransientConfig(
-                stopTime: 15e-6,
+                stopTime: 3e-3,  // 3*tau
                 maxTimeStep: maxStep,
-                lteTolerance: 1.0  // Keep step near maxStep
+                lteTolerance: 1e6  // Disable adaptive step control
             )
             let result = try await CircuitFactory.runTransient(netlist, config: config)
             return (result, out)
@@ -236,6 +266,10 @@ struct TransientAccuracyTests {
         let error_h  = abs(v_h - analyticalValue)
         let error_h2 = abs(v_h2 - analyticalValue)
         let error_h4 = abs(v_h4 - analyticalValue)
+
+        // Verify the three runs produce different step counts (confirming different step sizes)
+        #expect(result_h.timeSteps < result_h2.timeSteps,
+                "Coarser step should have fewer steps: h=\(result_h.timeSteps) vs h/2=\(result_h2.timeSteps)")
 
         // Convergence ratio should be ~4 for 2nd-order, ~2 for 1st-order
         // Use error_h2 > 1e-10 guard to avoid division by near-zero
@@ -296,13 +330,19 @@ struct TransientAccuracyTests {
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
         let waveform = result.voltageWaveform(at: out)
-        let peaks = findPeaks(in: waveform)
+
+        // Use minSeparation = Td/2 to avoid spurious peaks from numerical
+        // noise when adaptive timestep produces many points near a peak.
+        // Filter to only overshoot peaks (> Vfinal) since undershoot
+        // local maxima would corrupt the decay ratio calculation.
+        let Vfinal = 1.0
+        let allPeaks = findPeaks(in: waveform, minSeparation: Td * 0.5)
+        let peaks = allPeaks.filter { $0.value > Vfinal }
 
         #expect(peaks.count >= 3,
-                "Need >=3 peaks for envelope analysis, got \(peaks.count)")
+                "Need >=3 overshoot peaks for envelope analysis, got \(peaks.count) (total local maxima: \(allPeaks.count))")
 
         // Measure decay ratio: (peak2 - Vfinal) / (peak1 - Vfinal)
-        let Vfinal = 1.0
         let peak1Excess = peaks[0].value - Vfinal
         let peak2Excess = peaks[1].value - Vfinal
 

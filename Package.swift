@@ -41,10 +41,15 @@ let package = Package(
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
                                "CoreSpiceBackend", "CoreSpiceEvent", "SharedTypes"]),
 
+        // --- Optoelectronic Device Models ---
+        .target(name: "CoreSpiceOptoelectronics",
+                dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceEvent"]),
+
         // --- Umbrella ---
         .target(name: "CoreSpice",
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
-                               "CoreSpiceAnalysis", "CoreSpiceBackend", "CoreSpiceEvent"]),
+                               "CoreSpiceAnalysis", "CoreSpiceBackend", "CoreSpiceEvent",
+                               "CoreSpiceOptoelectronics"]),
 
         // ==========================================================================
         // I/O Architecture Modules
@@ -122,6 +127,10 @@ let package = Package(
         .testTarget(name: "CoreSpiceBackendTests", dependencies: ["CoreSpiceBackend"]),
         .testTarget(name: "PluginsPhotonicTests", dependencies: ["PluginsPhotonic"]),
         .testTarget(name: "CoreSpiceTests", dependencies: ["CoreSpice"]),
+        .testTarget(name: "CoreSpiceOptoelectronicsTests",
+                    dependencies: ["CoreSpiceOptoelectronics", "CoreSpiceDevices",
+                                   "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceAnalysis",
+                                   "CoreSpiceEvent"]),
 
         // I/O Tests
         .testTarget(name: "CoreSpiceParsedIRTests", dependencies: ["CoreSpiceParsedIR"]),

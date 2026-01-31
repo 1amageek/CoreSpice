@@ -273,8 +273,8 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
             ic *= earlyFactor
         }
 
-        // Base current from KCL: Ib = Ie - Ic
-        let ib = ie - ic
+        // Base current: sum of forward and reverse base recombination
+        let ib = icc / bf + iec / br
 
         // Small-signal parameters
         // gm = dIc/dVbe = (Is/nfVt) * exp(Vbe/nfVt) * earlyFactor
@@ -286,8 +286,9 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
             go = abs(ic) / vaf
         }
 
-        // gpi = dIb/dVbe ≈ gm / bf
-        var gpi = gm / bf
+        // gpi = dIb/dVbe = Is/(bf*nfVt)*exp(Vbe/nfVt)
+        // Base current Ib = Icc/bf does NOT depend on Vce, so no Early factor.
+        var gpi = isat / (bf * nfVt) * expBE
 
         // gmu = dIc/dVbc (reverse transconductance for saturation)
         var gmu = isat / (br * nrVt) * expBC
@@ -519,36 +520,38 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
 
     /// Stamp the linearized model around the operating point.
     ///
-    /// The Newton-Raphson linearization for collector current:
-    ///   Ic = Ic0 + gm*(Vbe - Vbe0) + go*(Vce - Vce0) - gmu*(Vbc - Vbc0)
+    /// The Jacobian w.r.t. external node voltages is identical for NPN and PNP
+    /// because the polarity flips in both currents and voltages cancel out.
+    /// Only the RHS equivalent current sources need a sign flip for PNP.
     ///
-    /// This is stamped as conductance stamps plus equivalent current sources.
+    /// SPICE3F5 Jacobian (matches AC stamps):
+    ///   J[C,B] = gm - gmu    J[C,C] = go + gmu    J[C,E] = -gm - go
+    ///   J[B,B] = gpi + gmu   J[B,C] = -gmu        J[B,E] = -gpi
+    ///   J[E,B] = -gm - gpi   J[E,C] = -go         J[E,E] = gm + gpi + go
     private func stampLinearized(into stamper: inout MatrixStamper, op: OperatingPointResult, state: SolutionState) {
         let cIdx = stamper.nodeIndex(collector)
         let bIdx = stamper.nodeIndex(base)
         let eIdx = stamper.nodeIndex(emitter)
 
-        // For PNP, we need to flip the sign of currents
         let sign: Double = parameters.polarity == .npn ? 1.0 : -1.0
 
-        // Transconductance gm: Ic depends on Vbe
-        // Stamp: cIdx += gm*(vb - ve), eIdx -= gm*(vb - ve)
+        // Transconductance gm: Ic depends on Vbe (no sign needed)
         if op.gm != 0 {
             if let cIdx, let bIdx {
-                stamper.stampMatrix(cIdx, bIdx, sign * op.gm)
+                stamper.stampMatrix(cIdx, bIdx, op.gm)
             }
             if let cIdx, let eIdx {
-                stamper.stampMatrix(cIdx, eIdx, -sign * op.gm)
+                stamper.stampMatrix(cIdx, eIdx, -op.gm)
             }
             if let eIdx, let bIdx {
-                stamper.stampMatrix(eIdx, bIdx, -sign * op.gm)
+                stamper.stampMatrix(eIdx, bIdx, -op.gm)
             }
             if let eIdx {
-                stamper.stampMatrix(eIdx, eIdx, sign * op.gm)
+                stamper.stampMatrix(eIdx, eIdx, op.gm)
             }
         }
 
-        // Output conductance go: between C and E
+        // Output conductance go: between C and E (no sign needed)
         if op.go != 0 {
             if let cIdx {
                 stamper.stampMatrix(cIdx, cIdx, op.go)
@@ -562,7 +565,7 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
             }
         }
 
-        // Input conductance gpi: between B and E
+        // Input conductance gpi: between B and E (no sign needed)
         if op.gpi != 0 {
             if let bIdx {
                 stamper.stampMatrix(bIdx, bIdx, op.gpi)
@@ -576,38 +579,36 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
             }
         }
 
-        // Reverse transconductance gmu: Ic depends on Vbc
+        // Reverse transconductance gmu: between B and C (no sign needed)
+        // gmu stamps in B and C rows — NOT E row (matches AC stamps and SPICE3F5)
         if op.gmu != 0 {
-            if let cIdx, let bIdx {
-                stamper.stampMatrix(cIdx, bIdx, -sign * op.gmu)
+            if let bIdx {
+                stamper.stampMatrix(bIdx, bIdx, op.gmu)
             }
             if let cIdx {
-                stamper.stampMatrix(cIdx, cIdx, sign * op.gmu)
+                stamper.stampMatrix(cIdx, cIdx, op.gmu)
             }
-            if let eIdx, let bIdx {
-                stamper.stampMatrix(eIdx, bIdx, sign * op.gmu)
-            }
-            if let eIdx, let cIdx {
-                stamper.stampMatrix(eIdx, cIdx, -sign * op.gmu)
+            if let bIdx, let cIdx {
+                stamper.stampMatrix(bIdx, cIdx, -op.gmu)
+                stamper.stampMatrix(cIdx, bIdx, -op.gmu)
             }
         }
 
         // Equivalent current sources from linearization
-        // Icq = Ic - gm*Vbe - go*Vce + gmu*Vbc
-        let icq = sign * op.ic - op.gm * op.vbe - op.go * op.vce + op.gmu * op.vbc
-        // Ibq = Ib - gpi*Vbe
-        let ibq = sign * op.ib - op.gpi * op.vbe
+        // In direct NR form G*x = b, RHS = conductance_part - I_device
+        // SPICE3F5: rhs[C] += (-ic + gm*vbe + go*vce + gmu*vbc) = -icq
+        // Terminal current = sign * internal current (sign = -1 for PNP)
+        let icq = sign * (op.ic - op.gm * op.vbe - op.go * op.vce + op.gmu * op.vbc)
+        let ibq = sign * (op.ib - op.gpi * op.vbe - op.gmu * op.vbc)
 
-        // Stamp RHS: current enters collector, leaves emitter
-        // For base: current enters base
         if let cIdx {
-            stamper.stampRHS(cIdx, icq)
+            stamper.stampRHS(cIdx, -icq)
         }
         if let eIdx {
-            stamper.stampRHS(eIdx, -icq - ibq)
+            stamper.stampRHS(eIdx, icq + ibq)
         }
         if let bIdx {
-            stamper.stampRHS(bIdx, ibq)
+            stamper.stampRHS(bIdx, -ibq)
         }
     }
 }

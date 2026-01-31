@@ -150,6 +150,13 @@ public struct DCAnalysis: Analysis, Sendable {
         var matrix = SparseMatrix(structure: plan.matrixStructure)
         var rhs = [Double](repeating: 0, count: plan.topology.dimension)
 
+        // Optical network evaluation state (captured by stampFunction closure).
+        // Updated at each NR iteration so the Jacobian includes optical-electrical coupling.
+        let evaluator = OpticalNetworkEvaluator()
+        var opticalState = OpticalState(
+            nodeCount: plan.opticalNetwork?.opticalNodeCount ?? 0
+        )
+
         let nr = NewtonRaphsonSolver(config: config)
         let result = try nr.solve(
             initialGuess: initialGuess,
@@ -159,8 +166,22 @@ public struct DCAnalysis: Analysis, Sendable {
             variableMap: variableMap,
             solver: &solver,
             stampFunction: { stamper, state in
+                // 1a. Evaluate optical network (DAG topological order)
+                if let graph = plan.opticalNetwork {
+                    opticalState = evaluator.evaluate(
+                        graph: graph,
+                        devices: devices,
+                        electricalState: state,
+                        previousOpticalState: opticalState
+                    )
+                }
+                // 1b. Stamp all devices (type-checked dispatch)
                 for device in devices {
-                    device.stampDC(into: &stamper, state: state)
+                    if let optoDevice = device as? OptoelectronicDevice {
+                        optoDevice.stampDC(into: &stamper, state: state, opticalState: opticalState)
+                    } else {
+                        device.stampDC(into: &stamper, state: state)
+                    }
                 }
             },
             observer: observer,
@@ -171,7 +192,8 @@ public struct DCAnalysis: Analysis, Sendable {
         return DCResult(
             variables: result.solution,
             variableMap: variableMap,
-            iterations: result.iterations
+            iterations: result.iterations,
+            opticalState: plan.opticalNetwork != nil ? opticalState : nil
         )
     }
 
@@ -229,6 +251,12 @@ public struct DCAnalysis: Analysis, Sendable {
         var matrix = SparseMatrix(structure: plan.matrixStructure)
         var rhs = [Double](repeating: 0, count: dim)
 
+        // Optical network evaluation state (persists across source stepping factors)
+        let evaluator = OpticalNetworkEvaluator()
+        var opticalState = OpticalState(
+            nodeCount: plan.opticalNetwork?.opticalNodeCount ?? 0
+        )
+
         for factor in sourceStepping.sourceFactors() {
             let nr = NewtonRaphsonSolver(config: config)
             let result = try nr.solve(
@@ -239,16 +267,24 @@ public struct DCAnalysis: Analysis, Sendable {
                 variableMap: variableMap,
                 solver: &solver,
                 stampFunction: { stamper, state in
+                    // Evaluate optical network
+                    if let graph = plan.opticalNetwork {
+                        opticalState = evaluator.evaluate(
+                            graph: graph,
+                            devices: devices,
+                            electricalState: state,
+                            previousOpticalState: opticalState
+                        )
+                    }
                     // Stamp each device, applying source scaling to independent sources
                     for device in devices {
                         if let vsource = device as? BoundVoltageSource {
-                            // Scale voltage source by the stepping factor
                             vsource.stampDCScaled(into: &stamper, state: state, factor: factor)
                         } else if let isource = device as? BoundCurrentSource {
-                            // Scale current source by the stepping factor
                             isource.stampDCScaled(into: &stamper, state: state, factor: factor)
+                        } else if let optoDevice = device as? OptoelectronicDevice {
+                            optoDevice.stampDC(into: &stamper, state: state, opticalState: opticalState)
                         } else {
-                            // Non-source devices stamp normally
                             device.stampDC(into: &stamper, state: state)
                         }
                     }
@@ -264,7 +300,8 @@ public struct DCAnalysis: Analysis, Sendable {
         return DCResult(
             variables: x,
             variableMap: variableMap,
-            iterations: totalIterations
+            iterations: totalIterations,
+            opticalState: plan.opticalNetwork != nil ? opticalState : nil
         )
     }
 }

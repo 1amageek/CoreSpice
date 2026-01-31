@@ -53,7 +53,7 @@ public struct ACAnalysis: Analysis, Sendable {
             deviceCount: devices.count
         )))
 
-        // Phase 1: DC operating point
+        // Phase 1: DC operating point (includes optical steady state)
         let dcAnalysis = DCAnalysis(config: dcConfig)
         let dcResult = try await dcAnalysis.run(
             plan: plan,
@@ -66,6 +66,7 @@ public struct ACAnalysis: Analysis, Sendable {
             variables: dcResult.variables,
             variableMap: variableMap
         )
+        let dcOpticalState = dcResult.opticalState ?? OpticalState()
 
         // Phase 2: AC frequency sweep
         var complexSolver = ComplexSparseLUSolver()
@@ -112,7 +113,11 @@ public struct ACAnalysis: Analysis, Sendable {
             )
 
             for device in devices {
-                device.stampAC(into: &stamper, state: dcState, omega: omega)
+                if let optoDevice = device as? OptoelectronicDevice {
+                    optoDevice.stampAC(into: &stamper, state: dcState, opticalState: dcOpticalState, omega: omega)
+                } else {
+                    device.stampAC(into: &stamper, state: dcState, omega: omega)
+                }
             }
 
             // Add Gmin to diagonal for numerical grounding

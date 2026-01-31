@@ -26,13 +26,18 @@ public struct ConvergenceConfig: Sendable {
     /// When divergence is detected, the damping factor is clamped to `[minDamping, 1.0]`.
     public var minDamping: Double
 
+    /// Absolute optical power tolerance for convergence of optoelectronic devices.
+    /// Used in the same manner as `vntol` but for optical power variables.
+    public var opticalPowerTolerance: Double
+
     public init(
         abstol: Double = 1e-12,
         reltol: Double = 1e-3,
         vntol: Double = 1e-6,
         maxIterations: Int = 50,
         gmin: Double = 1e-12,
-        minDamping: Double = 0.1
+        minDamping: Double = 0.1,
+        opticalPowerTolerance: Double = 1e-9
     ) {
         self.abstol = abstol
         self.reltol = reltol
@@ -40,6 +45,7 @@ public struct ConvergenceConfig: Sendable {
         self.maxIterations = maxIterations
         self.gmin = gmin
         self.minDamping = minDamping
+        self.opticalPowerTolerance = opticalPowerTolerance
     }
 
     /// Tests whether the solution change between two Newton iterates is

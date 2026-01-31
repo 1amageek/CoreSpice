@@ -1,3 +1,4 @@
+import CoreSpiceDevices
 import CoreSpiceIR
 
 /// The result of a DC operating point analysis.
@@ -15,14 +16,20 @@ public struct DCResult: Sendable {
     /// The number of Newton-Raphson iterations performed.
     public let iterations: Int
 
+    /// Converged optical state at the DC operating point.
+    /// `nil` when the circuit contains no optical devices.
+    public let opticalState: OpticalState?
+
     public init(
         variables: [Double],
         variableMap: [MNAVariable: Int],
-        iterations: Int
+        iterations: Int,
+        opticalState: OpticalState? = nil
     ) {
         self.variables = variables
         self.variableMap = variableMap
         self.iterations = iterations
+        self.opticalState = opticalState
     }
 
     /// Returns the voltage at the given node.

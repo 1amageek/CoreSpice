@@ -313,10 +313,11 @@ public struct BoundNMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         }
 
         if reversed {
-            // When reversed, current flows in opposite direction relative to terminal labels
+            // When reversed, stamps use effective (swapped) terminals.
+            // Store effective voltages and positive current so ieq formula is consistent.
             return OperatingPointResult(
-                ids: -ids, gm: gm, gds: gds, gmbs: gmbs,
-                vgs: rawVgs, vds: rawVds, vbs: rawVbs, reversed: true
+                ids: ids, gm: gm, gds: gds, gmbs: gmbs,
+                vgs: vgs, vds: vds, vbs: vbs, reversed: true
             )
         }
         return OperatingPointResult(
@@ -391,10 +392,10 @@ public struct BoundNMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         let ieq = op.ids - op.gm * op.vgs - op.gds * op.vds - op.gmbs * op.vbs
 
         if let dIdx {
-            stamper.stampRHS(dIdx, ieq)
+            stamper.stampRHS(dIdx, -ieq)
         }
         if let sIdx {
-            stamper.stampRHS(sIdx, -ieq)
+            stamper.stampRHS(sIdx, ieq)
         }
     }
 
@@ -444,8 +445,8 @@ public struct BoundNMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
             // Linear region
             let ratio1 = (vgst - vds) / (2.0 * vgst - vds)
             let ratio2 = vgst / (2.0 * vgst - vds)
-            cgs = coxWL * (1.0 - ratio1 * ratio1) / 2.0 + cgsOverlap
-            cgd = coxWL * (1.0 - ratio2 * ratio2) / 2.0 + cgdOverlap
+            cgs = coxWL * 2.0 / 3.0 * (1.0 - ratio1 * ratio1) + cgsOverlap
+            cgd = coxWL * 2.0 / 3.0 * (1.0 - ratio2 * ratio2) + cgdOverlap
             cgb = cgbOverlap
         } else {
             // Saturation: 2/3 of channel charge goes to gate-source

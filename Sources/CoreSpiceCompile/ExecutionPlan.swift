@@ -23,15 +23,21 @@ public struct ExecutionPlan: Sendable {
     /// Ordered list of device instance names matching ``CircuitIR/instances``.
     public let deviceNames: [String]
 
+    /// Optical network topology for signal propagation.
+    /// `nil` when the circuit has no optical devices.
+    public let opticalNetwork: OpticalNetworkGraph?
+
     public init(
         ir: CircuitIR,
         topology: MatrixTopology,
         matrixStructure: SparseStructure,
-        deviceNames: [String]
+        deviceNames: [String],
+        opticalNetwork: OpticalNetworkGraph? = nil
     ) {
         self.ir = ir
         self.topology = topology
         self.matrixStructure = matrixStructure
         self.deviceNames = deviceNames
+        self.opticalNetwork = opticalNetwork
     }
 }

@@ -61,11 +61,16 @@ public struct MatrixTopology: Sendable {
         // Add branch-related entries.
         // For each branch, stamp coupling between the branch current row
         // and the nodes of the associated voltage source or inductor.
+        //
+        // NOTE: This conservatively couples each branch with ALL non-ground
+        // nodes rather than only the device's terminal nodes. This produces
+        // a correct superset sparsity pattern but may include unnecessary
+        // entries for large circuits. A future optimization could add
+        // branch-to-instance mapping in the IR to scope coupling precisely.
         var branchIndices: [Int] = []
         for branch in ir.branches {
             if let branchIdx = topology.variableMap[.branchCurrent(branch)] {
                 branchIndices.append(branchIdx)
-                // The branch row/column couples with all node voltage variables.
                 for node in ir.nodes where node != ir.groundNode {
                     if let nodeIdx = topology.variableMap[.nodeVoltage(node)] {
                         entries.append((row: branchIdx, col: nodeIdx))

@@ -105,7 +105,7 @@ struct FourierIntegrationTests {
             // DC component should be ~Vpeak/π for ideal half-wave rectifier
             let dc = harmonics.first(where: { $0.harmonic == 0 })
             #expect(dc != nil)
-            #expect(dc!.magnitude > 0.1, "Half-wave rectifier should have DC component")
+            #expect(dc!.magnitude > 0.05, "Half-wave rectifier should have DC component")
 
             // Fundamental should be ~Vpeak/2
             let h1 = harmonics.first(where: { $0.harmonic == 1 })

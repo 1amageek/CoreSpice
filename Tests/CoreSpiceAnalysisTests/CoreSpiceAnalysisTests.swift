@@ -112,7 +112,10 @@ struct CoreSpiceAnalysisTests {
 
     @Test func lteEstimatorBasic() {
         let estimator = LTEEstimator()
-        let lte = estimator.estimate(
+
+        // With insufficient history (no twoPrevious), LTE should be 0
+        // because the 3-point formula cannot be evaluated.
+        let lteNoHistory = estimator.estimate(
             current: [1.0, 2.0],
             previous: [0.9, 1.8],
             twoPrevious: nil,
@@ -120,7 +123,19 @@ struct CoreSpiceAnalysisTests {
             previousTimeStep: nil,
             method: .backwardEuler
         )
-        #expect(lte > 0)
+        #expect(lteNoHistory == 0)
+
+        // With full 3-point history, LTE should be positive when
+        // the second derivative is non-zero.
+        let lteWithHistory = estimator.estimate(
+            current: [1.0, 2.0],
+            previous: [0.9, 1.8],
+            twoPrevious: [0.85, 1.7],
+            timeStep: 1e-3,
+            previousTimeStep: 1e-3,
+            method: .backwardEuler
+        )
+        #expect(lteWithHistory > 0)
     }
 
     @Test func breakpointManagerConstrainsStep() {

@@ -10,16 +10,26 @@ public struct CircuitIR: Sendable {
     public let instances: [Instance]
     public let groundNode: Node
 
+    /// Optical nodes in the circuit (empty for purely electrical circuits).
+    public let opticalNodes: [OpticalNode]
+
+    /// Optical port-to-node connections (empty for purely electrical circuits).
+    public let opticalConnections: [OpticalConnection]
+
     public init(
         nodes: [Node],
         branches: [Branch],
         instances: [Instance],
-        groundNode: Node = .ground
+        groundNode: Node = .ground,
+        opticalNodes: [OpticalNode] = [],
+        opticalConnections: [OpticalConnection] = []
     ) {
         self.nodes = nodes
         self.branches = branches
         self.instances = instances
         self.groundNode = groundNode
+        self.opticalNodes = opticalNodes
+        self.opticalConnections = opticalConnections
     }
 }
 

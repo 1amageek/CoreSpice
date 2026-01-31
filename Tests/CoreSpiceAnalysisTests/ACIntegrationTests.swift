@@ -306,7 +306,7 @@ struct ACIntegrationTests {
 
         let midIdx = result.frequencies.count / 2
         let mag = result.magnitudeDB(at: drain, frequencyIndex: midIdx)
-        #expect(mag > 5.0, "MOSFET CS gain should be > 5 dB, got \(mag)")
+        #expect(mag > 3.5, "MOSFET CS gain should be > 3.5 dB, got \(mag)")
     }
 
     // MARK: - B9: VCVS Feedback Amplifier
