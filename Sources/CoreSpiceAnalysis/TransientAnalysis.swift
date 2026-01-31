@@ -58,6 +58,14 @@ public struct TransientAnalysis: Analysis, Sendable {
         let dim = plan.topology.dimension
         let variableMap = plan.topology.variableMap
 
+        // Extract branch current indices for LTE normalization
+        let branchCurrentIndices: Set<Int> = Set(
+            variableMap.compactMap { key, value in
+                if case .branchCurrent = key { return value }
+                return nil
+            }
+        )
+
         observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .tran,
@@ -181,7 +189,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
                     // Newton-Raphson solve
                     let nr = NewtonRaphsonSolver(config: convergenceConfig)
-                    let newtonResult: (solution: [Double], iterations: Int)
+                    var newtonResult: (solution: [Double], iterations: Int)
 
                     do {
                         newtonResult = try nr.solve(
@@ -211,24 +219,64 @@ public struct TransientAnalysis: Analysis, Sendable {
                             cancellation: cancellation
                         )
                     } catch is AnalysisError {
-                        // Newton failed: reduce timestep and retry
-                        let oldDt = dt
-                        dt *= config.shrinkFactor
+                        // Newton failed: try GMIN stepping before reducing timestep
                         reductions += 1
-                        rejectedSteps += 1
 
-                        observer?.emit(.timeStepRejected(TimeStepRejectInfo(
-                            id: analysisID,
-                            time: currentTime,
-                            rejectedStep: oldDt,
-                            newStep: dt,
-                            reason: "Newton-Raphson convergence failure"
-                        )))
+                        if reductions == config.gminSteppingThreshold {
+                            // Attempt GMIN stepping at current timestep
+                            if let gminResult = tryGminStepping(
+                                currentBuf: currentBuf,
+                                previousBuf: previousBuf,
+                                matrix: &matrix,
+                                rhs: &rhs,
+                                devices: devices,
+                                variableMap: variableMap,
+                                solver: &mutableSolver,
+                                integration: currentIntegration,
+                                observer: observer,
+                                analysisID: analysisID,
+                                cancellation: cancellation
+                            ) {
+                                // GMIN stepping succeeded — use this solution
+                                newtonResult = gminResult
+                            } else {
+                                // GMIN stepping failed — fall through to timestep reduction
+                                let oldDt = dt
+                                dt *= config.shrinkFactor
+                                rejectedSteps += 1
 
-                        if dt < config.minTimeStep {
-                            throw AnalysisError.timestepTooSmall(dt)
+                                observer?.emit(.timeStepRejected(TimeStepRejectInfo(
+                                    id: analysisID,
+                                    time: currentTime,
+                                    rejectedStep: oldDt,
+                                    newStep: dt,
+                                    reason: "Newton-Raphson + GMIN stepping failure"
+                                )))
+
+                                if dt < config.minTimeStep {
+                                    throw AnalysisError.timestepTooSmall(dt)
+                                }
+                                continue
+                            }
+                        } else {
+                            // Normal timestep reduction
+                            let oldDt = dt
+                            dt *= config.shrinkFactor
+                            rejectedSteps += 1
+
+                            observer?.emit(.timeStepRejected(TimeStepRejectInfo(
+                                id: analysisID,
+                                time: currentTime,
+                                rejectedStep: oldDt,
+                                newStep: dt,
+                                reason: "Newton-Raphson convergence failure"
+                            )))
+
+                            if dt < config.minTimeStep {
+                                throw AnalysisError.timestepTooSmall(dt)
+                            }
+                            continue
                         }
-                        continue
                     }
 
                     // LTE check (skip for the very first step)
@@ -239,7 +287,11 @@ public struct TransientAnalysis: Analysis, Sendable {
                             twoPrevious: hasTwoPrevious ? twoPreviousBuf : nil,
                             timeStep: dt,
                             previousTimeStep: previousDt,
-                            method: method
+                            method: method,
+                            branchCurrentIndices: branchCurrentIndices,
+                            reltol: convergenceConfig.reltol,
+                            vntol: convergenceConfig.vntol,
+                            abstol: convergenceConfig.abstol
                         )
 
                         if lte > config.lteTolerance {
@@ -321,6 +373,10 @@ public struct TransientAnalysis: Analysis, Sendable {
                         if breakpointMgr.isAtBreakpoint(currentTime) {
                             hasTwoPrevious = false
                             method = .backwardEuler
+                        } else if method == .backwardEuler && hasTwoPrevious {
+                            // Restore trapezoidal after completing one backward Euler
+                            // step past the breakpoint (standard SPICE approach).
+                            method = .trapezoidal
                         }
 
                         // Update dt for next iteration
@@ -405,6 +461,71 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             throw error
         }
+    }
+
+    /// Attempts GMIN stepping at the current timestep to find a converged solution.
+    ///
+    /// Progressively reduces GMIN from a large value to the target, using each
+    /// converged solution as the initial guess for the next step — the same
+    /// algorithm as DC GMIN stepping, but applied to the transient stamp.
+    ///
+    /// - Returns: The converged solution and iteration count, or `nil` if all steps failed.
+    private func tryGminStepping(
+        currentBuf: [Double],
+        previousBuf: [Double],
+        matrix: inout SparseMatrix,
+        rhs: inout [Double],
+        devices: [any BoundDevice],
+        variableMap: [MNAVariable: Int],
+        solver: inout any LinearSolver,
+        integration: IntegrationState,
+        observer: EventDispatcher?,
+        analysisID: AnalysisID,
+        cancellation: CancellationToken
+    ) -> (solution: [Double], iterations: Int)? {
+        var x = currentBuf
+        var totalIterations = 0
+
+        for gmin in config.gminStepping.gminValues() {
+            var stepConfig = convergenceConfig
+            stepConfig.gmin = gmin
+
+            let nr = NewtonRaphsonSolver(config: stepConfig)
+            do {
+                let result = try nr.solve(
+                    initialGuess: x,
+                    matrix: &matrix,
+                    rhs: &rhs,
+                    devices: devices,
+                    variableMap: variableMap,
+                    solver: &solver,
+                    stampFunction: { stamper, state in
+                        let transientState = SolutionState(
+                            variables: state.variables,
+                            previousVariables: currentBuf,
+                            twoPreviousVariables: previousBuf,
+                            variableMap: variableMap
+                        )
+                        for device in devices {
+                            device.stampTransient(
+                                into: &stamper,
+                                state: transientState,
+                                integration: integration
+                            )
+                        }
+                    },
+                    observer: observer,
+                    analysisID: analysisID,
+                    cancellation: cancellation
+                )
+                x = result.solution
+                totalIterations += result.iterations
+            } catch {
+                return nil
+            }
+        }
+
+        return (solution: x, iterations: totalIterations)
     }
 
     /// Builds the initial solution vector from device initial conditions (UIC mode).

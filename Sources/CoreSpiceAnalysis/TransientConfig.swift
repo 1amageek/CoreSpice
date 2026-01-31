@@ -23,7 +23,8 @@ public struct TransientConfig: Sendable {
     /// Subsequent steps may switch to a higher-order method.
     public var initialMethod: IntegrationMethod
 
-    /// Local truncation error tolerance.
+    /// Normalized LTE tolerance (dimensionless).
+    /// After normalization, 1.0 means every variable is at its tolerance boundary.
     public var lteTolerance: Double
 
     /// Maximum number of timestep reductions before declaring failure.
@@ -36,16 +37,30 @@ public struct TransientConfig: Sendable {
     /// initial conditions (`.ic` / UIC) to build the starting solution.
     public var useInitialConditions: Bool
 
+    /// Number of consecutive timestep reductions before attempting GMIN stepping.
+    /// Set to `Int.max` to disable GMIN stepping in transient.
+    public var gminSteppingThreshold: Int
+
+    /// GMIN stepping configuration for transient convergence assistance.
+    public var gminStepping: GminStepping
+
     public init(
         stopTime: Double,
         maxTimeStep: Double? = nil,
         initialTimeStep: Double? = nil,
         minTimeStep: Double = 1e-18,
         initialMethod: IntegrationMethod = .backwardEuler,
-        lteTolerance: Double = 1e-4,
+        lteTolerance: Double = 1.0,
         maxTimeStepReductions: Int = 30,
         shrinkFactor: Double = 0.5,
-        useInitialConditions: Bool = false
+        useInitialConditions: Bool = false,
+        gminSteppingThreshold: Int = 5,
+        gminStepping: GminStepping = GminStepping(
+            initialGmin: 1e-3,
+            finalGmin: 1e-12,
+            reductionFactor: 10.0,
+            maxSteps: 5
+        )
     ) {
         self.stopTime = stopTime
         self.maxTimeStep = maxTimeStep ?? stopTime / 50.0
@@ -56,5 +71,7 @@ public struct TransientConfig: Sendable {
         self.maxTimeStepReductions = maxTimeStepReductions
         self.shrinkFactor = shrinkFactor
         self.useInitialConditions = useInitialConditions
+        self.gminSteppingThreshold = gminSteppingThreshold
+        self.gminStepping = gminStepping
     }
 }

@@ -234,7 +234,7 @@ struct ACIntegrationTests {
     // MARK: - B7: BJT Common Emitter AC Gain
 
     @Test("B7: BJT common emitter AC gain",
-          .disabled("NR solver lacks damping for nonlinear BJT convergence"))
+          .timeLimit(.minutes(1)))
     func bjtCommonEmitterACGain() async throws {
         // Vcc(12V) → Rc(2kΩ) → collector, Vb→Rb(100kΩ)→base, emitter→GND
         // AC input via coupling cap
@@ -274,7 +274,7 @@ struct ACIntegrationTests {
     // MARK: - B8: MOSFET Common Source AC Gain
 
     @Test("B8: MOSFET common source AC gain",
-          .disabled("NR solver lacks damping for nonlinear MOSFET convergence"))
+          .timeLimit(.minutes(1)))
     func mosfetCommonSourceACGain() async throws {
         var netlist = Netlist()
         let _ = netlist.node("vdd")

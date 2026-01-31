@@ -551,27 +551,35 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseMultiplicativeExpression() throws -> ParsedExpression {
-        var left = try parseUnaryExpression()
+        var left = try parsePowerExpression()
 
         while !isAtEnd {
             if case .asterisk = currentToken {
                 advance()
-                let right = try parseUnaryExpression()
+                let right = try parsePowerExpression()
                 left = .binaryOp(.multiply, left, right)
             } else if case .slash = currentToken {
                 advance()
-                let right = try parseUnaryExpression()
+                let right = try parsePowerExpression()
                 left = .binaryOp(.divide, left, right)
-            } else if case .caret = currentToken {
-                advance()
-                let right = try parseUnaryExpression()
-                left = .binaryOp(.power, left, right)
             } else {
                 break
             }
         }
 
         return left
+    }
+
+    private mutating func parsePowerExpression() throws -> ParsedExpression {
+        let base = try parseUnaryExpression()
+
+        if !isAtEnd, case .caret = currentToken {
+            advance()
+            let exponent = try parsePowerExpression()
+            return .binaryOp(.power, base, exponent)
+        }
+
+        return base
     }
 
     private mutating func parseUnaryExpression() throws -> ParsedExpression {

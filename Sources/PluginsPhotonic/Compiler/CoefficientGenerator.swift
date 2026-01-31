@@ -19,9 +19,13 @@ public struct CoefficientGenerator: Sendable {
     ///
     /// The 2x2 MZI transfer matrix is:
     /// ```
-    /// T = loss * | cos(theta/2) * e^(i*phi)    i * sin(theta/2)          |
-    ///            | i * sin(theta/2)             cos(theta/2) * e^(-i*phi) |
+    /// T = loss * | cos(θ/2) * e^(iφ)      i * sin(θ/2) * e^(iφ)  |
+    ///            | i * sin(θ/2) * e^(-iφ)  cos(θ/2) * e^(-iφ)     |
     /// ```
+    ///
+    /// This is equivalent to `diag(e^(iφ), e^(-iφ)) * BS(θ)` where
+    /// `BS(θ)` is the symmetric beam-splitter matrix. The resulting
+    /// matrix is special unitary (`det = 1`) scaled by the loss factor.
     ///
     /// - Parameters:
     ///   - block: MZI block parameters (theta, phi, loss).

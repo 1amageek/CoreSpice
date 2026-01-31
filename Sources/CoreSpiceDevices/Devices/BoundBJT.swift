@@ -10,7 +10,7 @@ import CoreSpiceIR
 ///
 /// The device is linearised around the current operating point for
 /// Newton-Raphson iteration.
-public struct BoundBJT: BoundDevice, Sendable {
+public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
 
     public let instance: Instance
     private let collector: Node
@@ -121,15 +121,24 @@ public struct BoundBJT: BoundDevice, Sendable {
             }
         }
 
-        // Reverse transconductance gmu: dIc/dVbc (for saturation region)
+        // Base-collector junction conductance gmu: between B and C
         if op.gmu != 0 {
-            if let cIdx, let bIdx {
-                stamper.stampMatrix(cIdx, bIdx, -op.gmu, 0.0)
+            if let bIdx {
+                stamper.stampMatrix(bIdx, bIdx, op.gmu, 0.0)
             }
             if let cIdx {
                 stamper.stampMatrix(cIdx, cIdx, op.gmu, 0.0)
             }
+            if let bIdx, let cIdx {
+                stamper.stampMatrix(bIdx, cIdx, -op.gmu, 0.0)
+                stamper.stampMatrix(cIdx, bIdx, -op.gmu, 0.0)
+            }
         }
+
+        // Junction capacitance susceptance stamps
+        let caps = bjtCapacitances(state: state)
+        stampACCapacitance(into: &stamper, node1: bIdx, node2: eIdx, cap: caps.cbe, omega: omega)
+        stampACCapacitance(into: &stamper, node1: bIdx, node2: cIdx, cap: caps.cbc, omega: omega)
     }
 
     public func stampTransient(
@@ -137,9 +146,27 @@ public struct BoundBJT: BoundDevice, Sendable {
         state: SolutionState,
         integration: IntegrationState
     ) {
-        // For Level 1 without detailed capacitance model, transient stamp
-        // is the same as DC (quasi-static approximation).
+        // DC (quasi-static I-V) part
         stampDC(into: &stamper, state: state)
+
+        // Junction capacitance companion models
+        let caps = bjtCapacitances(state: state)
+
+        let bIdx = stamper.nodeIndex(base)
+        let eIdx = stamper.nodeIndex(emitter)
+        let cIdx = stamper.nodeIndex(collector)
+
+        // Cbe: between base and emitter
+        stampTransientCapacitance(
+            into: &stamper, node1: bIdx, node2: eIdx,
+            cap: caps.cbe, state: state, integration: integration
+        )
+
+        // Cbc: between base and collector
+        stampTransientCapacitance(
+            into: &stamper, node1: bIdx, node2: cIdx,
+            cap: caps.cbc, state: state, integration: integration
+        )
     }
 
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
@@ -276,6 +303,218 @@ public struct BoundBJT: BoundDevice, Sendable {
             gm: gm, go: go, gpi: gpi, gmu: gmu,
             vbe: vbe, vbc: vbc, vce: vce
         )
+    }
+
+    // MARK: - VoltageLimitingDevice
+
+    public func limitVoltages(solution: inout [Double], previousSolution: [Double]) {
+        let nfVt = parameters.forwardEmissionCoefficient * parameters.thermalVoltage
+        let nrVt = parameters.reverseEmissionCoefficient * parameters.thermalVoltage
+        let isat = parameters.saturationCurrent
+        let isNPN = parameters.polarity == .npn
+
+        let vbNew = baseIdx.map { solution[$0] } ?? 0.0
+        let vcNew = collectorIdx.map { solution[$0] } ?? 0.0
+        let veNew = emitterIdx.map { solution[$0] } ?? 0.0
+
+        let vbOld = baseIdx.map { previousSolution[$0] } ?? 0.0
+        let vcOld = collectorIdx.map { previousSolution[$0] } ?? 0.0
+        let veOld = emitterIdx.map { previousSolution[$0] } ?? 0.0
+
+        // Compute junction voltages accounting for polarity
+        let vbeNew: Double
+        let vbeOld: Double
+        let vbcNew: Double
+        let vbcOld: Double
+
+        if isNPN {
+            vbeNew = vbNew - veNew
+            vbeOld = vbOld - veOld
+            vbcNew = vbNew - vcNew
+            vbcOld = vbOld - vcOld
+        } else {
+            vbeNew = veNew - vbNew
+            vbeOld = veOld - vbOld
+            vbcNew = vcNew - vbNew
+            vbcOld = vcOld - vbOld
+        }
+
+        // Limit BE junction
+        let vbeLimited = PNJunctionLimiter.limit(vNew: vbeNew, vOld: vbeOld, vt: nfVt, isat: isat)
+        // Limit BC junction
+        let vbcLimited = PNJunctionLimiter.limit(vNew: vbcNew, vOld: vbcOld, vt: nrVt, isat: isat)
+
+        let beCorrection = vbeLimited - vbeNew
+        let bcCorrection = vbcLimited - vbcNew
+
+        if beCorrection != 0 || bcCorrection != 0 {
+            // Fix emitter node, adjust base and collector to achieve
+            // the desired junction voltage corrections exactly.
+            //
+            // NPN: Vbe = Vb - Ve, Vbc = Vb - Vc
+            //   ΔVb = beCorrection
+            //   ΔVc = beCorrection - bcCorrection
+            //
+            // PNP: Vbe = Ve - Vb, Vbc = Vc - Vb
+            //   ΔVb = -beCorrection
+            //   ΔVc = bcCorrection - beCorrection
+            if isNPN {
+                if let bIdx = baseIdx {
+                    solution[bIdx] += beCorrection
+                }
+                if let cIdx = collectorIdx {
+                    solution[cIdx] += beCorrection - bcCorrection
+                }
+            } else {
+                if let bIdx = baseIdx {
+                    solution[bIdx] -= beCorrection
+                }
+                if let cIdx = collectorIdx {
+                    solution[cIdx] += bcCorrection - beCorrection
+                }
+            }
+        }
+    }
+
+    // MARK: - BJT Capacitance Model
+
+    private struct BJTCapacitances {
+        let cbe: Double  // total base-emitter capacitance (depletion + diffusion)
+        let cbc: Double  // total base-collector capacitance (depletion + diffusion)
+    }
+
+    /// Computes voltage-dependent junction capacitances.
+    ///
+    /// Each junction has two components:
+    /// - Depletion capacitance: `Cj = Cj0 / (1 - V/Vj)^M` (linear extrapolation above 0.5*Vj)
+    /// - Diffusion capacitance: `Cd = transit_time * g` (charge storage from minority carriers)
+    private func bjtCapacitances(state: SolutionState) -> BJTCapacitances {
+        let op = operatingPoint(state: state)
+
+        // --- Base-Emitter junction ---
+        let cje0 = parameters.baseEmitterCapacitance
+        let vje = parameters.baseEmitterPotential
+        let mje = parameters.baseEmitterGradingCoeff
+        let tf = parameters.forwardTransitTime
+
+        // Depletion capacitance
+        let cjeDepl: Double
+        if cje0 > 0 {
+            if op.vbe < 0.5 * vje {
+                cjeDepl = cje0 / pow(1.0 - op.vbe / vje, mje)
+            } else {
+                // Linear extrapolation above 0.5*Vje to prevent singularity
+                let cHalf = cje0 / pow(0.5, mje)
+                let slope = cHalf * mje / vje
+                cjeDepl = cHalf + slope * (op.vbe - 0.5 * vje)
+            }
+        } else {
+            cjeDepl = 0
+        }
+
+        // Forward diffusion capacitance: Cd_f = tau_f * gm
+        let cdF = tf * op.gm
+
+        // --- Base-Collector junction ---
+        let cjc0 = parameters.baseCollectorCapacitance
+        let vjc = parameters.baseCollectorPotential
+        let mjc = parameters.baseCollectorGradingCoeff
+        let tr = parameters.reverseTransitTime
+
+        // Depletion capacitance
+        let cjcDepl: Double
+        if cjc0 > 0 {
+            if op.vbc < 0.5 * vjc {
+                cjcDepl = cjc0 / pow(1.0 - op.vbc / vjc, mjc)
+            } else {
+                let cHalf = cjc0 / pow(0.5, mjc)
+                let slope = cHalf * mjc / vjc
+                cjcDepl = cHalf + slope * (op.vbc - 0.5 * vjc)
+            }
+        } else {
+            cjcDepl = 0
+        }
+
+        // Reverse diffusion capacitance: Cd_r = tau_r * gmu
+        let cdR = tr * op.gmu
+
+        return BJTCapacitances(
+            cbe: cjeDepl + cdF,
+            cbc: cjcDepl + cdR
+        )
+    }
+
+    // MARK: - Capacitance Stamping Helpers
+
+    /// Stamp a capacitance as jomegaC admittance for AC analysis.
+    private func stampACCapacitance(
+        into stamper: inout ComplexMatrixStamper,
+        node1: Int?, node2: Int?,
+        cap: Double, omega: Double
+    ) {
+        guard cap > 0 else { return }
+        let susceptance = omega * cap
+        if let n1 = node1 {
+            stamper.stampMatrix(n1, n1, 0.0, susceptance)
+        }
+        if let n2 = node2 {
+            stamper.stampMatrix(n2, n2, 0.0, susceptance)
+        }
+        if let n1 = node1, let n2 = node2 {
+            stamper.stampMatrix(n1, n2, 0.0, -susceptance)
+            stamper.stampMatrix(n2, n1, 0.0, -susceptance)
+        }
+    }
+
+    /// Stamp a capacitance companion model for transient analysis.
+    ///
+    /// Uses backward Euler or trapezoidal integration. Trapezoidal
+    /// includes the previous capacitor current for O(h^2) accuracy.
+    private func stampTransientCapacitance(
+        into stamper: inout MatrixStamper,
+        node1: Int?, node2: Int?,
+        cap: Double,
+        state: SolutionState,
+        integration: IntegrationState
+    ) {
+        guard cap > 0 else { return }
+        let geq = integration.coefficient * cap
+        let v1 = node1.map { state.previousValue(at: $0) } ?? 0.0
+        let v2 = node2.map { state.previousValue(at: $0) } ?? 0.0
+        let vPrev = v1 - v2
+
+        let ieq: Double
+        switch integration.method {
+        case .backwardEuler:
+            ieq = geq * vPrev
+        case .trapezoidal:
+            let v1pp = node1.map { state.twoPreviousValue(at: $0) } ?? 0.0
+            let v2pp = node2.map { state.twoPreviousValue(at: $0) } ?? 0.0
+            let vPrevPrev = v1pp - v2pp
+            let dtPrev = integration.previousTimeStep ?? integration.timeStep
+            let iCapPrev = cap * (vPrev - vPrevPrev) / dtPrev
+            ieq = geq * vPrev + iCapPrev
+        }
+
+        // Conductance stamp
+        if let n1 = node1 {
+            stamper.stampMatrix(n1, n1, geq)
+        }
+        if let n2 = node2 {
+            stamper.stampMatrix(n2, n2, geq)
+        }
+        if let n1 = node1, let n2 = node2 {
+            stamper.stampMatrix(n1, n2, -geq)
+            stamper.stampMatrix(n2, n1, -geq)
+        }
+
+        // History current source
+        if let n1 = node1 {
+            stamper.stampRHS(n1, ieq)
+        }
+        if let n2 = node2 {
+            stamper.stampRHS(n2, -ieq)
+        }
     }
 
     /// Stamp the linearized model around the operating point.

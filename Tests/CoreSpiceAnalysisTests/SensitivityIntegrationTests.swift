@@ -57,7 +57,7 @@ struct SensitivityIntegrationTests {
     // MARK: - F3: BJT Circuit Sensitivity
 
     @Test("F3: BJT common emitter sensitivity",
-          .disabled("NR solver lacks damping for nonlinear BJT convergence"))
+          .timeLimit(.minutes(1)))
     func bjtCircuitSensitivity() async throws {
         let (netlist, col, _) = CircuitFactory.bjtCommonEmitter(
             vcc: 12.0, rc: 2000, vbb: 1.5, rb: 100_000,

@@ -340,7 +340,7 @@ struct TransientIntegrationTests {
     // MARK: - C6: Diode Half-Wave Rectifier
 
     @Test("C6: Diode half-wave rectifier",
-          .disabled("Diode transient requires NR damping for sine-driven circuits"))
+          .timeLimit(.minutes(1)))
     func diodeHalfWaveRectifier() async throws {
         // V1(SIN: 0, 5V, 1kHz) → R_in(10Ω) → anode → D1 → out → R(1kΩ) → GND
         var netlist = Netlist()
@@ -363,7 +363,7 @@ struct TransientIntegrationTests {
         let config = TransientConfig(
             stopTime: 2e-3,
             maxTimeStep: 1e-6,
-            lteTolerance: 1e-3
+            lteTolerance: 0.5
         )
         let convergence = ConvergenceConfig(
             reltol: 1e-3,
@@ -394,7 +394,7 @@ struct TransientIntegrationTests {
     // MARK: - C7: Diode Rectifier with PULSE Source
 
     @Test("C7: Diode rectifier with PULSE source",
-          .disabled("Diode transient requires NR damping for sine-driven circuits"))
+          .timeLimit(.minutes(1)))
     func diodeRectifierPulse() async throws {
         // PULSE source through diode to load resistor
         var netlist = Netlist()
@@ -419,7 +419,7 @@ struct TransientIntegrationTests {
         let config = TransientConfig(
             stopTime: 2e-3,
             maxTimeStep: 5e-6,
-            lteTolerance: 1e-3
+            lteTolerance: 0.5
         )
         let convergence = ConvergenceConfig(
             reltol: 1e-3,
@@ -442,7 +442,7 @@ struct TransientIntegrationTests {
     // MARK: - C8: BJT Switching
 
     @Test("C8: BJT switching transient",
-          .disabled("BJT transient requires NR damping not yet implemented"))
+          .timeLimit(.minutes(1)))
     func bjtSwitching() async throws {
         // V1(PULSE 0→5V) → Rb(10kΩ) → base, Vcc(5V) → Rc(1kΩ) → collector, emitter → GND
         var netlist = Netlist()
@@ -471,7 +471,7 @@ struct TransientIntegrationTests {
         let config = TransientConfig(
             stopTime: 100e-6,
             maxTimeStep: 1e-6,
-            lteTolerance: 1e-3
+            lteTolerance: 0.5
         )
         let result = try await CircuitFactory.runTransient(
             netlist, config: config,
@@ -488,7 +488,7 @@ struct TransientIntegrationTests {
     // MARK: - C9: MOSFET Switching
 
     @Test("C9: MOSFET switching transient",
-          .disabled("MOSFET transient requires NR damping not yet implemented"))
+          .timeLimit(.minutes(1)))
     func mosfetSwitching() async throws {
         // V1(PULSE 0→5V) → gate, Vdd(5V) → Rd(1kΩ) → drain, source → GND
         var netlist = Netlist()
@@ -514,7 +514,7 @@ struct TransientIntegrationTests {
         let config = TransientConfig(
             stopTime: 100e-6,
             maxTimeStep: 1e-6,
-            lteTolerance: 1e-3
+            lteTolerance: 0.5
         )
         let result = try await CircuitFactory.runTransient(
             netlist, config: config,
@@ -556,7 +556,7 @@ struct TransientIntegrationTests {
         let config = TransientConfig(
             stopTime: 5e-3,
             maxTimeStep: 10e-6,
-            lteTolerance: 1e-3
+            lteTolerance: 0.5
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 

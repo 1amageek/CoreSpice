@@ -66,7 +66,7 @@ struct DevicePhysicsTests {
     // MARK: - L2: BJT Output Characteristics
 
     @Test("L2: BJT output characteristics (Ic vs Vce family)",
-          .disabled("NR solver lacks damping for nonlinear BJT convergence"))
+          .timeLimit(.minutes(1)))
     func bjtOutputCharacteristics() async throws {
         // Sweep Vce for multiple Ib values
         // Circuit: VCC(sweep) → RC → collector, VBB → RB(large) → base, emitter → GND
@@ -105,7 +105,7 @@ struct DevicePhysicsTests {
     // MARK: - L3: MOSFET Output Characteristics
 
     @Test("L3: MOSFET output characteristics (Ids vs Vds family)",
-          .disabled("NR solver lacks damping for nonlinear NMOS convergence"))
+          .timeLimit(.minutes(1)))
     func mosfetOutputCharacteristics() async throws {
         // Sweep Vds for multiple Vgs values using NMOS
         let vgsValues = [1.0, 2.0, 3.0]
@@ -217,7 +217,7 @@ struct DevicePhysicsTests {
     // MARK: - L5: BJT Early Effect
 
     @Test("L5: BJT Early effect (Vaf parameter)",
-          .disabled("NR solver lacks damping for nonlinear BJT convergence"))
+          .timeLimit(.minutes(1)))
     func bjtEarlyEffect() async throws {
         // Fixed Ib, sweep Vce → Ic should increase linearly with slope Ic0/Vaf
         let vaf = 100.0

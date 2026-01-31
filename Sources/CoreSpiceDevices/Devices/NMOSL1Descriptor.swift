@@ -17,6 +17,18 @@ public struct NMOSL1Descriptor: DeviceDescriptor, Sendable {
         ParameterDescriptor(name: "phi", defaultValue: .real(0.65), description: "Surface potential (V)"),
         ParameterDescriptor(name: "lambda", defaultValue: .real(0.04), description: "Channel-length modulation (1/V)"),
         ParameterDescriptor(name: "tox", defaultValue: .real(100e-9), description: "Gate oxide thickness (m)"),
+        ParameterDescriptor(name: "cgso", defaultValue: .real(0), description: "Gate-source overlap capacitance (F/m)"),
+        ParameterDescriptor(name: "cgdo", defaultValue: .real(0), description: "Gate-drain overlap capacitance (F/m)"),
+        ParameterDescriptor(name: "cgbo", defaultValue: .real(0), description: "Gate-bulk overlap capacitance (F/m)"),
+        ParameterDescriptor(name: "cj", defaultValue: .real(0), description: "Bulk junction bottom capacitance (F/m^2)"),
+        ParameterDescriptor(name: "cjsw", defaultValue: .real(0), description: "Bulk junction sidewall capacitance (F/m)"),
+        ParameterDescriptor(name: "mj", defaultValue: .real(0.5), description: "Junction grading coefficient"),
+        ParameterDescriptor(name: "mjsw", defaultValue: .real(0.33), description: "Sidewall grading coefficient"),
+        ParameterDescriptor(name: "pb", defaultValue: .real(0.8), description: "Bulk junction potential (V)"),
+        ParameterDescriptor(name: "ad", defaultValue: .real(0), description: "Drain diffusion area (m^2)"),
+        ParameterDescriptor(name: "as", defaultValue: .real(0), description: "Source diffusion area (m^2)"),
+        ParameterDescriptor(name: "pd", defaultValue: .real(0), description: "Drain diffusion perimeter (m)"),
+        ParameterDescriptor(name: "ps", defaultValue: .real(0), description: "Source diffusion perimeter (m)"),
     ]
 
     public init() {}
@@ -52,70 +64,36 @@ public struct NMOSL1Descriptor: DeviceDescriptor, Sendable {
     private func extractModelParameters(from instance: Instance) throws -> MOSFETModelParameters {
         var params = MOSFETModelParameters()
 
-        if let p = instance.parameters["w"] {
+        func extractReal(_ name: String) throws -> Double? {
+            guard let p = instance.parameters[name] else { return nil }
             guard case .real(let v) = p else {
                 throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "w", expected: "real"
+                    device: instance.name, parameter: name, expected: "real"
                 )
             }
-            params.w = v
+            return v
         }
-        if let p = instance.parameters["l"] {
-            guard case .real(let v) = p else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "l", expected: "real"
-                )
-            }
-            params.l = v
-        }
-        if let p = instance.parameters["vto"] {
-            guard case .real(let v) = p else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "vto", expected: "real"
-                )
-            }
-            params.vto = v
-        }
-        if let p = instance.parameters["kp"] {
-            guard case .real(let v) = p else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "kp", expected: "real"
-                )
-            }
-            params.kp = v
-        }
-        if let p = instance.parameters["gamma"] {
-            guard case .real(let v) = p else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "gamma", expected: "real"
-                )
-            }
-            params.gamma = v
-        }
-        if let p = instance.parameters["phi"] {
-            guard case .real(let v) = p else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "phi", expected: "real"
-                )
-            }
-            params.phi = v
-        }
-        if let p = instance.parameters["lambda"] {
-            guard case .real(let v) = p else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "lambda", expected: "real"
-                )
-            }
-            params.lambda = v
-        }
-        if let p = instance.parameters["tox"] {
-            guard case .real(let v) = p else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "tox", expected: "real"
-                )
-            }
-            params.tox = v
-        }
+
+        if let v = try extractReal("w") { params.w = v }
+        if let v = try extractReal("l") { params.l = v }
+        if let v = try extractReal("vto") { params.vto = v }
+        if let v = try extractReal("kp") { params.kp = v }
+        if let v = try extractReal("gamma") { params.gamma = v }
+        if let v = try extractReal("phi") { params.phi = v }
+        if let v = try extractReal("lambda") { params.lambda = v }
+        if let v = try extractReal("tox") { params.tox = v }
+        if let v = try extractReal("cgso") { params.cgso = v }
+        if let v = try extractReal("cgdo") { params.cgdo = v }
+        if let v = try extractReal("cgbo") { params.cgbo = v }
+        if let v = try extractReal("cj") { params.cj = v }
+        if let v = try extractReal("cjsw") { params.cjsw = v }
+        if let v = try extractReal("mj") { params.mj = v }
+        if let v = try extractReal("mjsw") { params.mjsw = v }
+        if let v = try extractReal("pb") { params.pb = v }
+        if let v = try extractReal("ad") { params.ad = v }
+        if let v = try extractReal("as") { params.asrc = v }
+        if let v = try extractReal("pd") { params.pd = v }
+        if let v = try extractReal("ps") { params.ps = v }
 
         return params
     }

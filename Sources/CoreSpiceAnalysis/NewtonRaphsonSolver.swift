@@ -150,6 +150,19 @@ public struct NewtonRaphsonSolver: Sendable {
             swap(&x, &previousX)
             // Now: previousX = old x, x = stale buffer (will be overwritten)
 
+            // Device-level voltage limiting on the raw NR solution.
+            // Applied before damping to prevent exponential blow-up.
+            // Skip on the first iteration to allow the initial guess to jump
+            // to a reasonable operating region from a zero initial state.
+            // After swap: previousX = old x (iter-1), x = stale (will be overwritten).
+            if iter > 0 {
+                for device in devices {
+                    if let limiter = device as? VoltageLimitingDevice {
+                        limiter.limitVoltages(solution: &dx, previousSolution: previousX)
+                    }
+                }
+            }
+
             // Update solution: dx is the full new solution from G*x = s,
             // not a correction. With damping=1 this is direct substitution.
             // vDSP_vintbD: result[i] = A[i] + B * (C[i] - A[i])
@@ -167,6 +180,12 @@ public struct NewtonRaphsonSolver: Sendable {
                 previousX: previousX, currentX: x,
                 branchCurrentIndices: branchCurrentIndices
             )
+
+            #if DEBUG
+            if iter < 5 || iter % 10 == 0 {
+                print("  NR[\(iter)] residualNorm=\(residualNorm) damping=\(damping) converged=\(converged) x=\(x.prefix(6).map { String(format: "%.6f", $0) })")
+            }
+            #endif
 
             // Poll per-device convergence when global convergence is met
             if converged {

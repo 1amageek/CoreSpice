@@ -2,6 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Design Philosophy
+
+CoreSpice is a **production-grade SPICE simulator** targeting professional semiconductor and circuit design use cases. All implementation decisions must meet industry-standard SPICE requirements.
+
+### Mandatory Rules
+
+1. **No compromised designs.** Every device model, analysis algorithm, and numerical method must be implemented to the full specification of its reference standard (e.g., SPICE2G6, SPICE3F5, BSIM). Partial implementations that omit physically required parameters or behaviors are prohibited.
+2. **Always verify completeness.** Before implementing or reviewing any feature, check against the complete parameter set and behavioral requirements of the relevant SPICE standard. Missing parameters, missing operating regions, or missing numerical safeguards must be identified and addressed — never silently omitted.
+3. **Device models must be physically complete.**
+   - MOSFET: All capacitance parameters (CGSO, CGDO, CGBO, CBD, CBS, CJ, CJSW, MJ, MJSW, PB, AD, AS, PD, PS), Meyer or charge-based gate capacitance model, junction capacitances with voltage dependence.
+   - Diode/BJT: Junction capacitances, transit time, temperature effects.
+   - Every `stampTransient` must include reactive (capacitive/inductive) behavior — not just repeat `stampDC`.
+4. **Numerical methods must be robust.**
+   - Newton-Raphson: Device-level voltage limiting (pnjlim for PN junctions, MOSFET terminal clamping).
+   - LTE estimation: Variable-type normalization (`vntol` for voltages, `abstol` for currents).
+   - Convergence aids: GMIN stepping and source stepping must be available in all analysis modes where NR is used.
+5. **Accuracy is non-negotiable.** Companion models must maintain the theoretical convergence order of their integration method (e.g., trapezoidal = O(h²)). First-order approximations inside a second-order method are bugs, not simplifications.
+
 ## Build & Test Commands
 
 ```bash

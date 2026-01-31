@@ -63,7 +63,7 @@ struct DCIntegrationTests {
     // MARK: - A6: BJT Common Emitter Bias
 
     @Test("A6: BJT common emitter bias",
-          .disabled("NR solver lacks damping for nonlinear BJT convergence"))
+          .timeLimit(.minutes(1)))
     func bjtCommonEmitterBias() async throws {
         let (netlist, col, _) = CircuitFactory.bjtCommonEmitter(
             vcc: 12.0, rc: 2000, vbb: 1.5, rb: 100_000,
@@ -78,7 +78,7 @@ struct DCIntegrationTests {
     // MARK: - A7: BJT 4-Resistor Bias
 
     @Test("A7: BJT four-resistor bias network",
-          .disabled("NR solver lacks damping for nonlinear BJT convergence"))
+          .timeLimit(.minutes(1)))
     func bjt4ResistorBias() async throws {
         var netlist = Netlist()
         let _ = netlist.node("vcc")
@@ -110,7 +110,7 @@ struct DCIntegrationTests {
     // MARK: - A8: PNP BJT Bias
 
     @Test("A8: PNP BJT bias",
-          .disabled("NR solver lacks damping for nonlinear BJT convergence"))
+          .timeLimit(.minutes(1)))
     func pnpBjtBias() async throws {
         var netlist = Netlist()
         let _ = netlist.node("vcc")
@@ -146,7 +146,7 @@ struct DCIntegrationTests {
     // MARK: - A9: NMOS Common Source Bias
 
     @Test("A9: NMOS common source DC bias",
-          .disabled("NR solver lacks damping for nonlinear MOSFET convergence"))
+          .timeLimit(.minutes(1)))
     func nmosCommonSourceBias() async throws {
         let (netlist, drain) = CircuitFactory.nmosCommonSource(
             vdd: 5.0, rd: 1000, vgs: 2.0,
@@ -283,7 +283,7 @@ struct DCIntegrationTests {
     // MARK: - A17: BJT Differential Pair
 
     @Test("A17: BJT differential pair symmetric bias",
-          .disabled("NR solver lacks damping for nonlinear BJT convergence"))
+          .timeLimit(.minutes(1)))
     func bjtDifferentialPair() async throws {
         var netlist = Netlist()
         let _ = netlist.node("vcc")
@@ -379,7 +379,7 @@ struct DCIntegrationTests {
     // MARK: - A20: CMOS Inverter DC Transfer
 
     @Test("A20: CMOS inverter DC transfer characteristic",
-          .disabled("NR solver lacks damping for nonlinear MOSFET convergence"))
+          .timeLimit(.minutes(1)))
     func cmosInverterDC() async throws {
         let sweepPoints = [0.0, 1.0, 2.0, 2.5, 3.0, 4.0, 5.0]
         var outputs: [Double] = []

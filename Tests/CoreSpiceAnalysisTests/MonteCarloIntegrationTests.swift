@@ -19,7 +19,7 @@ struct MonteCarloIntegrationTests {
     // MARK: - G4: Nonlinear Circuit MC
 
     @Test("G4: Monte Carlo on diode circuit",
-          .disabled("Diode NR convergence unreliable under parameter variation"))
+          .timeLimit(.minutes(1)))
     func diodeCircuitMC() async throws {
         let (netlist, _) = CircuitFactory.diodeCircuit(v: 5.0, r: 1000)
         let (plan, devices) = try CircuitFactory.compile(netlist)
@@ -120,7 +120,7 @@ struct MonteCarloIntegrationTests {
     // MARK: - G6: BJT β Variation
 
     @Test("G6: Monte Carlo on BJT with beta variation",
-          .disabled("NR solver lacks damping for nonlinear BJT convergence"))
+          .timeLimit(.minutes(1)))
     func bjtBetaVariation() async throws {
         let (netlist, col, _) = CircuitFactory.bjtCommonEmitter(
             vcc: 12.0, rc: 2000, vbb: 1.5, rb: 100_000,

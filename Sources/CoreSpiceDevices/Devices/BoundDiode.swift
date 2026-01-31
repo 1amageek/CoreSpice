@@ -8,7 +8,7 @@ import CoreSpiceIR
 /// - Reverse saturation current in reverse bias
 /// - Junction capacitance for transient analysis
 /// - Voltage limiting to prevent numerical overflow
-public struct BoundDiode: BoundDevice, Sendable {
+public struct BoundDiode: BoundDevice, VoltageLimitingDevice, Sendable {
 
     public let instance: Instance
     private let anode: Node
@@ -101,8 +101,10 @@ public struct BoundDiode: BoundDevice, Sendable {
             }
         }
 
-        // Junction capacitance (susceptance = jωC)
-        let cj = junctionCapacitance(vd: op.vd)
+        // Junction capacitance: depletion + diffusion (susceptance = jωC)
+        let cjDepl = junctionCapacitance(vd: op.vd)
+        let cDiff = parameters.transitTime * op.gd
+        let cj = cjDepl + cDiff
         if cj > 0 {
             let susceptance = omega * cj
             if let aIdx {
@@ -123,33 +125,77 @@ public struct BoundDiode: BoundDevice, Sendable {
         state: SolutionState,
         integration: IntegrationState
     ) {
-        // DC part
+        // DC part (I-V linearization)
         stampDC(into: &stamper, state: state)
 
-        // Junction capacitance companion model
+        // Junction capacitance companion model: depletion + diffusion
         let op = operatingPoint(state: state)
-        let cj = junctionCapacitance(vd: op.vd)
+        let cjDepl = junctionCapacitance(vd: op.vd)
+        let cDiff = parameters.transitTime * op.gd
+        let cj = cjDepl + cDiff
+        guard cj > 0 else { return }
 
-        if cj > 0 {
-            // Companion model: geq = coefficient * C
-            let geq = integration.coefficient * cj
+        let aIdx = stamper.nodeIndex(anode)
+        let cIdx = stamper.nodeIndex(cathode)
 
-            // Stamp equivalent conductance
-            stamper.stampConductance(node1: anode, node2: cathode, conductance: geq)
+        stampTransientCapacitance(
+            into: &stamper,
+            node1: aIdx, node2: cIdx,
+            cap: cj,
+            state: state,
+            integration: integration
+        )
+    }
 
-            // Equivalent current source based on previous voltage
-            let vPrev = diodePreviousVoltage(state: state)
-            let ieq = geq * vPrev
+    /// Stamp a capacitance companion model for transient analysis.
+    ///
+    /// - Backward Euler: `Geq = C/dt`, `Ieq = Geq * Vprev`
+    /// - Trapezoidal: `Geq = 2C/dt`, `Ieq = Geq * Vprev + I_cap_prev`
+    ///   where `I_cap_prev = C * (Vprev - Vprevprev) / dtPrev`
+    private func stampTransientCapacitance(
+        into stamper: inout MatrixStamper,
+        node1: Int?, node2: Int?,
+        cap: Double,
+        state: SolutionState,
+        integration: IntegrationState
+    ) {
+        guard cap > 0 else { return }
+        let geq = integration.coefficient * cap
+        let v1 = node1.map { state.previousValue(at: $0) } ?? 0.0
+        let v2 = node2.map { state.previousValue(at: $0) } ?? 0.0
+        let vPrev = v1 - v2
 
-            let aIdx = stamper.nodeIndex(anode)
-            let cIdx = stamper.nodeIndex(cathode)
+        let ieq: Double
+        switch integration.method {
+        case .backwardEuler:
+            ieq = geq * vPrev
+        case .trapezoidal:
+            let v1pp = node1.map { state.twoPreviousValue(at: $0) } ?? 0.0
+            let v2pp = node2.map { state.twoPreviousValue(at: $0) } ?? 0.0
+            let vPrevPrev = v1pp - v2pp
+            let dtPrev = integration.previousTimeStep ?? integration.timeStep
+            let iCapPrev = cap * (vPrev - vPrevPrev) / dtPrev
+            ieq = geq * vPrev + iCapPrev
+        }
 
-            if let aIdx {
-                stamper.stampRHS(aIdx, ieq)
-            }
-            if let cIdx {
-                stamper.stampRHS(cIdx, -ieq)
-            }
+        // Conductance stamp
+        if let n1 = node1 {
+            stamper.stampMatrix(n1, n1, geq)
+        }
+        if let n2 = node2 {
+            stamper.stampMatrix(n2, n2, geq)
+        }
+        if let n1 = node1, let n2 = node2 {
+            stamper.stampMatrix(n1, n2, -geq)
+            stamper.stampMatrix(n2, n1, -geq)
+        }
+
+        // History current source
+        if let n1 = node1 {
+            stamper.stampRHS(n1, ieq)
+        }
+        if let n2 = node2 {
+            stamper.stampRHS(n2, -ieq)
         }
     }
 
@@ -231,8 +277,32 @@ public struct BoundDiode: BoundDevice, Sendable {
             // Forward bias: linear extrapolation to avoid singularity
             // C = Cjo * (1 + m * vd / vj) when vd > 0.5*vj
             let c_half = cjo / pow(0.5, m)
-            let slope = c_half * m / vj
+            let slope = c_half * m / (vj * 0.5)
             return c_half + slope * (vd - 0.5 * vj)
+        }
+    }
+
+    // MARK: - VoltageLimitingDevice
+
+    public func limitVoltages(solution: inout [Double], previousSolution: [Double]) {
+        let vt = parameters.emissionCoefficient * parameters.thermalVoltage
+        let isat = parameters.saturationCurrent
+
+        let vaNew = anodeIdx.map { solution[$0] } ?? 0.0
+        let vcNew = cathodeIdx.map { solution[$0] } ?? 0.0
+        let vaOld = anodeIdx.map { previousSolution[$0] } ?? 0.0
+        let vcOld = cathodeIdx.map { previousSolution[$0] } ?? 0.0
+
+        let vdNew = vaNew - vcNew
+        let vdOld = vaOld - vcOld
+
+        let vdLimited = PNJunctionLimiter.limit(vNew: vdNew, vOld: vdOld, vt: vt, isat: isat)
+
+        if vdLimited != vdNew {
+            let correction = vdLimited - vdNew
+            if let aIdx = anodeIdx {
+                solution[aIdx] += correction
+            }
         }
     }
 

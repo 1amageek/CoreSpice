@@ -12,7 +12,7 @@ struct FourierIntegrationTests {
     // MARK: - E4: Diode Clipping THD
 
     @Test("E4: Diode clipping introduces harmonic distortion",
-          .disabled("Diode transient requires NR damping for sine-driven circuits"))
+          .timeLimit(.minutes(1)))
     func diodeClippingTHD() async throws {
         // V1(SIN 0, 2V, 1kHz) → R(1kΩ) → anode → D → GND
         // Diode clips positive half above ~0.7V → significant THD
@@ -60,7 +60,7 @@ struct FourierIntegrationTests {
     // MARK: - E5: Half-Wave Rectifier Harmonics
 
     @Test("E5: Half-wave rectifier harmonic content",
-          .disabled("Diode transient requires NR damping for sine-driven circuits"))
+          .timeLimit(.minutes(1)))
     func halfWaveRectifierHarmonics() async throws {
         // V1(SIN 0, 1V, 1kHz) → D → out → R(1kΩ) → GND
         let freq = 1000.0
@@ -122,7 +122,7 @@ struct FourierIntegrationTests {
     // MARK: - E6: Full-Wave Rectifier Harmonics
 
     @Test("E6: Full-wave rectifier harmonic content",
-          .disabled("Bridge diode transient requires NR damping"))
+          .timeLimit(.minutes(1)))
     func fullWaveRectifierHarmonics() async throws {
         // Simplified: same as E5 but full bridge
         // Too complex for current NR solver
