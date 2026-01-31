@@ -24,11 +24,18 @@ public struct NPNDescriptor: DeviceDescriptor, Sendable {
 
         let params = extractBJTParameters(from: instance, polarity: .npn)
 
+        let collectorNode = instance.nodes[0]
+        let baseNode = instance.nodes[1]
+        let emitterNode = instance.nodes[2]
+
         return BoundBJT(
             instance: instance,
-            collector: instance.nodes[0],
-            base: instance.nodes[1],
-            emitter: instance.nodes[2],
+            collector: collectorNode,
+            base: baseNode,
+            emitter: emitterNode,
+            collectorIdx: context.nodeIndex(collectorNode),
+            baseIdx: context.nodeIndex(baseNode),
+            emitterIdx: context.nodeIndex(emitterNode),
             parameters: params
         )
     }
@@ -58,11 +65,18 @@ public struct PNPDescriptor: DeviceDescriptor, Sendable {
 
         let params = extractBJTParameters(from: instance, polarity: .pnp)
 
+        let collectorNode = instance.nodes[0]
+        let baseNode = instance.nodes[1]
+        let emitterNode = instance.nodes[2]
+
         return BoundBJT(
             instance: instance,
-            collector: instance.nodes[0],
-            base: instance.nodes[1],
-            emitter: instance.nodes[2],
+            collector: collectorNode,
+            base: baseNode,
+            emitter: emitterNode,
+            collectorIdx: context.nodeIndex(collectorNode),
+            baseIdx: context.nodeIndex(baseNode),
+            emitterIdx: context.nodeIndex(emitterNode),
             parameters: params
         )
     }

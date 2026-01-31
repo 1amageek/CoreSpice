@@ -14,13 +14,20 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
     private let acMagnitude: Double
     private let waveform: Waveform
 
+    /// Pre-resolved matrix index for the positive node (nil for ground).
+    private let posIdx: Int?
+    /// Pre-resolved matrix index for the negative node (nil for ground).
+    private let negIdx: Int?
+
     init(
         instance: Instance,
         posNode: Node,
         negNode: Node,
         dcCurrent: Double,
         acMagnitude: Double,
-        waveform: Waveform
+        waveform: Waveform,
+        posIdx: Int?,
+        negIdx: Int?
     ) {
         self.instance = instance
         self.posNode = posNode
@@ -28,10 +35,17 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
         self.dcCurrent = dcCurrent
         self.acMagnitude = acMagnitude
         self.waveform = waveform
+        self.posIdx = posIdx
+        self.negIdx = negIdx
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
-        stamper.stampCurrentSource(posNode: posNode, negNode: negNode, current: dcCurrent)
+        if let i = posIdx {
+            stamper.stampRHS(i, dcCurrent)
+        }
+        if let j = negIdx {
+            stamper.stampRHS(j, -dcCurrent)
+        }
     }
 
     public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
@@ -45,7 +59,12 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
         integration: IntegrationState
     ) {
         let current = waveform.value(at: integration.currentTime)
-        stamper.stampCurrentSource(posNode: posNode, negNode: negNode, current: current)
+        if let i = posIdx {
+            stamper.stampRHS(i, current)
+        }
+        if let j = negIdx {
+            stamper.stampRHS(j, -current)
+        }
     }
 
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
@@ -65,6 +84,11 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
     ///   - factor: Scaling factor (0.0 to 1.0) applied to the source current.
     public func stampDCScaled(into stamper: inout MatrixStamper, state: SolutionState, factor: Double) {
         let scaledCurrent = dcCurrent * factor
-        stamper.stampCurrentSource(posNode: posNode, negNode: negNode, current: scaledCurrent)
+        if let i = posIdx {
+            stamper.stampRHS(i, scaledCurrent)
+        }
+        if let j = negIdx {
+            stamper.stampRHS(j, -scaledCurrent)
+        }
     }
 }

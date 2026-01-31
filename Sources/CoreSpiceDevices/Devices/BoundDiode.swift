@@ -15,6 +15,11 @@ public struct BoundDiode: BoundDevice, Sendable {
     private let cathode: Node
     private let parameters: DiodeModelParameters
 
+    /// Pre-resolved matrix index for the anode node (nil for ground).
+    private let anodeIdx: Int?
+    /// Pre-resolved matrix index for the cathode node (nil for ground).
+    private let cathodeIdx: Int?
+
     /// Convergence tolerance for diode voltage (V).
     private static let voltageTolerance: Double = 1e-6
 
@@ -28,12 +33,44 @@ public struct BoundDiode: BoundDevice, Sendable {
         instance: Instance,
         anode: Node,
         cathode: Node,
+        anodeIdx: Int?,
+        cathodeIdx: Int?,
         parameters: DiodeModelParameters
     ) {
         self.instance = instance
         self.anode = anode
         self.cathode = cathode
+        self.anodeIdx = anodeIdx
+        self.cathodeIdx = cathodeIdx
         self.parameters = parameters
+    }
+
+    // MARK: - Index-Based Voltage Helpers
+
+    /// Returns the voltage at a node using a pre-resolved index, avoiding dictionary lookup.
+    @inline(__always)
+    private func nodeVoltage(_ idx: Int?, state: SolutionState) -> Double {
+        if let idx { return state.value(at: idx) }
+        return 0.0
+    }
+
+    /// Returns the previous voltage at a node using a pre-resolved index.
+    @inline(__always)
+    private func nodePreviousVoltage(_ idx: Int?, state: SolutionState) -> Double {
+        if let idx { return state.previousValue(at: idx) }
+        return 0.0
+    }
+
+    /// Returns the diode voltage (anode - cathode) from the current state.
+    @inline(__always)
+    private func diodeVoltage(state: SolutionState) -> Double {
+        nodeVoltage(anodeIdx, state: state) - nodeVoltage(cathodeIdx, state: state)
+    }
+
+    /// Returns the diode voltage (anode - cathode) from the previous state.
+    @inline(__always)
+    private func diodePreviousVoltage(state: SolutionState) -> Double {
+        nodePreviousVoltage(anodeIdx, state: state) - nodePreviousVoltage(cathodeIdx, state: state)
     }
 
     // MARK: - BoundDevice
@@ -101,7 +138,7 @@ public struct BoundDiode: BoundDevice, Sendable {
             stamper.stampConductance(node1: anode, node2: cathode, conductance: geq)
 
             // Equivalent current source based on previous voltage
-            let vPrev = state.previousVoltage(at: anode) - state.previousVoltage(at: cathode)
+            let vPrev = diodePreviousVoltage(state: state)
             let ieq = geq * vPrev
 
             let aIdx = stamper.nodeIndex(anode)
@@ -117,8 +154,8 @@ public struct BoundDiode: BoundDevice, Sendable {
     }
 
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
-        let vdNew = state.voltage(at: anode) - state.voltage(at: cathode)
-        let vdOld = previousState.voltage(at: anode) - previousState.voltage(at: cathode)
+        let vdNew = diodeVoltage(state: state)
+        let vdOld = diodeVoltage(state: previousState)
         let delta = abs(vdNew - vdOld)
 
         if delta < Self.voltageTolerance {
@@ -136,7 +173,7 @@ public struct BoundDiode: BoundDevice, Sendable {
     }
 
     private func operatingPoint(state: SolutionState) -> OperatingPointResult {
-        let vd = state.voltage(at: anode) - state.voltage(at: cathode)
+        let vd = diodeVoltage(state: state)
         let vt = parameters.thermalVoltage
         let n = parameters.emissionCoefficient
         let isat = parameters.saturationCurrent

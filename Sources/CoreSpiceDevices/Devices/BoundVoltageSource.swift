@@ -14,6 +14,17 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
     private let waveform: Waveform
     private let branch: Branch
 
+    // Pre-resolved matrix indices for O(1) stamping
+    private let posIdx: Int?
+    private let negIdx: Int?
+    private let branchIdx: Int?
+
+    // Pre-resolved CSR value indices for direct array access
+    private let stampPB: Int?
+    private let stampBP: Int?
+    private let stampNB: Int?
+    private let stampBN: Int?
+
     init(
         instance: Instance,
         posNode: Node,
@@ -21,7 +32,14 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
         dcVoltage: Double,
         acMagnitude: Double,
         waveform: Waveform,
-        branch: Branch
+        branch: Branch,
+        posIdx: Int? = nil,
+        negIdx: Int? = nil,
+        branchIdx: Int? = nil,
+        stampPB: Int? = nil,
+        stampBP: Int? = nil,
+        stampNB: Int? = nil,
+        stampBN: Int? = nil
     ) {
         self.instance = instance
         self.posNode = posNode
@@ -30,10 +48,25 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
         self.acMagnitude = acMagnitude
         self.waveform = waveform
         self.branch = branch
+        self.posIdx = posIdx
+        self.negIdx = negIdx
+        self.branchIdx = branchIdx
+        self.stampPB = stampPB
+        self.stampBP = stampBP
+        self.stampNB = stampNB
+        self.stampBN = stampBN
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
-        stamper.stampVoltageSource(posNode: posNode, negNode: negNode, branch: branch, voltage: dcVoltage)
+        if let sv = stamper.stampValue, let bIdx = branchIdx, stampPB != nil || stampBP != nil {
+            if let idx = stampPB { sv(idx, 1.0) }
+            if let idx = stampBP { sv(idx, 1.0) }
+            if let idx = stampNB { sv(idx, -1.0) }
+            if let idx = stampBN { sv(idx, -1.0) }
+            stamper.stampRHS(bIdx, dcVoltage)
+        } else {
+            stamper.stampVoltageSource(posNode: posNode, negNode: negNode, branch: branch, voltage: dcVoltage)
+        }
     }
 
     public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
@@ -51,7 +84,15 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
         integration: IntegrationState
     ) {
         let voltage = waveform.value(at: integration.currentTime)
-        stamper.stampVoltageSource(posNode: posNode, negNode: negNode, branch: branch, voltage: voltage)
+        if let sv = stamper.stampValue, let bIdx = branchIdx, stampPB != nil || stampBP != nil {
+            if let idx = stampPB { sv(idx, 1.0) }
+            if let idx = stampBP { sv(idx, 1.0) }
+            if let idx = stampNB { sv(idx, -1.0) }
+            if let idx = stampBN { sv(idx, -1.0) }
+            stamper.stampRHS(bIdx, voltage)
+        } else {
+            stamper.stampVoltageSource(posNode: posNode, negNode: negNode, branch: branch, voltage: voltage)
+        }
     }
 
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
@@ -71,6 +112,14 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
     ///   - factor: Scaling factor (0.0 to 1.0) applied to the source voltage.
     public func stampDCScaled(into stamper: inout MatrixStamper, state: SolutionState, factor: Double) {
         let scaledVoltage = dcVoltage * factor
-        stamper.stampVoltageSource(posNode: posNode, negNode: negNode, branch: branch, voltage: scaledVoltage)
+        if let sv = stamper.stampValue, let bIdx = branchIdx, stampPB != nil || stampBP != nil {
+            if let idx = stampPB { sv(idx, 1.0) }
+            if let idx = stampBP { sv(idx, 1.0) }
+            if let idx = stampNB { sv(idx, -1.0) }
+            if let idx = stampBN { sv(idx, -1.0) }
+            stamper.stampRHS(bIdx, scaledVoltage)
+        } else {
+            stamper.stampVoltageSource(posNode: posNode, negNode: negNode, branch: branch, voltage: scaledVoltage)
+        }
     }
 }

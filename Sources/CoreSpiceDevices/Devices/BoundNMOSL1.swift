@@ -22,6 +22,12 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
     private let bulk: Node
     private let parameters: MOSFETModelParameters
 
+    /// Pre-resolved matrix indices for fast voltage lookups.
+    private let drainIdx: Int?
+    private let gateIdx: Int?
+    private let sourceIdx: Int?
+    private let bulkIdx: Int?
+
     /// Convergence tolerance for terminal voltages (V).
     private static let voltageTolerance: Double = 1e-6
 
@@ -31,7 +37,11 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
         gate: Node,
         source: Node,
         bulk: Node,
-        parameters: MOSFETModelParameters
+        parameters: MOSFETModelParameters,
+        drainIdx: Int?,
+        gateIdx: Int?,
+        sourceIdx: Int?,
+        bulkIdx: Int?
     ) {
         self.instance = instance
         self.drain = drain
@@ -39,6 +49,15 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
         self.source = source
         self.bulk = bulk
         self.parameters = parameters
+        self.drainIdx = drainIdx
+        self.gateIdx = gateIdx
+        self.sourceIdx = sourceIdx
+        self.bulkIdx = bulkIdx
+    }
+
+    /// Retrieve a node voltage by pre-resolved index, returning 0 for ground nodes.
+    private func nodeVoltage(_ idx: Int?, _ state: SolutionState) -> Double {
+        if let idx { return state.value(at: idx) } else { return 0 }
     }
 
     // MARK: - BoundDevice
@@ -118,12 +137,12 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
     }
 
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
-        let vgsNew = state.voltage(at: gate) - state.voltage(at: source)
-        let vgsOld = previousState.voltage(at: gate) - previousState.voltage(at: source)
-        let vdsNew = state.voltage(at: drain) - state.voltage(at: source)
-        let vdsOld = previousState.voltage(at: drain) - previousState.voltage(at: source)
-        let vbsNew = state.voltage(at: bulk) - state.voltage(at: source)
-        let vbsOld = previousState.voltage(at: bulk) - previousState.voltage(at: source)
+        let vgsNew = nodeVoltage(gateIdx, state) - nodeVoltage(sourceIdx, state)
+        let vgsOld = nodeVoltage(gateIdx, previousState) - nodeVoltage(sourceIdx, previousState)
+        let vdsNew = nodeVoltage(drainIdx, state) - nodeVoltage(sourceIdx, state)
+        let vdsOld = nodeVoltage(drainIdx, previousState) - nodeVoltage(sourceIdx, previousState)
+        let vbsNew = nodeVoltage(bulkIdx, state) - nodeVoltage(sourceIdx, state)
+        let vbsOld = nodeVoltage(bulkIdx, previousState) - nodeVoltage(sourceIdx, previousState)
 
         let deltaVgs = abs(vgsNew - vgsOld)
         let deltaVds = abs(vdsNew - vdsOld)
@@ -150,9 +169,14 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
     }
 
     private func operatingPoint(state: SolutionState) -> OperatingPointResult {
-        let rawVgs = state.voltage(at: gate) - state.voltage(at: source)
-        let rawVds = state.voltage(at: drain) - state.voltage(at: source)
-        let rawVbs = state.voltage(at: bulk) - state.voltage(at: source)
+        let vGate = nodeVoltage(gateIdx, state)
+        let vDrain = nodeVoltage(drainIdx, state)
+        let vSource = nodeVoltage(sourceIdx, state)
+        let vBulk = nodeVoltage(bulkIdx, state)
+
+        let rawVgs = vGate - vSource
+        let rawVds = vDrain - vSource
+        let rawVbs = vBulk - vSource
         let beta = parameters.beta
         let lambda = parameters.lambda
 
@@ -163,8 +187,8 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
         let vbs: Double
         if reversed {
             vds = -rawVds
-            vgs = state.voltage(at: gate) - state.voltage(at: drain)
-            vbs = state.voltage(at: bulk) - state.voltage(at: drain)
+            vgs = vGate - vDrain
+            vbs = vBulk - vDrain
         } else {
             vds = rawVds
             vgs = rawVgs

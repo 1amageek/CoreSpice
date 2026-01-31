@@ -100,6 +100,9 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
                 stampRHS: { _, _ in
                     // Discard RHS contributions from device stamps.
                     // We'll construct our own excitation vectors.
+                },
+                stampValue: { idx, val in
+                    gMatrix.addValueDirect(at: idx, value: val)
                 }
             )
 

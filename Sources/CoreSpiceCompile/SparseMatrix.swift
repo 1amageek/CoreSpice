@@ -1,3 +1,9 @@
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 /// A real-valued sparse matrix stored in CSR format.
 ///
 /// Numeric values are stored in a flat array whose layout matches
@@ -21,8 +27,10 @@ public struct SparseMatrix: Sendable {
 
     /// Resets all stored values to zero without changing the sparsity pattern.
     public mutating func clear() {
-        for i in values.indices {
-            values[i] = 0.0
+        values.withUnsafeMutableBufferPointer { buf in
+            if let base = buf.baseAddress {
+                memset(base, 0, buf.count &* MemoryLayout<Double>.stride)
+            }
         }
     }
 
@@ -38,6 +46,15 @@ public struct SparseMatrix: Sendable {
     public mutating func addValue(row: Int, col: Int, value: Double) {
         guard let idx = structure.index(row: row, col: col) else { return }
         values[idx] += value
+    }
+
+    /// Accumulates a value at a pre-resolved CSR index, bypassing binary search.
+    ///
+    /// The caller must ensure the index was obtained from the same
+    /// ``SparseStructure`` used to create this matrix.
+    @inline(__always)
+    public mutating func addValueDirect(at valueIndex: Int, value: Double) {
+        values[valueIndex] += value
     }
 
     /// Returns the value at the given position.

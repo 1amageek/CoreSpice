@@ -396,9 +396,11 @@ struct Session {
             let compiled = try compiler.compile(ir: ir)
 
             let registry = DeviceRegistry.standard()
+            let mcStructure = compiled.matrixStructure
             var context = BindingContext(
                 variableMap: compiled.topology.variableMap,
-                matrixDimension: compiled.topology.dimension
+                matrixDimension: compiled.topology.dimension,
+                stampIndexResolver: { row, col in mcStructure.index(row: row, col: col) }
             )
             var bound: [any BoundDevice] = []
             for instance in ir.instances {
@@ -533,9 +535,11 @@ struct Session {
         registry: DeviceRegistry,
         overrideSource: (String, Double)?
     ) throws -> [any BoundDevice] {
+        let structure = plan.matrixStructure
         var context = BindingContext(
             variableMap: plan.topology.variableMap,
-            matrixDimension: plan.topology.dimension
+            matrixDimension: plan.topology.dimension,
+            stampIndexResolver: { row, col in structure.index(row: row, col: col) }
         )
 
         var devices: [any BoundDevice] = []

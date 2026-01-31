@@ -48,10 +48,15 @@ public struct DiodeDescriptor: DeviceDescriptor, Sendable {
             saturationCurrentExponent: extractReal(instance.parameters["xti"]) ?? 3.0
         )
 
+        let anodeNode = instance.nodes[0]
+        let cathodeNode = instance.nodes[1]
+
         return BoundDiode(
             instance: instance,
-            anode: instance.nodes[0],
-            cathode: instance.nodes[1],
+            anode: anodeNode,
+            cathode: cathodeNode,
+            anodeIdx: context.nodeIndex(anodeNode),
+            cathodeIdx: context.nodeIndex(cathodeNode),
             parameters: params
         )
     }

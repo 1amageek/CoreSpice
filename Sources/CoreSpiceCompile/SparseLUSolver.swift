@@ -1,3 +1,5 @@
+import Accelerate
+
 /// LU decomposition solver with partial pivoting for real sparse matrices.
 ///
 /// Uses symbolic analysis to predict fill-in and maintains sparse storage
@@ -40,7 +42,10 @@ public struct SparseLUSolver: LinearSolver {
     private var uValues: [Double] = []
     private var pivot: [Int] = []
     private var useDenseSolve: Bool = false
-    private var denseLU: [[Double]] = []
+    /// Flat column-major dense LU storage for LAPACK (n × n).
+    private var denseLU: [Double] = []
+    /// LAPACK pivot indices from dgetrf_ (1-based).
+    private var lapackPivot: [__CLPK_integer] = []
 
     /// Per-row overflow storage for L entries outside the symbolic pattern.
     private var lOverflow: [DynamicSparseRow<Double>] = []
@@ -215,8 +220,9 @@ public struct SparseLUSolver: LinearSolver {
         // Pivot (shared between dense and sparse paths)
         pivot = Array(repeating: 0, count: n)
 
-        // Dense path workspace
-        denseLU = Array(repeating: Array(repeating: 0.0, count: n), count: n)
+        // Dense path workspace (flat column-major for LAPACK)
+        denseLU = Array(repeating: 0.0, count: n * n)
+        lapackPivot = Array(repeating: 0, count: n)
 
         // Sparse path workspace
         lValues = Array(repeating: 0.0, count: sym.lColumnIndices.count)
@@ -238,58 +244,33 @@ public struct SparseLUSolver: LinearSolver {
 
     // MARK: - Dense Factorization
 
-    /// Dense factorization for small matrices (optimized for cache locality).
+    /// Dense factorization for small matrices using LAPACK dgetrf_.
     ///
-    /// Uses the pre-allocated `denseLU` workspace. Fills from permuted values,
-    /// then performs Gaussian elimination with partial pivoting in-place.
+    /// Fills the flat column-major `denseLU` workspace from permuted CSR values,
+    /// then calls LAPACK's optimized LU factorization with partial pivoting.
     private mutating func factorizeDense(n: Int, permStruct: SparseStructure) throws {
-        // Fill denseLU from permuted sparse values
-        for i in 0..<n {
-            for j in 0..<n { denseLU[i][j] = 0.0 }
-        }
+        // Fill flat column-major denseLU from permuted sparse values
+        for i in 0..<n * n { denseLU[i] = 0.0 }
         for row in 0..<n {
             let start = permStruct.rowPointers[row]
             let end = permStruct.rowPointers[row + 1]
             for idx in start..<end {
-                denseLU[row][permStruct.columnIndices[idx]] = permutedValues[idx]
+                let col = permStruct.columnIndices[idx]
+                // Column-major: element (row, col) is at index col * n + row
+                denseLU[col * n + row] = permutedValues[idx]
             }
         }
 
-        // Reset pivot to identity
-        for i in 0..<n { pivot[i] = i }
+        // LAPACK LU factorization with partial pivoting
+        var m = __CLPK_integer(n)
+        var nn = __CLPK_integer(n)
+        var lda = __CLPK_integer(n)
+        var info: __CLPK_integer = 0
 
-        // Gaussian elimination with partial pivoting
-        for k in 0..<n {
-            // Find pivot row
-            var maxVal = abs(denseLU[k][k])
-            var maxRow = k
-            for i in (k + 1)..<n {
-                let candidate = abs(denseLU[i][k])
-                if candidate > maxVal {
-                    maxVal = candidate
-                    maxRow = i
-                }
-            }
+        dgetrf_(&m, &nn, &denseLU, &lda, &lapackPivot, &info)
 
-            if maxVal < 1e-15 {
-                throw CompileError.singularMatrix
-            }
-
-            // Swap rows
-            if maxRow != k {
-                denseLU.swapAt(k, maxRow)
-                pivot.swapAt(k, maxRow)
-            }
-
-            // Eliminate below pivot
-            let pivotValue = denseLU[k][k]
-            for i in (k + 1)..<n {
-                let factor = denseLU[i][k] / pivotValue
-                denseLU[i][k] = factor
-                for j in (k + 1)..<n {
-                    denseLU[i][j] -= factor * denseLU[k][j]
-                }
-            }
+        guard info == 0 else {
+            throw CompileError.singularMatrix
         }
 
         useDenseSolve = true
@@ -572,14 +553,15 @@ public struct SparseLUSolver: LinearSolver {
         // Apply AMD permutation to RHS
         let permutedRHS = sym.permutation.apply(to: rhs)
 
-        // Apply row pivot permutation: b = P * permutedRHS
+        if useDenseSolve {
+            // LAPACK dgetrs_ handles pivoting internally via lapackPivot
+            return try solveDenseAllocating(b: permutedRHS, permutation: sym.permutation)
+        }
+
+        // Apply row pivot permutation: b = P * permutedRHS (sparse path only)
         var b = Array(repeating: 0.0, count: n)
         for i in 0..<n {
             b[i] = permutedRHS[pivot[i]]
-        }
-
-        if useDenseSolve {
-            return try solveDenseAllocating(b: b, permutation: sym.permutation)
         }
 
         // Forward substitution: L * y = b
@@ -631,30 +613,26 @@ public struct SparseLUSolver: LinearSolver {
         return sym.permutation.applyInverse(to: x)
     }
 
-    /// Dense solve (allocating variant).
+    /// Dense solve using LAPACK dgetrs_ (allocating variant).
     private func solveDenseAllocating(b: [Double], permutation: Permutation) throws -> [Double] {
         let n = dimension
+        var x = b  // dgetrs_ overwrites the RHS in-place
 
-        var y = Array(repeating: 0.0, count: n)
-        for i in 0..<n {
-            var sum = b[i]
-            for j in 0..<i {
-                sum -= denseLU[i][j] * y[j]
-            }
-            y[i] = sum
-        }
+        var nn = __CLPK_integer(n)
+        var nrhs: __CLPK_integer = 1
+        var lda = __CLPK_integer(n)
+        var ldb = __CLPK_integer(n)
+        var info: __CLPK_integer = 0
+        var trans: CChar = 78  // 'N' (no transpose)
 
-        var x = Array(repeating: 0.0, count: n)
-        for i in stride(from: n - 1, through: 0, by: -1) {
-            var sum = y[i]
-            for j in (i + 1)..<n {
-                sum -= denseLU[i][j] * x[j]
-            }
-            let diagValue = denseLU[i][i]
-            guard abs(diagValue) > 1e-15 else {
-                throw CompileError.singularMatrix
-            }
-            x[i] = sum / diagValue
+        // Need a mutable copy of denseLU and lapackPivot for LAPACK
+        var lu = denseLU
+        var ipiv = lapackPivot
+
+        dgetrs_(&trans, &nn, &nrhs, &lu, &lda, &ipiv, &x, &ldb, &info)
+
+        guard info == 0 else {
+            throw CompileError.singularMatrix
         }
 
         return permutation.applyInverse(to: x)
@@ -690,34 +668,32 @@ public struct SparseLUSolver: LinearSolver {
         // 1. Apply AMD permutation: rhs → solveTemp
         sym.permutation.apply(from: rhs, into: &solveTemp)
 
-        // 2. Apply pivot permutation: solveTemp → solveB
-        for i in 0..<n {
-            solveB[i] = solveTemp[pivot[i]]
-        }
-
         if useDenseSolve {
-            // Dense forward substitution: L * y = b
-            for i in 0..<n {
-                var sum = solveB[i]
-                for j in 0..<i {
-                    sum -= denseLU[i][j] * solveY[j]
-                }
-                solveY[i] = sum
+            // LAPACK dgetrs_ handles pivoting internally via lapackPivot.
+            // Copy AMD-permuted RHS to solveY (dgetrs_ overwrites in-place).
+            for i in 0..<n { solveY[i] = solveTemp[i] }
+
+            var nn = __CLPK_integer(n)
+            var nrhs: __CLPK_integer = 1
+            var lda = __CLPK_integer(n)
+            var ldb = __CLPK_integer(n)
+            var info: __CLPK_integer = 0
+            var trans: CChar = 78  // 'N'
+
+            dgetrs_(&trans, &nn, &nrhs, &denseLU, &lda, &lapackPivot, &solveY, &ldb, &info)
+
+            guard info == 0 else {
+                throw CompileError.singularMatrix
             }
 
-            // Dense backward substitution: U * x = y
-            for i in stride(from: n - 1, through: 0, by: -1) {
-                var sum = solveY[i]
-                for j in (i + 1)..<n {
-                    sum -= denseLU[i][j] * solveX[j]
-                }
-                let diagValue = denseLU[i][i]
-                guard abs(diagValue) > 1e-15 else {
-                    throw CompileError.singularMatrix
-                }
-                solveX[i] = sum / diagValue
-            }
+            // solveY now contains the solution; copy to solveX for inverse permutation
+            for i in 0..<n { solveX[i] = solveY[i] }
         } else {
+            // 2. Apply pivot permutation: solveTemp → solveB (sparse path only)
+            for i in 0..<n {
+                solveB[i] = solveTemp[pivot[i]]
+            }
+
             // Sparse forward substitution: L * y = b
             for i in 0..<n {
                 var sum = solveB[i]

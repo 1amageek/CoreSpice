@@ -48,7 +48,9 @@ public struct CurrentSourceDescriptor: DeviceDescriptor, Sendable {
             negNode: instance.nodes[1],
             dcCurrent: dcCurrent,
             acMagnitude: acMagnitude,
-            waveform: waveform
+            waveform: waveform,
+            posIdx: context.nodeIndex(instance.nodes[0]),
+            negIdx: context.nodeIndex(instance.nodes[1])
         )
     }
 

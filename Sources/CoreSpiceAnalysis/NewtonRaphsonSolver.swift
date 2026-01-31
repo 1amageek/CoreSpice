@@ -2,6 +2,7 @@ import CoreSpiceCompile
 import CoreSpiceDevices
 import CoreSpiceIR
 import CoreSpiceEvent
+import Accelerate
 
 /// Reusable Newton-Raphson nonlinear iteration engine.
 ///
@@ -64,6 +65,7 @@ public struct NewtonRaphsonSolver: Sendable {
         // Pre-allocate working buffers (reused across iterations)
         var previousX = [Double](repeating: 0, count: n)
         var dx = [Double](repeating: 0, count: n)
+        var vdspTemp = [Double](repeating: 0, count: n)
 
         // Use local copies so non-@Sendable escaping closures can capture them.
         // The stamping is single-threaded — no synchronisation needed.
@@ -86,8 +88,10 @@ public struct NewtonRaphsonSolver: Sendable {
 
             // Clear matrix and RHS (zero alloc — reuse existing buffers)
             localMatrix.clear()
-            for i in 0..<n {
-                localRHS[i] = 0.0
+            localRHS.withUnsafeMutableBufferPointer { buf in
+                if let base = buf.baseAddress {
+                    memset(base, 0, n &* MemoryLayout<Double>.stride)
+                }
             }
 
             // Build the Jacobian and residual from the current solution
@@ -99,6 +103,9 @@ public struct NewtonRaphsonSolver: Sendable {
                 },
                 stampRHS: { row, val in
                     localRHS[row] += val
+                },
+                stampValue: { idx, val in
+                    localMatrix.addValueDirect(at: idx, value: val)
                 }
             )
 
@@ -126,12 +133,10 @@ public struct NewtonRaphsonSolver: Sendable {
                 throw AnalysisError.singularMatrix
             }
 
-            // Compute raw update norm for adaptive damping (manual loop — no temp array)
+            // Compute raw update norm for adaptive damping (vDSP — SIMD accelerated)
+            vDSP_vsubD(x, 1, dx, 1, &vdspTemp, 1, vDSP_Length(n))
             var rawUpdateNorm = 0.0
-            for i in 0..<n {
-                let d = abs(dx[i] - x[i])
-                if d > rawUpdateNorm { rawUpdateNorm = d }
-            }
+            vDSP_maxmgvD(vdspTemp, 1, &rawUpdateNorm, vDSP_Length(n))
 
             // Adaptive damping: reduce step when divergence is detected
             var damping = 1.0
@@ -147,16 +152,16 @@ public struct NewtonRaphsonSolver: Sendable {
 
             // Update solution: dx is the full new solution from G*x = s,
             // not a correction. With damping=1 this is direct substitution.
-            for i in 0..<n {
-                x[i] = (1.0 - damping) * previousX[i] + damping * dx[i]
-            }
+            // vDSP_vintbD: result[i] = A[i] + B * (C[i] - A[i])
+            //            = previousX[i] + damping * (dx[i] - previousX[i])
+            //            = (1 - damping) * previousX[i] + damping * dx[i]
+            var d = damping
+            vDSP_vintbD(previousX, 1, dx, 1, &d, &x, 1, vDSP_Length(n))
 
-            // Compute residual norm (manual loop — no temp array)
+            // Compute residual norm (vDSP — SIMD accelerated)
+            vDSP_vsubD(previousX, 1, x, 1, &vdspTemp, 1, vDSP_Length(n))
             var residualNorm = 0.0
-            for i in 0..<n {
-                let d = abs(x[i] - previousX[i])
-                if d > residualNorm { residualNorm = d }
-            }
+            vDSP_maxmgvD(vdspTemp, 1, &residualNorm, vDSP_Length(n))
 
             var converged = config.isConverged(
                 previousX: previousX, currentX: x,

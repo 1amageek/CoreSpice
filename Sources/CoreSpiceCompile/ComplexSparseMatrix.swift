@@ -1,3 +1,9 @@
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 /// A pair of double-precision values representing a complex number.
 public struct ComplexPair: Sendable, Hashable {
 
@@ -72,8 +78,11 @@ public struct ComplexSparseMatrix: Sendable {
 
     /// Resets all stored values to zero without changing the sparsity pattern.
     public mutating func clear() {
-        for i in values.indices {
-            values[i] = .zero
+        values.withUnsafeMutableBufferPointer { buf in
+            if let base = buf.baseAddress {
+                // ComplexPair is two Doubles; all-zero bits == (real: 0, imag: 0)
+                memset(base, 0, buf.count &* MemoryLayout<ComplexPair>.stride)
+            }
         }
     }
 

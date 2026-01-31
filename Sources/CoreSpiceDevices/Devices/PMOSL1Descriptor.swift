@@ -31,13 +31,22 @@ public struct PMOSL1Descriptor: DeviceDescriptor, Sendable {
 
         let params = try extractModelParameters(from: instance)
 
+        let drainNode = instance.nodes[0]
+        let gateNode = instance.nodes[1]
+        let sourceNode = instance.nodes[2]
+        let bulkNode = instance.nodes[3]
+
         return BoundPMOSL1(
             instance: instance,
-            drain: instance.nodes[0],
-            gate: instance.nodes[1],
-            source: instance.nodes[2],
-            bulk: instance.nodes[3],
-            parameters: params
+            drain: drainNode,
+            gate: gateNode,
+            source: sourceNode,
+            bulk: bulkNode,
+            parameters: params,
+            drainIdx: context.nodeIndex(drainNode),
+            gateIdx: context.nodeIndex(gateNode),
+            sourceIdx: context.nodeIndex(sourceNode),
+            bulkIdx: context.nodeIndex(bulkNode)
         )
     }
 

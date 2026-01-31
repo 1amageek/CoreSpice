@@ -11,14 +11,22 @@ public struct BindingContext: Sendable {
     public let matrixDimension: Int
     private var nextBranchID: Int
 
+    /// Closure for pre-resolving CSR value indices at bind time.
+    ///
+    /// When provided, devices can resolve CSR value indices during binding
+    /// to bypass binary search during stamping.
+    private let stampIndexResolver: (@Sendable (_ row: Int, _ col: Int) -> Int?)?
+
     public init(
         variableMap: [MNAVariable: Int],
         matrixDimension: Int,
-        nextBranchID: Int = 0
+        nextBranchID: Int = 0,
+        stampIndexResolver: (@Sendable (_ row: Int, _ col: Int) -> Int?)? = nil
     ) {
         self.variableMap = variableMap
         self.matrixDimension = matrixDimension
         self.nextBranchID = nextBranchID
+        self.stampIndexResolver = stampIndexResolver
     }
 
     /// Allocates a new branch variable for the MNA system.
@@ -37,5 +45,13 @@ public struct BindingContext: Sendable {
     /// Returns the matrix index for a branch current variable.
     public func branchIndex(_ branch: Branch) -> Int? {
         variableMap[.branchCurrent(branch)]
+    }
+
+    /// Pre-resolves the CSR value index for a matrix position.
+    ///
+    /// Returns `nil` when no stamp index resolver is available
+    /// or the position does not exist in the sparsity pattern.
+    public func stampIndex(row: Int, col: Int) -> Int? {
+        stampIndexResolver?(row, col)
     }
 }

@@ -30,8 +30,10 @@ struct CoreSpiceAnalysisTests {
         let plan = try compiler.compile(ir: ir)
 
         let registry = DeviceRegistry.standard()
+        let structure = plan.matrixStructure
         var context = BindingContext(variableMap: plan.topology.variableMap,
-                                     matrixDimension: plan.topology.dimension)
+                                     matrixDimension: plan.topology.dimension,
+                                     stampIndexResolver: { row, col in structure.index(row: row, col: col) })
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
@@ -202,8 +204,10 @@ struct CoreSpiceAnalysisTests {
         let plan = try compiler.compile(ir: ir)
 
         let registry = DeviceRegistry.standard()
+        let structure = plan.matrixStructure
         var context = BindingContext(variableMap: plan.topology.variableMap,
-                                     matrixDimension: plan.topology.dimension)
+                                     matrixDimension: plan.topology.dimension,
+                                     stampIndexResolver: { row, col in structure.index(row: row, col: col) })
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
@@ -255,8 +259,10 @@ struct CoreSpiceAnalysisTests {
         let plan = try compiler.compile(ir: ir)
 
         let registry = DeviceRegistry.standard()
+        let structure = plan.matrixStructure
         var context = BindingContext(variableMap: plan.topology.variableMap,
-                                     matrixDimension: plan.topology.dimension)
+                                     matrixDimension: plan.topology.dimension,
+                                     stampIndexResolver: { row, col in structure.index(row: row, col: col) })
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
@@ -304,8 +310,10 @@ struct CoreSpiceAnalysisTests {
         let plan = try compiler.compile(ir: ir)
 
         let registry = DeviceRegistry.standard()
+        let structure = plan.matrixStructure
         var context = BindingContext(variableMap: plan.topology.variableMap,
-                                     matrixDimension: plan.topology.dimension)
+                                     matrixDimension: plan.topology.dimension,
+                                     stampIndexResolver: { row, col in structure.index(row: row, col: col) })
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
@@ -371,8 +379,10 @@ struct CoreSpiceAnalysisTests {
         let plan = try compiler.compile(ir: ir)
 
         let registry = DeviceRegistry.standard()
+        let structure = plan.matrixStructure
         var context = BindingContext(variableMap: plan.topology.variableMap,
-                                     matrixDimension: plan.topology.dimension)
+                                     matrixDimension: plan.topology.dimension,
+                                     stampIndexResolver: { row, col in structure.index(row: row, col: col) })
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
@@ -441,8 +451,10 @@ struct CoreSpiceAnalysisTests {
         let plan = try compiler.compile(ir: ir)
 
         let registry = DeviceRegistry.standard()
+        let structure = plan.matrixStructure
         var context = BindingContext(variableMap: plan.topology.variableMap,
-                                     matrixDimension: plan.topology.dimension)
+                                     matrixDimension: plan.topology.dimension,
+                                     stampIndexResolver: { row, col in structure.index(row: row, col: col) })
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }

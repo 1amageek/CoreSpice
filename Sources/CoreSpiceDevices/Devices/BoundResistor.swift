@@ -12,16 +12,50 @@ public struct BoundResistor: BoundDevice, NoisyDevice, Sendable {
     private let negNode: Node
     private let resistance: Double
 
-    init(instance: Instance, posNode: Node, negNode: Node, resistance: Double) {
+    /// Pre-resolved node indices (nil for ground).
+    private let posIdx: Int?
+    private let negIdx: Int?
+
+    /// Pre-resolved CSR value indices for O(1) stamping.
+    private let stampPP: Int?
+    private let stampNN: Int?
+    private let stampPN: Int?
+    private let stampNP: Int?
+
+    init(
+        instance: Instance,
+        posNode: Node,
+        negNode: Node,
+        resistance: Double,
+        posIdx: Int? = nil,
+        negIdx: Int? = nil,
+        stampPP: Int? = nil,
+        stampNN: Int? = nil,
+        stampPN: Int? = nil,
+        stampNP: Int? = nil
+    ) {
         self.instance = instance
         self.posNode = posNode
         self.negNode = negNode
         self.resistance = resistance
+        self.posIdx = posIdx
+        self.negIdx = negIdx
+        self.stampPP = stampPP
+        self.stampNN = stampNN
+        self.stampPN = stampPN
+        self.stampNP = stampNP
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
-        let conductance = 1.0 / resistance
-        stamper.stampConductance(node1: posNode, node2: negNode, conductance: conductance)
+        let g = 1.0 / resistance
+        if let sv = stamper.stampValue, stampPP != nil || stampNN != nil {
+            if let idx = stampPP { sv(idx, g) }
+            if let idx = stampNN { sv(idx, g) }
+            if let idx = stampPN { sv(idx, -g) }
+            if let idx = stampNP { sv(idx, -g) }
+        } else {
+            stamper.stampConductance(node1: posNode, node2: negNode, conductance: g)
+        }
     }
 
     public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {

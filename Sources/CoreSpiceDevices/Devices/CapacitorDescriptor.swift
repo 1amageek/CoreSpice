@@ -43,12 +43,29 @@ public struct CapacitorDescriptor: DeviceDescriptor, Sendable {
             initialVoltage = 0.0
         }
 
+        let posNode = instance.nodes[0]
+        let negNode = instance.nodes[1]
+        let posIdx = context.nodeIndex(posNode)
+        let negIdx = context.nodeIndex(negNode)
+
+        // Pre-resolve CSR value indices for O(1) stamping
+        let stampPP = posIdx.flatMap { i in context.stampIndex(row: i, col: i) }
+        let stampNN = negIdx.flatMap { i in context.stampIndex(row: i, col: i) }
+        let stampPN: Int? = if let i = posIdx, let j = negIdx { context.stampIndex(row: i, col: j) } else { nil }
+        let stampNP: Int? = if let i = negIdx, let j = posIdx { context.stampIndex(row: i, col: j) } else { nil }
+
         return BoundCapacitor(
             instance: instance,
-            posNode: instance.nodes[0],
-            negNode: instance.nodes[1],
+            posNode: posNode,
+            negNode: negNode,
             capacitance: capacitance,
-            initialVoltage: initialVoltage
+            initialVoltage: initialVoltage,
+            posIdx: posIdx,
+            negIdx: negIdx,
+            stampPP: stampPP,
+            stampNN: stampNN,
+            stampPN: stampPN,
+            stampNP: stampNP
         )
     }
 }

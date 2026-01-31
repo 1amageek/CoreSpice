@@ -18,6 +18,13 @@ public struct BoundBJT: BoundDevice, Sendable {
     private let emitter: Node
     private let parameters: BJTModelParameters
 
+    /// Pre-resolved matrix index for the collector node (nil for ground).
+    private let collectorIdx: Int?
+    /// Pre-resolved matrix index for the base node (nil for ground).
+    private let baseIdx: Int?
+    /// Pre-resolved matrix index for the emitter node (nil for ground).
+    private let emitterIdx: Int?
+
     /// Convergence tolerance for terminal voltages (V).
     private static let voltageTolerance: Double = 1e-6
 
@@ -32,13 +39,28 @@ public struct BoundBJT: BoundDevice, Sendable {
         collector: Node,
         base: Node,
         emitter: Node,
+        collectorIdx: Int?,
+        baseIdx: Int?,
+        emitterIdx: Int?,
         parameters: BJTModelParameters
     ) {
         self.instance = instance
         self.collector = collector
         self.base = base
         self.emitter = emitter
+        self.collectorIdx = collectorIdx
+        self.baseIdx = baseIdx
+        self.emitterIdx = emitterIdx
         self.parameters = parameters
+    }
+
+    // MARK: - Index-Based Voltage Helpers
+
+    /// Returns the voltage at a node using a pre-resolved index, avoiding dictionary lookup.
+    @inline(__always)
+    private func nodeVoltage(_ idx: Int?, state: SolutionState) -> Double {
+        if let idx { return state.value(at: idx) }
+        return 0.0
     }
 
     // MARK: - BoundDevice
@@ -153,8 +175,8 @@ public struct BoundBJT: BoundDevice, Sendable {
 
     /// Returns the base-emitter voltage, accounting for polarity.
     private func voltageVbe(state: SolutionState) -> Double {
-        let vb = state.voltage(at: base)
-        let ve = state.voltage(at: emitter)
+        let vb = nodeVoltage(baseIdx, state: state)
+        let ve = nodeVoltage(emitterIdx, state: state)
         switch parameters.polarity {
         case .npn: return vb - ve
         case .pnp: return ve - vb
@@ -163,8 +185,8 @@ public struct BoundBJT: BoundDevice, Sendable {
 
     /// Returns the base-collector voltage, accounting for polarity.
     private func voltageVbc(state: SolutionState) -> Double {
-        let vb = state.voltage(at: base)
-        let vc = state.voltage(at: collector)
+        let vb = nodeVoltage(baseIdx, state: state)
+        let vc = nodeVoltage(collectorIdx, state: state)
         switch parameters.polarity {
         case .npn: return vb - vc
         case .pnp: return vc - vb
@@ -173,8 +195,8 @@ public struct BoundBJT: BoundDevice, Sendable {
 
     /// Returns the collector-emitter voltage, accounting for polarity.
     private func voltageVce(state: SolutionState) -> Double {
-        let vc = state.voltage(at: collector)
-        let ve = state.voltage(at: emitter)
+        let vc = nodeVoltage(collectorIdx, state: state)
+        let ve = nodeVoltage(emitterIdx, state: state)
         switch parameters.polarity {
         case .npn: return vc - ve
         case .pnp: return ve - vc

@@ -48,13 +48,34 @@ public struct InductorDescriptor: DeviceDescriptor, Sendable {
 
         let branch = context.allocateBranch()
 
+        let posNode = instance.nodes[0]
+        let negNode = instance.nodes[1]
+        let posIdx = context.nodeIndex(posNode)
+        let negIdx = context.nodeIndex(negNode)
+        let branchIdx = context.branchIndex(branch)
+
+        // Pre-resolve CSR value indices for O(1) stamping
+        let stampPB: Int? = if let i = posIdx, let b = branchIdx { context.stampIndex(row: i, col: b) } else { nil }
+        let stampBP: Int? = if let b = branchIdx, let i = posIdx { context.stampIndex(row: b, col: i) } else { nil }
+        let stampNB: Int? = if let j = negIdx, let b = branchIdx { context.stampIndex(row: j, col: b) } else { nil }
+        let stampBN: Int? = if let b = branchIdx, let j = negIdx { context.stampIndex(row: b, col: j) } else { nil }
+        let stampBB: Int? = branchIdx.flatMap { b in context.stampIndex(row: b, col: b) }
+
         return BoundInductor(
             instance: instance,
-            posNode: instance.nodes[0],
-            negNode: instance.nodes[1],
+            posNode: posNode,
+            negNode: negNode,
             inductance: inductance,
             initialCurrent: initialCurrent,
-            branch: branch
+            branch: branch,
+            posIdx: posIdx,
+            negIdx: negIdx,
+            branchIdx: branchIdx,
+            stampPB: stampPB,
+            stampBP: stampBP,
+            stampNB: stampNB,
+            stampBN: stampBN,
+            stampBB: stampBB
         )
     }
 }

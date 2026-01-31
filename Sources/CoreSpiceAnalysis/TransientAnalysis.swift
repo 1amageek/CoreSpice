@@ -284,7 +284,11 @@ public struct TransientAnalysis: Analysis, Sendable {
                         stepAccepted = true
                         swap(&twoPreviousBuf, &previousBuf)
                         swap(&previousBuf, &currentBuf)
-                        for i in 0..<dim { currentBuf[i] = newtonResult.solution[i] }
+                        newtonResult.solution.withUnsafeBufferPointer { src in
+                            currentBuf.withUnsafeMutableBufferPointer { dst in
+                                memcpy(dst.baseAddress!, src.baseAddress!, dim &* MemoryLayout<Double>.stride)
+                            }
+                        }
                         hasTwoPrevious = true
                         previousDt = dt
                         currentTime += dt
@@ -325,7 +329,11 @@ public struct TransientAnalysis: Analysis, Sendable {
                         // First step: no LTE check, just accept — O(1) buffer rotation
                         stepAccepted = true
                         swap(&previousBuf, &currentBuf)
-                        for i in 0..<dim { currentBuf[i] = newtonResult.solution[i] }
+                        newtonResult.solution.withUnsafeBufferPointer { src in
+                            currentBuf.withUnsafeMutableBufferPointer { dst in
+                                memcpy(dst.baseAddress!, src.baseAddress!, dim &* MemoryLayout<Double>.stride)
+                            }
+                        }
                         // hasTwoPrevious stays false
                         previousDt = dt
                         currentTime += dt

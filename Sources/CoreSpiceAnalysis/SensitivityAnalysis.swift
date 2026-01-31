@@ -183,9 +183,11 @@ public struct SensitivityAnalysis: Analysis, Sendable {
         perturbedInstanceIndex: Int,
         perturbedInstance: Instance
     ) throws -> [any BoundDevice] {
+        let structure = plan.matrixStructure
         var context = BindingContext(
             variableMap: plan.topology.variableMap,
-            matrixDimension: plan.topology.dimension
+            matrixDimension: plan.topology.dimension,
+            stampIndexResolver: { row, col in structure.index(row: row, col: col) }
         )
         var devices: [any BoundDevice] = []
 

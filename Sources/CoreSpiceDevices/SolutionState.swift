@@ -67,4 +67,27 @@ public struct SolutionState: Sendable {
         guard let idx = variableMap[.nodeVoltage(node)] else { return 0.0 }
         return tp[idx]
     }
+
+    // MARK: - Index-Based Access (zero-cost, no dictionary lookup)
+
+    /// Returns the current solution value at a pre-resolved index.
+    public func value(at index: Int) -> Double {
+        variables[index]
+    }
+
+    /// Returns the previous solution value at a pre-resolved index.
+    ///
+    /// Falls back to the current value when no previous state exists.
+    public func previousValue(at index: Int) -> Double {
+        guard let prev = previousVariables else { return variables[index] }
+        return prev[index]
+    }
+
+    /// Returns the two-previous solution value at a pre-resolved index.
+    ///
+    /// Falls back to `previousValue` when no two-previous state exists.
+    public func twoPreviousValue(at index: Int) -> Double {
+        guard let tp = twoPreviousVariables else { return previousValue(at: index) }
+        return tp[index]
+    }
 }
