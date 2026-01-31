@@ -61,8 +61,10 @@ public struct MatrixTopology: Sendable {
         // Add branch-related entries.
         // For each branch, stamp coupling between the branch current row
         // and the nodes of the associated voltage source or inductor.
+        var branchIndices: [Int] = []
         for branch in ir.branches {
             if let branchIdx = topology.variableMap[.branchCurrent(branch)] {
+                branchIndices.append(branchIdx)
                 // The branch row/column couples with all node voltage variables.
                 for node in ir.nodes where node != ir.groundNode {
                     if let nodeIdx = topology.variableMap[.nodeVoltage(node)] {
@@ -70,6 +72,15 @@ public struct MatrixTopology: Sendable {
                         entries.append((row: nodeIdx, col: branchIdx))
                     }
                 }
+            }
+        }
+
+        // Add branch-to-branch coupling entries.
+        // Devices like CCVS stamp cross-branch terms (e.g., transresistance
+        // coupling between output branch and sense branch).
+        for i in branchIndices {
+            for j in branchIndices {
+                entries.append((row: i, col: j))
             }
         }
 

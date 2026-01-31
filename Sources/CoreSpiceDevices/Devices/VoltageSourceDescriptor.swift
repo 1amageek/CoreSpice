@@ -41,6 +41,7 @@ public struct VoltageSourceDescriptor: DeviceDescriptor, Sendable {
 
         let waveform = try parseWaveform(from: instance)
         let dcVoltage = waveform.dcValue
+        let acMagnitude = extractReal(instance.parameters["ac"]) ?? 0.0
 
         let branch = context.allocateBranch()
 
@@ -49,6 +50,7 @@ public struct VoltageSourceDescriptor: DeviceDescriptor, Sendable {
             posNode: instance.nodes[0],
             negNode: instance.nodes[1],
             dcVoltage: dcVoltage,
+            acMagnitude: acMagnitude,
             waveform: waveform,
             branch: branch
         )

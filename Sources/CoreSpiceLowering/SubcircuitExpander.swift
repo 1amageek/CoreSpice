@@ -55,6 +55,12 @@ public struct SubcircuitExpander: Sendable {
             return "\(prefix).\(node.name)"
         }
 
+        // Allocate branches for devices that need them (voltage sources, inductors, etc.)
+        let branchCount = Self.branchesRequired(for: typeName)
+        for _ in 0..<branchCount {
+            _ = builder.branch()
+        }
+
         // Add the instance
         try builder.addInstance(
             name: fullName,
@@ -153,6 +159,21 @@ public struct SubcircuitExpander: Sendable {
 
                 try expandComponent(mappedComponent, into: &builder, prefix: instancePrefix)
             }
+        }
+    }
+
+    /// Returns the number of MNA branch variables required by a device type.
+    ///
+    /// Devices that impose voltage constraints (voltage sources, inductors,
+    /// controlled sources with voltage outputs) need branch current variables.
+    private static func branchesRequired(for typeName: String) -> Int {
+        switch typeName {
+        case "vsource":  return 1  // Independent voltage source
+        case "inductor":  return 1  // Inductor (short at DC, jωL at AC)
+        case "vcvs":      return 1  // Voltage-controlled voltage source
+        case "cccs":      return 1  // Current-controlled current source (sensing branch)
+        case "ccvs":      return 2  // Current-controlled voltage source (sensing + output)
+        default:          return 0
         }
     }
 

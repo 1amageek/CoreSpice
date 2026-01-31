@@ -44,10 +44,16 @@ public protocol InitialConditionDevice: BoundDevice {
 public protocol VoltageInitialConditionDevice: InitialConditionDevice {
     /// The initial voltage across the device.
     var initialVoltage: Double { get }
+    /// The positive node of the device.
+    var positiveNode: Node { get }
+    /// The negative node of the device.
+    var negativeNode: Node { get }
 }
 
 /// A device with an initial current condition.
 public protocol CurrentInitialConditionDevice: InitialConditionDevice {
     /// The initial current through the device.
     var initialCurrent: Double { get }
+    /// The branch variable for the device current.
+    var deviceBranch: Branch { get }
 }

@@ -11,6 +11,7 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
     private let posNode: Node
     private let negNode: Node
     private let dcCurrent: Double
+    private let acMagnitude: Double
     private let waveform: Waveform
 
     init(
@@ -18,12 +19,14 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
         posNode: Node,
         negNode: Node,
         dcCurrent: Double,
+        acMagnitude: Double,
         waveform: Waveform
     ) {
         self.instance = instance
         self.posNode = posNode
         self.negNode = negNode
         self.dcCurrent = dcCurrent
+        self.acMagnitude = acMagnitude
         self.waveform = waveform
     }
 
@@ -32,9 +35,8 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
     }
 
     public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
-        // AC current source: the stimulus is configured separately.
-        // Here we stamp zero (the source is off unless it is the test source).
-        stamper.stampCurrentSource(posNode: posNode, negNode: negNode, real: 0.0, imag: 0.0)
+        // AC current source: stamp the AC stimulus magnitude.
+        stamper.stampCurrentSource(posNode: posNode, negNode: negNode, real: acMagnitude, imag: 0.0)
     }
 
     public func stampTransient(

@@ -60,4 +60,31 @@ public struct BreakpointManager: Sendable {
 
         return proposedStep
     }
+
+    /// Checks whether the given time coincides with a waveform breakpoint.
+    ///
+    /// - Parameters:
+    ///   - time: The simulation time to check.
+    ///   - tolerance: Match tolerance in seconds (default 1e-12).
+    /// - Returns: `true` if `time` is within `tolerance` of any breakpoint.
+    public func isAtBreakpoint(_ time: Double, tolerance: Double = 1e-12) -> Bool {
+        // Binary search for nearest breakpoint
+        var lo = 0
+        var hi = breakpoints.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if breakpoints[mid] < time - tolerance {
+                lo = mid + 1
+            } else {
+                hi = mid
+            }
+        }
+        if lo < breakpoints.count && abs(breakpoints[lo] - time) <= tolerance {
+            return true
+        }
+        if lo > 0 && abs(breakpoints[lo - 1] - time) <= tolerance {
+            return true
+        }
+        return false
+    }
 }

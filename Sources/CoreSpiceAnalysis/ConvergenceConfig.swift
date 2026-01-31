@@ -22,18 +22,24 @@ public struct ConvergenceConfig: Sendable {
     /// Minimum conductance added to diagonal entries for numerical stability.
     public var gmin: Double
 
+    /// Minimum damping factor for Newton-Raphson adaptive damping.
+    /// When divergence is detected, the damping factor is clamped to `[minDamping, 1.0]`.
+    public var minDamping: Double
+
     public init(
         abstol: Double = 1e-12,
         reltol: Double = 1e-3,
         vntol: Double = 1e-6,
         maxIterations: Int = 50,
-        gmin: Double = 1e-12
+        gmin: Double = 1e-12,
+        minDamping: Double = 0.1
     ) {
         self.abstol = abstol
         self.reltol = reltol
         self.vntol = vntol
         self.maxIterations = maxIterations
         self.gmin = gmin
+        self.minDamping = minDamping
     }
 
     /// Tests whether the Newton update vector `dx` is small enough

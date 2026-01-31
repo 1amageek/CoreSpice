@@ -40,12 +40,14 @@ public struct CurrentSourceDescriptor: DeviceDescriptor, Sendable {
 
         let waveform = try parseWaveform(from: instance)
         let dcCurrent = waveform.dcValue
+        let acMagnitude = extractReal(instance.parameters["ac"]) ?? 0.0
 
         return BoundCurrentSource(
             instance: instance,
             posNode: instance.nodes[0],
             negNode: instance.nodes[1],
             dcCurrent: dcCurrent,
+            acMagnitude: acMagnitude,
             waveform: waveform
         )
     }

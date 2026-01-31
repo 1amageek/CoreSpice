@@ -54,12 +54,23 @@ public struct NewtonRaphsonSolver: Sendable {
         var x = initialGuess
         let n = x.count
 
+        // Extract branch current indices for per-variable convergence tolerances
+        let branchCurrentIndices: Set<Int> = Set(
+            variableMap.compactMap { key, value in
+                if case .branchCurrent = key { return value }
+                return nil
+            }
+        )
+
         // Use a Mutex-protected container so the @Sendable closures in
         // MatrixStamper can safely write into the matrix and RHS.
         // Although the stamping is single-threaded, the MatrixStamper
         // interface requires @Sendable closures.
         let matrixStorage = Mutex(matrix)
         let rhsStorage = Mutex(rhs)
+
+        // Adaptive damping state
+        var previousUpdateNorm: Double = .infinity
 
         for iter in 0..<config.maxIterations {
             if cancellation.isCancelled {
@@ -127,9 +138,19 @@ public struct NewtonRaphsonSolver: Sendable {
             // Save previous solution for convergence check
             let previousX = x
 
+            // Compute raw update norm for adaptive damping
+            let rawUpdateNorm = (0..<n).map { abs(dx[$0] - x[$0]) }.max() ?? 0.0
+
+            // Adaptive damping: reduce step when divergence is detected
+            var damping = 1.0
+            if rawUpdateNorm > 2.0 * previousUpdateNorm && previousUpdateNorm.isFinite {
+                damping = min(1.0, previousUpdateNorm / rawUpdateNorm)
+                damping = max(config.minDamping, damping)
+            }
+            previousUpdateNorm = rawUpdateNorm
+
             // Update solution: dx is the full new solution from G*x = s,
             // not a correction. With damping=1 this is direct substitution.
-            let damping = 1.0
             for i in 0..<n {
                 x[i] = (1.0 - damping) * x[i] + damping * dx[i]
             }
@@ -137,7 +158,23 @@ public struct NewtonRaphsonSolver: Sendable {
             // Compute residual norm (infinity norm of solution change)
             let update = (0..<n).map { x[$0] - previousX[$0] }
             let residualNorm = update.map { abs($0) }.max() ?? 0.0
-            let converged = config.isConverged(dx: update, x: x)
+            var converged = config.isConverged(
+                dx: update, x: x, branchCurrentIndices: branchCurrentIndices
+            )
+
+            // Poll per-device convergence when global convergence is met
+            if converged {
+                let currentState = SolutionState(variables: x, variableMap: variableMap)
+                let prevState = SolutionState(variables: previousX, variableMap: variableMap)
+                for device in devices {
+                    if case .notConverged = device.checkConvergence(
+                        state: currentState, previousState: prevState
+                    ) {
+                        converged = false
+                        break
+                    }
+                }
+            }
 
             observer?.emit(.newtonIterationFinished(NewtonResultInfo(
                 id: analysisID,

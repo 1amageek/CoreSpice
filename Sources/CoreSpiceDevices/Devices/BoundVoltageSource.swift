@@ -10,6 +10,7 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
     private let posNode: Node
     private let negNode: Node
     private let dcVoltage: Double
+    private let acMagnitude: Double
     private let waveform: Waveform
     private let branch: Branch
 
@@ -18,6 +19,7 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
         posNode: Node,
         negNode: Node,
         dcVoltage: Double,
+        acMagnitude: Double,
         waveform: Waveform,
         branch: Branch
     ) {
@@ -25,6 +27,7 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
         self.posNode = posNode
         self.negNode = negNode
         self.dcVoltage = dcVoltage
+        self.acMagnitude = acMagnitude
         self.waveform = waveform
         self.branch = branch
     }
@@ -34,12 +37,11 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
     }
 
     public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
-        // AC voltage source: same structure as DC but the stimulus
-        // magnitude is set during AC analysis setup (typically 1V for the source under test, 0 otherwise).
-        // Here we stamp the branch equation topology with zero RHS.
+        // AC voltage source: stamp the branch equation topology with
+        // the AC stimulus magnitude as a real-valued RHS.
         stamper.stampVoltageSource(
             posNode: posNode, negNode: negNode, branch: branch,
-            real: 0.0, imag: 0.0
+            real: acMagnitude, imag: 0.0
         )
     }
 

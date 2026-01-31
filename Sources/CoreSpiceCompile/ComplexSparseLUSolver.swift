@@ -11,6 +11,14 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
     private var uValues: [ComplexPair] = []
     private var pivot: [Int] = []
     private var factorized: Bool = false
+    /// Dense LU storage for small matrices (avoids symbolic pattern mismatch with pivoting).
+    private var denseLU: [[ComplexPair]] = []
+    private var useDenseSolve: Bool = false
+
+    /// Per-row overflow storage for L entries outside the symbolic pattern.
+    private var lOverflow: [DynamicSparseRow<ComplexPair>] = []
+    /// Per-row overflow storage for U entries outside the symbolic pattern.
+    private var uOverflow: [DynamicSparseRow<ComplexPair>] = []
 
     /// Whether to use AMD ordering for fill-reduction.
     public var useAMDOrdering: Bool = true
@@ -60,6 +68,9 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
     }
 
     /// Dense factorization for small matrices.
+    ///
+    /// Stores the full dense LU result to avoid losing entries that fall
+    /// outside the symbolic fill-in prediction after partial pivoting.
     private mutating func factorizeDense(matrix: ComplexSparseMatrix) throws {
         let n = matrix.dimension
 
@@ -100,27 +111,10 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
             }
         }
 
-        // Store L and U values in sparse format
-        guard let sym = symbolic else { return }
-
-        lValues = Array(repeating: .zero, count: sym.lColumnIndices.count)
-        uValues = Array(repeating: .zero, count: sym.uColumnIndices.count)
-
-        for row in 0..<n {
-            let lStart = sym.lRowPointers[row]
-            let lEnd = sym.lRowPointers[row + 1]
-            for idx in lStart..<lEnd {
-                let col = sym.lColumnIndices[idx]
-                lValues[idx] = a[row][col]
-            }
-
-            let uStart = sym.uRowPointers[row]
-            let uEnd = sym.uRowPointers[row + 1]
-            for idx in uStart..<uEnd {
-                let col = sym.uColumnIndices[idx]
-                uValues[idx] = a[row][col]
-            }
-        }
+        // Store the full dense LU matrix for correct solve with pivoting.
+        // The symbolic L/U patterns may not cover fill-in created by pivoting.
+        denseLU = a
+        useDenseSolve = true
     }
 
     /// Sparse factorization for large matrices with threshold pivoting.
@@ -128,12 +122,23 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
     /// Uses threshold pivoting to maintain numerical stability while preserving
     /// sparsity benefits from AMD ordering. Row swaps occur only when the diagonal
     /// element is significantly smaller than the column maximum (by magnitude).
+    ///
+    /// Entries that fall outside the symbolic pattern (due to pivoting) are stored
+    /// in per-row overflow arrays. If overflow grows excessively, the solver
+    /// falls back to dense factorization.
     private mutating func factorizeSparse(matrix: ComplexSparseMatrix, symbolic: SymbolicAnalysis) throws {
         let n = matrix.dimension
         let pivotThreshold = 0.1  // Swap if diagonal magnitude < 10% of column max
 
         lValues = Array(repeating: .zero, count: symbolic.lColumnIndices.count)
         uValues = Array(repeating: .zero, count: symbolic.uColumnIndices.count)
+
+        // Initialize overflow storage
+        lOverflow = Array(repeating: DynamicSparseRow<ComplexPair>(), count: n)
+        uOverflow = Array(repeating: DynamicSparseRow<ComplexPair>(), count: n)
+        var totalOverflow = 0
+        let symbolicNNZ = max(symbolic.lColumnIndices.count + symbolic.uColumnIndices.count, 1)
+
         pivot = Array(0..<n)
 
         // Row permutation: rowPerm[k] = which original matrix row is at position k
@@ -141,6 +146,9 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
 
         var rowWork = Array(repeating: ComplexPair.zero, count: n)
         var rowFlag = Array(repeating: -1, count: n)
+
+        // Boolean marker for columns in symbolic U pattern
+        var inSymbolicU = Array(repeating: false, count: n)
 
         for k in 0..<n {
             // Clear work array
@@ -191,6 +199,12 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
             let lStart = symbolic.lRowPointers[k]
             let lEnd = symbolic.lRowPointers[k + 1]
 
+            // Build set of symbolic L columns for this row
+            var inSymbolicL = Array(repeating: false, count: n)
+            for lIdx in lStart..<lEnd {
+                inSymbolicL[symbolic.lColumnIndices[lIdx]] = true
+            }
+
             for lIdx in lStart..<lEnd {
                 let j = symbolic.lColumnIndices[lIdx]
                 let ujjIdx = findUDiagonal(row: j, symbolic: symbolic)
@@ -201,12 +215,53 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
                 lValues[lIdx] = lkj
             }
 
-            // Store U row
+            // Check for L overflow: entries with column < k not in symbolic L
+            for j in 0..<k where rowFlag[j] == k {
+                if !inSymbolicL[j] && rowWork[j].magnitude > 1e-15 {
+                    let ujjIdx = findUDiagonal(row: j, symbolic: symbolic)
+                    if ujjIdx >= 0 && uValues[ujjIdx].magnitude > 1e-15 {
+                        let lkj = rowWork[j] / uValues[ujjIdx]
+                        if lkj.magnitude > 1e-15 {
+                            lOverflow[k].set(column: j, value: lkj)
+                            totalOverflow += 1
+                        }
+                    }
+                }
+            }
+
+            // Mark columns in the symbolic U pattern for this row
             let uStart = symbolic.uRowPointers[k]
             let uEnd = symbolic.uRowPointers[k + 1]
             for uIdx in uStart..<uEnd {
+                inSymbolicU[symbolic.uColumnIndices[uIdx]] = true
+            }
+
+            // Store U row — symbolic entries
+            for uIdx in uStart..<uEnd {
                 let col = symbolic.uColumnIndices[uIdx]
                 uValues[uIdx] = rowFlag[col] == k ? rowWork[col] : .zero
+            }
+
+            // Detect and store U overflow entries (columns >= k not in symbolic pattern)
+            for j in k..<n where rowFlag[j] == k {
+                if !inSymbolicU[j] && rowWork[j].magnitude > 1e-15 {
+                    uOverflow[k].set(column: j, value: rowWork[j])
+                    totalOverflow += 1
+                }
+            }
+
+            // Clear the symbolic U marker for reuse
+            for uIdx in uStart..<uEnd {
+                inSymbolicU[symbolic.uColumnIndices[uIdx]] = false
+            }
+
+            // Early abort: if overflow > 50% of symbolic nnz, fall back to dense
+            if k > 0 && k % 50 == 0 {
+                let projectedOverflow = totalOverflow * n / k
+                if projectedOverflow > symbolicNNZ / 2 {
+                    try factorizeDense(matrix: matrix)
+                    return
+                }
             }
 
             // Check diagonal
@@ -247,17 +302,21 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
     }
 
     /// Apply previous L rows to update the current row work array.
+    ///
+    /// Iterates ALL active columns `j < k` (not only symbolic L columns)
+    /// in ascending order to ensure complete row elimination.  When pivoting
+    /// creates entries outside the symbolic L pattern, those columns must
+    /// still be eliminated; otherwise the resulting U row and subsequent
+    /// L values for this step are incorrect.
     private func applyPreviousLRows(
         k: Int,
         symbolic: SymbolicAnalysis,
         rowWork: inout [ComplexPair],
         rowFlag: inout [Int]
     ) {
-        let lStart = symbolic.lRowPointers[k]
-        let lEnd = symbolic.lRowPointers[k + 1]
+        for j in 0..<k {
+            guard rowFlag[j] == k else { continue }
 
-        for lIdx in lStart..<lEnd {
-            let j = symbolic.lColumnIndices[lIdx]
             let ujjIdx = findUDiagonal(row: j, symbolic: symbolic)
             guard ujjIdx >= 0, uValues[ujjIdx].magnitude > 1e-15 else {
                 continue  // Will be caught later
@@ -275,6 +334,17 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
                         rowFlag[col] = k
                     }
                     rowWork[col] = rowWork[col] - lkj * uValues[uIdx]
+                }
+            }
+
+            // Also apply overflow U entries for row j
+            uOverflow[j].forEach { col, val in
+                if col > j {
+                    if rowFlag[col] != k {
+                        rowWork[col] = .zero
+                        rowFlag[col] = k
+                    }
+                    rowWork[col] = rowWork[col] - lkj * val
                 }
             }
         }
@@ -318,6 +388,10 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
             b[i] = permutedRHS[pivot[i]]
         }
 
+        if useDenseSolve {
+            return try solveDense(b: b, permutation: sym.permutation)
+        }
+
         // Forward substitution: L * y = b
         var y = Array(repeating: ComplexPair.zero, count: n)
         for i in 0..<n {
@@ -327,6 +401,10 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
             for idx in lStart..<lEnd {
                 let j = sym.lColumnIndices[idx]
                 sum = sum - lValues[idx] * y[j]
+            }
+            // Subtract overflow L contributions
+            lOverflow[i].forEach { j, val in
+                sum = sum - val * y[j]
             }
             y[i] = sum
         }
@@ -347,6 +425,14 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
                     sum = sum - uValues[idx] * x[j]
                 }
             }
+            // Subtract overflow U contributions
+            uOverflow[i].forEach { j, val in
+                if j > i {
+                    sum = sum - val * x[j]
+                } else if j == i {
+                    diagValue = ComplexPair(real: diagValue.real + val.real, imag: diagValue.imag + val.imag)
+                }
+            }
 
             guard diagValue.magnitude > 1e-15 else {
                 throw CompileError.singularMatrix
@@ -356,5 +442,37 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
 
         // Apply inverse AMD permutation
         return sym.permutation.applyInverse(to: x)
+    }
+
+    /// Dense forward/backward substitution using the full LU matrix.
+    private func solveDense(b: [ComplexPair], permutation: Permutation) throws -> [ComplexPair] {
+        let n = dimension
+
+        // Forward substitution: L * y = b (L has unit diagonal, stored below diagonal in denseLU)
+        var y = Array(repeating: ComplexPair.zero, count: n)
+        for i in 0..<n {
+            var sum = b[i]
+            for j in 0..<i {
+                sum = sum - denseLU[i][j] * y[j]
+            }
+            y[i] = sum
+        }
+
+        // Backward substitution: U * x = y (U stored on and above diagonal in denseLU)
+        var x = Array(repeating: ComplexPair.zero, count: n)
+        for i in stride(from: n - 1, through: 0, by: -1) {
+            var sum = y[i]
+            for j in (i + 1)..<n {
+                sum = sum - denseLU[i][j] * x[j]
+            }
+            let diagValue = denseLU[i][i]
+            guard diagValue.magnitude > 1e-15 else {
+                throw CompileError.singularMatrix
+            }
+            x[i] = sum / diagValue
+        }
+
+        // Apply inverse AMD permutation
+        return permutation.applyInverse(to: x)
     }
 }

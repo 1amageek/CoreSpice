@@ -340,6 +340,75 @@ struct CoreSpiceAnalysisTests {
         }
     }
 
+    /// Transient Analysis: RC circuit with PULSE voltage source
+    /// V1(PULSE 0 5 1u 0.1u 0.1u 10u 20u) -> R1(1kΩ) -> node2 -> C1(100pF) -> GND
+    /// Verifies transient simulation handles breakpoints at PULSE edges
+    @Test func transientAnalysisPulseRC() async throws {
+        var netlist = Netlist()
+        let n1 = netlist.node("n1")
+        let n2 = netlist.node("n2")
+        let _ = netlist.branch()
+
+        try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["n1", "0"],
+                                parameters: [
+                                    "v1": .real(0.0), "v2": .real(5.0),
+                                    "td": .real(1e-6), "tr": .real(0.1e-6), "tf": .real(0.1e-6),
+                                    "pw": .real(10e-6), "per": .real(20e-6)
+                                ])
+        try netlist.addInstance(name: "R1", typeName: "resistor", nodes: ["n1", "n2"],
+                                parameters: ["r": .real(1000)])   // 1kΩ
+        try netlist.addInstance(name: "C1", typeName: "capacitor", nodes: ["n2", "0"],
+                                parameters: ["c": .real(100e-12)]) // 100pF, RC = 100ns
+
+        let ir = try netlist.build()
+        let compiler = StandardCompiler()
+        let plan = try compiler.compile(ir: ir)
+
+        let registry = DeviceRegistry.standard()
+        var context = BindingContext(variableMap: plan.topology.variableMap,
+                                     matrixDimension: plan.topology.dimension)
+        var devices: [any BoundDevice] = []
+        for instance in ir.instances {
+            guard let desc = registry.descriptor(for: instance.typeName) else { continue }
+            let bound = try desc.bind(instance: instance, context: &context)
+            devices.append(bound)
+        }
+
+        // Simulate for 50µs (2.5 periods)
+        let transientConfig = TransientConfig(
+            stopTime: 50e-6,
+            maxTimeStep: 1e-6,
+            initialTimeStep: 0.1e-6
+        )
+        let transientAnalysis = TransientAnalysis(config: transientConfig)
+        let solver = SparseLUSolver()
+        let token = CancellationToken()
+
+        let result = try await transientAnalysis.run(
+            plan: plan,
+            devices: devices,
+            solver: solver,
+            observer: nil,
+            cancellation: token
+        )
+
+        // Verify we have time points
+        #expect(result.timePoints.count > 10, Comment(rawValue: "Should have many time points, got \(result.timePoints.count)"))
+        #expect(result.timePoints.first == 0.0, "Should start at t=0")
+        #expect(result.timePoints.last! >= 49e-6, Comment(rawValue: "Should reach near stop time, got \(result.timePoints.last!)"))
+
+        // Verify time is monotonically increasing
+        for i in 1..<result.timePoints.count {
+            #expect(result.timePoints[i] > result.timePoints[i-1], "Time should increase")
+        }
+
+        // After the pulse rises (t > 1.1µs, well into pulse high), n2 should charge toward 5V
+        if let midIdx = result.timePoints.firstIndex(where: { $0 > 5e-6 }) {
+            let v2mid = result.voltage(at: n2, timeIndex: midIdx)
+            #expect(v2mid > 2.0, Comment(rawValue: "V(n2) should be charging during pulse high, got \(v2mid)"))
+        }
+    }
+
     /// DC Analysis: Series resistor circuit (sanity check for larger circuits)
     /// Uses the same pattern as buildResistiveDivider which is known to work
     @Test func dcAnalysisSeriesResistors() async throws {

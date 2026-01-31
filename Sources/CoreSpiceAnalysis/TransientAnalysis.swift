@@ -60,20 +60,32 @@ public struct TransientAnalysis: Analysis, Sendable {
         )))
 
         do {
-            // Phase 1: DC operating point for t = 0
-            let dcAnalysis = DCAnalysis(config: convergenceConfig)
-            let dcResult = try await dcAnalysis.run(
-                plan: plan,
-                devices: devices,
-                solver: solver,
-                observer: observer,
-                cancellation: cancellation
-            )
+            // Phase 1: Initial solution for t = 0
+            let initialSolution: [Double]
+            if config.useInitialConditions {
+                // UIC mode: skip DC, build initial solution from device ICs
+                initialSolution = Self.buildUICInitialSolution(
+                    devices: devices,
+                    variableMap: variableMap,
+                    dimension: dim
+                )
+            } else {
+                // Standard mode: DC operating point
+                let dcAnalysis = DCAnalysis(config: convergenceConfig)
+                let dcResult = try await dcAnalysis.run(
+                    plan: plan,
+                    devices: devices,
+                    solver: solver,
+                    observer: observer,
+                    cancellation: cancellation
+                )
+                initialSolution = dcResult.variables
+            }
 
             // Initialize state
             var currentTime: Double = 0.0
-            var currentSolution = dcResult.variables
-            var previousSolution = dcResult.variables
+            var currentSolution = initialSolution
+            var previousSolution = initialSolution
             var twoPreviousSolution: [Double]? = nil
 
             // Saved results
@@ -143,7 +155,8 @@ public struct TransientAnalysis: Analysis, Sendable {
                     let currentIntegration = IntegrationState(
                         method: method,
                         timeStep: dt,
-                        currentTime: currentTime + dt
+                        currentTime: currentTime + dt,
+                        previousTimeStep: previousDt
                     )
 
                     // Newton-Raphson solve
@@ -162,6 +175,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                                 let transientState = SolutionState(
                                     variables: state.variables,
                                     previousVariables: currentSolution,
+                                    twoPreviousVariables: previousSolution,
                                     variableMap: variableMap
                                 )
                                 for device in devices {
@@ -275,6 +289,14 @@ public struct TransientAnalysis: Analysis, Sendable {
                             message: "Transient: t = \(currentTime) s"
                         )))
 
+                        // If we landed on a breakpoint, reset integration state
+                        // to avoid LTE artifacts from the 3-point formula spanning
+                        // across a waveform discontinuity.
+                        if breakpointMgr.isAtBreakpoint(currentTime) {
+                            twoPreviousSolution = nil
+                            method = .backwardEuler
+                        }
+
                         // Update dt for next iteration
                         dt = nextDt
                     } else {
@@ -294,12 +316,16 @@ public struct TransientAnalysis: Analysis, Sendable {
                             id: analysisID,
                             time: currentTime,
                             timeStep: dt,
-                            iterations: newtonResult.iterations,  // Fixed: use actual iteration count
+                            iterations: newtonResult.iterations,
                             lte: 0.0
                         )))
 
                         // Switch to Trapezoidal for subsequent steps
-                        method = .trapezoidal
+                        // (unless we landed on a breakpoint, in which case
+                        // stay on backward Euler to avoid LTE artifacts)
+                        if !breakpointMgr.isAtBreakpoint(currentTime) {
+                            method = .trapezoidal
+                        }
                     }
                 }
 
@@ -348,5 +374,44 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             throw error
         }
+    }
+
+    /// Builds the initial solution vector from device initial conditions (UIC mode).
+    ///
+    /// Starts from a zero vector and applies each device's stored initial
+    /// voltage or current to the corresponding matrix indices.
+    private static func buildUICInitialSolution(
+        devices: [any BoundDevice],
+        variableMap: [MNAVariable: Int],
+        dimension: Int
+    ) -> [Double] {
+        var solution = [Double](repeating: 0.0, count: dimension)
+
+        for device in devices {
+            if let vicDevice = device as? VoltageInitialConditionDevice,
+               vicDevice.hasInitialCondition {
+                let posNode = vicDevice.positiveNode
+                let negNode = vicDevice.negativeNode
+                // Set absolute node voltage so that V(pos) - V(neg) = initialVoltage.
+                // When neg is ground (no variable), posIdx is set directly.
+                // When pos is ground (no variable), negIdx is set to -initialVoltage.
+                // When both are non-ground, only posIdx is set (negIdx stays at its
+                // current value, typically 0); this avoids doubling the differential.
+                if let posIdx = variableMap[.nodeVoltage(posNode)] {
+                    solution[posIdx] = vicDevice.initialVoltage
+                } else if let negIdx = variableMap[.nodeVoltage(negNode)] {
+                    solution[negIdx] = -vicDevice.initialVoltage
+                }
+            }
+            if let cicDevice = device as? CurrentInitialConditionDevice,
+               cicDevice.hasInitialCondition {
+                let branch = cicDevice.deviceBranch
+                if let branchIdx = variableMap[.branchCurrent(branch)] {
+                    solution[branchIdx] = cicDevice.initialCurrent
+                }
+            }
+        }
+
+        return solution
     }
 }

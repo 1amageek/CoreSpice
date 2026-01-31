@@ -21,6 +21,9 @@ public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, Sendab
         initialVoltage != 0.0
     }
 
+    public var positiveNode: Node { posNode }
+    public var negativeNode: Node { negNode }
+
     init(
         instance: Instance,
         posNode: Node,

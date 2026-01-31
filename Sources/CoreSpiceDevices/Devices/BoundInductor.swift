@@ -23,6 +23,8 @@ public struct BoundInductor: BoundDevice, CurrentInitialConditionDevice, Sendabl
         initialCurrent != 0.0
     }
 
+    public var deviceBranch: Branch { branch }
+
     init(
         instance: Instance,
         posNode: Node,

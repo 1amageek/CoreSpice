@@ -36,17 +36,24 @@ public struct LTEEstimator: Sendable {
 
             switch method {
             case .backwardEuler:
-                // Simplified LTE estimate for first-order method:
-                // LTE ~ h/2 * |x''| ~ |dx|/2
-                lte = abs(diff) * 0.5
+                if let tp = twoPrevious, let prevDt = previousTimeStep {
+                    // Three-point divided-difference second derivative estimate
+                    let d1Cur = (current[i] - previous[i]) / timeStep
+                    let d1Prev = (previous[i] - tp[i]) / prevDt
+                    let xpp = 2.0 * (d1Cur - d1Prev) / (timeStep + prevDt)
+                    lte = abs(timeStep * timeStep * xpp / 2.0)
+                } else {
+                    // Fallback: two-point estimate
+                    lte = abs(diff) * 0.5
+                }
 
             case .trapezoidal:
-                if let tp = twoPrevious, let _ = previousTimeStep {
-                    // Second-order estimate using three-point difference:
-                    // d2 = x_n - 2*x_{n-1} + x_{n-2} ≈ h²·x''
-                    // LTE for trapezoidal ≈ |d2| / 12
-                    let d2 = current[i] - 2.0 * previous[i] + tp[i]
-                    lte = abs(d2) / 12.0
+                if let tp = twoPrevious, let prevDt = previousTimeStep {
+                    // Variable-timestep divided-difference estimate
+                    let d1Cur = (current[i] - previous[i]) / timeStep
+                    let d1Prev = (previous[i] - tp[i]) / prevDt
+                    let xpp = 2.0 * (d1Cur - d1Prev) / (timeStep + prevDt)
+                    lte = abs(timeStep * timeStep * xpp / 12.0)
                 } else {
                     lte = abs(diff) * 0.5
                 }

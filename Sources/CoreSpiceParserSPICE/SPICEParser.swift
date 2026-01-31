@@ -148,12 +148,17 @@ private struct SPICEParserImpl {
     // MARK: - Parsing Methods
 
     private mutating func parseTitle() {
-        // First non-comment line is the title
-        skipNewlinesAndComments()
-        if case .identifier(let text) = currentToken {
+        // In SPICE, the very first line is always the title.
+        // If it starts with '*' it was lexed as a .comment token.
+        switch currentToken {
+        case .comment(let text):
+            // Strip leading "* " from comment text
+            let stripped = text.drop(while: { $0 == "*" || $0 == " " })
+            title = String(stripped)
+            advance()
+        case .identifier(let text):
             var titleText = text
             advance()
-            // Collect rest of line
             while !isAtEnd && !isNewline {
                 if case .identifier(let more) = currentToken {
                     titleText += " " + more
@@ -163,7 +168,10 @@ private struct SPICEParserImpl {
                 advance()
             }
             title = titleText
+        default:
+            break
         }
+        // Skip trailing newlines/comments after the title line
         skipNewlinesAndComments()
     }
 
@@ -314,18 +322,54 @@ private struct SPICEParserImpl {
         // Parse parameters
         while !isAtEnd && !isNewline {
             if case .identifier(let paramName) = currentToken {
+                let lower = paramName.lowercased()
                 advance()
                 if case .equals = currentToken {
                     advance()
                     let value = try parseParameterValue()
-                    params[paramName.lowercased()] = value
+                    params[lower] = value
+                } else if (type == .voltageSource || type == .currentSource),
+                          lower == "dc" || lower == "ac" {
+                    // SPICE source syntax: V1 n1 n2 dc <value> ac <value>
+                    // "dc <value>" sets the DC voltage/current
+                    // "ac <value>" sets the AC magnitude
+                    if case .number(let n) = currentToken {
+                        if lower == "dc" {
+                            params["v"] = .numeric(n)
+                        } else {
+                            params["ac"] = .numeric(n)
+                        }
+                        advance()
+                    } else if case .identifier(let valStr) = currentToken,
+                              let n = parseNumberFromIdentifier(valStr) {
+                        if lower == "dc" {
+                            params["v"] = .numeric(n)
+                        } else {
+                            params["ac"] = .numeric(n)
+                        }
+                        advance()
+                    }
+                } else if (type == .voltageSource || type == .currentSource),
+                          lower == "pulse" {
+                    // PULSE(v1 v2 td tr tf pw per)
+                    try parseSourcePulse(into: &params)
+                } else if (type == .voltageSource || type == .currentSource),
+                          lower == "sin" || lower == "sine" {
+                    // SIN(vo va freq td theta)
+                    try parseSourceSine(into: &params)
                 } else {
-                    // Positional value (like resistance value for R)
-                    // Go back and parse as value
-                    if type == .resistor && params["r"] == nil {
-                        // Parse the identifier as a number with suffix
-                        if let v = parseNumberFromIdentifier(paramName) {
+                    // Positional value (like resistance value for R, or gain for E)
+                    if let v = parseNumberFromIdentifier(paramName) {
+                        if type == .resistor && params["r"] == nil {
                             params["r"] = .numeric(v)
+                        } else if type == .vcvs && params["e"] == nil {
+                            params["e"] = .numeric(v)
+                        } else if type == .vccs && params["g"] == nil {
+                            params["g"] = .numeric(v)
+                        } else if type == .cccs && params["f"] == nil {
+                            params["f"] = .numeric(v)
+                        } else if type == .ccvs && params["h"] == nil {
+                            params["h"] = .numeric(v)
                         }
                     }
                 }
@@ -337,6 +381,17 @@ private struct SPICEParserImpl {
                     params["c"] = .numeric(n)
                 } else if type == .inductor && params["l"] == nil {
                     params["l"] = .numeric(n)
+                } else if (type == .voltageSource || type == .currentSource) && params["v"] == nil {
+                    // Bare positional DC value for sources: V1 n1 n2 5
+                    params["v"] = .numeric(n)
+                } else if type == .vcvs && params["e"] == nil {
+                    params["e"] = .numeric(n)
+                } else if type == .vccs && params["g"] == nil {
+                    params["g"] = .numeric(n)
+                } else if type == .cccs && params["f"] == nil {
+                    params["f"] = .numeric(n)
+                } else if type == .ccvs && params["h"] == nil {
+                    params["h"] = .numeric(n)
                 }
                 advance()
             } else {
@@ -387,6 +442,49 @@ private struct SPICEParserImpl {
         }
 
         return base * scale
+    }
+
+    /// Parse PULSE(v1 v2 td tr tf pw per) parameters.
+    private mutating func parseSourcePulse(into params: inout [String: ParsedParameterValue]) throws {
+        // Expect '(' after PULSE
+        guard case .leftParen = currentToken else { return }
+        advance()
+
+        let keys = ["v1", "v2", "td", "tr", "tf", "pw", "per"]
+        for key in keys {
+            if case .rightParen = currentToken { break }
+            if case .number(let n) = currentToken {
+                params[key] = .numeric(n)
+                advance()
+            } else if case .identifier(let id) = currentToken,
+                      let n = parseNumberFromIdentifier(id) {
+                params[key] = .numeric(n)
+                advance()
+            }
+        }
+
+        if case .rightParen = currentToken { advance() }
+    }
+
+    /// Parse SIN(vo va freq td theta) parameters.
+    private mutating func parseSourceSine(into params: inout [String: ParsedParameterValue]) throws {
+        guard case .leftParen = currentToken else { return }
+        advance()
+
+        let keys = ["vo", "va", "freq", "td", "phase"]
+        for key in keys {
+            if case .rightParen = currentToken { break }
+            if case .number(let n) = currentToken {
+                params[key] = .numeric(n)
+                advance()
+            } else if case .identifier(let id) = currentToken,
+                      let n = parseNumberFromIdentifier(id) {
+                params[key] = .numeric(n)
+                advance()
+            }
+        }
+
+        if case .rightParen = currentToken { advance() }
     }
 
     private mutating func parseParameterValue() throws -> ParsedParameterValue {
