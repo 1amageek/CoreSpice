@@ -508,7 +508,7 @@ struct TransientIntegrationTests {
                                 parameters: ["v": .real(5.0)])
         try netlist.addInstance(name: "RD", typeName: "resistor", nodes: ["vdd", "drain"],
                                 parameters: ["r": .real(1000)])
-        try netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "in", "0"],
+        try netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "in", "0", "0"],
                                 parameters: [:])
 
         let config = TransientConfig(

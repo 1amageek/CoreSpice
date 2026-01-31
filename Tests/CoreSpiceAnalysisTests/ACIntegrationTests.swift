@@ -297,7 +297,7 @@ struct ACIntegrationTests {
                                 parameters: ["r": .real(100_000)])
         try netlist.addInstance(name: "CG", typeName: "capacitor", nodes: ["ac_in", "gate"],
                                 parameters: ["c": .real(1e-6)])
-        try netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "gate", "0"],
+        try netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "gate", "0", "0"],
                                 parameters: ["vto": .real(0.7), "kp": .real(110e-6),
                                              "w": .real(10e-6), "l": .real(1e-6)])
 

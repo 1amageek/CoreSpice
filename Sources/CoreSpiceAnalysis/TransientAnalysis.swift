@@ -31,12 +31,19 @@ public struct TransientAnalysis: Analysis, Sendable {
     /// Convergence configuration for the Newton-Raphson solver at each timestep.
     public let convergenceConfig: ConvergenceConfig
 
+    /// Optional callback invoked after each accepted timestep.
+    /// Called with (time, solutionVector) on the simulation thread.
+    /// Designed for lightweight data capture (e.g., appending to a shared buffer).
+    public let onStepAccepted: (@Sendable (_ time: Double, _ solution: [Double]) -> Void)?
+
     public init(
         config: TransientConfig,
-        convergenceConfig: ConvergenceConfig = ConvergenceConfig()
+        convergenceConfig: ConvergenceConfig = ConvergenceConfig(),
+        onStepAccepted: (@Sendable (_ time: Double, _ solution: [Double]) -> Void)? = nil
     ) {
         self.config = config
         self.convergenceConfig = convergenceConfig
+        self.onStepAccepted = onStepAccepted
     }
 
     public func run(
@@ -272,6 +279,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         // Save the time point
                         timePoints.append(currentTime)
                         solutions.append(currentSolution)
+                        onStepAccepted?(currentTime, currentSolution)
 
                         observer?.emit(.timeStepCompleted(TimeStepInfo(
                             id: analysisID,
@@ -311,6 +319,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
                         timePoints.append(currentTime)
                         solutions.append(currentSolution)
+                        onStepAccepted?(currentTime, currentSolution)
 
                         observer?.emit(.timeStepCompleted(TimeStepInfo(
                             id: analysisID,

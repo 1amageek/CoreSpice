@@ -8,6 +8,9 @@ import CoreSpiceIR
 /// - **Linear (triode)**: `Vgs >= Vth` and `Vds < Vgs - Vth`.
 /// - **Saturation**: `Vgs >= Vth` and `Vds >= Vgs - Vth`.
 ///
+/// Body effect modulates the threshold voltage via the bulk-source voltage:
+///   `Vth = Vto + gamma * (sqrt(2*phi - Vbs) - sqrt(2*phi))`
+///
 /// The device is linearised around the current operating point for
 /// Newton-Raphson iteration.
 public struct BoundNMOSL1: BoundDevice, Sendable {
@@ -16,6 +19,7 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
     private let drain: Node
     private let gate: Node
     private let source: Node
+    private let bulk: Node
     private let parameters: MOSFETModelParameters
 
     /// Convergence tolerance for terminal voltages (V).
@@ -26,12 +30,14 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
         drain: Node,
         gate: Node,
         source: Node,
+        bulk: Node,
         parameters: MOSFETModelParameters
     ) {
         self.instance = instance
         self.drain = drain
         self.gate = gate
         self.source = source
+        self.bulk = bulk
         self.parameters = parameters
     }
 
@@ -43,13 +49,14 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
     }
 
     public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
-        // Small-signal model: stamp gm and gds
+        // Small-signal model: stamp gm, gds, and gmbs
         let op = operatingPoint(state: state)
         let effectiveDrain = op.reversed ? source : drain
         let effectiveSource = op.reversed ? drain : source
         let dIdx = stamper.nodeIndex(effectiveDrain)
         let gIdx = stamper.nodeIndex(gate)
         let sIdx = stamper.nodeIndex(effectiveSource)
+        let bIdx = stamper.nodeIndex(bulk)
 
         // gds: drain-source conductance
         if op.gds != 0 {
@@ -81,6 +88,23 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
                 stamper.stampMatrix(sIdx, sIdx, op.gm, 0.0)
             }
         }
+
+        // gmbs: body transconductance (bulk-source voltage modulates threshold)
+        // Id += gmbs * Vbs => stamp gmbs from bulk to drain-source
+        if op.gmbs != 0 {
+            if let dIdx, let bIdx {
+                stamper.stampMatrix(dIdx, bIdx, op.gmbs, 0.0)
+            }
+            if let dIdx, let sIdx {
+                stamper.stampMatrix(dIdx, sIdx, -op.gmbs, 0.0)
+            }
+            if let sIdx, let bIdx {
+                stamper.stampMatrix(sIdx, bIdx, -op.gmbs, 0.0)
+            }
+            if let sIdx {
+                stamper.stampMatrix(sIdx, sIdx, op.gmbs, 0.0)
+            }
+        }
     }
 
     public func stampTransient(
@@ -98,10 +122,13 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
         let vgsOld = previousState.voltage(at: gate) - previousState.voltage(at: source)
         let vdsNew = state.voltage(at: drain) - state.voltage(at: source)
         let vdsOld = previousState.voltage(at: drain) - previousState.voltage(at: source)
+        let vbsNew = state.voltage(at: bulk) - state.voltage(at: source)
+        let vbsOld = previousState.voltage(at: bulk) - previousState.voltage(at: source)
 
         let deltaVgs = abs(vgsNew - vgsOld)
         let deltaVds = abs(vdsNew - vdsOld)
-        let maxDelta = max(deltaVgs, deltaVds)
+        let deltaVbs = abs(vbsNew - vbsOld)
+        let maxDelta = max(deltaVgs, max(deltaVds, deltaVbs))
 
         if maxDelta < Self.voltageTolerance {
             return .converged
@@ -115,15 +142,17 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
         let ids: Double   // drain-source current
         let gm: Double    // transconductance dIds/dVgs
         let gds: Double   // output conductance dIds/dVds
+        let gmbs: Double  // body transconductance dIds/dVbs
         let vgs: Double
         let vds: Double
+        let vbs: Double
         let reversed: Bool // true when source and drain are swapped (Vds < 0)
     }
 
     private func operatingPoint(state: SolutionState) -> OperatingPointResult {
         let rawVgs = state.voltage(at: gate) - state.voltage(at: source)
         let rawVds = state.voltage(at: drain) - state.voltage(at: source)
-        let vth = parameters.vto
+        let rawVbs = state.voltage(at: bulk) - state.voltage(at: source)
         let beta = parameters.beta
         let lambda = parameters.lambda
 
@@ -131,17 +160,29 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
         let reversed = rawVds < 0
         let vgs: Double
         let vds: Double
+        let vbs: Double
         if reversed {
             vds = -rawVds
             vgs = state.voltage(at: gate) - state.voltage(at: drain)
+            vbs = state.voltage(at: bulk) - state.voltage(at: drain)
         } else {
             vds = rawVds
             vgs = rawVgs
+            vbs = rawVbs
         }
+
+        // Body effect: threshold voltage modulation
+        let twoPhi = 2.0 * parameters.phi
+        let sqrtTwoPhi = sqrt(abs(twoPhi))
+        let twoPhiMinusVbs = max(twoPhi - vbs, 0.01)
+        let vth = parameters.vto + parameters.gamma * (sqrt(twoPhiMinusVbs) - sqrtTwoPhi)
 
         if vgs < vth {
             // Cutoff
-            return OperatingPointResult(ids: 0, gm: 0, gds: 0, vgs: rawVgs, vds: rawVds, reversed: reversed)
+            return OperatingPointResult(
+                ids: 0, gm: 0, gds: 0, gmbs: 0,
+                vgs: rawVgs, vds: rawVds, vbs: rawVbs, reversed: reversed
+            )
         }
 
         let vgst = vgs - vth
@@ -163,18 +204,32 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
             gds = 0.5 * beta * vgst * vgst * lambda
         }
 
+        // Body transconductance: gmbs = gm * gamma / (2 * sqrt(2*phi - Vbs))
+        let gmbs: Double
+        if parameters.gamma > 0 {
+            gmbs = gm * parameters.gamma / (2.0 * sqrt(twoPhiMinusVbs))
+        } else {
+            gmbs = 0
+        }
+
         if reversed {
             // When reversed, current flows in opposite direction relative to terminal labels
-            return OperatingPointResult(ids: -ids, gm: gm, gds: gds, vgs: rawVgs, vds: rawVds, reversed: true)
+            return OperatingPointResult(
+                ids: -ids, gm: gm, gds: gds, gmbs: gmbs,
+                vgs: rawVgs, vds: rawVds, vbs: rawVbs, reversed: true
+            )
         }
-        return OperatingPointResult(ids: ids, gm: gm, gds: gds, vgs: vgs, vds: vds, reversed: false)
+        return OperatingPointResult(
+            ids: ids, gm: gm, gds: gds, gmbs: gmbs,
+            vgs: vgs, vds: vds, vbs: vbs, reversed: false
+        )
     }
 
     /// Stamp the linearised model around the operating point.
     ///
     /// The Newton-Raphson linearisation gives:
-    ///   `I_stamp = Ids0 + gm * (Vgs - Vgs0) + gds * (Vds - Vds0)`
-    ///   `       = gm * Vgs + gds * Vds + (Ids0 - gm*Vgs0 - gds*Vds0)`
+    ///   `I_stamp = Ids0 + gm * (Vgs - Vgs0) + gds * (Vds - Vds0) + gmbs * (Vbs - Vbs0)`
+    ///   `       = gm * Vgs + gds * Vds + gmbs * Vbs + (Ids0 - gm*Vgs0 - gds*Vds0 - gmbs*Vbs0)`
     ///
     /// The last term is the equivalent current source (RHS).
     private func stampLinearized(into stamper: inout MatrixStamper, op: OperatingPointResult) {
@@ -184,6 +239,7 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
         let dIdx = stamper.nodeIndex(effectiveDrain)
         let gIdx = stamper.nodeIndex(gate)
         let sIdx = stamper.nodeIndex(effectiveSource)
+        let bIdx = stamper.nodeIndex(bulk)
 
         // Conductance stamps: gds between drain and source
         if op.gds != 0 {
@@ -215,8 +271,24 @@ public struct BoundNMOSL1: BoundDevice, Sendable {
             }
         }
 
-        // Equivalent current source: Ieq = Ids - gm*Vgs - gds*Vds
-        let ieq = op.ids - op.gm * op.vgs - op.gds * op.vds
+        // Body transconductance stamps: gmbs contribution from bulk-source voltage
+        if op.gmbs != 0 {
+            if let dIdx, let bIdx {
+                stamper.stampMatrix(dIdx, bIdx, op.gmbs)
+            }
+            if let dIdx, let sIdx {
+                stamper.stampMatrix(dIdx, sIdx, -op.gmbs)
+            }
+            if let sIdx, let bIdx {
+                stamper.stampMatrix(sIdx, bIdx, -op.gmbs)
+            }
+            if let sIdx {
+                stamper.stampMatrix(sIdx, sIdx, op.gmbs)
+            }
+        }
+
+        // Equivalent current source: Ieq = Ids - gm*Vgs - gds*Vds - gmbs*Vbs
+        let ieq = op.ids - op.gm * op.vgs - op.gds * op.vds - op.gmbs * op.vbs
 
         if let dIdx {
             stamper.stampRHS(dIdx, ieq)

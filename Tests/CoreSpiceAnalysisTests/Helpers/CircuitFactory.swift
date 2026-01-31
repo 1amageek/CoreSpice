@@ -250,7 +250,7 @@ enum CircuitFactory {
                                   parameters: ["v": .real(vgs)])
         try! netlist.addInstance(name: "RD", typeName: "resistor", nodes: ["vdd", "drain"],
                                   parameters: ["r": .real(rd)])
-        try! netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "gate", "0"],
+        try! netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "gate", "0", "0"],
                                   parameters: mosParams)
         return (netlist, drain)
     }
@@ -275,7 +275,7 @@ enum CircuitFactory {
                                   parameters: ["v": .real(vgate)])
         try! netlist.addInstance(name: "RD", typeName: "resistor", nodes: ["drain", "0"],
                                   parameters: ["r": .real(rd)])
-        try! netlist.addInstance(name: "M1", typeName: "pmos_l1", nodes: ["drain", "gate", "vdd"],
+        try! netlist.addInstance(name: "M1", typeName: "pmos_l1", nodes: ["drain", "gate", "vdd", "vdd"],
                                   parameters: mosParams)
         return (netlist, drain)
     }

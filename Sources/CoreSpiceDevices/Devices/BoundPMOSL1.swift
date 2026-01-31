@@ -7,6 +7,9 @@ import CoreSpiceIR
 /// compared to the NMOS device. The PMOS conducts when `Vsg > |Vtp|`
 /// (equivalently `Vgs < Vtp` where Vtp is negative).
 ///
+/// Body effect modulates the threshold voltage via the bulk-source voltage:
+///   `Vth = Vto + gamma * (sqrt(2*phi - Vbs) - sqrt(2*phi))`
+///
 /// Operating regions (using source-referenced voltages):
 /// - **Cutoff**: `Vsg < |Vtp|` -- no current flows.
 /// - **Linear**: `Vsg >= |Vtp|` and `Vsd < Vsg - |Vtp|`.
@@ -19,6 +22,7 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
     private let drain: Node
     private let gate: Node
     private let source: Node
+    private let bulk: Node
     private let parameters: MOSFETModelParameters
 
     /// Convergence tolerance for terminal voltages (V).
@@ -29,12 +33,14 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
         drain: Node,
         gate: Node,
         source: Node,
+        bulk: Node,
         parameters: MOSFETModelParameters
     ) {
         self.instance = instance
         self.drain = drain
         self.gate = gate
         self.source = source
+        self.bulk = bulk
         self.parameters = parameters
     }
 
@@ -52,6 +58,7 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
         let dIdx = stamper.nodeIndex(effectiveDrain)
         let gIdx = stamper.nodeIndex(gate)
         let sIdx = stamper.nodeIndex(effectiveSource)
+        let bIdx = stamper.nodeIndex(bulk)
 
         // gds: drain-source conductance (current from source to drain)
         // For PMOS, Isd > 0 so stamp as source-to-drain
@@ -84,6 +91,26 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
                 stamper.stampMatrix(dIdx, sIdx, -op.gm, 0.0)
             }
         }
+
+        // gmbs: body transconductance (Vbs modulates threshold)
+        // Isd += gmbs * delta_Vbs = gmbs * (Vb - Vs)
+        // Note: for PMOS, Vbs = V(bulk) - V(source). Increasing Vbs (bulk more positive
+        // than source) reduces |Vtp|, increasing Isd. gmbs is positive.
+        // Stamp: current from source, controlled by (Vb - Vs)
+        if op.gmbs != 0 {
+            if let sIdx, let bIdx {
+                stamper.stampMatrix(sIdx, bIdx, -op.gmbs, 0.0)
+            }
+            if let sIdx {
+                stamper.stampMatrix(sIdx, sIdx, op.gmbs, 0.0)
+            }
+            if let dIdx, let bIdx {
+                stamper.stampMatrix(dIdx, bIdx, op.gmbs, 0.0)
+            }
+            if let dIdx, let sIdx {
+                stamper.stampMatrix(dIdx, sIdx, -op.gmbs, 0.0)
+            }
+        }
     }
 
     public func stampTransient(
@@ -99,10 +126,13 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
         let vsgOld = previousState.voltage(at: source) - previousState.voltage(at: gate)
         let vsdNew = state.voltage(at: source) - state.voltage(at: drain)
         let vsdOld = previousState.voltage(at: source) - previousState.voltage(at: drain)
+        let vbsNew = state.voltage(at: bulk) - state.voltage(at: source)
+        let vbsOld = previousState.voltage(at: bulk) - previousState.voltage(at: source)
 
         let deltaVsg = abs(vsgNew - vsgOld)
         let deltaVsd = abs(vsdNew - vsdOld)
-        let maxDelta = max(deltaVsg, deltaVsd)
+        let deltaVbs = abs(vbsNew - vbsOld)
+        let maxDelta = max(deltaVsg, max(deltaVsd, deltaVbs))
 
         if maxDelta < Self.voltageTolerance {
             return .converged
@@ -116,8 +146,10 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
         let isd: Double   // source-to-drain current (positive when PMOS is on)
         let gm: Double    // transconductance dIsd/dVsg
         let gds: Double   // output conductance dIsd/dVsd
+        let gmbs: Double  // body transconductance dIsd/dVbs
         let vsg: Double
         let vsd: Double
+        let vbs: Double
         let reversed: Bool // true when source and drain are swapped (Vsd < 0)
     }
 
@@ -125,9 +157,8 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
         // PMOS uses source-gate and source-drain voltages
         let rawVsg = state.voltage(at: source) - state.voltage(at: gate)
         let rawVsd = state.voltage(at: source) - state.voltage(at: drain)
+        let rawVbs = state.voltage(at: bulk) - state.voltage(at: source)
 
-        // Vtp is stored as negative, so |Vtp| = -vto
-        let vtpAbs = -parameters.vto
         let beta = parameters.beta
         let lambda = parameters.lambda
 
@@ -135,17 +166,33 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
         let reversed = rawVsd < 0
         let vsg: Double
         let vsd: Double
+        let vbs: Double
         if reversed {
             vsd = -rawVsd
             vsg = state.voltage(at: drain) - state.voltage(at: gate)
+            vbs = state.voltage(at: bulk) - state.voltage(at: drain)
         } else {
             vsd = rawVsd
             vsg = rawVsg
+            vbs = rawVbs
         }
+
+        // Body effect: threshold voltage modulation
+        // Vtp = VTO + gamma * (sqrt(2*phi - Vbs) - sqrt(2*phi))
+        // For PMOS, VTO < 0, and |Vtp| = -Vtp
+        let twoPhi = 2.0 * parameters.phi
+        let sqrtTwoPhi = sqrt(abs(twoPhi))
+        let twoPhiMinusVbs = max(twoPhi - vbs, 0.01)
+        let vtp = parameters.vto + parameters.gamma * (sqrt(twoPhiMinusVbs) - sqrtTwoPhi)
+        // |Vtp| for the conduction check
+        let vtpAbs = -vtp
 
         if vsg < vtpAbs {
             // Cutoff
-            return OperatingPointResult(isd: 0, gm: 0, gds: 0, vsg: rawVsg, vsd: rawVsd, reversed: reversed)
+            return OperatingPointResult(
+                isd: 0, gm: 0, gds: 0, gmbs: 0,
+                vsg: rawVsg, vsd: rawVsd, vbs: rawVbs, reversed: reversed
+            )
         }
 
         let vsgOverdrive = vsg - vtpAbs
@@ -167,18 +214,32 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
             gds = 0.5 * beta * vsgOverdrive * vsgOverdrive * lambda
         }
 
+        // Body transconductance: gmbs = gm * gamma / (2 * sqrt(2*phi - Vbs))
+        let gmbs: Double
+        if parameters.gamma > 0 {
+            gmbs = gm * parameters.gamma / (2.0 * sqrt(twoPhiMinusVbs))
+        } else {
+            gmbs = 0
+        }
+
         if reversed {
             // When reversed, current flows in opposite direction relative to terminal labels
-            return OperatingPointResult(isd: -isd, gm: gm, gds: gds, vsg: rawVsg, vsd: rawVsd, reversed: true)
+            return OperatingPointResult(
+                isd: -isd, gm: gm, gds: gds, gmbs: gmbs,
+                vsg: rawVsg, vsd: rawVsd, vbs: rawVbs, reversed: true
+            )
         }
-        return OperatingPointResult(isd: isd, gm: gm, gds: gds, vsg: vsg, vsd: vsd, reversed: false)
+        return OperatingPointResult(
+            isd: isd, gm: gm, gds: gds, gmbs: gmbs,
+            vsg: vsg, vsd: vsd, vbs: vbs, reversed: false
+        )
     }
 
     /// Stamp the linearised PMOS model around the operating point.
     ///
     /// Current flows from source to drain:
-    ///   `I_stamp = Isd0 + gm * (Vsg - Vsg0) + gds * (Vsd - Vsd0)`
-    ///   `       = gm * Vsg + gds * Vsd + (Isd0 - gm*Vsg0 - gds*Vsd0)`
+    ///   `I_stamp = Isd0 + gm * (Vsg - Vsg0) + gds * (Vsd - Vsd0) + gmbs * (Vbs - Vbs0)`
+    ///   `       = gm * Vsg + gds * Vsd + gmbs * Vbs + (Isd0 - gm*Vsg0 - gds*Vsd0 - gmbs*Vbs0)`
     private func stampLinearized(into stamper: inout MatrixStamper, op: OperatingPointResult) {
         // When Vsd < 0, source and drain are physically swapped
         let effectiveDrain = op.reversed ? source : drain
@@ -186,6 +247,7 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
         let dIdx = stamper.nodeIndex(effectiveDrain)
         let gIdx = stamper.nodeIndex(gate)
         let sIdx = stamper.nodeIndex(effectiveSource)
+        let bIdx = stamper.nodeIndex(bulk)
 
         // Conductance stamps: gds between source and drain
         // Current leaves source, enters drain
@@ -220,9 +282,28 @@ public struct BoundPMOSL1: BoundDevice, Sendable {
             }
         }
 
-        // Equivalent current source: Ieq = Isd - gm*Vsg - gds*Vsd
+        // Body transconductance stamps: gmbs from Vbs
+        // Isd += gmbs * Vbs = gmbs * (Vb - Vs)
+        // For PMOS, increasing Vbs (bulk more positive) reduces |Vtp|, increases Isd.
+        // Current contribution: from source, controlled by (Vb - Vs)
+        if op.gmbs != 0 {
+            if let sIdx, let bIdx {
+                stamper.stampMatrix(sIdx, bIdx, -op.gmbs)
+            }
+            if let sIdx {
+                stamper.stampMatrix(sIdx, sIdx, op.gmbs)
+            }
+            if let dIdx, let bIdx {
+                stamper.stampMatrix(dIdx, bIdx, op.gmbs)
+            }
+            if let dIdx, let sIdx {
+                stamper.stampMatrix(dIdx, sIdx, -op.gmbs)
+            }
+        }
+
+        // Equivalent current source: Ieq = Isd - gm*Vsg - gds*Vsd - gmbs*Vbs
         // Positive Ieq means current from source to drain
-        let ieq = op.isd - op.gm * op.vsg - op.gds * op.vsd
+        let ieq = op.isd - op.gm * op.vsg - op.gds * op.vsd - op.gmbs * op.vbs
 
         // Current leaves source (negative contribution) and enters drain (positive)
         if let sIdx {

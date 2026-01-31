@@ -216,9 +216,11 @@ public struct SubcircuitExpander: Sendable {
             return "njfet"
         case .mosfet:
             if let name = modelName, let model = context.model(name) {
-                return model.type == .nmos ? "nmos" : "pmos"
+                let prefix = model.type == .nmos ? "nmos" : "pmos"
+                let level = model.level ?? 1
+                return "\(prefix)_l\(level)"
             }
-            return "nmos"
+            return "nmos_l1"
         case .mesfet:
             return "mesfet"
         case .transmissionLine:

@@ -395,10 +395,10 @@ struct DCIntegrationTests {
                                     parameters: ["v": .real(5.0)])
             try netlist.addInstance(name: "VIN", typeName: "vsource", nodes: ["vin", "0"],
                                     parameters: ["v": .real(vin)])
-            try netlist.addInstance(name: "MN", typeName: "nmos_l1", nodes: ["out", "vin", "0"],
+            try netlist.addInstance(name: "MN", typeName: "nmos_l1", nodes: ["out", "vin", "0", "0"],
                                     parameters: ["vto": .real(0.7), "kp": .real(110e-6),
                                                  "w": .real(10e-6), "l": .real(1e-6)])
-            try netlist.addInstance(name: "MP", typeName: "pmos_l1", nodes: ["out", "vin", "vdd"],
+            try netlist.addInstance(name: "MP", typeName: "pmos_l1", nodes: ["out", "vin", "vdd", "vdd"],
                                     parameters: ["vto": .real(-0.7), "kp": .real(50e-6),
                                                  "w": .real(20e-6), "l": .real(1e-6)])
 

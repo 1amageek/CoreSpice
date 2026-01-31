@@ -2,12 +2,13 @@ import CoreSpiceIR
 
 /// Descriptor for a PMOS Level 1 MOSFET (Shichman-Hodges model).
 ///
-/// Three ports: drain, gate, source. Bulk is assumed to be connected to VDD (or source).
+/// Four ports: drain, gate, source, bulk. Body effect is modeled
+/// via `gamma` and `phi` parameters using the bulk-source voltage.
 /// Polarities are reversed compared to the NMOS device.
 public struct PMOSL1Descriptor: DeviceDescriptor, Sendable {
 
     public let typeName = "pmos_l1"
-    public let portNames = ["drain", "gate", "source"]
+    public let portNames = ["drain", "gate", "source", "bulk"]
     public let parameterDescriptors = [
         ParameterDescriptor(name: "w", defaultValue: .real(10e-6), description: "Channel width (m)"),
         ParameterDescriptor(name: "l", defaultValue: .real(1e-6), description: "Channel length (m)"),
@@ -22,9 +23,9 @@ public struct PMOSL1Descriptor: DeviceDescriptor, Sendable {
     public init() {}
 
     public func bind(instance: Instance, context: inout BindingContext) throws -> any BoundDevice {
-        guard instance.nodes.count == 3 else {
+        guard instance.nodes.count == 4 else {
             throw DeviceBindingError.portCountMismatch(
-                device: instance.name, expected: 3, got: instance.nodes.count
+                device: instance.name, expected: 4, got: instance.nodes.count
             )
         }
 
@@ -35,6 +36,7 @@ public struct PMOSL1Descriptor: DeviceDescriptor, Sendable {
             drain: instance.nodes[0],
             gate: instance.nodes[1],
             source: instance.nodes[2],
+            bulk: instance.nodes[3],
             parameters: params
         )
     }
