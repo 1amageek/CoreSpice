@@ -4,3 +4,4 @@
 @_exported import CoreSpiceCompile
 @_exported import CoreSpiceAnalysis
 @_exported import CoreSpiceBackend
+@_exported import CoreSpiceOptoelectronics

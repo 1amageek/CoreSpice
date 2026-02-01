@@ -275,7 +275,7 @@ Commands (REPL):
 
 struct Session {
     private(set) var plan: ExecutionPlan?
-    private let registry = DeviceRegistry.standard()
+    private let registry = DeviceRegistry.withOptoelectronics()
     private(set) var devices: [any BoundDevice] = []
     private(set) var lastWaveform: WaveformData?
     private(set) var lastParametric: ParametricWaveformData?

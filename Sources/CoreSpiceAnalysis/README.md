@@ -208,7 +208,7 @@ public struct TransientResult: Sendable {
 
 - [x] DC operating point analysis with Newton-Raphson iteration
 - [x] Gmin stepping convergence aid
-- [x] Source stepping convergence aid (partial - see notes)
+- [x] Source stepping convergence aid
 - [x] AC small-signal analysis with frequency sweep
 - [x] Transient analysis with adaptive timestep control
 - [x] Local Truncation Error (LTE) estimation for Backward Euler and Trapezoidal
@@ -219,10 +219,6 @@ public struct TransientResult: Sendable {
 - [x] Generic parametric sweep analysis
 
 ### Incomplete/Partial Features
-
-- [ ] **Source Stepping**: The `solveWithSourceStepping()` method in `DCAnalysis.swift` does not actually scale source values. The `factor` variable is captured but not applied to device stamps (line 252: `_ = factor`). This is noted as a "simplified approach" in the code comments.
-
-- [ ] **Breakpoint Collection**: The `TransientAnalysis` creates a `BreakpointManager` but does not populate it with device waveform breakpoints (lines 92-95 note this as a TODO).
 
 - [ ] **Integration Method**: Only Backward Euler and Trapezoidal methods are supported. Higher-order methods (Gear) are not implemented.
 
@@ -252,31 +248,22 @@ public struct TransientResult: Sendable {
 
 **Issues Found:**
 
-1. **Source Stepping Not Functional** (`DCAnalysis.swift`, lines 240-252):
-   ```swift
-   // Scale RHS by factor (source stepping applies to independent sources)
-   // This is a simplified approach; a full implementation would
-   // scale only source device stamps.
-   _ = factor  // Factor used for convergence progression
-   ```
-   The source stepping loop iterates through factors but never applies them.
-
-2. **Unused Variable** (`TransientAnalysis.swift`, line 131):
+1. **Unused Variable** (`TransientAnalysis.swift`, line 131):
    ```swift
    let integrationState = IntegrationState(...)
    ```
    This variable is created but never used; a new `currentIntegration` is created inside the while loop.
 
-3. **Incorrect Iteration Count** (`TransientAnalysis.swift`, line 300):
+2. **Incorrect Iteration Count** (`TransientAnalysis.swift`, line 300):
    ```swift
    iterations: convergenceConfig.maxIterations
    ```
    For the first timestep event, `maxIterations` is reported instead of the actual iteration count from `newtonResult.iterations`.
 
-4. **Missing Error Handling for Complex Solver** (`ACAnalysis.swift`, lines 137-138):
+3. **Missing Error Handling for Complex Solver** (`ACAnalysis.swift`, lines 137-138):
    The `factorize()` and `solve()` calls throw but do not wrap errors in `AnalysisError` types like the DC analysis does.
 
-5. **Potential Precision Issue** (`BreakpointManager.swift`, line 27):
+4. **Potential Precision Issue** (`BreakpointManager.swift`, line 27):
    Near-duplicate detection uses `1e-15` which may be too tight for typical simulation time scales. Consider making this configurable or relative to the time values.
 
 ### Dependencies
@@ -291,14 +278,10 @@ This module depends on:
 
 ### Recommendations
 
-1. Implement source stepping properly by adding a scaling interface to device stamps or source devices.
+1. Remove or utilize the unused `integrationState` variable in `TransientAnalysis`.
 
-2. Remove or utilize the unused `integrationState` variable in `TransientAnalysis`.
+2. Fix the iteration count reporting for the first transient timestep.
 
-3. Fix the iteration count reporting for the first transient timestep.
+3. Add error wrapping for complex solver failures in `ACAnalysis`.
 
-4. Add error wrapping for complex solver failures in `ACAnalysis`.
-
-5. Consider adding device breakpoint collection to populate the `BreakpointManager` for transient analysis.
-
-6. Consider implementing Gear integration methods for improved accuracy in stiff circuits.
+4. Consider implementing Gear integration methods for improved accuracy in stiff circuits.

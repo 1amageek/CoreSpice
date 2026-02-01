@@ -39,5 +39,4 @@ State: the shell retains the loaded netlist, compiled plan, bound devices, and l
 - Metal available for GPU-backed backends (photonic paths); core electrical analyses run on CPU.
 
 ## Roadmap / Notes
-- Implement DC sweep stepping of source values (`dc` command and `--dc` flag).
 - Optional: support `.control ... .endc` sections, expression evaluation for `print/plot`, and solver tuning via `set/unset`.
