@@ -184,6 +184,8 @@ try await SPICEIO.exportToPSF(waveform, path: "output.psf")
 
 ## CLI
 
+See [CoreSpiceCLI README](Sources/CoreSpiceCLI/README.md) for full usage, supported SPICE syntax, and examples.
+
 ```bash
 swift build -c release --product corespice
 ```
