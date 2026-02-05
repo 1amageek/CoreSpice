@@ -12,11 +12,11 @@ public struct PMOSL1Descriptor: DeviceDescriptor, Sendable {
     public let parameterDescriptors = [
         ParameterDescriptor(name: "w", defaultValue: .real(10e-6), description: "Channel width (m)"),
         ParameterDescriptor(name: "l", defaultValue: .real(1e-6), description: "Channel length (m)"),
-        ParameterDescriptor(name: "vto", defaultValue: .real(-0.7), description: "Threshold voltage (V)"),
-        ParameterDescriptor(name: "kp", defaultValue: .real(50e-6), description: "Transconductance parameter (A/V^2)"),
-        ParameterDescriptor(name: "gamma", defaultValue: .real(0.4), description: "Body effect coefficient (V^0.5)"),
-        ParameterDescriptor(name: "phi", defaultValue: .real(0.65), description: "Surface potential (V)"),
-        ParameterDescriptor(name: "lambda", defaultValue: .real(0.04), description: "Channel-length modulation (1/V)"),
+        ParameterDescriptor(name: "vto", defaultValue: .real(0.0), description: "Threshold voltage (V)"),
+        ParameterDescriptor(name: "kp", defaultValue: .real(2e-5), description: "Transconductance parameter (A/V^2)"),
+        ParameterDescriptor(name: "gamma", defaultValue: .real(0.0), description: "Body effect coefficient (V^0.5)"),
+        ParameterDescriptor(name: "phi", defaultValue: .real(0.6), description: "Surface potential (V)"),
+        ParameterDescriptor(name: "lambda", defaultValue: .real(0.0), description: "Channel-length modulation (1/V)"),
         ParameterDescriptor(name: "tox", defaultValue: .real(100e-9), description: "Gate oxide thickness (m)"),
         ParameterDescriptor(name: "cgso", defaultValue: .real(0), description: "Gate-source overlap capacitance (F/m)"),
         ParameterDescriptor(name: "cgdo", defaultValue: .real(0), description: "Gate-drain overlap capacitance (F/m)"),
@@ -48,6 +48,31 @@ public struct PMOSL1Descriptor: DeviceDescriptor, Sendable {
         let sourceNode = instance.nodes[2]
         let bulkNode = instance.nodes[3]
 
+        let dIdx = context.nodeIndex(drainNode)
+        let gIdx = context.nodeIndex(gateNode)
+        let sIdx = context.nodeIndex(sourceNode)
+        let bIdx = context.nodeIndex(bulkNode)
+
+        // Pre-resolve CSR value indices for O(1) stamping
+        let csrIndices = MOSFETCSRIndices(
+            dd: dIdx.flatMap { context.stampIndex(row: $0, col: $0) },
+            gg: gIdx.flatMap { context.stampIndex(row: $0, col: $0) },
+            ss: sIdx.flatMap { context.stampIndex(row: $0, col: $0) },
+            bb: bIdx.flatMap { context.stampIndex(row: $0, col: $0) },
+            dg: dIdx.flatMap { d in gIdx.flatMap { context.stampIndex(row: d, col: $0) } },
+            ds: dIdx.flatMap { d in sIdx.flatMap { context.stampIndex(row: d, col: $0) } },
+            db: dIdx.flatMap { d in bIdx.flatMap { context.stampIndex(row: d, col: $0) } },
+            gd: gIdx.flatMap { g in dIdx.flatMap { context.stampIndex(row: g, col: $0) } },
+            gs: gIdx.flatMap { g in sIdx.flatMap { context.stampIndex(row: g, col: $0) } },
+            gb: gIdx.flatMap { g in bIdx.flatMap { context.stampIndex(row: g, col: $0) } },
+            sd: sIdx.flatMap { s in dIdx.flatMap { context.stampIndex(row: s, col: $0) } },
+            sg: sIdx.flatMap { s in gIdx.flatMap { context.stampIndex(row: s, col: $0) } },
+            sb: sIdx.flatMap { s in bIdx.flatMap { context.stampIndex(row: s, col: $0) } },
+            bd: bIdx.flatMap { b in dIdx.flatMap { context.stampIndex(row: b, col: $0) } },
+            bg: bIdx.flatMap { b in gIdx.flatMap { context.stampIndex(row: b, col: $0) } },
+            bs: bIdx.flatMap { b in sIdx.flatMap { context.stampIndex(row: b, col: $0) } }
+        )
+
         return BoundPMOSL1(
             instance: instance,
             drain: drainNode,
@@ -55,15 +80,16 @@ public struct PMOSL1Descriptor: DeviceDescriptor, Sendable {
             source: sourceNode,
             bulk: bulkNode,
             parameters: params,
-            drainIdx: context.nodeIndex(drainNode),
-            gateIdx: context.nodeIndex(gateNode),
-            sourceIdx: context.nodeIndex(sourceNode),
-            bulkIdx: context.nodeIndex(bulkNode)
+            drainIdx: dIdx,
+            gateIdx: gIdx,
+            sourceIdx: sIdx,
+            bulkIdx: bIdx,
+            csrIndices: csrIndices
         )
     }
 
     private func extractModelParameters(from instance: Instance) throws -> MOSFETModelParameters {
-        var params = MOSFETModelParameters(vto: -0.7, kp: 50e-6)
+        var params = MOSFETModelParameters()
 
         func extractReal(_ name: String) throws -> Double? {
             guard let p = instance.parameters[name] else { return nil }

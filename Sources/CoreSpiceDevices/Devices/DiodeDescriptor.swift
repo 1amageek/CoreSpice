@@ -50,14 +50,26 @@ public struct DiodeDescriptor: DeviceDescriptor, Sendable {
 
         let anodeNode = instance.nodes[0]
         let cathodeNode = instance.nodes[1]
+        let anodeIdx = context.nodeIndex(anodeNode)
+        let cathodeIdx = context.nodeIndex(cathodeNode)
+
+        // Pre-resolve CSR value indices for O(1) stamping
+        let stampAA = anodeIdx.flatMap { i in context.stampIndex(row: i, col: i) }
+        let stampCC = cathodeIdx.flatMap { i in context.stampIndex(row: i, col: i) }
+        let stampAC: Int? = if let i = anodeIdx, let j = cathodeIdx { context.stampIndex(row: i, col: j) } else { nil }
+        let stampCA: Int? = if let i = cathodeIdx, let j = anodeIdx { context.stampIndex(row: i, col: j) } else { nil }
 
         return BoundDiode(
             instance: instance,
             anode: anodeNode,
             cathode: cathodeNode,
-            anodeIdx: context.nodeIndex(anodeNode),
-            cathodeIdx: context.nodeIndex(cathodeNode),
-            parameters: params
+            anodeIdx: anodeIdx,
+            cathodeIdx: cathodeIdx,
+            parameters: params,
+            stampAA: stampAA,
+            stampCC: stampCC,
+            stampAC: stampAC,
+            stampCA: stampCA
         )
     }
 

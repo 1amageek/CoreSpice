@@ -1,6 +1,31 @@
 import Foundation
 import CoreSpiceIR
 
+/// Pre-resolved CSR value indices for BJT O(1) stamping.
+///
+/// Contains the 9 matrix positions for a 3-terminal device (C, B, E).
+public struct BJTCSRIndices: Sendable {
+    let cc: Int?  // (collector, collector)
+    let cb: Int?  // (collector, base)
+    let ce: Int?  // (collector, emitter)
+    let bc: Int?  // (base, collector)
+    let bb: Int?  // (base, base)
+    let be: Int?  // (base, emitter)
+    let ec: Int?  // (emitter, collector)
+    let eb: Int?  // (emitter, base)
+    let ee: Int?  // (emitter, emitter)
+
+    public init(
+        cc: Int? = nil, cb: Int? = nil, ce: Int? = nil,
+        bc: Int? = nil, bb: Int? = nil, be: Int? = nil,
+        ec: Int? = nil, eb: Int? = nil, ee: Int? = nil
+    ) {
+        self.cc = cc; self.cb = cb; self.ce = ce
+        self.bc = bc; self.bb = bb; self.be = be
+        self.ec = ec; self.eb = eb; self.ee = ee
+    }
+}
+
 /// A Bipolar Junction Transistor bound to circuit nodes.
 ///
 /// Implements the Ebers-Moll model with:
@@ -25,6 +50,9 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
     /// Pre-resolved matrix index for the emitter node (nil for ground).
     private let emitterIdx: Int?
 
+    /// Pre-resolved CSR value indices for O(1) stamping.
+    private let csrIndices: BJTCSRIndices
+
     /// Convergence tolerance for terminal voltages (V).
     private static let voltageTolerance: Double = 1e-6
 
@@ -42,7 +70,8 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
         collectorIdx: Int?,
         baseIdx: Int?,
         emitterIdx: Int?,
-        parameters: BJTModelParameters
+        parameters: BJTModelParameters,
+        csrIndices: BJTCSRIndices = BJTCSRIndices()
     ) {
         self.instance = instance
         self.collector = collector
@@ -52,6 +81,7 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
         self.baseIdx = baseIdx
         self.emitterIdx = emitterIdx
         self.parameters = parameters
+        self.csrIndices = csrIndices
     }
 
     // MARK: - Index-Based Voltage Helpers
@@ -529,68 +559,83 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
     ///   J[B,B] = gpi + gmu   J[B,C] = -gmu        J[B,E] = -gpi
     ///   J[E,B] = -gm - gpi   J[E,C] = -go         J[E,E] = gm + gpi + go
     private func stampLinearized(into stamper: inout MatrixStamper, op: OperatingPointResult, state: SolutionState) {
-        let cIdx = stamper.nodeIndex(collector)
-        let bIdx = stamper.nodeIndex(base)
-        let eIdx = stamper.nodeIndex(emitter)
-
         let sign: Double = parameters.polarity == .npn ? 1.0 : -1.0
 
-        // Transconductance gm: Ic depends on Vbe (no sign needed)
-        if op.gm != 0 {
-            if let cIdx, let bIdx {
-                stamper.stampMatrix(cIdx, bIdx, op.gm)
-            }
-            if let cIdx, let eIdx {
-                stamper.stampMatrix(cIdx, eIdx, -op.gm)
-            }
-            if let eIdx, let bIdx {
-                stamper.stampMatrix(eIdx, bIdx, -op.gm)
-            }
-            if let eIdx {
-                stamper.stampMatrix(eIdx, eIdx, op.gm)
-            }
-        }
+        // Fast path: use pre-resolved CSR indices for O(1) stamping
+        if let sv = stamper.stampValue, csrIndices.cc != nil || csrIndices.bb != nil || csrIndices.ee != nil {
+            // Combined Jacobian values for each position
+            if let idx = csrIndices.cc { sv(idx, op.go + op.gmu) }
+            if let idx = csrIndices.cb { sv(idx, op.gm - op.gmu) }
+            if let idx = csrIndices.ce { sv(idx, -op.gm - op.go) }
+            if let idx = csrIndices.bc { sv(idx, -op.gmu) }
+            if let idx = csrIndices.bb { sv(idx, op.gpi + op.gmu) }
+            if let idx = csrIndices.be { sv(idx, -op.gpi) }
+            if let idx = csrIndices.ec { sv(idx, -op.go) }
+            if let idx = csrIndices.eb { sv(idx, -op.gm - op.gpi) }
+            if let idx = csrIndices.ee { sv(idx, op.gm + op.gpi + op.go) }
+        } else {
+            // Fallback to dictionary-based stamping
+            let cIdx = stamper.nodeIndex(collector)
+            let bIdx = stamper.nodeIndex(base)
+            let eIdx = stamper.nodeIndex(emitter)
 
-        // Output conductance go: between C and E (no sign needed)
-        if op.go != 0 {
-            if let cIdx {
-                stamper.stampMatrix(cIdx, cIdx, op.go)
+            // Transconductance gm: Ic depends on Vbe (no sign needed)
+            if op.gm != 0 {
+                if let cIdx, let bIdx {
+                    stamper.stampMatrix(cIdx, bIdx, op.gm)
+                }
+                if let cIdx, let eIdx {
+                    stamper.stampMatrix(cIdx, eIdx, -op.gm)
+                }
+                if let eIdx, let bIdx {
+                    stamper.stampMatrix(eIdx, bIdx, -op.gm)
+                }
+                if let eIdx {
+                    stamper.stampMatrix(eIdx, eIdx, op.gm)
+                }
             }
-            if let eIdx {
-                stamper.stampMatrix(eIdx, eIdx, op.go)
-            }
-            if let cIdx, let eIdx {
-                stamper.stampMatrix(cIdx, eIdx, -op.go)
-                stamper.stampMatrix(eIdx, cIdx, -op.go)
-            }
-        }
 
-        // Input conductance gpi: between B and E (no sign needed)
-        if op.gpi != 0 {
-            if let bIdx {
-                stamper.stampMatrix(bIdx, bIdx, op.gpi)
+            // Output conductance go: between C and E (no sign needed)
+            if op.go != 0 {
+                if let cIdx {
+                    stamper.stampMatrix(cIdx, cIdx, op.go)
+                }
+                if let eIdx {
+                    stamper.stampMatrix(eIdx, eIdx, op.go)
+                }
+                if let cIdx, let eIdx {
+                    stamper.stampMatrix(cIdx, eIdx, -op.go)
+                    stamper.stampMatrix(eIdx, cIdx, -op.go)
+                }
             }
-            if let eIdx {
-                stamper.stampMatrix(eIdx, eIdx, op.gpi)
-            }
-            if let bIdx, let eIdx {
-                stamper.stampMatrix(bIdx, eIdx, -op.gpi)
-                stamper.stampMatrix(eIdx, bIdx, -op.gpi)
-            }
-        }
 
-        // Reverse transconductance gmu: between B and C (no sign needed)
-        // gmu stamps in B and C rows — NOT E row (matches AC stamps and SPICE3F5)
-        if op.gmu != 0 {
-            if let bIdx {
-                stamper.stampMatrix(bIdx, bIdx, op.gmu)
+            // Input conductance gpi: between B and E (no sign needed)
+            if op.gpi != 0 {
+                if let bIdx {
+                    stamper.stampMatrix(bIdx, bIdx, op.gpi)
+                }
+                if let eIdx {
+                    stamper.stampMatrix(eIdx, eIdx, op.gpi)
+                }
+                if let bIdx, let eIdx {
+                    stamper.stampMatrix(bIdx, eIdx, -op.gpi)
+                    stamper.stampMatrix(eIdx, bIdx, -op.gpi)
+                }
             }
-            if let cIdx {
-                stamper.stampMatrix(cIdx, cIdx, op.gmu)
-            }
-            if let bIdx, let cIdx {
-                stamper.stampMatrix(bIdx, cIdx, -op.gmu)
-                stamper.stampMatrix(cIdx, bIdx, -op.gmu)
+
+            // Reverse transconductance gmu: between B and C (no sign needed)
+            // gmu stamps in B and C rows — NOT E row (matches AC stamps and SPICE3F5)
+            if op.gmu != 0 {
+                if let bIdx {
+                    stamper.stampMatrix(bIdx, bIdx, op.gmu)
+                }
+                if let cIdx {
+                    stamper.stampMatrix(cIdx, cIdx, op.gmu)
+                }
+                if let bIdx, let cIdx {
+                    stamper.stampMatrix(bIdx, cIdx, -op.gmu)
+                    stamper.stampMatrix(cIdx, bIdx, -op.gmu)
+                }
             }
         }
 
@@ -601,13 +646,14 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
         let icq = sign * (op.ic - op.gm * op.vbe - op.go * op.vce + op.gmu * op.vbc)
         let ibq = sign * (op.ib - op.gpi * op.vbe - op.gmu * op.vbc)
 
-        if let cIdx {
+        // Use pre-resolved indices for RHS stamping
+        if let cIdx = collectorIdx {
             stamper.stampRHS(cIdx, -icq)
         }
-        if let eIdx {
+        if let eIdx = emitterIdx {
             stamper.stampRHS(eIdx, icq + ibq)
         }
-        if let bIdx {
+        if let bIdx = baseIdx {
             stamper.stampRHS(bIdx, -ibq)
         }
     }

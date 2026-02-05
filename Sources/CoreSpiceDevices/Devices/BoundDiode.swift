@@ -20,6 +20,12 @@ public struct BoundDiode: BoundDevice, VoltageLimitingDevice, Sendable {
     /// Pre-resolved matrix index for the cathode node (nil for ground).
     private let cathodeIdx: Int?
 
+    /// Pre-resolved CSR value indices for O(1) stamping.
+    private let stampAA: Int?
+    private let stampCC: Int?
+    private let stampAC: Int?
+    private let stampCA: Int?
+
     /// Convergence tolerance for diode voltage (V).
     private static let voltageTolerance: Double = 1e-6
 
@@ -35,7 +41,11 @@ public struct BoundDiode: BoundDevice, VoltageLimitingDevice, Sendable {
         cathode: Node,
         anodeIdx: Int?,
         cathodeIdx: Int?,
-        parameters: DiodeModelParameters
+        parameters: DiodeModelParameters,
+        stampAA: Int? = nil,
+        stampCC: Int? = nil,
+        stampAC: Int? = nil,
+        stampCA: Int? = nil
     ) {
         self.instance = instance
         self.anode = anode
@@ -43,6 +53,10 @@ public struct BoundDiode: BoundDevice, VoltageLimitingDevice, Sendable {
         self.anodeIdx = anodeIdx
         self.cathodeIdx = cathodeIdx
         self.parameters = parameters
+        self.stampAA = stampAA
+        self.stampCC = stampCC
+        self.stampAC = stampAC
+        self.stampCA = stampCA
     }
 
     // MARK: - Index-Based Voltage Helpers
@@ -314,29 +328,37 @@ public struct BoundDiode: BoundDevice, VoltageLimitingDevice, Sendable {
     ///
     /// The last term is the equivalent current source (RHS).
     private func stampLinearized(into stamper: inout MatrixStamper, op: OperatingPointResult) {
-        let aIdx = stamper.nodeIndex(anode)
-        let cIdx = stamper.nodeIndex(cathode)
+        // Conductance stamp (fast path when CSR indices available)
+        if let sv = stamper.stampValue, stampAA != nil || stampCC != nil {
+            if let idx = stampAA { sv(idx, op.gd) }
+            if let idx = stampCC { sv(idx, op.gd) }
+            if let idx = stampAC { sv(idx, -op.gd) }
+            if let idx = stampCA { sv(idx, -op.gd) }
+        } else {
+            // Fallback to dictionary-based stamping
+            let aIdx = stamper.nodeIndex(anode)
+            let cIdx = stamper.nodeIndex(cathode)
 
-        // Conductance stamp
-        if let aIdx {
-            stamper.stampMatrix(aIdx, aIdx, op.gd)
-        }
-        if let cIdx {
-            stamper.stampMatrix(cIdx, cIdx, op.gd)
-        }
-        if let aIdx, let cIdx {
-            stamper.stampMatrix(aIdx, cIdx, -op.gd)
-            stamper.stampMatrix(cIdx, aIdx, -op.gd)
+            if let aIdx {
+                stamper.stampMatrix(aIdx, aIdx, op.gd)
+            }
+            if let cIdx {
+                stamper.stampMatrix(cIdx, cIdx, op.gd)
+            }
+            if let aIdx, let cIdx {
+                stamper.stampMatrix(aIdx, cIdx, -op.gd)
+                stamper.stampMatrix(cIdx, aIdx, -op.gd)
+            }
         }
 
         // Equivalent current source: Ieq = Id - gd * Vd
         let ieq = op.id - op.gd * op.vd
 
-        // Current flows from anode to cathode
-        if let aIdx {
+        // Current flows from anode to cathode (use pre-resolved indices)
+        if let aIdx = anodeIdx {
             stamper.stampRHS(aIdx, -ieq)
         }
-        if let cIdx {
+        if let cIdx = cathodeIdx {
             stamper.stampRHS(cIdx, ieq)
         }
     }

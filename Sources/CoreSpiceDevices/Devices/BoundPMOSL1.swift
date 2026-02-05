@@ -31,11 +31,28 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
     private let sourceIdx: Int?
     private let bulkIdx: Int?
 
+    /// Pre-resolved CSR value indices for O(1) stamping.
+    /// Only used when device is not in reversed mode.
+    private let csrIndices: MOSFETCSRIndices
+
     /// Convergence tolerance for terminal voltages (V).
     private static let voltageTolerance: Double = 1e-6
 
     /// Minimum output conductance to prevent singular matrix in cutoff.
     private static let minGds: Double = 1e-12
+
+    /// Smoothing parameter for the cutoff-to-on transition (≈ kT/q at room temperature).
+    private static let smoothDelta: Double = 0.025
+
+    /// Smooth approximation of max(x, 0) for continuous derivatives.
+    private static func smoothClamp(_ x: Double) -> Double {
+        0.5 * (x + sqrt(x * x + smoothDelta * smoothDelta))
+    }
+
+    /// Derivative of smoothClamp: d/dx smoothClamp(x).
+    private static func smoothClampDeriv(_ x: Double) -> Double {
+        0.5 * (1.0 + x / sqrt(x * x + smoothDelta * smoothDelta))
+    }
 
     init(
         instance: Instance,
@@ -47,7 +64,8 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         drainIdx: Int?,
         gateIdx: Int?,
         sourceIdx: Int?,
-        bulkIdx: Int?
+        bulkIdx: Int?,
+        csrIndices: MOSFETCSRIndices = MOSFETCSRIndices()
     ) {
         self.instance = instance
         self.drain = drain
@@ -59,6 +77,7 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         self.gateIdx = gateIdx
         self.sourceIdx = sourceIdx
         self.bulkIdx = bulkIdx
+        self.csrIndices = csrIndices
     }
 
     /// Retrieve a node voltage by pre-resolved index, returning 0 for ground nodes.
@@ -288,15 +307,10 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         // |Vtp| for the conduction check
         let vtpAbs = -vtp
 
-        if vsg < vtpAbs {
-            // Cutoff — minGds prevents singular matrix when all terminals float
-            return OperatingPointResult(
-                isd: 0, gm: 0, gds: Self.minGds, gmbs: 0,
-                vsg: rawVsg, vsd: rawVsd, vbs: rawVbs, reversed: reversed
-            )
-        }
-
-        let vsgOverdrive = vsg - vtpAbs
+        // Smooth overdrive: continuous transition through cutoff (no hard if/else)
+        let rawVsgOverdrive = vsg - vtpAbs
+        let vsgOverdrive = Self.smoothClamp(rawVsgOverdrive)
+        let dvsgOverdrive = Self.smoothClampDeriv(rawVsgOverdrive) // d(vsgOverdrive)/d(vsg)
 
         let isd: Double
         let gm: Double
@@ -304,16 +318,23 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
 
         if vsd < vsgOverdrive {
             // Linear region: Isd = beta * (Vov * Vsd - 0.5 * Vsd^2) * (1 + lambda * Vsd)
-            isd = beta * (vsgOverdrive * vsd - 0.5 * vsd * vsd) * (1.0 + lambda * vsd)
-            gm = beta * vsd * (1.0 + lambda * vsd)
-            gds = beta * (vsgOverdrive - vsd) * (1.0 + lambda * vsd)
+            let clm = 1.0 + lambda * vsd
+            isd = beta * (vsgOverdrive * vsd - 0.5 * vsd * vsd) * clm
+            // gm = dIsd/dVsg = dIsd/dVsgOverdrive * dVsgOverdrive/dVsg
+            gm = beta * vsd * clm * dvsgOverdrive
+            gds = beta * (vsgOverdrive - vsd) * clm
                     + beta * (vsgOverdrive * vsd - 0.5 * vsd * vsd) * lambda
         } else {
             // Saturation region: Isd = 0.5 * beta * Vov^2 * (1 + lambda * Vsd)
-            isd = 0.5 * beta * vsgOverdrive * vsgOverdrive * (1.0 + lambda * vsd)
-            gm = beta * vsgOverdrive * (1.0 + lambda * vsd)
+            let clm = 1.0 + lambda * vsd
+            isd = 0.5 * beta * vsgOverdrive * vsgOverdrive * clm
+            // gm = dIsd/dVsg = beta * Vov * clm * dVsgOverdrive/dVsg
+            gm = beta * vsgOverdrive * clm * dvsgOverdrive
             gds = 0.5 * beta * vsgOverdrive * vsgOverdrive * lambda
         }
+
+        // Ensure minimum gds to prevent singular matrix
+        let effectiveGds = max(gds, Self.minGds)
 
         // Body transconductance: gmbs = gm * gamma / (2 * sqrt(2*phi - Vbs))
         let gmbs: Double
@@ -327,12 +348,12 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
             // When reversed, stamps use effective (swapped) terminals.
             // Store effective voltages and positive current so ieq formula is consistent.
             return OperatingPointResult(
-                isd: isd, gm: gm, gds: gds, gmbs: gmbs,
+                isd: isd, gm: gm, gds: effectiveGds, gmbs: gmbs,
                 vsg: vsg, vsd: vsd, vbs: vbs, reversed: true
             )
         }
         return OperatingPointResult(
-            isd: isd, gm: gm, gds: gds, gmbs: gmbs,
+            isd: isd, gm: gm, gds: effectiveGds, gmbs: gmbs,
             vsg: vsg, vsd: vsd, vbs: vbs, reversed: false
         )
     }
@@ -343,63 +364,80 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
     ///   `I_stamp = Isd0 + gm * (Vsg - Vsg0) + gds * (Vsd - Vsd0) + gmbs * (Vbs - Vbs0)`
     ///   `       = gm * Vsg + gds * Vsd + gmbs * Vbs + (Isd0 - gm*Vsg0 - gds*Vsd0 - gmbs*Vbs0)`
     private func stampLinearized(into stamper: inout MatrixStamper, op: OperatingPointResult) {
-        // When Vsd < 0, source and drain are physically swapped
-        let effectiveDrain = op.reversed ? source : drain
-        let effectiveSource = op.reversed ? drain : source
-        let dIdx = stamper.nodeIndex(effectiveDrain)
-        let gIdx = stamper.nodeIndex(gate)
-        let sIdx = stamper.nodeIndex(effectiveSource)
-        let bIdx = stamper.nodeIndex(bulk)
+        // Fast path: use pre-resolved CSR indices for O(1) stamping (non-reversed case only)
+        if !op.reversed, let sv = stamper.stampValue, csrIndices.ss != nil || csrIndices.dd != nil {
+            // PMOS Jacobian: current flows from S to D
+            // J[S,S] = gds + gm + gmbs, J[D,D] = gds
+            // J[S,D] = -gds, J[D,S] = -gds - gm - gmbs
+            // J[S,G] = -gm, J[D,G] = gm
+            // J[S,B] = -gmbs, J[D,B] = gmbs
+            if let idx = csrIndices.ss { sv(idx, op.gds + op.gm + op.gmbs) }
+            if let idx = csrIndices.dd { sv(idx, op.gds) }
+            if let idx = csrIndices.sd { sv(idx, -op.gds) }
+            if let idx = csrIndices.ds { sv(idx, -op.gds - op.gm - op.gmbs) }
+            if let idx = csrIndices.sg { sv(idx, -op.gm) }
+            if let idx = csrIndices.dg { sv(idx, op.gm) }
+            if let idx = csrIndices.sb { sv(idx, -op.gmbs) }
+            if let idx = csrIndices.db { sv(idx, op.gmbs) }
+        } else {
+            // Fallback to dictionary-based stamping (for reversed case or no CSR indices)
+            let effectiveDrain = op.reversed ? source : drain
+            let effectiveSource = op.reversed ? drain : source
+            let dIdx = stamper.nodeIndex(effectiveDrain)
+            let gIdx = stamper.nodeIndex(gate)
+            let sIdx = stamper.nodeIndex(effectiveSource)
+            let bIdx = stamper.nodeIndex(bulk)
 
-        // Conductance stamps: gds between source and drain
-        // Current leaves source, enters drain
-        if op.gds != 0 {
-            if let sIdx {
-                stamper.stampMatrix(sIdx, sIdx, op.gds)
+            // Conductance stamps: gds between source and drain
+            // Current leaves source, enters drain
+            if op.gds != 0 {
+                if let sIdx {
+                    stamper.stampMatrix(sIdx, sIdx, op.gds)
+                }
+                if let dIdx {
+                    stamper.stampMatrix(dIdx, dIdx, op.gds)
+                }
+                if let sIdx, let dIdx {
+                    stamper.stampMatrix(sIdx, dIdx, -op.gds)
+                    stamper.stampMatrix(dIdx, sIdx, -op.gds)
+                }
             }
-            if let dIdx {
-                stamper.stampMatrix(dIdx, dIdx, op.gds)
-            }
-            if let sIdx, let dIdx {
-                stamper.stampMatrix(sIdx, dIdx, -op.gds)
-                stamper.stampMatrix(dIdx, sIdx, -op.gds)
-            }
-        }
 
-        // Transconductance stamps: gm from Vsg
-        // Isd += gm * Vsg = gm * (Vs - Vg)
-        // Current leaves source node, enters drain node
-        if op.gm != 0 {
-            if let sIdx {
-                stamper.stampMatrix(sIdx, sIdx, op.gm)
+            // Transconductance stamps: gm from Vsg
+            // Isd += gm * Vsg = gm * (Vs - Vg)
+            // Current leaves source node, enters drain node
+            if op.gm != 0 {
+                if let sIdx {
+                    stamper.stampMatrix(sIdx, sIdx, op.gm)
+                }
+                if let sIdx, let gIdx {
+                    stamper.stampMatrix(sIdx, gIdx, -op.gm)
+                }
+                if let dIdx, let gIdx {
+                    stamper.stampMatrix(dIdx, gIdx, op.gm)
+                }
+                if let dIdx, let sIdx {
+                    stamper.stampMatrix(dIdx, sIdx, -op.gm)
+                }
             }
-            if let sIdx, let gIdx {
-                stamper.stampMatrix(sIdx, gIdx, -op.gm)
-            }
-            if let dIdx, let gIdx {
-                stamper.stampMatrix(dIdx, gIdx, op.gm)
-            }
-            if let dIdx, let sIdx {
-                stamper.stampMatrix(dIdx, sIdx, -op.gm)
-            }
-        }
 
-        // Body transconductance stamps: gmbs from Vbs
-        // Isd += gmbs * Vbs = gmbs * (Vb - Vs)
-        // For PMOS, increasing Vbs (bulk more positive) reduces |Vtp|, increases Isd.
-        // Current contribution: from source, controlled by (Vb - Vs)
-        if op.gmbs != 0 {
-            if let sIdx, let bIdx {
-                stamper.stampMatrix(sIdx, bIdx, -op.gmbs)
-            }
-            if let sIdx {
-                stamper.stampMatrix(sIdx, sIdx, op.gmbs)
-            }
-            if let dIdx, let bIdx {
-                stamper.stampMatrix(dIdx, bIdx, op.gmbs)
-            }
-            if let dIdx, let sIdx {
-                stamper.stampMatrix(dIdx, sIdx, -op.gmbs)
+            // Body transconductance stamps: gmbs from Vbs
+            // Isd += gmbs * Vbs = gmbs * (Vb - Vs)
+            // For PMOS, increasing Vbs (bulk more positive) reduces |Vtp|, increases Isd.
+            // Current contribution: from source, controlled by (Vb - Vs)
+            if op.gmbs != 0 {
+                if let sIdx, let bIdx {
+                    stamper.stampMatrix(sIdx, bIdx, -op.gmbs)
+                }
+                if let sIdx {
+                    stamper.stampMatrix(sIdx, sIdx, op.gmbs)
+                }
+                if let dIdx, let bIdx {
+                    stamper.stampMatrix(dIdx, bIdx, op.gmbs)
+                }
+                if let dIdx, let sIdx {
+                    stamper.stampMatrix(dIdx, sIdx, -op.gmbs)
+                }
             }
         }
 
@@ -408,11 +446,15 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         // Matrix body-effect contribution at S row: -gmbs*Vbs, so ieq must use +gmbs*Vbs to compensate.
         let ieq = op.isd - op.gm * op.vsg - op.gds * op.vsd + op.gmbs * op.vbs
 
+        // Use pre-resolved indices for RHS stamping
+        let effectiveSourceIdx = op.reversed ? drainIdx : sourceIdx
+        let effectiveDrainIdx = op.reversed ? sourceIdx : drainIdx
+
         // Current leaves source (negative contribution) and enters drain (positive)
-        if let sIdx {
+        if let sIdx = effectiveSourceIdx {
             stamper.stampRHS(sIdx, -ieq)
         }
-        if let dIdx {
+        if let dIdx = effectiveDrainIdx {
             stamper.stampRHS(dIdx, ieq)
         }
     }

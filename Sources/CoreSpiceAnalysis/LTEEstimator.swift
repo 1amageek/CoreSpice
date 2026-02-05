@@ -40,11 +40,24 @@ public struct LTEEstimator: Sendable {
         branchCurrentIndices: Set<Int> = [],
         reltol: Double = 1e-3,
         vntol: Double = 1e-6,
-        abstol: Double = 1e-12
+        abstol: Double = 1e-12,
+        earlyExitThreshold: Double? = nil
     ) -> Double {
         var maxLTE: Double = 0
 
+        // Early exit threshold: if LTE exceeds this value, return immediately.
+        // Using 1.2x the typical tolerance (1.0) provides a safety margin while
+        // allowing early termination when the step will clearly be rejected.
+        let exitThreshold = earlyExitThreshold ?? 1.2
+
         for i in 0..<current.count {
+            // Skip branch current variables — standard SPICE practice.
+            // Branch currents are auxiliary MNA variables constrained by
+            // voltage sources; their rapid changes at waveform transitions
+            // do not reflect integration error and would force unnecessarily
+            // small timesteps.
+            if branchCurrentIndices.contains(i) { continue }
+
             let lte: Double
 
             switch method {
@@ -75,15 +88,16 @@ public struct LTEEstimator: Sendable {
                 }
             }
 
-            // Normalize by variable-type-specific tolerance
-            let tol: Double
-            if branchCurrentIndices.contains(i) {
-                tol = reltol * abs(current[i]) + abstol
-            } else {
-                tol = reltol * abs(current[i]) + vntol
-            }
+            // Normalize by voltage node tolerance
+            let tol = reltol * abs(current[i]) + vntol
             let normalizedLTE = lte / tol
             maxLTE = max(maxLTE, normalizedLTE)
+
+            // Early exit: if LTE already exceeds threshold, no need to check
+            // remaining variables since the step will be rejected anyway.
+            if maxLTE > exitThreshold {
+                return maxLTE
+            }
         }
 
         return maxLTE

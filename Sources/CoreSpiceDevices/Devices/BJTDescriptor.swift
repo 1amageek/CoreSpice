@@ -27,16 +27,33 @@ public struct NPNDescriptor: DeviceDescriptor, Sendable {
         let collectorNode = instance.nodes[0]
         let baseNode = instance.nodes[1]
         let emitterNode = instance.nodes[2]
+        let cIdx = context.nodeIndex(collectorNode)
+        let bIdx = context.nodeIndex(baseNode)
+        let eIdx = context.nodeIndex(emitterNode)
+
+        // Pre-resolve CSR value indices for O(1) stamping (3x3 = 9 positions)
+        let csrIndices = BJTCSRIndices(
+            cc: cIdx.flatMap { context.stampIndex(row: $0, col: $0) },
+            cb: cIdx.flatMap { c in bIdx.flatMap { context.stampIndex(row: c, col: $0) } },
+            ce: cIdx.flatMap { c in eIdx.flatMap { context.stampIndex(row: c, col: $0) } },
+            bc: bIdx.flatMap { b in cIdx.flatMap { context.stampIndex(row: b, col: $0) } },
+            bb: bIdx.flatMap { context.stampIndex(row: $0, col: $0) },
+            be: bIdx.flatMap { b in eIdx.flatMap { context.stampIndex(row: b, col: $0) } },
+            ec: eIdx.flatMap { e in cIdx.flatMap { context.stampIndex(row: e, col: $0) } },
+            eb: eIdx.flatMap { e in bIdx.flatMap { context.stampIndex(row: e, col: $0) } },
+            ee: eIdx.flatMap { context.stampIndex(row: $0, col: $0) }
+        )
 
         return BoundBJT(
             instance: instance,
             collector: collectorNode,
             base: baseNode,
             emitter: emitterNode,
-            collectorIdx: context.nodeIndex(collectorNode),
-            baseIdx: context.nodeIndex(baseNode),
-            emitterIdx: context.nodeIndex(emitterNode),
-            parameters: params
+            collectorIdx: cIdx,
+            baseIdx: bIdx,
+            emitterIdx: eIdx,
+            parameters: params,
+            csrIndices: csrIndices
         )
     }
 }
@@ -68,16 +85,33 @@ public struct PNPDescriptor: DeviceDescriptor, Sendable {
         let collectorNode = instance.nodes[0]
         let baseNode = instance.nodes[1]
         let emitterNode = instance.nodes[2]
+        let cIdx = context.nodeIndex(collectorNode)
+        let bIdx = context.nodeIndex(baseNode)
+        let eIdx = context.nodeIndex(emitterNode)
+
+        // Pre-resolve CSR value indices for O(1) stamping (3x3 = 9 positions)
+        let csrIndices = BJTCSRIndices(
+            cc: cIdx.flatMap { context.stampIndex(row: $0, col: $0) },
+            cb: cIdx.flatMap { c in bIdx.flatMap { context.stampIndex(row: c, col: $0) } },
+            ce: cIdx.flatMap { c in eIdx.flatMap { context.stampIndex(row: c, col: $0) } },
+            bc: bIdx.flatMap { b in cIdx.flatMap { context.stampIndex(row: b, col: $0) } },
+            bb: bIdx.flatMap { context.stampIndex(row: $0, col: $0) },
+            be: bIdx.flatMap { b in eIdx.flatMap { context.stampIndex(row: b, col: $0) } },
+            ec: eIdx.flatMap { e in cIdx.flatMap { context.stampIndex(row: e, col: $0) } },
+            eb: eIdx.flatMap { e in bIdx.flatMap { context.stampIndex(row: e, col: $0) } },
+            ee: eIdx.flatMap { context.stampIndex(row: $0, col: $0) }
+        )
 
         return BoundBJT(
             instance: instance,
             collector: collectorNode,
             base: baseNode,
             emitter: emitterNode,
-            collectorIdx: context.nodeIndex(collectorNode),
-            baseIdx: context.nodeIndex(baseNode),
-            emitterIdx: context.nodeIndex(emitterNode),
-            parameters: params
+            collectorIdx: cIdx,
+            baseIdx: bIdx,
+            emitterIdx: eIdx,
+            parameters: params,
+            csrIndices: csrIndices
         )
     }
 }

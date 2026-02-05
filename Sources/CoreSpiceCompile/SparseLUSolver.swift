@@ -249,8 +249,12 @@ public struct SparseLUSolver: LinearSolver {
     /// Fills the flat column-major `denseLU` workspace from permuted CSR values,
     /// then calls LAPACK's optimized LU factorization with partial pivoting.
     private mutating func factorizeDense(n: Int, permStruct: SparseStructure) throws {
-        // Fill flat column-major denseLU from permuted sparse values
-        for i in 0..<n * n { denseLU[i] = 0.0 }
+        // Fill flat column-major denseLU from permuted sparse values (vDSP-accelerated zeroing)
+        denseLU.withUnsafeMutableBufferPointer { buf in
+            if let base = buf.baseAddress {
+                vDSP_vclrD(base, 1, vDSP_Length(buf.count))
+            }
+        }
         for row in 0..<n {
             let start = permStruct.rowPointers[row]
             let end = permStruct.rowPointers[row + 1]
@@ -289,15 +293,27 @@ public struct SparseLUSolver: LinearSolver {
     ) throws {
         let pivotThreshold = 0.1
 
-        // Reset workspace arrays (zero alloc — reuse existing capacity)
-        for i in 0..<lValues.count { lValues[i] = 0.0 }
-        for i in 0..<uValues.count { uValues[i] = 0.0 }
+        // Reset workspace arrays using vDSP for SIMD-accelerated zeroing
+        lValues.withUnsafeMutableBufferPointer { buf in
+            if let base = buf.baseAddress {
+                vDSP_vclrD(base, 1, vDSP_Length(buf.count))
+            }
+        }
+        uValues.withUnsafeMutableBufferPointer { buf in
+            if let base = buf.baseAddress {
+                vDSP_vclrD(base, 1, vDSP_Length(buf.count))
+            }
+        }
+        sparseRowWork.withUnsafeMutableBufferPointer { buf in
+            if let base = buf.baseAddress {
+                vDSP_vclrD(base, 1, vDSP_Length(buf.count))
+            }
+        }
         for i in 0..<n {
             lOverflow[i].clear()
             uOverflow[i].clear()
             pivot[i] = i
             sparseRowPerm[i] = i
-            sparseRowWork[i] = 0.0
             sparseRowFlag[i] = -1
             sparseInSymbolicU[i] = false
             sparseInSymbolicL[i] = false
