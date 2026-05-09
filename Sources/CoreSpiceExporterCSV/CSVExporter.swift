@@ -207,7 +207,15 @@ final class CSVExportSession: ExportSession, Sendable {
     func cancel() async {
         helper.close()
         if let path = helper.outputPath {
-            try? FileManager.default.removeItem(atPath: path)
+            do {
+                try FileManager.default.removeItem(atPath: path)
+            } catch {
+                // File removal during cancel is best-effort.
+                // The file may already be deleted or inaccessible.
+                #if DEBUG
+                print("CSVExporter: Failed to remove partial file at \(path): \(error)")
+                #endif
+            }
         }
     }
 

@@ -57,7 +57,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
         let variableMap = plan.topology.variableMap
         let frequencies = sweep.frequencies()
 
-        observer?.emit(.analysisStarted(AnalysisStartedInfo(
+        await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .noise,
             timestamp: startTimestamp,
@@ -225,7 +225,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
 
                 // Progress
                 let fraction = Double(freqIdx + 1) / Double(frequencies.count)
-                observer?.emit(.progressUpdate(ProgressInfo(
+                await observer?.emit(.progressUpdate(ProgressInfo(
                     id: analysisID,
                     fraction: fraction,
                     message: "Noise: f = \(freq) Hz"
@@ -247,7 +247,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 )
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .noise,
                 status: .completed,
@@ -272,7 +272,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 status = .failed
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .noise,
                 status: status,

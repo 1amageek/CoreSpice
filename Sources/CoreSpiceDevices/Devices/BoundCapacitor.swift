@@ -6,7 +6,7 @@ import Synchronization
 /// Used by BoundCapacitor to track the capacitor current across
 /// timesteps. Wraps `Mutex<Double>` in a reference type so it can
 /// be stored in a Copyable struct.
-private final class MutableDouble: @unchecked Sendable {
+private final class MutableDouble: Sendable {
     private let storage: Mutex<Double>
     init(_ value: Double) { storage = Mutex(value) }
     var value: Double {

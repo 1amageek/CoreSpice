@@ -26,7 +26,7 @@ public protocol ComputeBackend: Sendable {
         gridSize: GridSize,
         observer: EventDispatcher?,
         tag: String
-    ) throws
+    ) async throws
 
     func synchronize() async throws
 

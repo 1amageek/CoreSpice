@@ -57,7 +57,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
         let dim = plan.topology.dimension
         let variableMap = plan.topology.variableMap
 
-        observer?.emit(.analysisStarted(AnalysisStartedInfo(
+        await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .pz,
             timestamp: startTimestamp,
@@ -106,7 +106,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 outputNodeIndex: outputNodeIndex
             )
 
-            observer?.emit(.progressUpdate(ProgressInfo(
+            await observer?.emit(.progressUpdate(ProgressInfo(
                 id: analysisID,
                 fraction: 0.3,
                 message: "Computing poles"
@@ -126,7 +126,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 ComplexPair(real: -lambda.real, imag: -lambda.imag)
             }
 
-            observer?.emit(.progressUpdate(ProgressInfo(
+            await observer?.emit(.progressUpdate(ProgressInfo(
                 id: analysisID,
                 fraction: 0.7,
                 message: "Computing zeros"
@@ -160,7 +160,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 }
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .pz,
                 status: .completed,
@@ -183,7 +183,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 status = .failed
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .pz,
                 status: status,

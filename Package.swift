@@ -12,34 +12,37 @@ let package = Package(
     ],
     targets: [
         // --- C module: Metal互換型 ---
-        .target(name: "SharedTypes", path: "Sources/SharedTypes", publicHeadersPath: "include"),
+        .target(name: "SharedTypes", path: "Sources/SharedTypes", exclude: ["README.md"], publicHeadersPath: "include"),
 
         // --- Event/Observer/Cancel（依存なし）---
-        .target(name: "CoreSpiceEvent"),
+        .target(name: "CoreSpiceEvent", exclude: ["README.md"]),
 
         // --- IR ---
-        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent"]),
+        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent"], exclude: ["README.md"]),
 
         // --- Devices ---
-        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent"]),
+        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent"], exclude: ["README.md"]),
 
         // --- Compile ---
-        .target(name: "CoreSpiceCompile", dependencies: ["CoreSpiceIR"]),
+        .target(name: "CoreSpiceCompile", dependencies: ["CoreSpiceIR"], exclude: ["README.md"]),
 
         // --- Backend ---
         .target(name: "CoreSpiceBackend", dependencies: ["CoreSpiceEvent", "SharedTypes"],
+                exclude: ["README.md"],
                 resources: [.process("Shaders")]),
 
         // --- Analysis ---
         .target(name: "CoreSpiceAnalysis",
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
-                               "CoreSpiceBackend", "CoreSpiceEvent"]),
+                               "CoreSpiceBackend", "CoreSpiceEvent"],
+                exclude: ["README.md"]),
 
         // --- Photonic Plugin ---
         // Note: Photonic shaders are provided by CoreSpiceBackend
         .target(name: "PluginsPhotonic",
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
-                               "CoreSpiceBackend", "CoreSpiceEvent", "SharedTypes"]),
+                               "CoreSpiceBackend", "CoreSpiceEvent", "SharedTypes"],
+                exclude: ["README.md"]),
 
         // --- Optoelectronic Device Models ---
         .target(name: "CoreSpiceOptoelectronics",
@@ -113,7 +116,8 @@ let package = Package(
                 "CoreSpiceExporterPSF",
                 "CoreSpiceBackend"
             ],
-            path: "Sources/CoreSpiceCLI"
+            path: "Sources/CoreSpiceCLI",
+            exclude: ["README.md"]
         ),
 
         // ==========================================================================

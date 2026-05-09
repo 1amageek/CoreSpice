@@ -45,7 +45,7 @@ public struct ACAnalysis: Analysis, Sendable {
         let variableMap = plan.topology.variableMap
         let frequencies = sweep.frequencies()
 
-        observer?.emit(.analysisStarted(AnalysisStartedInfo(
+        await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .ac,
             timestamp: startTimestamp,
@@ -84,7 +84,7 @@ public struct ACAnalysis: Analysis, Sendable {
 
             let omega = 2.0 * .pi * freq
 
-            observer?.emit(.sweepPointStarted(SweepPointInfo(
+            await observer?.emit(.sweepPointStarted(SweepPointInfo(
                 id: analysisID,
                 index: idx,
                 total: frequencies.count,
@@ -129,7 +129,7 @@ public struct ACAnalysis: Analysis, Sendable {
             do {
                 try complexSolver.factorize(matrix: matrix)
             } catch {
-                observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+                await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                     id: analysisID,
                     type: .ac,
                     status: .failed,
@@ -142,7 +142,7 @@ public struct ACAnalysis: Analysis, Sendable {
             do {
                 try complexSolver.solve(rhs: rhs, into: &solutionBuf)
             } catch {
-                observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+                await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                     id: analysisID,
                     type: .ac,
                     status: .failed,
@@ -159,7 +159,7 @@ public struct ACAnalysis: Analysis, Sendable {
                     let code: DiagnosticCode = (val.real.isNaN || val.imag.isNaN)
                         ? .nanDetected
                         : .infDetected
-                    observer?.emit(.warning(DiagnosticInfo(
+                    await observer?.emit(.warning(DiagnosticInfo(
                         id: analysisID,
                         code: code,
                         message: "NaN/Inf detected at frequency \(freq) Hz",
@@ -171,7 +171,7 @@ public struct ACAnalysis: Analysis, Sendable {
 
             solutions.append(solutionBuf)
 
-            observer?.emit(.sweepPointFinished(SweepPointResultInfo(
+            await observer?.emit(.sweepPointFinished(SweepPointResultInfo(
                 id: analysisID,
                 index: idx,
                 value: freq,
@@ -181,7 +181,7 @@ public struct ACAnalysis: Analysis, Sendable {
             )))
         }
 
-        observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+        await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
             id: analysisID,
             type: .ac,
             status: .completed,

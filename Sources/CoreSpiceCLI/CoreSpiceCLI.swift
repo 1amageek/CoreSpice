@@ -486,7 +486,7 @@ struct Session {
             let stop = spec.stopFrequency.numericValue ?? 1e6
             switch spec.scaleType {
             case .decade: sweep = .decade(start: start, stop: stop, pointsPerDecade: points)
-            case .octave: sweep = .decade(start: start, stop: stop, pointsPerDecade: points) // TODO: octave mode
+            case .octave: sweep = .octave(start: start, stop: stop, pointsPerOctave: points)
             case .linear: sweep = .linear(start: start, stop: stop, points: points)
             }
             let result = try await ACAnalysis(sweep: sweep).run(

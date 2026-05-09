@@ -177,7 +177,15 @@ final class RAWExportSession: ExportSession, Sendable {
         helper.close()
         // Delete partial file if needed
         if let path = helper.outputPath {
-            try? FileManager.default.removeItem(atPath: path)
+            do {
+                try FileManager.default.removeItem(atPath: path)
+            } catch {
+                // File removal during cancel is best-effort.
+                // The file may already be deleted or inaccessible.
+                #if DEBUG
+                print("RAWExporter: Failed to remove partial file at \(path): \(error)")
+                #endif
+            }
         }
     }
 

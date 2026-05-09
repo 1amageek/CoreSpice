@@ -35,9 +35,20 @@ public struct SubcircuitExpander: Sendable {
         // Map component type to device type name
         let typeName = try mapComponentType(component.type, modelName: component.modelName)
 
-        // Evaluate parameters
+        // Evaluate parameters: merge model parameters first, then override with instance parameters
         let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
         var evaluatedParams: [String: ParameterValue] = [:]
+
+        // If expandModels is enabled and a model exists, copy model parameters as base
+        if configuration.expandModels, let modelName = component.modelName,
+           let model = context.model(modelName) {
+            for (name, value) in model.parameters {
+                let evaluated = try evaluator.evaluate(value)
+                evaluatedParams[name] = .real(evaluated)
+            }
+        }
+
+        // Instance parameters override model parameters
         for (name, value) in component.parameters {
             let evaluated = try evaluator.evaluate(value)
             evaluatedParams[name] = .real(evaluated)

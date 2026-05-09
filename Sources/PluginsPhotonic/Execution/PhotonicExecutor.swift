@@ -32,7 +32,7 @@ public struct PhotonicExecutor: Sendable {
         let startTimestamp = Timestamp()
         let compiler = PhotonicCompiler()
 
-        observer?.emit(.analysisStarted(AnalysisStartedInfo(
+        await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .photonic,
             timestamp: startTimestamp,
@@ -44,7 +44,7 @@ public struct PhotonicExecutor: Sendable {
 
         for (wIdx, wavelength) in batch.wavelengths.enumerated() {
             if cancellation.isCancelled {
-                observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+                await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                     id: analysisID,
                     type: .photonic,
                     status: .cancelled,
@@ -54,7 +54,7 @@ public struct PhotonicExecutor: Sendable {
                 throw PhotonicExecutionError.cancelled
             }
 
-            observer?.emit(.sweepPointStarted(SweepPointInfo(
+            await observer?.emit(.sweepPointStarted(SweepPointInfo(
                 id: analysisID,
                 index: wIdx,
                 total: batch.wavelengths.count,
@@ -100,7 +100,7 @@ public struct PhotonicExecutor: Sendable {
                     coeffPtr[i] = c
                 }
 
-                try backend.dispatchMZILayer(
+                try await backend.dispatchMZILayer(
                     stateBuffer: stateBuffer,
                     coefficients: coeffBuffer,
                     layerDescriptor: desc,
@@ -139,7 +139,7 @@ public struct PhotonicExecutor: Sendable {
                 outputs: outputs
             ))
 
-            observer?.emit(.sweepPointFinished(SweepPointResultInfo(
+            await observer?.emit(.sweepPointFinished(SweepPointResultInfo(
                 id: analysisID,
                 index: wIdx,
                 value: wavelength,
@@ -149,7 +149,7 @@ public struct PhotonicExecutor: Sendable {
             )))
         }
 
-        observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+        await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
             id: analysisID,
             type: .photonic,
             status: .completed,

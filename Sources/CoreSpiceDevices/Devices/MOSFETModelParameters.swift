@@ -1,8 +1,9 @@
-/// Level 1 MOSFET model parameters (Shichman-Hodges).
+/// MOSFET model parameters (Levels 1-3).
 ///
 /// These parameters describe the electrical characteristics of an
-/// MOS transistor for the Level 1 (square-law) model used in
-/// both NMOS and PMOS devices.
+/// MOS transistor for the Level 1-3 models used in both NMOS and
+/// PMOS devices. Level 2 adds mobility degradation and DIBL, while
+/// Level 3 introduces velocity saturation.
 public struct MOSFETModelParameters: Sendable {
 
     /// Threshold voltage (V).
@@ -19,6 +20,18 @@ public struct MOSFETModelParameters: Sendable {
 
     /// Channel-length modulation parameter (1/V).
     public var lambda: Double
+
+    /// Mobility degradation coefficient (1/V).
+    public var theta: Double
+
+    /// Drain-induced barrier lowering coefficient (V/V).
+    public var eta: Double
+
+    /// Velocity saturation coefficient (1/V).
+    public var kappa: Double
+
+    /// Saturation velocity (m/s).
+    public var vmax: Double
 
     /// Gate oxide thickness (m).
     public var tox: Double
@@ -68,11 +81,15 @@ public struct MOSFETModelParameters: Sendable {
     public var ps: Double
 
     public init(
-        vto: Double = 0.7,
-        kp: Double = 110e-6,
-        gamma: Double = 0.4,
-        phi: Double = 0.65,
-        lambda: Double = 0.04,
+        vto: Double = 0.0,
+        kp: Double = 2e-5,
+        gamma: Double = 0.0,
+        phi: Double = 0.6,
+        lambda: Double = 0.0,
+        theta: Double = 0.0,
+        eta: Double = 0.0,
+        kappa: Double = 0.0,
+        vmax: Double = 0.0,
         tox: Double = 100e-9,
         w: Double = 10e-6,
         l: Double = 1e-6,
@@ -94,6 +111,10 @@ public struct MOSFETModelParameters: Sendable {
         self.gamma = gamma
         self.phi = phi
         self.lambda = lambda
+        self.theta = theta
+        self.eta = eta
+        self.kappa = kappa
+        self.vmax = vmax
         self.tox = tox
         self.w = w
         self.l = l

@@ -49,7 +49,7 @@ public struct SensitivityAnalysis: Analysis, Sendable {
         let startTimestamp = Timestamp()
         let variableMap = plan.topology.variableMap
 
-        observer?.emit(.analysisStarted(AnalysisStartedInfo(
+        await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .sens,
             timestamp: startTimestamp,
@@ -139,7 +139,7 @@ public struct SensitivityAnalysis: Analysis, Sendable {
                 }
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .sens,
                 status: .completed,
@@ -162,7 +162,7 @@ public struct SensitivityAnalysis: Analysis, Sendable {
                 status = .failed
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .sens,
                 status: status,

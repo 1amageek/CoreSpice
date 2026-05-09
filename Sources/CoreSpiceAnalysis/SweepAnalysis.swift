@@ -53,7 +53,7 @@ public struct SweepAnalysis<A: Analysis>: Sendable {
                 throw AnalysisError.cancelled
             }
 
-            observer?.emit(.sweepPointStarted(SweepPointInfo(
+            await observer?.emit(.sweepPointStarted(SweepPointInfo(
                 id: AnalysisID(),
                 index: idx,
                 total: values.count,

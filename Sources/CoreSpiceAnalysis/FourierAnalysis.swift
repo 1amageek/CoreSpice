@@ -59,7 +59,7 @@ public struct FourierAnalysis: Analysis, Sendable {
         let analysisID = AnalysisID()
         let startTimestamp = Timestamp()
 
-        observer?.emit(.analysisStarted(AnalysisStartedInfo(
+        await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .fourier,
             timestamp: startTimestamp,
@@ -122,7 +122,7 @@ public struct FourierAnalysis: Analysis, Sendable {
                 }
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .fourier,
                 status: .completed,
@@ -145,7 +145,7 @@ public struct FourierAnalysis: Analysis, Sendable {
                 status = .failed
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .fourier,
                 status: status,

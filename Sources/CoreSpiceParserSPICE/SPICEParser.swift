@@ -488,6 +488,29 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseParameterValue() throws -> ParsedParameterValue {
+        // Handle unary minus/plus before a number (e.g. vto=-0.7)
+        if case .minus = currentToken {
+            advance()
+            switch currentToken {
+            case .number(let n):
+                advance()
+                return .numeric(-n)
+            case .identifier(let id):
+                advance()
+                if let n = parseNumberFromIdentifier(id) {
+                    return .numeric(-n)
+                }
+                return .expression(.unaryOp(.negate, .identifier(id)))
+            default:
+                throw ParserDiagnostic.error("Expected number after '-'", at: currentLocation)
+            }
+        }
+        if case .plus = currentToken {
+            advance()
+            // Unary plus is a no-op; parse the next value
+            return try parseParameterValue()
+        }
+
         switch currentToken {
         case .number(let n):
             advance()

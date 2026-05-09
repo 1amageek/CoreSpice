@@ -66,7 +66,7 @@ public struct TransientAnalysis: Analysis, Sendable {
             }
         )
 
-        observer?.emit(.analysisStarted(AnalysisStartedInfo(
+        await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .tran,
             timestamp: startTimestamp,
@@ -198,7 +198,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                     var newtonResult: (solution: [Double], iterations: Int)
 
                     do {
-                        newtonResult = try nr.solve(
+                        newtonResult = try await nr.solve(
                             initialGuess: currentBuf,
                             matrix: &matrix,
                             rhs: &rhs,
@@ -248,7 +248,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
                         if reductions == config.gminSteppingThreshold {
                             // Attempt GMIN stepping at current timestep
-                            if let gminResult = tryGminStepping(
+                            if let gminResult = await tryGminStepping(
                                 currentBuf: currentBuf,
                                 previousBuf: previousBuf,
                                 opticalState: &currentOpticalState,
@@ -272,7 +272,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                                 dt *= config.shrinkFactor
                                 rejectedSteps += 1
 
-                                observer?.emit(.timeStepRejected(TimeStepRejectInfo(
+                                await observer?.emit(.timeStepRejected(TimeStepRejectInfo(
                                     id: analysisID,
                                     time: currentTime,
                                     rejectedStep: oldDt,
@@ -291,7 +291,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                             dt *= config.shrinkFactor
                             rejectedSteps += 1
 
-                            observer?.emit(.timeStepRejected(TimeStepRejectInfo(
+                            await observer?.emit(.timeStepRejected(TimeStepRejectInfo(
                                 id: analysisID,
                                 time: currentTime,
                                 rejectedStep: oldDt,
@@ -334,7 +334,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                             reductions += 1
                             rejectedSteps += 1
 
-                            observer?.emit(.timeStepRejected(TimeStepRejectInfo(
+                            await observer?.emit(.timeStepRejected(TimeStepRejectInfo(
                                 id: analysisID,
                                 time: currentTime,
                                 rejectedStep: oldDt,
@@ -399,7 +399,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         solutions.append(currentBuf)
                         onStepAccepted?(currentTime, currentBuf)
 
-                        observer?.emit(.timeStepCompleted(TimeStepInfo(
+                        await observer?.emit(.timeStepCompleted(TimeStepInfo(
                             id: analysisID,
                             time: currentTime,
                             timeStep: dt,
@@ -409,7 +409,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
                         // Emit progress
                         let fraction = min(currentTime / config.stopTime, 1.0)
-                        observer?.emit(.progressUpdate(ProgressInfo(
+                        await observer?.emit(.progressUpdate(ProgressInfo(
                             id: analysisID,
                             fraction: fraction,
                             message: "Transient: t = \(currentTime) s"
@@ -467,7 +467,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         solutions.append(currentBuf)
                         onStepAccepted?(currentTime, currentBuf)
 
-                        observer?.emit(.timeStepCompleted(TimeStepInfo(
+                        await observer?.emit(.timeStepCompleted(TimeStepInfo(
                             id: analysisID,
                             time: currentTime,
                             timeStep: dt,
@@ -497,7 +497,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                 rejectedSteps: rejectedSteps
             )
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .tran,
                 status: .completed,
@@ -519,7 +519,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                 status = .failed
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .tran,
                 status: status,
@@ -553,7 +553,7 @@ public struct TransientAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         analysisID: AnalysisID,
         cancellation: CancellationToken
-    ) -> (solution: [Double], iterations: Int)? {
+    ) async -> (solution: [Double], iterations: Int)? {
         var x = currentBuf
         var totalIterations = 0
 
@@ -563,7 +563,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             let nr = NewtonRaphsonSolver(config: stepConfig)
             do {
-                let result = try nr.solve(
+                let result = try await nr.solve(
                     initialGuess: x,
                     matrix: &matrix,
                     rhs: &rhs,

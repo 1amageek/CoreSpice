@@ -61,7 +61,7 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
         let analysisID = AnalysisID()
         let startTimestamp = Timestamp()
 
-        observer?.emit(.analysisStarted(AnalysisStartedInfo(
+        await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .mc,
             timestamp: startTimestamp,
@@ -116,14 +116,14 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
 
                 // Emit progress
                 let fraction = Double(iteration + 1) / Double(iterations)
-                observer?.emit(.progressUpdate(ProgressInfo(
+                await observer?.emit(.progressUpdate(ProgressInfo(
                     id: analysisID,
                     fraction: fraction,
                     message: "Monte Carlo: iteration \(iteration + 1)/\(iterations)"
                 )))
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .mc,
                 status: .completed,
@@ -146,7 +146,7 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
                 status = .failed
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .mc,
                 status: status,

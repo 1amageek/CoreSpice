@@ -299,7 +299,8 @@ struct ACIntegrationTests {
                                 parameters: ["c": .real(1e-6)])
         try netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "gate", "0", "0"],
                                 parameters: ["vto": .real(0.7), "kp": .real(110e-6),
-                                             "w": .real(10e-6), "l": .real(1e-6)])
+                                             "w": .real(10e-6), "l": .real(1e-6),
+                                             "lambda": .real(0.04)])
 
         let sweep = FrequencySweep.decade(start: 100, stop: 100_000, pointsPerDecade: 10)
         let result = try await CircuitFactory.runAC(netlist, sweep: sweep)
@@ -454,5 +455,95 @@ struct ACIntegrationTests {
         let magHigh = result.magnitudeDB(at: out, frequencyIndex: highIdx)
         #expect(abs(magHigh) < 1.0,
                 "At 100×fc, |H| should be ~0 dB, got \(magHigh)")
+    }
+
+    // MARK: - B13: Octave Sweep Integration
+
+    @Test("B13: RC lowpass filter with octave sweep")
+    func rcLowpassOctaveSweep() async throws {
+        // Same RC lowpass as B1 but using octave sweep
+        // fc = 1/(2π × 1kΩ × 1µF) ≈ 159.15 Hz
+        let (netlist, out) = CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
+        let fc = 1.0 / (2.0 * .pi * 1000 * 1e-6)
+
+        // Octave sweep: 10 Hz to 100 kHz, 10 points per octave
+        // log2(100000/10) ≈ 13.3 octaves → ~133 points
+        let sweep = FrequencySweep.octave(start: 10.0, stop: 100_000.0, pointsPerOctave: 10)
+        let result = try await CircuitFactory.runAC(netlist, sweep: sweep)
+
+        // Verify octave sweep generates correct frequency spacing
+        let frequencies = result.frequencies
+        #expect(frequencies.count > 100, "Octave sweep should generate many points")
+        #expect(abs(frequencies.first! - 10.0) < 0.1, "Should start at 10 Hz")
+        // Note: octave sweep may not end exactly at stop due to integer truncation of octave count
+        // log2(100000/10) ≈ 13.29 octaves → 132 points → last freq ≈ 94 kHz
+        #expect(frequencies.last! > 90_000.0, "Should end near 100 kHz, got \(frequencies.last!)")
+
+        // Verify octave spacing: every 10 points should double the frequency
+        if frequencies.count >= 11 {
+            let ratio = frequencies[10] / frequencies[0]
+            #expect(abs(ratio - 2.0) < 0.1,
+                    "After 10 points (1 octave), frequency should double: got ratio \(ratio)")
+        }
+
+        // f = fc (159 Hz): |H| ≈ -3 dB
+        let fcIdx = frequencyIndex(in: result, closest: fc)
+        let magFc = result.magnitudeDB(at: out, frequencyIndex: fcIdx)
+        #expect(abs(magFc - (-3.01)) < 0.5,
+                "At fc=\(fc) Hz, |H| should be ~-3 dB, got \(magFc)")
+
+        // f = 8×fc (≈3 octaves above fc): |H| ≈ -18 dB
+        // First-order RC: -6 dB/octave → -18 dB after 3 octaves
+        let f8fc = 8.0 * fc // ≈ 1273 Hz
+        let f8fcIdx = frequencyIndex(in: result, closest: f8fc)
+        let mag8fc = result.magnitudeDB(at: out, frequencyIndex: f8fcIdx)
+        #expect(abs(mag8fc - (-18.0)) < 2.0,
+                "At 8×fc (3 octaves), |H| should be ~-18 dB, got \(mag8fc)")
+
+        // Verify passband: f << fc should be ~0 dB
+        let lowIdx = frequencyIndex(in: result, closest: 10.0)
+        let magLow = result.magnitudeDB(at: out, frequencyIndex: lowIdx)
+        #expect(abs(magLow) < 0.5, "At 10 Hz, |H| should be ~0 dB, got \(magLow)")
+    }
+
+    @Test("B14: Octave sweep matches decade sweep results")
+    func octaveVsDecadeSweepConsistency() async throws {
+        // Use the same circuit with both sweep types
+        // Results at common frequencies should match
+        let (netlist1, out1) = CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
+        let (netlist2, out2) = CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
+
+        let fc = 1.0 / (2.0 * .pi * 1000 * 1e-6)
+
+        // Run with decade sweep
+        let decadeResult = try await CircuitFactory.runAC(
+            netlist1,
+            sweep: .decade(start: 10.0, stop: 100_000.0, pointsPerDecade: 20)
+        )
+
+        // Run with octave sweep
+        let octaveResult = try await CircuitFactory.runAC(
+            netlist2,
+            sweep: .octave(start: 10.0, stop: 100_000.0, pointsPerOctave: 6)
+        )
+
+        // Compare magnitudes at fc
+        let decFcIdx = frequencyIndex(in: decadeResult, closest: fc)
+        let octFcIdx = frequencyIndex(in: octaveResult, closest: fc)
+        let magDecade = decadeResult.magnitudeDB(at: out1, frequencyIndex: decFcIdx)
+        let magOctave = octaveResult.magnitudeDB(at: out2, frequencyIndex: octFcIdx)
+
+        // Both should be close to -3 dB
+        #expect(abs(magDecade - magOctave) < 0.5,
+                "Decade (\(magDecade) dB) and octave (\(magOctave) dB) should agree at fc")
+
+        // Compare at 1 kHz
+        let decIdx1k = frequencyIndex(in: decadeResult, closest: 1000.0)
+        let octIdx1k = frequencyIndex(in: octaveResult, closest: 1000.0)
+        let magDec1k = decadeResult.magnitudeDB(at: out1, frequencyIndex: decIdx1k)
+        let magOct1k = octaveResult.magnitudeDB(at: out2, frequencyIndex: octIdx1k)
+
+        #expect(abs(magDec1k - magOct1k) < 1.0,
+                "Decade (\(magDec1k) dB) and octave (\(magOct1k) dB) should agree at 1kHz")
     }
 }

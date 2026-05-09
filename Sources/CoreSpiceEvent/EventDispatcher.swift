@@ -1,26 +1,28 @@
-import Synchronization
-import Dispatch
+/// Event dispatcher using Swift Concurrency.
+///
+/// This actor manages analysis observers and dispatches events to them.
+/// Events are processed in order within a single task due to actor
+/// serialization and the `await` requirement on callers.
+public actor EventDispatcher {
 
-public final class EventDispatcher: Sendable {
-
-    private let state: Mutex<[any AnalysisObserver]>
-    private let queue: DispatchQueue
+    private var observers: [any AnalysisObserver]
 
     public init(observers: [any AnalysisObserver] = []) {
-        state = Mutex(observers)
-        queue = DispatchQueue(label: "CoreSpice.EventDispatcher", qos: .utility)
+        self.observers = observers
     }
 
     public func addObserver(_ observer: any AnalysisObserver) {
-        state.withLock { $0.append(observer) }
+        observers.append(observer)
     }
 
+    /// Dispatch an event to all registered observers.
+    ///
+    /// Events are processed synchronously and in order within a single
+    /// calling task. The `await` requirement ensures that callers
+    /// wait for event dispatch to complete before continuing.
     public func emit(_ event: AnalysisEvent) {
-        let observers = state.withLock { Array($0) }
-        queue.async {
-            for observer in observers {
-                observer.onEvent(event)
-            }
+        for observer in observers {
+            observer.onEvent(event)
         }
     }
 }

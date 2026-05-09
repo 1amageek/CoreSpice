@@ -50,7 +50,7 @@ public struct NewtonRaphsonSolver: Sendable {
         observer: EventDispatcher?,
         analysisID: AnalysisID,
         cancellation: CancellationToken
-    ) throws -> (solution: [Double], iterations: Int) {
+    ) async throws -> (solution: [Double], iterations: Int) {
         var x = initialGuess
         let n = x.count
 
@@ -80,7 +80,7 @@ public struct NewtonRaphsonSolver: Sendable {
                 throw AnalysisError.cancelled
             }
 
-            observer?.emit(.newtonIterationStarted(NewtonInfo(
+            await observer?.emit(.newtonIterationStarted(NewtonInfo(
                 id: analysisID,
                 iteration: iter,
                 maxIterations: config.maxIterations
@@ -181,11 +181,6 @@ public struct NewtonRaphsonSolver: Sendable {
                 branchCurrentIndices: branchCurrentIndices
             )
 
-            #if DEBUG
-            if iter < 5 || iter % 10 == 0 {
-                print("  NR[\(iter)] residualNorm=\(residualNorm) damping=\(damping) converged=\(converged) x=\(x.prefix(6).map { String(format: "%.6f", $0) })")
-            }
-            #endif
 
             // Poll per-device convergence when global convergence is met
             if converged {
@@ -201,7 +196,7 @@ public struct NewtonRaphsonSolver: Sendable {
                 }
             }
 
-            observer?.emit(.newtonIterationFinished(NewtonResultInfo(
+            await observer?.emit(.newtonIterationFinished(NewtonResultInfo(
                 id: analysisID,
                 iteration: iter,
                 residualNorm: residualNorm,
@@ -227,7 +222,7 @@ public struct NewtonRaphsonSolver: Sendable {
             if a > residual { residual = a }
         }
 
-        observer?.emit(.newtonConvergenceFailure(NewtonFailureInfo(
+        await observer?.emit(.newtonConvergenceFailure(NewtonFailureInfo(
             id: analysisID,
             iteration: config.maxIterations,
             residualNorm: residual,

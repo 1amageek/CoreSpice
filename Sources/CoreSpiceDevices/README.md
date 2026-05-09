@@ -78,11 +78,19 @@ This separation allows the analysis engine to efficiently iterate Newton-Raphson
 
 | File | Description |
 |------|-------------|
-| `MOSFETModelParameters.swift` | Shichman-Hodges Level 1 MOSFET parameters (Vto, Kp, gamma, phi, lambda, etc.) |
-| `NMOSL1Descriptor.swift` | N-channel MOSFET Level 1; 3 ports (drain, gate, source), bulk assumed ground |
+| `MOSFETModelParameters.swift` | MOSFET parameters for Levels 1-3 (Vto, Kp, gamma, phi, lambda, theta, eta, kappa, vmax, capacitances, etc.) |
+| `NMOSL1Descriptor.swift` | N-channel MOSFET Level 1; 4 ports (drain, gate, source, bulk) |
 | `BoundNMOSL1.swift` | Cutoff/linear/saturation regions with Newton-Raphson linearization; handles Vds < 0 reversal |
-| `PMOSL1Descriptor.swift` | P-channel MOSFET Level 1; 3 ports, reversed polarities from NMOS |
+| `PMOSL1Descriptor.swift` | P-channel MOSFET Level 1; 4 ports, reversed polarities from NMOS |
 | `BoundPMOSL1.swift` | Source-referenced model (Vsg, Vsd); handles reversed operation |
+| `NMOSL2Descriptor.swift` | N-channel MOSFET Level 2; adds mobility degradation and DIBL |
+| `BoundNMOSL2.swift` | Level 2 I-V model with theta/eta effects; handles Vds < 0 reversal |
+| `PMOSL2Descriptor.swift` | P-channel MOSFET Level 2; adds mobility degradation and DIBL |
+| `BoundPMOSL2.swift` | Level 2 source-referenced model with theta/eta effects |
+| `NMOSL3Descriptor.swift` | N-channel MOSFET Level 3; adds velocity saturation |
+| `BoundNMOSL3.swift` | Level 3 I-V model with kappa/vmax saturation; handles Vds < 0 reversal |
+| `PMOSL3Descriptor.swift` | P-channel MOSFET Level 3; adds velocity saturation |
+| `BoundPMOSL3.swift` | Level 3 source-referenced model with velocity saturation |
 
 ## Public API Summary
 
@@ -155,8 +163,12 @@ public enum Waveform: Sendable {
 | `vccs` | Voltage-controlled current source | pos_out, neg_out, pos_ctrl, neg_ctrl | g |
 | `ccvs` | Current-controlled voltage source | pos_out, neg_out, pos_sense, neg_sense | h |
 | `cccs` | Current-controlled current source | pos_out, neg_out, pos_sense, neg_sense | f |
-| `nmos_l1` | N-channel MOSFET Level 1 | drain, gate, source | w, l (all have defaults) |
-| `pmos_l1` | P-channel MOSFET Level 1 | drain, gate, source | w, l (all have defaults) |
+| `nmos_l1` | N-channel MOSFET Level 1 | drain, gate, source, bulk | w, l (all have defaults) |
+| `pmos_l1` | P-channel MOSFET Level 1 | drain, gate, source, bulk | w, l (all have defaults) |
+| `nmos_l2` | N-channel MOSFET Level 2 | drain, gate, source, bulk | w, l (all have defaults) |
+| `pmos_l2` | P-channel MOSFET Level 2 | drain, gate, source, bulk | w, l (all have defaults) |
+| `nmos_l3` | N-channel MOSFET Level 3 | drain, gate, source, bulk | w, l (all have defaults) |
+| `pmos_l3` | P-channel MOSFET Level 3 | drain, gate, source, bulk | w, l (all have defaults) |
 
 ## Implementation Status
 
@@ -170,6 +182,7 @@ public enum Waveform: Sendable {
 - [x] Time-varying waveforms (DC, pulse, sine, PWL)
 - [x] Waveform breakpoint extraction for adaptive time stepping
 - [x] MOSFET source-drain reversal handling (symmetric operation)
+- [x] MOSFET Level 2/3 models (mobility degradation, DIBL, velocity saturation)
 - [x] All four controlled source types (VCVS, VCCS, CCVS, CCCS)
 - [x] Device registry with dynamic registration
 
@@ -177,7 +190,6 @@ public enum Waveform: Sendable {
 
 - [ ] **Diode model**: No PN junction diode implementation
 - [ ] **BJT (Bipolar Junction Transistor)**: Not implemented
-- [ ] **MOSFET Level 2/3 models**: Only Level 1 (Shichman-Hodges) available
 - [ ] **BSIM models**: No advanced MOSFET models
 - [ ] **Parasitic capacitances**: MOSFETs lack Cgs, Cgd, Cds
 - [ ] **Temperature modeling**: All devices assume nominal temperature

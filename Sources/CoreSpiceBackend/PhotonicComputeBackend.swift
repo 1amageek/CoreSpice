@@ -10,5 +10,5 @@ public protocol PhotonicComputeBackend: ComputeBackend {
         batchSize: Int,
         observer: EventDispatcher?,
         tag: String
-    ) throws
+    ) async throws
 }

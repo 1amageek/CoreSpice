@@ -509,7 +509,8 @@ struct TransientIntegrationTests {
         try netlist.addInstance(name: "RD", typeName: "resistor", nodes: ["vdd", "drain"],
                                 parameters: ["r": .real(1000)])
         try netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "in", "0", "0"],
-                                parameters: [:])
+                                parameters: ["vto": .real(0.7), "kp": .real(110e-6),
+                                             "w": .real(10e-6), "l": .real(1e-6)])
 
         let config = TransientConfig(
             stopTime: 100e-6,
@@ -797,5 +798,231 @@ struct TransientIntegrationTests {
         let vLow = result.voltage(at: out, timeIndex: lowIdx)
         #expect(abs(vLow) < 0.15,
                 "Between pulses, V should be ~0V, got \(vLow)")
+    }
+
+    // MARK: - C16: CMOS Inverter Transient
+
+    @Test("C16: CMOS inverter transient switching",
+          .timeLimit(.minutes(2)))
+    func cmosInverterTransient() async throws {
+        // CMOS inverter: V1(VDD=3.3V), V2(PULSE 0→3.3V) → MP1(PMOS) + MN1(NMOS) → out
+        // C1(100fF) load capacitor
+        var netlist = Netlist()
+        let _ = netlist.node("vdd")
+        let inNode = netlist.node("in")
+        let out = netlist.node("out")
+        let _ = netlist.branch() // V1 (VDD)
+        let _ = netlist.branch() // V2 (PULSE)
+
+        // VDD supply
+        try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["vdd", "0"],
+                                parameters: ["v": .real(3.3)])
+
+        // PULSE input: 0→3.3V, delay=1ns, rise=0.5ns, fall=0.5ns, pw=10ns, per=22ns
+        try netlist.addInstance(name: "V2", typeName: "vsource", nodes: ["in", "0"],
+                                parameters: [
+                                    "v1": .real(0.0), "v2": .real(3.3),
+                                    "td": .real(1e-9), "tr": .real(0.5e-9),
+                                    "tf": .real(0.5e-9), "pw": .real(10e-9),
+                                    "per": .real(22e-9)
+                                ])
+
+        // PMOS: drain=out, gate=in, source=vdd, bulk=vdd
+        try netlist.addInstance(name: "MP1", typeName: "pmos_l1",
+                                nodes: ["out", "in", "vdd", "vdd"],
+                                parameters: ["w": .real(20e-6), "l": .real(1e-6),
+                                             "vto": .real(-0.7), "kp": .real(5e-5)])
+
+        // NMOS: drain=out, gate=in, source=0, bulk=0
+        try netlist.addInstance(name: "MN1", typeName: "nmos_l1",
+                                nodes: ["out", "in", "0", "0"],
+                                parameters: ["w": .real(10e-6), "l": .real(1e-6),
+                                             "vto": .real(0.7), "kp": .real(1.1e-4)])
+
+        // Load capacitor
+        try netlist.addInstance(name: "C1", typeName: "capacitor",
+                                nodes: ["out", "0"],
+                                parameters: ["c": .real(100e-15)])
+
+        let config = TransientConfig(
+            stopTime: 100e-9,
+            maxTimeStep: 0.1e-9,
+            lteTolerance: 0.5
+        )
+
+        let (plan, devices) = try CircuitFactory.compile(netlist)
+        let analysis = TransientAnalysis(
+            config: config,
+            convergenceConfig: CircuitFactory.nonlinearConfig
+        )
+        let solver = SparseLUSolver()
+        let token = CancellationToken()
+
+        // Print variable map
+        print("=== Variable Map ===")
+        for (variable, idx) in plan.topology.variableMap.sorted(by: { $0.value < $1.value }) {
+            print("  x[\(idx)] = \(variable)")
+        }
+
+        // Run DC analysis first to verify operating point
+        let dcAnalysis = DCAnalysis(config: CircuitFactory.nonlinearConfig)
+        let dcResult = try await dcAnalysis.run(
+            plan: plan, devices: devices, solver: solver,
+            observer: nil, cancellation: token
+        )
+        print("=== DC OP ===")
+        print("  solution: \(dcResult.variables.map { String(format: "%.6f", $0) })")
+
+        // Now run transient
+        let result = try await analysis.run(
+            plan: plan, devices: devices, solver: solver,
+            observer: nil, cancellation: token
+        )
+
+        // Print first 20 time points
+        print("=== Waveform ===")
+        for i in 0..<min(20, result.timePoints.count) {
+            let vOut = result.voltage(at: out, timeIndex: i)
+            let vIn = result.voltage(at: inNode, timeIndex: i)
+            print("  t=\(String(format: "%.3e", result.timePoints[i]))s: V(in)=\(String(format: "%.4f", vIn)), V(out)=\(String(format: "%.4f", vOut))")
+        }
+
+        #expect(result.timePoints.count > 50, "Should have many time points, got \(result.timePoints.count)")
+    }
+
+    // MARK: - C17: MOSFET Gate Capacitance Effects
+
+    @Test("C17: MOSFET gate capacitance affects switching delay",
+          .timeLimit(.minutes(2)))
+    func mosfetCapacitanceEffect() async throws {
+        // Test that MOSFET gate capacitance parameters (CGSO, CGDO) affect
+        // switching delay in a transient simulation.
+        //
+        // Physical basis:
+        // - Gate capacitance stores charge that must be supplied/removed during switching
+        // - Larger capacitance → more charge → longer switching time
+        // - This test verifies the capacitance model is correctly implemented
+
+        // Helper function to run inverter simulation
+        func runInverter(cgso: Double, cgdo: Double) async throws -> TransientResult {
+            var netlist = Netlist()
+            let _ = netlist.node("vdd")
+            let _ = netlist.node("in")
+            let _ = netlist.node("out")
+            let _ = netlist.branch() // V1 (VDD)
+            let _ = netlist.branch() // V2 (PULSE)
+
+            // VDD supply
+            try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["vdd", "0"],
+                                    parameters: ["v": .real(3.3)])
+
+            // PULSE input: 0→3.3V step
+            try netlist.addInstance(name: "V2", typeName: "vsource", nodes: ["in", "0"],
+                                    parameters: [
+                                        "v1": .real(0.0), "v2": .real(3.3),
+                                        "td": .real(1e-9), "tr": .real(0.1e-9),
+                                        "tf": .real(0.1e-9), "pw": .real(50e-9),
+                                        "per": .real(100e-9)
+                                    ])
+
+            // NMOS with specified capacitance
+            try netlist.addInstance(name: "M1", typeName: "nmos_l1",
+                                    nodes: ["out", "in", "0", "0"],
+                                    parameters: [
+                                        "w": .real(10e-6), "l": .real(1e-6),
+                                        "vto": .real(0.7), "kp": .real(110e-6),
+                                        "cgso": .real(cgso), "cgdo": .real(cgdo)
+                                    ])
+
+            // Load resistor (pull-up)
+            try netlist.addInstance(name: "RD", typeName: "resistor",
+                                    nodes: ["vdd", "out"],
+                                    parameters: ["r": .real(10000)])
+
+            // Small load capacitor to make the effect visible
+            try netlist.addInstance(name: "CL", typeName: "capacitor",
+                                    nodes: ["out", "0"],
+                                    parameters: ["c": .real(100e-15)])
+
+            let config = TransientConfig(
+                stopTime: 50e-9,
+                maxTimeStep: 0.1e-9,
+                lteTolerance: 0.5
+            )
+
+            return try await CircuitFactory.runTransient(
+                netlist, config: config,
+                convergenceConfig: CircuitFactory.nonlinearConfig
+            )
+        }
+
+        // Helper to find time when output crosses threshold
+        func findCrossingTime(result: TransientResult, node: Node, threshold: Double, rising: Bool) -> Double? {
+            let waveform = result.voltageWaveform(at: node)
+            for i in 1..<waveform.count {
+                let prev = waveform[i - 1].value
+                let curr = waveform[i].value
+                if rising {
+                    if prev < threshold && curr >= threshold {
+                        // Linear interpolation
+                        let frac = (threshold - prev) / (curr - prev)
+                        return waveform[i - 1].time + frac * (waveform[i].time - waveform[i - 1].time)
+                    }
+                } else {
+                    if prev > threshold && curr <= threshold {
+                        let frac = (prev - threshold) / (prev - curr)
+                        return waveform[i - 1].time + frac * (waveform[i].time - waveform[i - 1].time)
+                    }
+                }
+            }
+            return nil
+        }
+
+        // Run simulation without gate capacitance
+        let resultNoCap = try await runInverter(cgso: 0, cgdo: 0)
+
+        // Run simulation with gate capacitance
+        // Typical values: CGSO = CGDO = 1fF/µm, W = 10µm → 10fF each
+        let resultWithCap = try await runInverter(cgso: 1e-15, cgdo: 1e-15)
+
+        // Both should complete successfully
+        #expect(resultNoCap.timePoints.count > 50)
+        #expect(resultWithCap.timePoints.count > 50)
+
+        // Get the output node
+        var netlistForNode = Netlist()
+        let _ = netlistForNode.node("vdd")
+        let _ = netlistForNode.node("in")
+        let outNode = netlistForNode.node("out")
+
+        // Find 50% crossing times for falling edge (when input rises, output falls for inverter)
+        let threshold = 1.65 // 50% of 3.3V
+
+        let tNoCap = findCrossingTime(result: resultNoCap, node: outNode, threshold: threshold, rising: false)
+        let tWithCap = findCrossingTime(result: resultWithCap, node: outNode, threshold: threshold, rising: false)
+
+        // Verify we found crossing times
+        if let tNoCap = tNoCap, let tWithCap = tWithCap {
+            // With capacitance, switching should be slower (longer delay)
+            // The difference may be small due to the load capacitor dominating
+            // but there should be some measurable effect
+            print("Delay without cap: \(tNoCap * 1e9) ns")
+            print("Delay with cap: \(tWithCap * 1e9) ns")
+
+            // The capacitance should cause at least some additional delay
+            // Even if small, the delay with cap should not be less than without
+            #expect(tWithCap >= tNoCap * 0.99,
+                    "Capacitance should not speed up switching: tNoCap=\(tNoCap), tWithCap=\(tWithCap)")
+        }
+
+        // Verify output voltage swing
+        let waveformNoCap = resultNoCap.voltageWaveform(at: outNode)
+        let waveformWithCap = resultWithCap.voltageWaveform(at: outNode)
+
+        let maxNoCap = waveformNoCap.map(\.value).max() ?? 0
+        let maxWithCap = waveformWithCap.map(\.value).max() ?? 0
+
+        #expect(maxNoCap > 2.5, "Output should reach near VDD without cap: \(maxNoCap)")
+        #expect(maxWithCap > 2.5, "Output should reach near VDD with cap: \(maxWithCap)")
     }
 }

@@ -51,7 +51,7 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
         let dim = plan.topology.dimension
         let variableMap = plan.topology.variableMap
 
-        observer?.emit(.analysisStarted(AnalysisStartedInfo(
+        await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .tf,
             timestamp: startTimestamp,
@@ -165,7 +165,7 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
 
             let outputImpedance = zoutSolution[outputNodeIndex]
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .tf,
                 status: .completed,
@@ -189,7 +189,7 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
                 status = .failed
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .tf,
                 status: status,

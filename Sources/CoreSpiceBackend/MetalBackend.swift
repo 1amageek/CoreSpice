@@ -133,11 +133,11 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         gridSize: GridSize,
         observer: EventDispatcher?,
         tag: String
-    ) throws {
+    ) async throws {
         let analysisID = AnalysisID()
         let startTime = Timestamp()
 
-        observer?.emit(.gpuDispatchStarted(GpuDispatchInfo(
+        await observer?.emit(.gpuDispatchStarted(GpuDispatchInfo(
             id: analysisID,
             kernelName: tag,
             gridSize: GridDimensions(width: gridSize.width, height: gridSize.height),
@@ -176,7 +176,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         encoder.dispatchThreads(gridSizeMTL, threadsPerThreadgroup: threadgroupSize)
         encoder.endEncoding()
         commandBuffer.commit()
-        commandBuffer.waitUntilCompleted()
+        await commandBuffer.completed()
 
         if let error = commandBuffer.error {
             throw BackendError.dispatchFailed(
@@ -185,7 +185,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
             )
         }
 
-        observer?.emit(.gpuDispatchFinished(GpuDispatchResultInfo(
+        await observer?.emit(.gpuDispatchFinished(GpuDispatchResultInfo(
             id: analysisID,
             kernelName: tag,
             elapsedTime: Timestamp().elapsed(since: startTime),
@@ -227,7 +227,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         batchSize: Int,
         observer: EventDispatcher?,
         tag: String
-    ) throws {
+    ) async throws {
         let kernelName = layerDescriptor.pattern == 0
             ? "applyLayer512_even"
             : "applyLayer512_odd"
@@ -237,7 +237,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         let pairCount = Int(layerDescriptor.count)
 
         // Emit dispatch started event
-        observer?.emit(.gpuDispatchStarted(GpuDispatchInfo(
+        await observer?.emit(.gpuDispatchStarted(GpuDispatchInfo(
             id: analysisID,
             kernelName: kernelName,
             gridSize: GridDimensions(width: pairCount, height: batchSize),
@@ -273,7 +273,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         encoder.dispatchThreads(gridSizeMTL, threadsPerThreadgroup: threadgroupSize)
         encoder.endEncoding()
         commandBuffer.commit()
-        commandBuffer.waitUntilCompleted()
+        await commandBuffer.completed()
 
         if let error = commandBuffer.error {
             throw BackendError.dispatchFailed(
@@ -283,7 +283,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         }
 
         // Emit dispatch finished event
-        observer?.emit(.gpuDispatchFinished(GpuDispatchResultInfo(
+        await observer?.emit(.gpuDispatchFinished(GpuDispatchResultInfo(
             id: analysisID,
             kernelName: kernelName,
             elapsedTime: Timestamp().elapsed(since: startTime),

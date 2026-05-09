@@ -45,7 +45,7 @@ public struct DCAnalysis: Analysis, Sendable {
         let dim = plan.topology.dimension
         let variableMap = plan.topology.variableMap
 
-        observer?.emit(.analysisStarted(AnalysisStartedInfo(
+        await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .dc,
             timestamp: startTimestamp,
@@ -61,7 +61,7 @@ public struct DCAnalysis: Analysis, Sendable {
             // Phase 1: Direct Newton-Raphson
             let result: DCResult
             do {
-                result = try solveNR(
+                result = try await solveNR(
                     config: config,
                     initialGuess: [Double](repeating: 0, count: dim),
                     plan: plan,
@@ -77,7 +77,7 @@ public struct DCAnalysis: Analysis, Sendable {
 
                 // Phase 2: Gmin stepping
                 do {
-                    let stepped = try solveWithGminStepping(
+                    let stepped = try await solveWithGminStepping(
                         plan: plan,
                         devices: devices,
                         solver: &mutableSolver,
@@ -89,7 +89,7 @@ public struct DCAnalysis: Analysis, Sendable {
                     result = stepped
                 } catch {
                     // Phase 3: Source stepping
-                    result = try solveWithSourceStepping(
+                    result = try await solveWithSourceStepping(
                         plan: plan,
                         devices: devices,
                         solver: &mutableSolver,
@@ -101,7 +101,7 @@ public struct DCAnalysis: Analysis, Sendable {
                 }
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .dc,
                 status: .completed,
@@ -122,7 +122,7 @@ public struct DCAnalysis: Analysis, Sendable {
                 status = .failed
             }
 
-            observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .dc,
                 status: status,
@@ -146,7 +146,7 @@ public struct DCAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         analysisID: AnalysisID,
         cancellation: CancellationToken
-    ) throws -> DCResult {
+    ) async throws -> DCResult {
         var matrix = SparseMatrix(structure: plan.matrixStructure)
         var rhs = [Double](repeating: 0, count: plan.topology.dimension)
 
@@ -158,7 +158,7 @@ public struct DCAnalysis: Analysis, Sendable {
         )
 
         let nr = NewtonRaphsonSolver(config: config)
-        let result = try nr.solve(
+        let result = try await nr.solve(
             initialGuess: initialGuess,
             matrix: &matrix,
             rhs: &rhs,
@@ -205,7 +205,7 @@ public struct DCAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         analysisID: AnalysisID,
         cancellation: CancellationToken
-    ) throws -> DCResult {
+    ) async throws -> DCResult {
         let dim = plan.topology.dimension
         var x = [Double](repeating: 0, count: dim)
         var totalIterations = 0
@@ -214,7 +214,7 @@ public struct DCAnalysis: Analysis, Sendable {
             var stepConfig = config
             stepConfig.gmin = gmin
 
-            let result = try solveNR(
+            let result = try await solveNR(
                 config: stepConfig,
                 initialGuess: x,
                 plan: plan,
@@ -244,7 +244,7 @@ public struct DCAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         analysisID: AnalysisID,
         cancellation: CancellationToken
-    ) throws -> DCResult {
+    ) async throws -> DCResult {
         let dim = plan.topology.dimension
         var x = [Double](repeating: 0, count: dim)
         var totalIterations = 0
@@ -259,7 +259,7 @@ public struct DCAnalysis: Analysis, Sendable {
 
         for factor in sourceStepping.sourceFactors() {
             let nr = NewtonRaphsonSolver(config: config)
-            let result = try nr.solve(
+            let result = try await nr.solve(
                 initialGuess: x,
                 matrix: &matrix,
                 rhs: &rhs,
