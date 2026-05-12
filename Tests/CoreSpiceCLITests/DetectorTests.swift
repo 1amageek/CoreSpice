@@ -42,11 +42,7 @@ struct DetectorTests {
         .op
         .end
         """
-        if case .op? = AnalysisDetector.detect(source: src) {
-            #expect(true)
-        } else {
-            #expect(Bool(false))
-        }
+        #expect(AnalysisDetector.detect(source: src).isOperatingPoint)
     }
 
     @Test
@@ -64,5 +60,14 @@ struct DetectorTests {
         } else {
             #expect(Bool(false))
         }
+    }
+}
+
+private extension Optional where Wrapped == AnalysisCommand {
+    var isOperatingPoint: Bool {
+        if case .op? = self {
+            return true
+        }
+        return false
     }
 }

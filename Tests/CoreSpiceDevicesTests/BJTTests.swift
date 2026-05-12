@@ -201,18 +201,15 @@ struct BJTTests {
         let state1 = SolutionState(variables: [5.0, 0.7, 0.0], variableMap: variableMap)
         let state2 = SolutionState(variables: [5.0, 0.7, 0.0], variableMap: variableMap)
         let result = bound.checkConvergence(state: state1, previousState: state2)
-        if case .converged = result {
-            #expect(true)
-        } else {
-            #expect(Bool(false), "Should converge when states are identical")
-        }
+        #expect(result.isConverged)
 
         // Different base voltages - should not converge
         let state3 = SolutionState(variables: [5.0, 0.7, 0.0], variableMap: variableMap)
         let state4 = SolutionState(variables: [5.0, 0.5, 0.0], variableMap: variableMap)
         let result2 = bound.checkConvergence(state: state3, previousState: state4)
-        if case .notConverged = result2 {
-            #expect(true)
+        if case .notConverged(let maxDelta, let deviceName) = result2 {
+            #expect(maxDelta > 0)
+            #expect(deviceName == "Q1")
         } else {
             #expect(Bool(false), "Should not converge when voltages differ significantly")
         }
@@ -325,5 +322,14 @@ struct BJTTests {
         // Output conductance go should contribute to (collector, collector) stamp
         let goCont = collector_.matrixSum(row: 0, col: 0)
         #expect(goCont > 0)
+    }
+}
+
+private extension ConvergenceResult {
+    var isConverged: Bool {
+        if case .converged = self {
+            return true
+        }
+        return false
     }
 }

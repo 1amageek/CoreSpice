@@ -40,7 +40,7 @@ struct CoreSpiceDevicesTests {
         let instance = Instance(name: "R1", typeName: "resistor", nodes: [n1, n2],
                                 parameters: ["r": .real(1000)])
 
-        var variableMap: [MNAVariable: Int] = [
+        let variableMap: [MNAVariable: Int] = [
             .nodeVoltage(n1): 0,
             .nodeVoltage(n2): 1
         ]
@@ -81,11 +81,7 @@ struct CoreSpiceDevicesTests {
 
     @Test func convergenceResultConverged() {
         let result = ConvergenceResult.converged
-        if case .converged = result {
-            #expect(true)
-        } else {
-            #expect(Bool(false), "Expected converged")
-        }
+        #expect(result.isConverged)
     }
 
     @Test func waveformDC() {
@@ -111,5 +107,14 @@ struct CoreSpiceDevicesTests {
 
         let trap = IntegrationState(method: .trapezoidal, timeStep: 1e-3, currentTime: 0)
         #expect(abs(trap.coefficient - 2000.0) < 1e-6)
+    }
+}
+
+private extension ConvergenceResult {
+    var isConverged: Bool {
+        if case .converged = self {
+            return true
+        }
+        return false
     }
 }
