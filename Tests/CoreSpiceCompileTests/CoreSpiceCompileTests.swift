@@ -163,6 +163,38 @@ struct CoreSpiceCompileTests {
         #expect(topo.nodeIndex(.ground) == nil)
     }
 
+    @Test func opticalMatrixTopologyIncludesElectricalSensitivityCouplings() throws {
+        var netlist = Netlist()
+        let laserAnode = netlist.node("laser_a")
+        let photodiodeAnode = netlist.node("pd_a")
+        try netlist.addInstance(
+            name: "LD1",
+            typeName: "laser",
+            nodes: ["laser_a", "0"],
+            opticalNodes: ["opt_out"],
+            parameters: [:]
+        )
+        try netlist.addInstance(
+            name: "PD1",
+            typeName: "photodiode",
+            nodes: ["pd_a", "0"],
+            opticalNodes: ["opt_out"],
+            parameters: [:]
+        )
+
+        let ir = try netlist.build()
+        let topology = MatrixTopology(ir: ir)
+
+        let laserIndex = topology.variableMap[.nodeVoltage(laserAnode)]
+        let photodiodeIndex = topology.variableMap[.nodeVoltage(photodiodeAnode)]
+
+        #expect(laserIndex != nil)
+        #expect(photodiodeIndex != nil)
+        if let laserIndex, let photodiodeIndex {
+            #expect(topology.structure.index(row: photodiodeIndex, col: laserIndex) != nil)
+        }
+    }
+
     @Test func standardCompiler() throws {
         var netlist = Netlist()
         try netlist.addInstance(name: "R1", typeName: "resistor", nodes: ["1", "0"],

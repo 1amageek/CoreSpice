@@ -194,7 +194,8 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
                 type: .tf,
                 status: status,
                 timestamp: Timestamp(),
-                wallTime: Timestamp().elapsed(since: startTimestamp)
+                wallTime: Timestamp().elapsed(since: startTimestamp),
+                failure: status.failureInfo(for: error)
             )))
 
             throw error

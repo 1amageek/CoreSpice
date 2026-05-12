@@ -193,7 +193,7 @@ public struct IncrementalUpdate: Sendable {
 
 4. **Comprehensive Documentation**: All public types and methods have doc comments with clear explanations.
 
-5. **Defensive Programming**: Methods like `addValue` silently handle out-of-pattern positions, preventing crashes.
+5. **Structural Integrity**: Methods like `addValue` require positions to exist in the sparsity pattern and fail fast when a stamp targets a missing entry.
 
 ### Areas for Improvement
 

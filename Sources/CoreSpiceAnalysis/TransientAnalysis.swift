@@ -247,26 +247,26 @@ public struct TransientAnalysis: Analysis, Sendable {
                         reductions += 1
 
                         if reductions == config.gminSteppingThreshold {
-                            // Attempt GMIN stepping at current timestep
-                            if let gminResult = await tryGminStepping(
-                                currentBuf: currentBuf,
-                                previousBuf: previousBuf,
-                                opticalState: &currentOpticalState,
-                                evaluator: evaluator,
-                                opticalNetwork: plan.opticalNetwork,
-                                matrix: &matrix,
-                                rhs: &rhs,
-                                devices: devices,
-                                variableMap: variableMap,
-                                solver: &mutableSolver,
-                                integration: currentIntegration,
-                                observer: observer,
-                                analysisID: analysisID,
-                                cancellation: cancellation
-                            ) {
+                            do {
+                                let gminResult = try await tryGminStepping(
+                                    currentBuf: currentBuf,
+                                    previousBuf: previousBuf,
+                                    opticalState: &currentOpticalState,
+                                    evaluator: evaluator,
+                                    opticalNetwork: plan.opticalNetwork,
+                                    matrix: &matrix,
+                                    rhs: &rhs,
+                                    devices: devices,
+                                    variableMap: variableMap,
+                                    solver: &mutableSolver,
+                                    integration: currentIntegration,
+                                    observer: observer,
+                                    analysisID: analysisID,
+                                    cancellation: cancellation
+                                )
                                 // GMIN stepping succeeded — use this solution
                                 newtonResult = gminResult
-                            } else {
+                            } catch {
                                 // GMIN stepping failed — fall through to timestep reduction
                                 let oldDt = dt
                                 dt *= config.shrinkFactor
@@ -277,7 +277,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                                     time: currentTime,
                                     rejectedStep: oldDt,
                                     newStep: dt,
-                                    reason: "Newton-Raphson + GMIN stepping failure"
+                                    reason: "Newton-Raphson + GMIN stepping failure: \(error)"
                                 )))
 
                                 if dt < config.minTimeStep {
@@ -524,7 +524,8 @@ public struct TransientAnalysis: Analysis, Sendable {
                 type: .tran,
                 status: status,
                 timestamp: Timestamp(),
-                wallTime: Timestamp().elapsed(since: startTimestamp)
+                wallTime: Timestamp().elapsed(since: startTimestamp),
+                failure: status.failureInfo(for: error)
             )))
 
             throw error
@@ -553,7 +554,7 @@ public struct TransientAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         analysisID: AnalysisID,
         cancellation: CancellationToken
-    ) async -> (solution: [Double], iterations: Int)? {
+    ) async throws -> (solution: [Double], iterations: Int) {
         var x = currentBuf
         var totalIterations = 0
 
@@ -610,7 +611,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                 x = result.solution
                 totalIterations += result.iterations
             } catch {
-                return nil
+                throw AnalysisError.internalError("GMIN stepping failed at gmin \(gmin): \(error)")
             }
         }
 

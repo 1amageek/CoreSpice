@@ -58,6 +58,18 @@ public struct MatrixTopology: Sendable {
             }
         }
 
+        if ir.instances.contains(where: { !$0.opticalNodes.isEmpty }) {
+            let allElectricalNodeIndices = ir.nodes.compactMap { node -> Int? in
+                guard node != ir.groundNode else { return nil }
+                return topology.variableMap[.nodeVoltage(node)]
+            }
+            for row in allElectricalNodeIndices {
+                for col in allElectricalNodeIndices {
+                    entries.append((row: row, col: col))
+                }
+            }
+        }
+
         // Add branch-related entries.
         // For each branch, stamp coupling between the branch current row
         // and the nodes of the associated voltage source or inductor.

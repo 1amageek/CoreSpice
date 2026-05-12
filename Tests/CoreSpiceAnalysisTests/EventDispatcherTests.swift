@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Synchronization
 @testable import CoreSpiceEvent
 
 @Suite("Event Dispatcher Tests")
@@ -8,20 +9,15 @@ struct EventDispatcherTests {
     // MARK: - Test Observer
 
     /// A test observer that records events in order.
-    final class RecordingObserver: AnalysisObserver, @unchecked Sendable {
-        private let lock = NSLock()
-        private var _events: [AnalysisEvent] = []
+    final class RecordingObserver: AnalysisObserver, Sendable {
+        private let storage = Mutex<[AnalysisEvent]>([])
 
         var events: [AnalysisEvent] {
-            lock.lock()
-            defer { lock.unlock() }
-            return _events
+            storage.withLock { $0 }
         }
 
         func onEvent(_ event: AnalysisEvent) {
-            lock.lock()
-            defer { lock.unlock() }
-            _events.append(event)
+            storage.withLock { $0.append(event) }
         }
     }
 
@@ -140,6 +136,26 @@ struct EventDispatcherTests {
         } else {
             Issue.record("Last event should be analysisFinished")
         }
+    }
+
+    @Test("Finished event envelope carries structured failure details")
+    func failedFinishedEnvelopeIncludesFailure() {
+        let id = AnalysisID()
+        let envelope = EventEnvelope(event: .analysisFinished(AnalysisFinishedInfo(
+            id: id,
+            type: .ac,
+            status: .failed,
+            timestamp: Timestamp(),
+            wallTime: .seconds(1),
+            failure: AnalysisFailureInfo(
+                reason: "nonFiniteSolution",
+                message: "AC solution contains non-finite values"
+            )
+        )))
+
+        #expect(envelope.payload["status"] == "failed")
+        #expect(envelope.payload["failureReason"] == "nonFiniteSolution")
+        #expect(envelope.payload["failureMessage"] == "AC solution contains non-finite values")
     }
 
     @Test("Sequential await calls preserve order")

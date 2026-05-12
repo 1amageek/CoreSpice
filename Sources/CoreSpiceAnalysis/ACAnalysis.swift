@@ -129,44 +129,72 @@ public struct ACAnalysis: Analysis, Sendable {
             do {
                 try complexSolver.factorize(matrix: matrix)
             } catch {
+                let message = "AC factorization failed at frequency \(freq) Hz: \(error)"
                 await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                     id: analysisID,
                     type: .ac,
                     status: .failed,
                     timestamp: Timestamp(),
-                    wallTime: Timestamp().elapsed(since: startTimestamp)
+                    wallTime: Timestamp().elapsed(since: startTimestamp),
+                    failure: AnalysisFailureInfo(error: error)
                 )))
-                throw AnalysisError.singularMatrix
+                if case CompileError.singularMatrix = error {
+                    throw AnalysisError.singularMatrix
+                }
+                throw AnalysisError.internalError(message)
             }
 
             do {
                 try complexSolver.solve(rhs: rhs, into: &solutionBuf)
             } catch {
+                let message = "Complex solve failed at frequency \(freq) Hz: \(error)"
                 await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                     id: analysisID,
                     type: .ac,
                     status: .failed,
                     timestamp: Timestamp(),
-                    wallTime: Timestamp().elapsed(since: startTimestamp)
+                    wallTime: Timestamp().elapsed(since: startTimestamp),
+                    failure: AnalysisFailureInfo(reason: "complexSolveFailed", message: message)
                 )))
-                throw AnalysisError.internalError("Complex solve failed at frequency \(freq) Hz: \(error)")
+                throw AnalysisError.internalError(message)
             }
 
-            // NaN/Inf check
+            var nonFiniteDiagnostic: DiagnosticCode?
             for val in solutionBuf {
                 if val.real.isNaN || val.real.isInfinite ||
                    val.imag.isNaN || val.imag.isInfinite {
-                    let code: DiagnosticCode = (val.real.isNaN || val.imag.isNaN)
+                    nonFiniteDiagnostic = (val.real.isNaN || val.imag.isNaN)
                         ? .nanDetected
                         : .infDetected
-                    await observer?.emit(.warning(DiagnosticInfo(
-                        id: analysisID,
-                        code: code,
-                        message: "NaN/Inf detected at frequency \(freq) Hz",
-                        timestamp: Timestamp()
-                    )))
                     break
                 }
+            }
+
+            if let code = nonFiniteDiagnostic {
+                let message = "Non-finite AC solution detected at frequency \(freq) Hz"
+                await observer?.emit(.warning(DiagnosticInfo(
+                    id: analysisID,
+                    code: code,
+                    message: message,
+                    timestamp: Timestamp()
+                )))
+                await observer?.emit(.sweepPointFinished(SweepPointResultInfo(
+                    id: analysisID,
+                    index: idx,
+                    value: freq,
+                    parameterName: "frequency",
+                    converged: false,
+                    iterations: 1
+                )))
+                await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+                    id: analysisID,
+                    type: .ac,
+                    status: .failed,
+                    timestamp: Timestamp(),
+                    wallTime: Timestamp().elapsed(since: startTimestamp),
+                    failure: AnalysisFailureInfo(reason: code.rawValue, message: message)
+                )))
+                throw AnalysisError.internalError(message)
             }
 
             solutions.append(solutionBuf)

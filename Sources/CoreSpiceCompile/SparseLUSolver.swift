@@ -88,6 +88,12 @@ public struct SparseLUSolver: LinearSolver {
     ///
     /// - Throws: ``CompileError/singularMatrix`` if a zero pivot is encountered.
     public mutating func factorize(matrix: SparseMatrix) throws {
+        guard matrix.structuralMisses.isEmpty else {
+            throw CompileError.incompatibleStructure(
+                "Sparse matrix received stamps outside the CSR pattern: \(matrix.structuralMisses)"
+            )
+        }
+
         let n = matrix.dimension
         dimension = n
 

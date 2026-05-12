@@ -184,7 +184,7 @@ public final class JsonLinesObserver: AnalysisObserver {
 ### Complete Features
 
 - [x] Full event type hierarchy for all analysis phases
-- [x] Thread-safe event dispatching with `Mutex` and `DispatchQueue`
+- [x] Thread-safe event dispatching with `Mutex`
 - [x] Thread-safe cancellation token with atomic operations
 - [x] Console logging observer
 - [x] Composite observer pattern

@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Synchronization
 @testable import CoreSpiceAnalysis
 @testable import CoreSpiceCompile
 @testable import CoreSpiceDevices
@@ -13,50 +14,53 @@ struct NewtonRaphsonConvergenceTests {
 
     /// Observer that records Newton-Raphson iteration residuals, tracking sequences.
     /// When a new sequence starts (iteration 0), it begins recording a new sequence.
-    final class ResidualRecorder: AnalysisObserver, @unchecked Sendable {
-        private let lock = NSLock()
-        private var _sequences: [[Double]] = []
-        private var _currentSequence: [Double] = []
+    final class ResidualRecorder: AnalysisObserver, Sendable {
+        private struct State: Sendable {
+            var sequences: [[Double]] = []
+            var currentSequence: [Double] = []
+        }
+
+        private let state = Mutex(State())
 
         /// All recorded residual sequences.
         var sequences: [[Double]] {
-            lock.lock()
-            defer { lock.unlock() }
-            var result = _sequences
-            if !_currentSequence.isEmpty {
-                result.append(_currentSequence)
+            state.withLock { state in
+                var result = state.sequences
+                if !state.currentSequence.isEmpty {
+                    result.append(state.currentSequence)
+                }
+                return result
             }
-            return result
         }
 
         /// Returns the last complete residual sequence (most relevant for convergence analysis).
         var lastSequence: [Double] {
-            lock.lock()
-            defer { lock.unlock() }
-            if !_currentSequence.isEmpty {
-                return _currentSequence
+            state.withLock { state in
+                if !state.currentSequence.isEmpty {
+                    return state.currentSequence
+                }
+                return state.sequences.last ?? []
             }
-            return _sequences.last ?? []
         }
 
         func onEvent(_ event: AnalysisEvent) {
-            lock.lock()
-            defer { lock.unlock() }
-            if case .newtonIterationFinished(let info) = event {
-                // Detect start of new sequence
-                if info.iteration == 0 && !_currentSequence.isEmpty {
-                    _sequences.append(_currentSequence)
-                    _currentSequence = []
+            state.withLock { state in
+                if case .newtonIterationFinished(let info) = event {
+                    // Detect start of new sequence
+                    if info.iteration == 0 && !state.currentSequence.isEmpty {
+                        state.sequences.append(state.currentSequence)
+                        state.currentSequence = []
+                    }
+                    state.currentSequence.append(info.residualNorm)
                 }
-                _currentSequence.append(info.residualNorm)
             }
         }
 
         func clear() {
-            lock.lock()
-            defer { lock.unlock() }
-            _sequences.removeAll()
-            _currentSequence.removeAll()
+            state.withLock { state in
+                state.sequences.removeAll()
+                state.currentSequence.removeAll()
+            }
         }
     }
 

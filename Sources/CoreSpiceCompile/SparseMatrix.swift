@@ -16,6 +16,9 @@ public struct SparseMatrix: Sendable {
     /// Non-zero values in CSR order.
     public private(set) var values: [Double]
 
+    /// Stamps that targeted positions missing from the sparsity pattern.
+    public private(set) var structuralMisses: [SparseMatrixStructuralMiss]
+
     /// Matrix dimension (number of rows and columns).
     public var dimension: Int { structure.dimension }
 
@@ -23,6 +26,7 @@ public struct SparseMatrix: Sendable {
     public init(structure: SparseStructure) {
         self.structure = structure
         self.values = Array(repeating: 0.0, count: structure.nonZeroCount)
+        self.structuralMisses = []
     }
 
     /// Resets all stored values to zero without changing the sparsity pattern.
@@ -32,19 +36,22 @@ public struct SparseMatrix: Sendable {
                 memset(base, 0, buf.count &* MemoryLayout<Double>.stride)
             }
         }
+        structuralMisses.removeAll(keepingCapacity: true)
     }
 
     /// Accumulates a value at the given position.
     ///
-    /// The position must exist in the sparsity pattern. If it does not,
-    /// this method does nothing.
+    /// The position must exist in the sparsity pattern.
     ///
     /// - Parameters:
     ///   - row: Row index.
     ///   - col: Column index.
     ///   - value: Value to add to the current entry.
     public mutating func addValue(row: Int, col: Int, value: Double) {
-        guard let idx = structure.index(row: row, col: col) else { return }
+        guard let idx = structure.index(row: row, col: col) else {
+            structuralMisses.append(SparseMatrixStructuralMiss(row: row, col: col))
+            return
+        }
         values[idx] += value
     }
 

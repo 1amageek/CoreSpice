@@ -277,7 +277,8 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 type: .noise,
                 status: status,
                 timestamp: Timestamp(),
-                wallTime: Timestamp().elapsed(since: startTimestamp)
+                wallTime: Timestamp().elapsed(since: startTimestamp),
+                failure: status.failureInfo(for: error)
             )))
 
             throw error

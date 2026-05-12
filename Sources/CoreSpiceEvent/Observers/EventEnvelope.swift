@@ -44,12 +44,17 @@ public struct EventEnvelope: Sendable, Codable {
                 "deviceCount": String(info.deviceCount),
             ]
         case .analysisFinished(let info):
-            return [
+            var payload = [
                 "id": info.id.rawValue.uuidString,
                 "type": info.type.rawValue,
                 "status": info.status.rawValue,
                 "wallTime": String(describing: info.wallTime),
             ]
+            if let failure = info.failure {
+                payload["failureReason"] = failure.reason
+                payload["failureMessage"] = failure.message
+            }
+            return payload
         case .progressUpdate(let info):
             return [
                 "id": info.id.rawValue.uuidString,

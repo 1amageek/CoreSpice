@@ -67,6 +67,9 @@ public struct ComplexSparseMatrix: Sendable {
     /// Non-zero complex values in CSR order.
     public private(set) var values: [ComplexPair]
 
+    /// Stamps that targeted positions missing from the sparsity pattern.
+    public private(set) var structuralMisses: [SparseMatrixStructuralMiss]
+
     /// Matrix dimension (number of rows and columns).
     public var dimension: Int { structure.dimension }
 
@@ -74,6 +77,7 @@ public struct ComplexSparseMatrix: Sendable {
     public init(structure: SparseStructure) {
         self.structure = structure
         self.values = Array(repeating: .zero, count: structure.nonZeroCount)
+        self.structuralMisses = []
     }
 
     /// Resets all stored values to zero without changing the sparsity pattern.
@@ -84,13 +88,17 @@ public struct ComplexSparseMatrix: Sendable {
                 memset(base, 0, buf.count &* MemoryLayout<ComplexPair>.stride)
             }
         }
+        structuralMisses.removeAll(keepingCapacity: true)
     }
 
     /// Accumulates a complex value at the given position.
     ///
     /// The position must exist in the sparsity pattern.
     public mutating func addValue(row: Int, col: Int, value: ComplexPair) {
-        guard let idx = structure.index(row: row, col: col) else { return }
+        guard let idx = structure.index(row: row, col: col) else {
+            structuralMisses.append(SparseMatrixStructuralMiss(row: row, col: col))
+            return
+        }
         values[idx] = values[idx] + value
     }
 

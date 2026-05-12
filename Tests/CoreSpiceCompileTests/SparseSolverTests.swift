@@ -200,6 +200,22 @@ struct SparseSolverTests {
         }
     }
 
+    @Test func structuralMissFailsFactorization() {
+        let structure = SparseStructure.fromTriplets(
+            dimension: 2,
+            entries: [(0, 0), (1, 1)]
+        )
+        var matrix = SparseMatrix(structure: structure)
+        matrix.addValue(row: 0, col: 1, value: 1.0)
+
+        #expect(matrix.structuralMisses == [SparseMatrixStructuralMiss(row: 0, col: 1)])
+
+        var solver = SparseLUSolver()
+        #expect(throws: CompileError.self) {
+            try solver.factorize(matrix: matrix)
+        }
+    }
+
     // MARK: - Complex Solver Tests
 
     @Test func complexSolverWithAMDOrdering() throws {

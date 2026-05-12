@@ -8,7 +8,11 @@ public struct ConsoleObserver: AnalysisObserver {
             print("[CoreSpice] Analysis started: \(info.type.rawValue) (nodes=\(info.nodeCount), devices=\(info.deviceCount))")
 
         case .analysisFinished(let info):
-            print("[CoreSpice] Analysis finished: \(info.type.rawValue) status=\(info.status.rawValue) wallTime=\(info.wallTime)")
+            if let failure = info.failure {
+                print("[CoreSpice] Analysis finished: \(info.type.rawValue) status=\(info.status.rawValue) reason=\(failure.reason) message=\(failure.message) wallTime=\(info.wallTime)")
+            } else {
+                print("[CoreSpice] Analysis finished: \(info.type.rawValue) status=\(info.status.rawValue) wallTime=\(info.wallTime)")
+            }
 
         case .progressUpdate(let info):
             let percent = Int(info.fraction * 100)

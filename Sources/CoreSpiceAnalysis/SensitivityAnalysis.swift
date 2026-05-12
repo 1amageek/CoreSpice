@@ -167,7 +167,8 @@ public struct SensitivityAnalysis: Analysis, Sendable {
                 type: .sens,
                 status: status,
                 timestamp: Timestamp(),
-                wallTime: Timestamp().elapsed(since: startTimestamp)
+                wallTime: Timestamp().elapsed(since: startTimestamp),
+                failure: status.failureInfo(for: error)
             )))
 
             throw error
