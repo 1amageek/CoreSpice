@@ -173,6 +173,25 @@ struct SPICEParserTests {
     }
 
     @Test
+    func rejectUnsupportedDirective() async {
+        let source = """
+        Unsupported Directive Test
+        .unknown_control foo bar
+        R1 in out 1k
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.hasErrors)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message == "Unsupported SPICE directive: .unknown_control"
+        })
+    }
+
+    @Test
     func canParseDetection() {
         let parser = SPICEParser()
 

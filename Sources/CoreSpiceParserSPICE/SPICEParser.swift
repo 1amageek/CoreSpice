@@ -256,9 +256,7 @@ private struct SPICEParserImpl {
         case "meas", "measure":
             try parseMeasure(location: loc)
         default:
-            // Unknown directive - skip to end of line
-            diagnostics.append(.warning("Unknown directive: .\(name)", at: loc))
-            skipToEndOfLine()
+            throw ParserDiagnostic.error("Unsupported SPICE directive: .\(name)", at: loc)
         }
     }
 
