@@ -33,7 +33,9 @@ public struct MOSFETModelParameters: Sendable {
     /// Saturation velocity (m/s).
     public var vmax: Double
 
-    /// Gate oxide thickness (m).
+    /// Gate oxide thickness (m). A value of 0 means unspecified: no oxide
+    /// capacitance is derived, so intrinsic gate capacitances are zero. This
+    /// matches the SPICE convention where omitting TOX yields no gate caps.
     public var tox: Double
 
     /// Channel width (m).
@@ -90,7 +92,7 @@ public struct MOSFETModelParameters: Sendable {
         eta: Double = 0.0,
         kappa: Double = 0.0,
         vmax: Double = 0.0,
-        tox: Double = 100e-9,
+        tox: Double = 0,
         w: Double = 10e-6,
         l: Double = 1e-6,
         cgso: Double = 0,
@@ -138,6 +140,8 @@ public struct MOSFETModelParameters: Sendable {
     }
 
     /// Oxide capacitance per unit area (F/m^2): Cox = eps_ox / tox.
+    /// Returns 0 when tox is unspecified (<= 0), so no intrinsic gate
+    /// capacitance is derived, matching the SPICE convention.
     public var cox: Double {
         guard tox > 0 else { return 0 }
         return 3.453e-11 / tox  // eps_ox = 3.9 * eps_0 = 3.9 * 8.854e-12

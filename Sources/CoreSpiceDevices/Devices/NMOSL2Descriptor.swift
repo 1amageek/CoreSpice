@@ -18,7 +18,7 @@ public struct NMOSL2Descriptor: DeviceDescriptor, Sendable {
         ParameterDescriptor(name: "lambda", defaultValue: .real(0.0), description: "Channel-length modulation (1/V)"),
         ParameterDescriptor(name: "theta", defaultValue: .real(0.0), description: "Mobility degradation coefficient (1/V)"),
         ParameterDescriptor(name: "eta", defaultValue: .real(0.0), description: "DIBL coefficient (V/V)"),
-        ParameterDescriptor(name: "tox", defaultValue: .real(100e-9), description: "Gate oxide thickness (m)"),
+        ParameterDescriptor(name: "tox", defaultValue: .real(0), description: "Gate oxide thickness (m); 0 = unspecified, no intrinsic gate capacitance (SPICE convention)"),
         ParameterDescriptor(name: "cgso", defaultValue: .real(0), description: "Gate-source overlap capacitance (F/m)"),
         ParameterDescriptor(name: "cgdo", defaultValue: .real(0), description: "Gate-drain overlap capacitance (F/m)"),
         ParameterDescriptor(name: "cgbo", defaultValue: .real(0), description: "Gate-bulk overlap capacitance (F/m)"),
