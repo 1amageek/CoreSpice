@@ -48,7 +48,7 @@ struct CLI {
             }
             let deckPath = args[batchIndex + 1]
             let outputs = parseOutputs(args: args)
-            let analysisOverride = parseAnalysisFlag(args: args)
+            let analysisOverride = try parseAnalysisFlag(args: args)
             try await runBatch(deckPath: deckPath, outputs: outputs, overrideAnalysis: analysisOverride)
             return
         }
@@ -83,9 +83,17 @@ struct CLI {
         if let mc = session.monteCarloSpec {
             let parametric = try await session.runMonteCarlo(spec: mc, inner: mc.analysis)
             try await export(parametric: parametric, outputs: outputs)
+        } else if let override = overrideAnalysis {
+            let waveform = try await session.run(override)
+            try await export(waveform: waveform, outputs: outputs)
+        } else if let parsed = session.firstRunnableAnalysis {
+            // Run the analysis directive from the parsed netlist directly. The
+            // parser has already resolved SPICE engineering suffixes (e.g. 20p,
+            // 50n), so we never re-parse the raw source string here.
+            let waveform = try await session.runParsed(parsed)
+            try await export(waveform: waveform, outputs: outputs)
         } else {
-            let analysis = overrideAnalysis ?? detectAnalysis(in: source) ?? .op
-            let waveform = try await session.run(analysis)
+            let waveform = try await session.run(.op)
             try await export(waveform: waveform, outputs: outputs)
         }
     }
@@ -110,9 +118,11 @@ struct CLI {
             if let mc = session.monteCarloSpec {
                 _ = try await session.runMonteCarlo(spec: mc, inner: mc.analysis)
                 print("monte carlo complete (\(mc.iterations) runs)")
+            } else if let parsed = session.firstRunnableAnalysis {
+                _ = try await session.runParsed(parsed)
+                print("analysis complete")
             } else {
-                let analysis = detectAnalysis(in: session.lastSource) ?? .op
-                _ = try await session.run(analysis)
+                _ = try await session.run(.op)
                 print("analysis complete")
             }
         case "op":
@@ -122,17 +132,21 @@ struct CLI {
         case "tran":
             guard session.isLoaded else { throw CLIError.state("no netlist loaded") }
             guard tokens.count >= 3 else { throw CLIError.invalidArguments("usage: tran <tstep> <tstop>") }
-            let tstep = Double(tokens[1]) ?? 0
-            let tstop = Double(tokens[2]) ?? 0
+            guard let tstep = parseSPICENumber(tokens[1]), let tstop = parseSPICENumber(tokens[2]) else {
+                throw CLIError.invalidArguments("tran expects numeric <tstep> <tstop> (SPICE suffixes allowed), got '\(tokens[1])' '\(tokens[2])'")
+            }
             _ = try await session.run(.tran(tstep: tstep, tstop: tstop))
             print("tran complete")
         case "ac":
             guard session.isLoaded else { throw CLIError.state("no netlist loaded") }
-            guard tokens.count >= 4 else { throw CLIError.invalidArguments("usage: ac dec|lin <points> <start> <stop>") }
+            guard tokens.count >= 5 else { throw CLIError.invalidArguments("usage: ac dec|lin <points> <start> <stop>") }
             let mode = tokens[1].lowercased()
-            let points = Int(tokens[2]) ?? 10
-            let start = Double(tokens[3]) ?? 1.0
-            let stop = tokens.count > 4 ? (Double(tokens[4]) ?? start) : start
+            guard let points = Int(tokens[2]) else {
+                throw CLIError.invalidArguments("ac expects an integer point count, got '\(tokens[2])'")
+            }
+            guard let start = parseSPICENumber(tokens[3]), let stop = parseSPICENumber(tokens[4]) else {
+                throw CLIError.invalidArguments("ac expects numeric <start> <stop> (SPICE suffixes allowed), got '\(tokens[3])' '\(tokens[4])'")
+            }
             let sweep: FrequencySweep
             if mode == "dec" || mode == "decade" {
                 sweep = .decade(start: start, stop: stop, pointsPerDecade: points)
@@ -145,9 +159,9 @@ struct CLI {
             guard session.isLoaded else { throw CLIError.state("no netlist loaded") }
             guard tokens.count >= 5 else { throw CLIError.invalidArguments("usage: dc <source> <start> <stop> <step>") }
             let source = tokens[1]
-            let start = Double(tokens[2]) ?? 0
-            let stop = Double(tokens[3]) ?? 0
-            let step = Double(tokens[4]) ?? 0
+            guard let start = parseSPICENumber(tokens[2]), let stop = parseSPICENumber(tokens[3]), let step = parseSPICENumber(tokens[4]) else {
+                throw CLIError.invalidArguments("dc expects numeric <start> <stop> <step> (SPICE suffixes allowed)")
+            }
             _ = try await session.run(.dcSweep(source: source, start: start, stop: stop, step: step))
             print("dc sweep complete")
         case "write":
@@ -166,10 +180,6 @@ struct CLI {
     }
 
     // MARK: Helpers
-
-    private func detectAnalysis(in source: String) -> AnalysisCommand? {
-        return AnalysisDetector.detect(source: source)
-    }
 
     private func export(waveform: WaveformData, outputs: OutputTargets) async throws {
         if let raw = outputs.raw {
@@ -227,17 +237,30 @@ struct CLI {
         return result
     }
 
-    private func parseAnalysisFlag(args: [String]) -> AnalysisCommand? {
+    private func parseAnalysisFlag(args: [String]) throws -> AnalysisCommand? {
         if let idx = args.firstIndex(of: "--tran"), idx + 2 < args.count {
-            let tstep = Double(args[idx + 1]) ?? 0
-            let tstop = Double(args[idx + 2]) ?? 0
+            guard let tstep = parseSPICENumber(args[idx + 1]), let tstop = parseSPICENumber(args[idx + 2]) else {
+                throw CLIError.invalidArguments("--tran expects numeric <tstep> <tstop> (SPICE suffixes allowed), got '\(args[idx + 1])' '\(args[idx + 2])'")
+            }
             return .tran(tstep: tstep, tstop: tstop)
         }
         if let idx = args.firstIndex(of: "--ac"), idx + 3 < args.count {
             let mode = args[idx + 1]
-            let points = Int(args[idx + 2]) ?? 10
-            let start = Double(args[idx + 3]) ?? 1.0
-            let stop = args.count > idx + 4 ? (Double(args[idx + 4]) ?? start) : start
+            guard let points = Int(args[idx + 2]) else {
+                throw CLIError.invalidArguments("--ac expects an integer point count, got '\(args[idx + 2])'")
+            }
+            guard let start = parseSPICENumber(args[idx + 3]) else {
+                throw CLIError.invalidArguments("--ac expects a numeric start frequency, got '\(args[idx + 3])'")
+            }
+            let stop: Double
+            if idx + 4 < args.count {
+                guard let parsedStop = parseSPICENumber(args[idx + 4]) else {
+                    throw CLIError.invalidArguments("--ac stop frequency '\(args[idx + 4])' is not numeric")
+                }
+                stop = parsedStop
+            } else {
+                stop = start
+            }
             let sweep: FrequencySweep = (mode == "dec" || mode == "decade")
                 ? .decade(start: start, stop: stop, pointsPerDecade: points)
                 : .linear(start: start, stop: stop, points: points)
@@ -245,9 +268,11 @@ struct CLI {
         }
         if let idx = args.firstIndex(of: "--dc"), idx + 4 < args.count {
             let source = args[idx + 1]
-            let start = Double(args[idx + 2]) ?? 0
-            let stop = Double(args[idx + 3]) ?? 0
-            let step = Double(args[idx + 4]) ?? 0
+            guard let start = parseSPICENumber(args[idx + 2]),
+                  let stop = parseSPICENumber(args[idx + 3]),
+                  let step = parseSPICENumber(args[idx + 4]) else {
+                throw CLIError.invalidArguments("--dc expects numeric <start> <stop> <step> (SPICE suffixes allowed)")
+            }
             return .dcSweep(source: source, start: start, stop: stop, step: step)
         }
         if args.contains("--op") { return .op }
@@ -328,6 +353,9 @@ struct Session {
             )
             waveform = WaveformData.from(dcResult: result, topology: plan.topology.circuitTopology, title: "Operating Point")
         case .tran(let tstep, let tstop):
+            guard tstop > 0, tstep > 0, tstop.isFinite, tstep.isFinite else {
+                throw CLIError.invalidArguments("transient analysis requires tstep > 0 and tstop > 0 (got tstep=\(tstep), tstop=\(tstop))")
+            }
             let config = TransientConfig(
                 stopTime: tstop,
                 maxTimeStep: tstep,
@@ -375,6 +403,36 @@ struct Session {
             waveform = WaveformData.from(sweepResult: sweepResult, topology: plan.topology.circuitTopology, title: "DC Sweep")
         }
 
+        self.lastWaveform = waveform
+        self.lastParametric = nil
+        return waveform
+    }
+
+    /// The first analysis directive from the parsed netlist that the CLI can run
+    /// directly (operating point, transient, AC, or DC sweep). Monte Carlo is
+    /// handled separately via `monteCarloSpec`.
+    var firstRunnableAnalysis: ParsedAnalysisCommand? {
+        parsedNetlist?.analyses.first { analysis in
+            switch analysis {
+            case .op, .transient, .ac, .dc:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
+    /// Runs an analysis directive taken from the parsed netlist, reusing the
+    /// parser-resolved numeric values (SPICE engineering suffixes already
+    /// applied). This avoids re-parsing the raw source string in the CLI.
+    mutating func runParsed(_ analysis: ParsedAnalysisCommand) async throws -> WaveformData {
+        guard let plan else { throw CLIError.state("no netlist loaded") }
+        let waveform = try await Self.runParsedAnalysis(
+            analysis,
+            plan: plan,
+            devices: devices,
+            registry: registry
+        )
         self.lastWaveform = waveform
         self.lastParametric = nil
         return waveform
@@ -463,8 +521,13 @@ struct Session {
             return WaveformData.from(dcResult: result, topology: plan.topology.circuitTopology, title: "Operating Point")
 
         case .transient(let spec):
-            let stop = spec.stopTime.numericValue ?? 0
+            guard let stop = spec.stopTime.numericValue, stop > 0, stop.isFinite else {
+                throw CLIError.invalidArguments("transient analysis requires a positive stop time")
+            }
             let step = spec.stepTime?.numericValue ?? (stop / 50.0)
+            guard step > 0, step.isFinite else {
+                throw CLIError.invalidArguments("transient analysis requires a positive time step")
+            }
             let config = TransientConfig(
                 stopTime: stop,
                 maxTimeStep: step,
@@ -633,55 +696,6 @@ enum CLIError: LocalizedError {
     }
 }
 
-// MARK: - Directive Detector
-
-enum AnalysisDetector {
-    static func detect(source: String) -> AnalysisCommand? {
-        let lines = source.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
-        for line in lines {
-            let lower = line.lowercased()
-            if lower.hasPrefix(".tran") {
-                let parts = lower.split(separator: " ").map(String.init)
-                if parts.count >= 3,
-                   let tstep = Double(parts[1]),
-                   let tstop = Double(parts[2]) {
-                    return .tran(tstep: tstep, tstop: tstop)
-                }
-                return .tran(tstep: 1e-9, tstop: 1e-6)
-            }
-            if lower.hasPrefix(".ac") {
-                let parts = lower.split(separator: " ").map(String.init)
-                if parts.count >= 5 {
-                    let mode = parts[1]
-                    let pts = Int(parts[2]) ?? 10
-                    let start = Double(parts[3]) ?? 1.0
-                    let stop = Double(parts[4]) ?? start
-                    let sweep: FrequencySweep = (mode == "dec" || mode == "decade")
-                        ? .decade(start: start, stop: stop, pointsPerDecade: pts)
-                        : .linear(start: start, stop: stop, points: pts)
-                    return .ac(sweep: sweep)
-                }
-                return .ac(sweep: .decade(start: 1.0, stop: 1e6, pointsPerDecade: 10))
-            }
-            if lower.hasPrefix(".dc") {
-                let parts = lower.split(separator: " ").map(String.init)
-                if parts.count >= 4 {
-                    let source = parts[1]
-                    let start = Double(parts[2]) ?? 0
-                    let stop = Double(parts[3]) ?? 0
-                    let step = parts.count >= 5 ? (Double(parts[4]) ?? 0) : (stop - start) / 10.0
-                    return .dcSweep(source: source, start: start, stop: stop, step: step)
-                }
-                return .dcSweep(source: "v1", start: 0, stop: 1, step: 0.1)
-            }
-            if lower.hasPrefix(".op") {
-                return .op
-            }
-        }
-        return nil
-    }
-}
-
 // MARK: - ParsedParameterValue Helpers
 
 private extension ParsedParameterValue {
@@ -699,6 +713,21 @@ private extension ParsedParameterValue {
 }
 
 // MARK: - Utilities
+
+/// Parses a single SPICE-formatted number, supporting engineering suffixes such
+/// as `p`, `n`, `u`, `meg`, by reusing the SPICE lexer. Returns nil when the
+/// string does not yield a numeric token so callers can fail loudly instead of
+/// silently substituting a default value (which previously produced wrong stop
+/// times and NaN-driven crashes in the analysis setup).
+func parseSPICENumber(_ string: String) -> Double? {
+    var lexer = SPICELexer(source: string)
+    for located in lexer.tokenize() {
+        if case .number(let value) = located.token {
+            return value
+        }
+    }
+    return nil
+}
 
 private func strideInclusive(from start: Double, through stop: Double, by step: Double) -> [Double] {
     guard step != 0 else { return [] }
