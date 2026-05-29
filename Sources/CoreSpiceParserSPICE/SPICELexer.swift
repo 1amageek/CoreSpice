@@ -71,7 +71,9 @@ public struct SPICELexer: Sendable {
             return scanDirective(startLocation: startLocation)
         }
 
-        // Handle numbers (including those starting with +/-)
+        // Handle numbers. A leading +/- is emitted as a separate token here; the
+        // parser reassembles the sign in value contexts (see parseSignedNumber),
+        // which keeps '-' available as the subtraction operator in expressions.
         if char.isNumber || (char == "." && peek()?.isNumber == true) {
             return scanNumber(startLocation: startLocation)
         }

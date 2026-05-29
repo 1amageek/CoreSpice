@@ -333,21 +333,8 @@ private struct SPICEParserImpl {
                     // "ac <value>" sets the AC magnitude
                     // Current sources carry their DC value under "i"; voltage sources under "v".
                     let dcKey = (type == .currentSource) ? "i" : "v"
-                    if case .number(let n) = currentToken {
-                        if lower == "dc" {
-                            params[dcKey] = .numeric(n)
-                        } else {
-                            params["ac"] = .numeric(n)
-                        }
-                        advance()
-                    } else if case .identifier(let valStr) = currentToken,
-                              let n = parseNumberFromIdentifier(valStr) {
-                        if lower == "dc" {
-                            params[dcKey] = .numeric(n)
-                        } else {
-                            params["ac"] = .numeric(n)
-                        }
-                        advance()
+                    if let value = parseSignedNumber() {
+                        params[lower == "dc" ? dcKey : "ac"] = .numeric(value)
                     }
                 } else if (type == .voltageSource || type == .currentSource),
                           lower == "pulse" {
@@ -374,29 +361,16 @@ private struct SPICEParserImpl {
                     }
                 }
             } else if case .number(let n) = currentToken {
-                // Positional value
-                if type == .resistor && params["r"] == nil {
-                    params["r"] = .numeric(n)
-                } else if type == .capacitor && params["c"] == nil {
-                    params["c"] = .numeric(n)
-                } else if type == .inductor && params["l"] == nil {
-                    params["l"] = .numeric(n)
-                } else if type == .voltageSource && params["v"] == nil {
-                    // Bare positional DC value for a voltage source: V1 n1 n2 5
-                    params["v"] = .numeric(n)
-                } else if type == .currentSource && params["i"] == nil {
-                    // Bare positional DC value for a current source: I1 n1 n2 1m
-                    params["i"] = .numeric(n)
-                } else if type == .vcvs && params["e"] == nil {
-                    params["e"] = .numeric(n)
-                } else if type == .vccs && params["g"] == nil {
-                    params["g"] = .numeric(n)
-                } else if type == .cccs && params["f"] == nil {
-                    params["f"] = .numeric(n)
-                } else if type == .ccvs && params["h"] == nil {
-                    params["h"] = .numeric(n)
+                // Positional value (resistance for R, DC value for a source, etc.)
+                if let key = positionalKey(for: type, existing: params) {
+                    params[key] = .numeric(n)
                 }
                 advance()
+            } else if isSignToken(currentToken) {
+                // Signed positional value, e.g. a negative source DC value (V1 n1 n2 -2).
+                if let value = parseSignedNumber(), let key = positionalKey(for: type, existing: params) {
+                    params[key] = .numeric(value)
+                }
             } else {
                 advance()
             }
@@ -410,6 +384,52 @@ private struct SPICEParserImpl {
             parameters: params,
             location: loc
         ))
+    }
+
+    /// Reads an optional leading +/- sign followed by a numeric token and
+    /// returns the signed value. The lexer emits a separate `.minus`/`.plus`
+    /// token before a number, so source values and positional component values
+    /// (which are not expressions) must reassemble the sign here.
+    private mutating func parseSignedNumber() -> Double? {
+        var sign = 1.0
+        if case .minus = currentToken {
+            sign = -1.0
+            advance()
+        } else if case .plus = currentToken {
+            advance()
+        }
+        if case .number(let n) = currentToken {
+            advance()
+            return sign * n
+        }
+        if case .identifier(let s) = currentToken, let n = parseNumberFromIdentifier(s) {
+            advance()
+            return sign * n
+        }
+        return nil
+    }
+
+    private func isSignToken(_ token: SPICEToken) -> Bool {
+        if case .minus = token { return true }
+        if case .plus = token { return true }
+        return false
+    }
+
+    /// The parameter key a bare positional value maps to for a given component
+    /// type, or nil if that type has no (further) positional value.
+    private func positionalKey(for type: ComponentType, existing params: [String: ParsedParameterValue]) -> String? {
+        switch type {
+        case .resistor: return params["r"] == nil ? "r" : nil
+        case .capacitor: return params["c"] == nil ? "c" : nil
+        case .inductor: return params["l"] == nil ? "l" : nil
+        case .voltageSource: return params["v"] == nil ? "v" : nil
+        case .currentSource: return params["i"] == nil ? "i" : nil
+        case .vcvs: return params["e"] == nil ? "e" : nil
+        case .vccs: return params["g"] == nil ? "g" : nil
+        case .cccs: return params["f"] == nil ? "f" : nil
+        case .ccvs: return params["h"] == nil ? "h" : nil
+        default: return nil
+        }
     }
 
     private func parseNumberFromIdentifier(_ str: String) -> Double? {

@@ -361,6 +361,39 @@ def c_mos_l3_vsat(cs, ng, nodes):
     return err < 2e-3, f"max rel |Id - level-3 analytic(kappa)| = {err:.2e} (tol 2e-3)"
 
 
+def c_diode_cap(cs, ng, nodes):
+    # Small-signal capacitance Im(I)/omega of the diode vs ngspice across frequency
+    # (depletion junction cap on reverse bias, transit-time diffusion cap on forward).
+    header, rows = cs
+    ii = cs_col(header, "I(0)_imag")
+    ng_im = {c[0]: abs(c[1]) for c in ng}
+    ng_f = sorted(ng_im)
+    md = 0.0
+    for r in rows:
+        f = r[0]
+        c_cs = abs(r[ii]) / (2 * math.pi * f)
+        nf = min(ng_f, key=lambda x: abs(x - f))
+        c_ng = ng_im[nf] / (2 * math.pi * f)
+        if c_ng > 1e-16:
+            md = max(md, abs(c_cs - c_ng) / c_ng)
+    return md < 0.02, f"max rel C(dynamic) err vs ngspice = {md:.2e} (tol 0.02)"
+
+
+def c_bjt_ac(cs, ng, nodes):
+    # CE AC gain (Early + junction caps + transit time) vs ngspice across frequency.
+    header, rows = cs
+    ci = cs_col(header, f"V({nodes['c']})_real")
+    ng_db = {c[0]: c[1] for c in ng}
+    ng_f = sorted(ng_db)
+    md = 0.0
+    for r in rows:
+        f = r[0]
+        gain_cs = 20 * math.log10(math.hypot(r[ci], r[ci + 1]))
+        nf = min(ng_f, key=lambda x: abs(x - f))
+        md = max(md, abs(gain_cs - ng_db[nf]))
+    return md < 0.2, f"max |gain diff| vs ngspice = {md:.3f} dB across sweep (tol 0.2)"
+
+
 # (deck, corespice-checker, ngspice-runner producing the oracle data)
 CIRCUITS = []
 
@@ -603,6 +636,33 @@ M1 d g 0 0 NM W=10u L=1u
 .dc Vds 0 3 0.25
 .end
 """, c_mos_l3_vsat)
+
+add("24 BJT common-emitter AC gain (Early+caps+tf, vs ngspice)", """* npn CE amp, AC across frequency
+VCC vcc 0 dc 5
+VB vb 0 dc 2 ac 1
+RB vb b 100k
+RC vcc c 2k
+Q1 c b 0 QM
+.model QM NPN(is=1e-16 bf=100 vaf=50 cje=2p cjc=1p tf=0.3n)
+.ac dec 10 1e3 1e9
+.end
+""", c_bjt_ac, ("ac dec 10 1e3 1e9", ["vdb(c)"]))
+
+add("25 diode reverse junction capacitance (AC vs ngspice)", """* reverse-biased diode depletion capacitance
+Vd a 0 dc -2 ac 1
+D1 a 0 DM
+.model DM D(is=1e-14 cjo=2p vj=0.7 m=0.5 tt=1n)
+.ac dec 2 1e6 1e8
+.end
+""", c_diode_cap, ("ac dec 2 1e6 1e8", ["imag(i(vd))"]))
+
+add("26 diode forward diffusion capacitance (AC vs ngspice)", """* forward-biased diode transit-time diffusion capacitance
+Vd a 0 dc 0.65 ac 1
+D1 a 0 DM
+.model DM D(is=1e-14 cjo=2p vj=0.7 m=0.5 tt=1n)
+.ac dec 2 1e6 1e8
+.end
+""", c_diode_cap, ("ac dec 2 1e6 1e8", ["imag(i(vd))"]))
 
 
 def main():
