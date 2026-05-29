@@ -22,6 +22,36 @@ struct SensitivityIntegrationTests {
         )
     }
 
+    // MARK: - F4: Resistive divider sensitivity equals the analytic derivative
+
+    @Test("F4: Divider sensitivities match analytic derivatives")
+    func dividerSensitivityExact() async throws {
+        // V1 -> R1 -> mid -> R2 -> GND. V(mid) = V1*R2/(R1+R2).
+        // dV/dR2 = V1*R1/(R1+R2)^2; dV/dR1 = -V1*R2/(R1+R2)^2; dV/dV1 = R2/(R1+R2).
+        let v1 = 10.0, r1 = 1000.0, r2 = 1000.0
+        let (netlist, mid) = CircuitFactory.resistiveDivider(v: v1, r1: r1, r2: r2)
+        let result = try await runSensitivity(netlist: netlist, outputNode: mid)
+
+        let sum = r1 + r2
+        let expR2 = v1 * r1 / (sum * sum)
+        let expR1 = -v1 * r2 / (sum * sum)
+        let expV1 = r2 / sum
+
+        func sens(_ device: String, _ param: String) throws -> Double {
+            let s = try #require(result.sensitivities.first {
+                $0.deviceName.lowercased() == device && $0.parameterName.lowercased() == param
+            })
+            return s.sensitivity
+        }
+        // Finite-difference sensitivity; allow 2% relative error.
+        let sR2 = try sens("r2", "r")
+        let sR1 = try sens("r1", "r")
+        let sV1 = try sens("v1", "v")
+        #expect(abs(sR2 - expR2) / abs(expR2) < 0.02, "dV/dR2 expected \(expR2), got \(sR2)")
+        #expect(abs(sR1 - expR1) / abs(expR1) < 0.02, "dV/dR1 expected \(expR1), got \(sR1)")
+        #expect(abs(sV1 - expV1) / abs(expV1) < 0.02, "dV/dV1 expected \(expV1), got \(sV1)")
+    }
+
     // MARK: - F2: Diode Circuit Sensitivity
 
     @Test("F2: Diode circuit sensitivity to resistance")

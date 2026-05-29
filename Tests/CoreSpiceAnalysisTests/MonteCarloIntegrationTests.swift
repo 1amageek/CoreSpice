@@ -16,6 +16,41 @@ struct MonteCarloIntegrationTests {
         return try CircuitFactory.compile(netlist)
     }
 
+    // MARK: - G7: Determinism for a fixed seed
+
+    @Test("G7: Monte Carlo is reproducible for a fixed seed",
+          .timeLimit(.minutes(1)))
+    func monteCarloDeterministic() async throws {
+        let (netlist, mid) = CircuitFactory.resistiveDivider(v: 5.0, r1: 1000, r2: 1000)
+        let variations = [
+            ParameterVariation(deviceName: "R1", parameterName: "r",
+                               nominalValue: 1000, distribution: .gaussian(sigma: 100)),
+            ParameterVariation(deviceName: "R2", parameterName: "r",
+                               nominalValue: 1000, distribution: .gaussian(sigma: 100)),
+        ]
+        func runOnce() async throws -> [Double] {
+            let (plan, devices) = try CircuitFactory.compile(netlist)
+            let mc = MonteCarloAnalysis<DCAnalysis>(
+                iterations: 25, variations: variations,
+                analysisFactory: { DCAnalysis() }, seed: 7
+            )
+            let r = try await mc.run(
+                plan: plan, devices: devices, solver: SparseLUSolver(),
+                observer: nil, cancellation: CancellationToken()
+            )
+            return r.results.map { $0.voltage(at: mid) }
+        }
+        let a = try await runOnce()
+        let b = try await runOnce()
+        #expect(a.count == 25 && b.count == 25)
+        // Same seed must reproduce identical results bit-for-bit.
+        for (x, y) in zip(a, b) {
+            #expect(x == y, "same seed must give identical results: \(x) vs \(y)")
+        }
+        // And the variation actually produced spread across iterations.
+        #expect(Set(a).count > 1, "results should vary across iterations")
+    }
+
     // MARK: - G4: Nonlinear Circuit MC
 
     @Test("G4: Monte Carlo on diode circuit",

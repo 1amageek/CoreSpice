@@ -25,6 +25,23 @@ struct PoleZeroIntegrationTests {
         )
     }
 
+    // MARK: - I5: Single RC pole equals the exact analytic value
+
+    @Test("I5: Single RC pole equals -1/(RC)")
+    func singleRCPoleExact() async throws {
+        // V1 -> R(1k) -> out -> C(1u) -> GND. H = 1/(1+sRC), single pole at -1/(RC).
+        let r = 1000.0, c = 1e-6
+        let (netlist, out) = CircuitFactory.rcLowpass(r: r, c: c)
+        let result = try await runPoleZero(netlist: netlist, outputNode: out)
+        #expect(result.poles.count == 1, "single RC should have 1 pole, got \(result.poles.count)")
+        let p = result.poles[0]
+        let expectedRadPerSec = -1.0 / (r * c)  // -1000 rad/s
+        #expect(abs(p.imag) < abs(expectedRadPerSec) * 0.01, "pole should be real, imag=\(p.imag)")
+        #expect(abs(p.real - expectedRadPerSec) / abs(expectedRadPerSec) < 0.01,
+                "pole should be \(expectedRadPerSec) rad/s, got \(p.real)")
+        #expect(abs(result.dcGain - 1.0) < 0.01, "DC gain should be 1, got \(result.dcGain)")
+    }
+
     // MARK: - I4: Two-Stage RC Filter (2 Real Poles)
 
     @Test("I4: Two-stage RC filter has two distinct real poles")

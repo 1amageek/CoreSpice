@@ -194,4 +194,24 @@ struct NoiseIntegrationTests {
         #expect(ratio > 5 && ratio < 20,
                 "Noise ratio should be ~10 (R scales by 10), got \(ratio)")
     }
+
+    // MARK: - H7: Resistor thermal noise PSD matches the exact analytic value
+
+    @Test("H7: Output thermal noise PSD equals 4kT(R1||R2) to 2%")
+    func resistorThermalNoiseExact() async throws {
+        // Resistive divider with an ideal (noiseless) source: the output node
+        // sees the thermal noise of R1||R2, an exact closed-form result.
+        let r1 = 1000.0, r2 = 1000.0
+        let (netlist, out) = CircuitFactory.resistiveDivider(v: 1.0, r1: r1, r2: r2)
+        let result = try await runNoise(
+            netlist: netlist, outputNode: out,
+            sweep: FrequencySweep.single(1000.0)
+        )
+        let rParallel = (r1 * r2) / (r1 + r2)
+        let expected = 4.0 * Self.kB * Self.temperature * rParallel
+        let got = result.outputNoiseDensity[0]
+        let relErr = abs(got - expected) / expected
+        #expect(relErr < 0.02,
+                "Output thermal noise PSD should be 4kT(R1||R2)=\(expected), got \(got), relErr=\(relErr)")
+    }
 }

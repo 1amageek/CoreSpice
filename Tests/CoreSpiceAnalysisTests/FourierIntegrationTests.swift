@@ -9,6 +9,50 @@ import Foundation
 @Suite("Fourier Integration Tests")
 struct FourierIntegrationTests {
 
+    // MARK: - E6: Exact harmonic content of a synthesized two-tone signal
+
+    @Test("E6: Two-tone signal has exact harmonic magnitudes and THD",
+          .timeLimit(.minutes(1)))
+    func twoToneExactHarmonics() async throws {
+        // Two current sine sources into a 1k resistor synthesize an exact
+        // V(out) = 1*sin(wt) + 0.3*sin(2wt), so h1=1V, h2=0.3V, THD = 30%.
+        let freq = 1000.0
+        let period = 1.0 / freq
+        var netlist = Netlist()
+        let out = netlist.node("out")
+        try netlist.addInstance(name: "I1", typeName: "isource", nodes: ["0", "out"],
+                                parameters: ["io": .real(0.0), "ia": .real(1e-3), "freq": .real(freq)])
+        try netlist.addInstance(name: "I2", typeName: "isource", nodes: ["0", "out"],
+                                parameters: ["io": .real(0.0), "ia": .real(0.3e-3), "freq": .real(2.0 * freq)])
+        try netlist.addInstance(name: "R1", typeName: "resistor", nodes: ["out", "0"],
+                                parameters: ["r": .real(1000)])
+
+        let transientConfig = TransientConfig(
+            stopTime: 5.0 * period,
+            maxTimeStep: period / 400.0,
+            lteTolerance: 0.1
+        )
+        let fourier = FourierAnalysis(
+            fundamentalFrequency: freq,
+            harmonicCount: 5,
+            outputNodes: [out],
+            transientConfig: transientConfig
+        )
+        let (plan, devices) = try CircuitFactory.compile(netlist)
+        let result = try await fourier.run(
+            plan: plan, devices: devices, solver: SparseLUSolver(),
+            observer: nil, cancellation: CancellationToken()
+        )
+
+        let harmonics = try #require(result.harmonics["V(\(out.id))"])
+        let h1 = harmonics.first { $0.harmonic == 1 }?.magnitude ?? 0
+        let h2 = harmonics.first { $0.harmonic == 2 }?.magnitude ?? 0
+        #expect(abs(h1 - 1.0) / 1.0 < 0.02, "fundamental should be 1V, got \(h1)")
+        #expect(abs(h2 - 0.3) / 0.3 < 0.02, "second harmonic should be 0.3V, got \(h2)")
+        let thd = try #require(result.thd["V(\(out.id))"])
+        #expect(abs(thd - 30.0) < 1.0, "THD should be 30%, got \(thd)")
+    }
+
     // MARK: - E4: Diode Clipping THD
 
     @Test("E4: Diode clipping introduces harmonic distortion",
