@@ -19,10 +19,17 @@ public struct SubcircuitExpander: Sendable {
     }
 
     /// Expands a component into the netlist builder.
+    ///
+    /// - Parameter mapNodes: When true, node names are prefixed with `prefix`
+    ///   (used for top-level components). When false, the node names are already
+    ///   final (a subcircuit instance has already resolved its ports to external
+    ///   nodes and its internals to prefixed names), so they are used as-is. This
+    ///   prevents the ports from being prefixed a second time.
     public func expandComponent(
         _ component: ParsedComponent,
         into builder: inout Netlist,
-        prefix: String
+        prefix: String,
+        mapNodes: Bool = true
     ) throws {
         let fullName = prefix.isEmpty ? component.name : "\(prefix).\(component.name)"
 
@@ -54,16 +61,22 @@ public struct SubcircuitExpander: Sendable {
             evaluatedParams[name] = .real(evaluated)
         }
 
-        // Map nodes
-        let nodeNames = component.nodes.map { node -> String in
-            if prefix.isEmpty {
-                return node.name
+        // Map nodes. When the caller has already resolved node names (subcircuit
+        // body expansion), use them as-is to avoid prefixing the ports twice.
+        let nodeNames: [String]
+        if mapNodes {
+            nodeNames = component.nodes.map { node -> String in
+                if prefix.isEmpty {
+                    return node.name
+                }
+                // Keep global nodes as-is
+                if node.isGround {
+                    return node.name
+                }
+                return "\(prefix).\(node.name)"
             }
-            // Keep global nodes as-is
-            if node.isGround {
-                return node.name
-            }
-            return "\(prefix).\(node.name)"
+        } else {
+            nodeNames = component.nodes.map { $0.name }
         }
 
         // Allocate branches for devices that need them (voltage sources, inductors, etc.)
@@ -168,7 +181,9 @@ public struct SubcircuitExpander: Sendable {
                     location: bodyComponent.location
                 )
 
-                try expandComponent(mappedComponent, into: &builder, prefix: instancePrefix)
+                // Nodes are already resolved (ports -> external, internals ->
+                // prefixed), so do not prefix them again.
+                try expandComponent(mappedComponent, into: &builder, prefix: instancePrefix, mapNodes: false)
             }
         }
     }

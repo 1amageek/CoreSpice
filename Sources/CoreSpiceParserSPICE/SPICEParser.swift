@@ -279,23 +279,27 @@ private struct SPICEParserImpl {
         // Parse nodes
         let nodeCount = type.standardNodeCount ?? 2
 
-        // For subcircuit instances, collect all non-parameter tokens as nodes
+        // For subcircuit instances, collect all node tokens until the parameter
+        // section; the final identifier is the subcircuit name. Node names may be
+        // numeric (e.g. ground "0"), so numbers are collected as nodes too.
         if type == .subcircuitInstance {
-            // Nodes until we hit the subcircuit name (last identifier before params)
-            var identifiers: [String] = []
+            var tokens: [String] = []
             while !isAtEnd && !isNewline && !isParameterStart {
                 if case .identifier(let id) = currentToken {
-                    identifiers.append(id)
+                    tokens.append(id)
+                    advance()
+                } else if case .number(let n) = currentToken {
+                    tokens.append(String(Int(n)))
                     advance()
                 } else {
                     break
                 }
             }
-            // Last identifier is the subcircuit name
-            if let subcktName = identifiers.popLast() {
+            // The last token is the subcircuit name; the rest are connection nodes.
+            if let subcktName = tokens.popLast() {
                 modelName = subcktName
             }
-            nodes = identifiers.map { ParsedNodeRef(name: $0, location: loc) }
+            nodes = tokens.map { ParsedNodeRef(name: $0, location: loc) }
         } else {
             // Parse fixed number of nodes
             for _ in 0..<nodeCount {
@@ -735,14 +739,16 @@ private struct SPICEParserImpl {
         subcircuits = []
         parameters = [:]
 
-        // Parse until .ends
+        // Parse until .ends. Skip leading newlines/comments before the .ends
+        // check, otherwise parseStatement (which skips them itself) would consume
+        // the .ends directive and the loop would swallow the rest of the file.
         while !isAtEnd {
-            if case .directive(let dir) = currentToken {
-                if dir == "ends" {
-                    advance()
-                    skipToEndOfLine()
-                    break
-                }
+            skipNewlinesAndComments()
+            if isAtEnd { break }
+            if case .directive(let dir) = currentToken, dir == "ends" {
+                advance()
+                skipToEndOfLine()
+                break
             }
             try await parseStatement()
         }

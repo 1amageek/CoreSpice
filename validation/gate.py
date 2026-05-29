@@ -66,7 +66,8 @@ def cs_col(header, vname):
 
 def run_ngspice(ngspice, deck, control, vectors, workdir):
     """Run ngspice in batch with a control block, return list of column lists."""
-    body = "\n".join(l for l in deck.splitlines() if not l.strip().lower().startswith(".end"))
+    # Strip only the terminating ".end" line (keep ".ends" subcircuit terminators).
+    body = "\n".join(l for l in deck.splitlines() if l.strip().lower() != ".end")
     wr = "wrdata ng.csv " + " ".join(vectors)
     cir = os.path.join(workdir, "ng.cir")
     with open(cir, "w") as f:
@@ -682,6 +683,20 @@ D1 n2 0 DM
 .op
 .end
 """, c_isrc_diode, ("op", ["v(n1)"]))
+
+add("28 subcircuit (.subckt) inverter VTC (DC vs ngspice)", """* inverter defined as a subcircuit, instantiated with X
+.subckt inv in out vdd vss
+MP out in vdd vdd PM W=20u L=1u
+MN out in vss vss NM W=10u L=1u
+.ends
+VDD vdd 0 dc 3.3
+VIN vin 0 dc 0
+X1 vin out vdd 0 inv
+.model NM NMOS level=1 vto=0.7 kp=110u lambda=0.04 phi=0.65
+.model PM PMOS level=1 vto=-0.7 kp=50u lambda=0.04 phi=0.65
+.dc VIN 0 3.3 0.15
+.end
+""", c_inverter_vtc, ("dc VIN 0 3.3 0.15", ["v(out)"]))
 
 
 def main():

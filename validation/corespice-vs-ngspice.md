@@ -10,14 +10,14 @@ discrepancies are root-caused and fixed in CoreSpice — never silently accepted
 ```bash
 brew install ngspice
 swift build --product corespice
-python3 validation/gate.py        # 27/27 circuits must pass
+python3 validation/gate.py        # 28/28 circuits must pass
 ```
 
 `gate.py` runs each circuit through CoreSpice and compares the result to the
 analytic solution and/or ngspice, with per-circuit tolerances. Exit code is 0
 only when every circuit passes.
 
-## Corpus (27 circuits, all passing)
+## Corpus (28 circuits, all passing)
 
 | # | Circuit | Analysis | Oracle | Tolerance |
 |---|---|---|---|---|
