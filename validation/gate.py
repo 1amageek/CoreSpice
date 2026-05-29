@@ -278,6 +278,89 @@ def c_bjt_ce(cs, ng, nodes):
     return abs(vc - vc_ng) < 0.05, f"V(c) CoreSpice={vc:.4f} ngspice={vc_ng:.4f} (tol 0.05)"
 
 
+# --- MOSFET level-2/3 analytic references (CoreSpice's own model, not ngspice) -
+
+def _id_l1(vds, vgs, vto, beta, lam):
+    vov = vgs - vto
+    if vov <= 0:
+        return 0.0
+    clm = 1.0 + lam * vds
+    if vds < vov:
+        return beta * (vov * vds - 0.5 * vds * vds) * clm
+    return 0.5 * beta * vov * vov * clm
+
+
+def _id_l2(vds, vgs, vto, beta, lam, theta, eta):
+    vgst = (vgs - vto) + eta * vds          # DIBL lowers vth, raising vgst
+    if vgst <= 0:
+        return 0.0
+    beta_eff = beta / (1.0 + theta * vgst)
+    clm = 1.0 + lam * vds
+    if vds < vgst:
+        return beta_eff * (vgst * vds - 0.5 * vds * vds) * clm
+    return 0.5 * beta_eff * vgst * vgst * clm
+
+
+def _idvds_max_rel(rows, idcol, vgs, model):
+    worst = 0.0
+    for r in rows:
+        vds = r[0]
+        expected = model(vds, vgs)
+        if expected > 1e-9:
+            worst = max(worst, abs(abs(r[idcol]) - expected) / expected)
+    return worst
+
+
+def c_mos_l2_reduce(cs, ng, nodes):
+    # level-2 with theta=eta=0 must reduce to the level-1 Shichman-Hodges result.
+    header, rows = cs
+    idc = cs_col(header, "I(0)")
+    beta = 110e-6 * 10.0
+    err = _idvds_max_rel(rows, idc, 1.8, lambda vds, vgs: _id_l1(vds, vgs, 0.7, beta, 0.04))
+    return err < 1e-3, f"max rel |Id - level-1 analytic| = {err:.2e} (tol 1e-3)"
+
+
+def c_mos_l2_sc(cs, ng, nodes):
+    # level-2 with theta/eta matches CoreSpice's documented short-channel model.
+    header, rows = cs
+    idc = cs_col(header, "I(0)")
+    beta = 110e-6 * 10.0
+    err = _idvds_max_rel(rows, idc, 1.8,
+                         lambda vds, vgs: _id_l2(vds, vgs, 0.7, beta, 0.04, 0.05, 0.02))
+    return err < 2e-3, f"max rel |Id - level-2 analytic(theta,eta)| = {err:.2e} (tol 2e-3)"
+
+
+def _id_l3(vds, vgs, vto, beta, lam, theta, eta, kappa):
+    vgst = (vgs - vto) + eta * vds
+    if vgst <= 0:
+        return 0.0
+    beta_eff = beta / (1.0 + theta * vgst)
+    vdsat = vgst / (1.0 + kappa * vgst)     # velocity-saturation-reduced Vdsat
+    clm = 1.0 + lam * vds
+    if vds < vdsat:
+        f = vgst * vds - 0.5 * vds * vds
+    else:
+        f = vgst * vdsat - 0.5 * vdsat * vdsat
+    return beta_eff * f * clm
+
+
+def c_mos_l3_reduce(cs, ng, nodes):
+    header, rows = cs
+    idc = cs_col(header, "I(0)")
+    beta = 110e-6 * 10.0
+    err = _idvds_max_rel(rows, idc, 1.8, lambda vds, vgs: _id_l1(vds, vgs, 0.7, beta, 0.04))
+    return err < 1e-3, f"max rel |Id - level-1 analytic| = {err:.2e} (tol 1e-3)"
+
+
+def c_mos_l3_vsat(cs, ng, nodes):
+    header, rows = cs
+    idc = cs_col(header, "I(0)")
+    beta = 110e-6 * 10.0
+    err = _idvds_max_rel(rows, idc, 1.8,
+                         lambda vds, vgs: _id_l3(vds, vgs, 0.7, beta, 0.04, 0.0, 0.0, 0.5))
+    return err < 2e-3, f"max rel |Id - level-3 analytic(kappa)| = {err:.2e} (tol 2e-3)"
+
+
 # (deck, corespice-checker, ngspice-runner producing the oracle data)
 CIRCUITS = []
 
@@ -483,6 +566,43 @@ RD d 0 2k
 .ac dec 5 1 1e6
 .end
 """, c_cs_amp, ("ac dec 5 1 1e6", ["vdb(d)"]))
+
+
+add("20 MOSFET level-2 reduces to level-1 (DC, analytic)", """* nmos level-2 with no short-channel params
+Vds d 0 dc 1
+Vgs g 0 dc 1.8
+M1 d g 0 0 NM W=10u L=1u
+.model NM NMOS level=2 vto=0.7 kp=110u lambda=0.04 phi=0.65
+.dc Vds 0 3 0.25
+.end
+""", c_mos_l2_reduce)
+
+add("21 MOSFET level-2 short-channel (theta/eta, analytic)", """* nmos level-2 with mobility degradation + DIBL
+Vds d 0 dc 1
+Vgs g 0 dc 1.8
+M1 d g 0 0 NM W=10u L=1u
+.model NM NMOS level=2 vto=0.7 kp=110u lambda=0.04 phi=0.65 theta=0.05 eta=0.02
+.dc Vds 0 3 0.25
+.end
+""", c_mos_l2_sc)
+
+add("22 MOSFET level-3 reduces to level-1 (DC, analytic)", """* nmos level-3 with no short-channel params
+Vds d 0 dc 1
+Vgs g 0 dc 1.8
+M1 d g 0 0 NM W=10u L=1u
+.model NM NMOS level=3 vto=0.7 kp=110u lambda=0.04 phi=0.65
+.dc Vds 0 3 0.25
+.end
+""", c_mos_l3_reduce)
+
+add("23 MOSFET level-3 velocity saturation (kappa, analytic)", """* nmos level-3 with velocity-saturation knob kappa
+Vds d 0 dc 1
+Vgs g 0 dc 1.8
+M1 d g 0 0 NM W=10u L=1u
+.model NM NMOS level=3 vto=0.7 kp=110u lambda=0.04 phi=0.65 kappa=0.5
+.dc Vds 0 3 0.25
+.end
+""", c_mos_l3_vsat)
 
 
 def main():
