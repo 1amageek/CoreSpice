@@ -279,10 +279,10 @@ public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, Sendable {
             vbs = rawVbs
         }
 
-        let twoPhi = 2.0 * parameters.phi
-        let sqrtTwoPhi = sqrt(abs(twoPhi))
-        let twoPhiMinusVbs = max(twoPhi - vbs, 0.01)
-        let vth = parameters.vto + parameters.gamma * (sqrt(twoPhiMinusVbs) - sqrtTwoPhi)
+        let surfacePotential = parameters.phi
+        let sqrtPhi = sqrt(abs(surfacePotential))
+        let phiMinusVbs = max(surfacePotential - vbs, 0.01)
+        let vth = parameters.vto + parameters.gamma * (sqrt(phiMinusVbs) - sqrtPhi)
             - parameters.eta * vds
 
         let rawVgst = vgs - vth
@@ -322,7 +322,7 @@ public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, Sendable {
 
         let gmbs: Double
         if parameters.gamma > 0 {
-            gmbs = gm * parameters.gamma / (2.0 * sqrt(twoPhiMinusVbs))
+            gmbs = gm * parameters.gamma / (2.0 * sqrt(phiMinusVbs))
         } else {
             gmbs = 0
         }
@@ -437,11 +437,11 @@ public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, Sendable {
         let vgs = op.reversed ? (nodeVoltage(gateIdx, state) - nodeVoltage(drainIdx, state)) : (nodeVoltage(gateIdx, state) - nodeVoltage(sourceIdx, state))
         let vds = abs(nodeVoltage(drainIdx, state) - nodeVoltage(sourceIdx, state))
 
-        let twoPhi = 2.0 * parameters.phi
-        let sqrtTwoPhi = sqrt(abs(twoPhi))
+        let surfacePotential = parameters.phi
+        let sqrtPhi = sqrt(abs(surfacePotential))
         let vbs = op.reversed ? (nodeVoltage(bulkIdx, state) - nodeVoltage(drainIdx, state)) : (nodeVoltage(bulkIdx, state) - nodeVoltage(sourceIdx, state))
-        let twoPhiMinusVbs = max(twoPhi - vbs, 0.01)
-        let vth = parameters.vto + parameters.gamma * (sqrt(twoPhiMinusVbs) - sqrtTwoPhi)
+        let phiMinusVbs = max(surfacePotential - vbs, 0.01)
+        let vth = parameters.vto + parameters.gamma * (sqrt(phiMinusVbs) - sqrtPhi)
             - parameters.eta * vds
 
         let coxWL = cox * w * l

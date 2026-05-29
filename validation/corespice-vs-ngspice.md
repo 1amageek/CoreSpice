@@ -10,14 +10,14 @@ discrepancies are root-caused and fixed in CoreSpice — never silently accepted
 ```bash
 brew install ngspice
 swift build --product corespice
-python3 validation/gate.py        # 15/15 circuits must pass
+python3 validation/gate.py        # 19/19 circuits must pass
 ```
 
 `gate.py` runs each circuit through CoreSpice and compares the result to the
 analytic solution and/or ngspice, with per-circuit tolerances. Exit code is 0
 only when every circuit passes.
 
-## Corpus (15 circuits, all passing)
+## Corpus (19 circuits, all passing)
 
 | # | Circuit | Analysis | Oracle | Tolerance |
 |---|---|---|---|---|
@@ -36,6 +36,14 @@ only when every circuit passes.
 | 13 | 5T OTA operating point | DC (op) | ngspice | 0.02 V |
 | 14 | ring oscillator frequency | TRAN | ngspice | 2% |
 | 15 | differential pair balance | DC | ngspice | 1e-3 / 0.02 |
+| 16 | MOSFET body effect (Vsb≠0) | DC | analytic + ngspice | 5e-3 rel |
+| 17 | MOSFET explicit caps (CGSO/CGDO/CJ) | AC | ngspice | 1e-3 rel |
+| 18 | BJT common-emitter bias | DC | ngspice | 0.05 V |
+| 19 | PMOS common-source, saturated | AC | ngspice | 0.02 dB |
+
+The common-source amp (09) uses a solidly-saturated bias and matches ngspice to
+0.000 dB. The triode/saturation boundary is intrinsically gain-sensitive in the
+level-1 model (both engines), so circuits are biased away from Vds≈Vov.
 
 The linear core (R/C/L, DC/AC/TRAN) matches analytic to ~1e-7. MOSFET level-1 DC
 drive current matches ngspice to ~0.03%. The ring oscillator is within 0.56%.
@@ -49,6 +57,7 @@ drive current matches ngspice to ~0.03%. The ring oscillator is within 0.56%.
 | Every DC current source was 0 A | parser stored the current value under "v"; descriptor reads "i" | parser stores current-source DC value under "i" | CurrentSourceValueTests |
 | Current source sign inverted vs SPICE | non-standard convention in `BoundCurrentSource` | draw from + node, inject into − node (SPICE) | CurrentSourceConventionTests |
 | NR could accept a false (degenerate) DC solution | convergence checked only the update norm ‖Δx‖ | also require KCL residual ‖F(x)=(G+gmin)·x−s‖ within tol | (guarded by OTA/mirror in gate.py + CurrentSourceConventionTests) |
+| MOSFET body effect 22% off (Vsb≠0) | threshold used `2·phi` but SPICE PHI is already the full surface potential | use PHI directly in all 6 MOSFET levels (L1/2/3 × N/P) | gate.py #16 + MOSFETPhysicsTests gmbs |
 
 A pre-existing test (C15) encoded the old, inverted current-source sign; it was
 corrected to the SPICE convention (V = −I·R), verified against ngspice.

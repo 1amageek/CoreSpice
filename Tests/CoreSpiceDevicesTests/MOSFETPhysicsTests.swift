@@ -382,11 +382,11 @@ struct MOSFETPhysicsTests {
         // Expected values in saturation with CLM:
         // gm = beta * vgst * (1 + lambda * vds)
         // gds = 0.5 * beta * vgst^2 * lambda
-        // gmbs = gm * gamma / (2 * sqrt(2*phi))
+        // gmbs = gm * gamma / (2 * sqrt(phi - vbs))   (SPICE PHI used directly)
         let clm = 1.0 + lambda * vds
         let expectedGm = beta * vgst * clm
         let expectedGds = 0.5 * beta * vgst * vgst * lambda
-        let expectedGmbs = expectedGm * gamma / (2.0 * sqrt(2.0 * phi))
+        let expectedGmbs = expectedGm * gamma / (2.0 * sqrt(phi - vbs))
 
         let gm = collector.matrixSum(row: 0, col: 1)  // d-g stamp
         let gds = collector.matrixSum(row: 0, col: 0)  // d-d stamp

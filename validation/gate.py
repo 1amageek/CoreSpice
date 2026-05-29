@@ -192,12 +192,12 @@ def c_nmos_idvds(cs, ng, _):
     return md < 5e-3, f"max rel|Id-ngspice|={md:.2e} (tol 5e-3)"
 
 
-def c_cs_amp(cs, ng, _):
+def c_cs_amp(cs, ng, nodes):
     header, rows = cs
-    out = cs_col(header, "V(3)_real")
+    out = cs_col(header, f"V({nodes['d']})_real")
     g_cs = 20 * math.log10(math.hypot(rows[0][out], rows[0][out + 1]))
     g_ng = ng[0][1]
-    return abs(g_cs - g_ng) < 0.6, f"DC gain CoreSpice={g_cs:.3f} ngspice={g_ng:.3f} dB (tol 0.6)"
+    return abs(g_cs - g_ng) < 0.02, f"DC gain CoreSpice={g_cs:.3f} ngspice={g_ng:.3f} dB (tol 0.02)"
 
 
 def c_isrc_res(cs, ng, _):
@@ -248,6 +248,34 @@ def c_diffpair(cs, ng, _):
     ng_o1 = ng["o1"]
     err = abs(o1 - ng_o1)
     return bal < 1e-3 and err < 0.02, f"balance|o1-o2|={bal:.2e} o1={o1:.4f}(ng {ng_o1:.4f}) (tol bal 1e-3, ng 0.02)"
+
+
+def c_body_effect(cs, ng, nodes):
+    header, rows = cs
+    # Drain current = current through Vd, the first declared voltage source = I(0).
+    idr = cs_col(header, "I(0)")
+    id_cs = abs(rows[0][idr]); id_ng = abs(ng[0][1])
+    rel = abs(id_cs - id_ng) / id_ng
+    return rel < 5e-3, f"Id CoreSpice={id_cs:.4e} ngspice={id_ng:.4e} rel={rel:.2e} (tol 5e-3)"
+
+
+def c_mos_caps(cs, ng, nodes):
+    header, rows = cs
+    ii = cs_col(header, "I(0)_imag")  # Vg is the first source: I(0) is its branch current
+    md = 0.0
+    for r, n in zip(rows, ng):
+        f = r[0]
+        cgg_cs = abs(r[ii]) / (2 * math.pi * f)
+        cgg_ng = abs(n[1]) / (2 * math.pi * f)
+        md = max(md, abs(cgg_cs - cgg_ng) / max(cgg_ng, 1e-18))
+    return md < 1e-3, f"max rel Cgg err vs ngspice={md:.2e} (tol 1e-3)"
+
+
+def c_bjt_ce(cs, ng, nodes):
+    header, rows = cs
+    vc = rows[0][cs_col(header, f"V({nodes['c']})")]
+    vc_ng = ng[0][1]
+    return abs(vc - vc_ng) < 0.05, f"V(c) CoreSpice={vc:.4f} ngspice={vc_ng:.4f} (tol 0.05)"
 
 
 # (deck, corespice-checker, ngspice-runner producing the oracle data)
@@ -326,11 +354,11 @@ M1 d g 0 0 NM W=10u L=1u
 .end
 """, c_nmos_idvds, ("dc Vds 0 3 0.25", ["i(vds)"]))
 
-add("09 common-source amp (AC vs ngspice)", """* cs amp
+add("09 common-source amp, saturated (AC vs ngspice)", """* cs amp, device solidly in saturation (Vds >> Vov)
 VDD vdd 0 dc 3.3
-Vg g 0 dc 1.2 ac 1
+Vg g 0 dc 1.0 ac 1
 M1 d g 0 0 NM W=20u L=1u
-RD vdd d 10k
+RD vdd d 2k
 .model NM NMOS level=1 vto=0.7 kp=110u lambda=0.04 gamma=0.4 phi=0.65
 .ac dec 5 1 1e6
 .end
@@ -416,6 +444,47 @@ R2 vdd o2 20k
 """, c_diffpair, ("op", ["v(o1)", "v(o2)"]))
 
 
+add("16 MOSFET body effect (DC Id, vs ngspice)", """* NMOS with Vsb=0.8 so gamma raises Vth
+Vd d 0 dc 2
+Vg g 0 dc 2
+Vs s 0 dc 0.8
+M1 d g s 0 NM W=10u L=1u
+.model NM NMOS level=1 vto=0.7 kp=110u lambda=0.04 gamma=0.4 phi=0.65
+.op
+.end
+""", c_body_effect, ("op", ["i(vd)"]))
+
+add("17 MOSFET explicit caps (AC Cgg, vs ngspice)", """* gate-cap probe with overlap + junction + oxide caps specified
+Vg g 0 dc 0.9 ac 1
+Vd d 0 dc 0.9
+M1 d g 0 0 NM W=10u L=1u ad=2p as=2p pd=24u ps=24u
+.model NM NMOS level=1 vto=0.7 kp=110u lambda=0.04 gamma=0.4 phi=0.65 tox=1e-8 cgso=2e-10 cgdo=2e-10 cj=1e-3 cjsw=2e-10 mj=0.5 mjsw=0.33 pb=0.8
+.ac dec 2 1e6 1e8
+.end
+""", c_mos_caps, ("ac dec 2 1e6 1e8", ["imag(i(vg))"]))
+
+add("18 BJT common-emitter bias (DC, vs ngspice)", """* npn common-emitter, resistor base bias
+VCC vcc 0 dc 5
+VB vb 0 dc 2
+RB vb b 100k
+RC vcc c 2k
+Q1 c b 0 QM
+.model QM NPN(is=1e-16 bf=100)
+.op
+.end
+""", c_bjt_ce, ("op", ["v(c)"]))
+
+add("19 PMOS common-source, saturated (AC vs ngspice)", """* pmos cs amp, solidly in saturation
+VDD vdd 0 dc 3.3
+Vg g 0 dc 2.3 ac 1
+M1 d g vdd vdd PM W=20u L=1u
+RD d 0 2k
+.model PM PMOS level=1 vto=-0.7 kp=50u lambda=0.04 gamma=0.4 phi=0.65
+.ac dec 5 1 1e6
+.end
+""", c_cs_amp, ("ac dec 5 1 1e6", ["vdb(d)"]))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--corespice",
@@ -445,7 +514,7 @@ def main():
                             ng = cols
                     else:
                         ng = cols
-                passed, detail = checker(cs, ng, wd)
+                passed, detail = checker(cs, ng, node_ids(deck))
             except Exception as e:
                 passed, detail = False, f"ERROR: {e}"
         results.append((name, passed, detail))

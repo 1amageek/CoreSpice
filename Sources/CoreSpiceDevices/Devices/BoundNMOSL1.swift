@@ -37,7 +37,7 @@ public struct MOSFETCSRIndices: Sendable {
 /// - **Saturation**: `Vgs >= Vth` and `Vds >= Vgs - Vth`.
 ///
 /// Body effect modulates the threshold voltage via the bulk-source voltage:
-///   `Vth = Vto + gamma * (sqrt(2*phi - Vbs) - sqrt(2*phi))`
+///   `Vth = Vto + gamma * (sqrt(phi - Vbs) - sqrt(phi))`
 ///
 /// The device is linearised around the current operating point for
 /// Newton-Raphson iteration.
@@ -319,10 +319,10 @@ public struct BoundNMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         }
 
         // Body effect: threshold voltage modulation
-        let twoPhi = 2.0 * parameters.phi
-        let sqrtTwoPhi = sqrt(abs(twoPhi))
-        let twoPhiMinusVbs = max(twoPhi - vbs, 0.01)
-        let vth = parameters.vto + parameters.gamma * (sqrt(twoPhiMinusVbs) - sqrtTwoPhi)
+        let surfacePotential = parameters.phi
+        let sqrtPhi = sqrt(abs(surfacePotential))
+        let phiMinusVbs = max(surfacePotential - vbs, 0.01)
+        let vth = parameters.vto + parameters.gamma * (sqrt(phiMinusVbs) - sqrtPhi)
 
         // Smooth overdrive: continuous transition through cutoff (no hard if/else)
         let rawVgst = vgs - vth
@@ -353,10 +353,10 @@ public struct BoundNMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         // Ensure minimum gds to prevent singular matrix
         let effectiveGds = max(gds, Self.minGds)
 
-        // Body transconductance: gmbs = gm * gamma / (2 * sqrt(2*phi - Vbs))
+        // Body transconductance: gmbs = gm * gamma / (2 * sqrt(phi - Vbs))
         let gmbs: Double
         if parameters.gamma > 0 {
-            gmbs = gm * parameters.gamma / (2.0 * sqrt(twoPhiMinusVbs))
+            gmbs = gm * parameters.gamma / (2.0 * sqrt(phiMinusVbs))
         } else {
             gmbs = 0
         }
@@ -493,11 +493,11 @@ public struct BoundNMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         let vgs = op.reversed ? (nodeVoltage(gateIdx, state) - nodeVoltage(drainIdx, state)) : (nodeVoltage(gateIdx, state) - nodeVoltage(sourceIdx, state))
         let vds = abs(nodeVoltage(drainIdx, state) - nodeVoltage(sourceIdx, state))
 
-        let twoPhi = 2.0 * parameters.phi
-        let sqrtTwoPhi = sqrt(abs(twoPhi))
+        let surfacePotential = parameters.phi
+        let sqrtPhi = sqrt(abs(surfacePotential))
         let vbs = op.reversed ? (nodeVoltage(bulkIdx, state) - nodeVoltage(drainIdx, state)) : (nodeVoltage(bulkIdx, state) - nodeVoltage(sourceIdx, state))
-        let twoPhiMinusVbs = max(twoPhi - vbs, 0.01)
-        let vth = parameters.vto + parameters.gamma * (sqrt(twoPhiMinusVbs) - sqrtTwoPhi)
+        let phiMinusVbs = max(surfacePotential - vbs, 0.01)
+        let vth = parameters.vto + parameters.gamma * (sqrt(phiMinusVbs) - sqrtPhi)
 
         let coxWL = cox * w * l
         let cgs: Double

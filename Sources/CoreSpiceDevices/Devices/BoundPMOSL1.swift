@@ -8,7 +8,7 @@ import CoreSpiceIR
 /// (equivalently `Vgs < Vtp` where Vtp is negative).
 ///
 /// Body effect modulates the threshold voltage via the bulk-source voltage:
-///   `Vth = Vto + gamma * (sqrt(2*phi - Vbs) - sqrt(2*phi))`
+///   `Vth = Vto + gamma * (sqrt(phi - Vbs) - sqrt(phi))`
 ///
 /// Operating regions (using source-referenced voltages):
 /// - **Cutoff**: `Vsg < |Vtp|` -- no current flows.
@@ -298,12 +298,12 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         }
 
         // Body effect: threshold voltage modulation
-        // Vtp = VTO + gamma * (sqrt(2*phi - Vbs) - sqrt(2*phi))
+        // Vtp = VTO + gamma * (sqrt(phi - Vbs) - sqrt(phi))
         // For PMOS, VTO < 0, and |Vtp| = -Vtp
-        let twoPhi = 2.0 * parameters.phi
-        let sqrtTwoPhi = sqrt(abs(twoPhi))
-        let twoPhiMinusVbs = max(twoPhi - vbs, 0.01)
-        let vtp = parameters.vto + parameters.gamma * (sqrt(twoPhiMinusVbs) - sqrtTwoPhi)
+        let surfacePotential = parameters.phi
+        let sqrtPhi = sqrt(abs(surfacePotential))
+        let phiMinusVbs = max(surfacePotential - vbs, 0.01)
+        let vtp = parameters.vto + parameters.gamma * (sqrt(phiMinusVbs) - sqrtPhi)
         // |Vtp| for the conduction check
         let vtpAbs = -vtp
 
@@ -336,10 +336,10 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         // Ensure minimum gds to prevent singular matrix
         let effectiveGds = max(gds, Self.minGds)
 
-        // Body transconductance: gmbs = gm * gamma / (2 * sqrt(2*phi - Vbs))
+        // Body transconductance: gmbs = gm * gamma / (2 * sqrt(phi - Vbs))
         let gmbs: Double
         if parameters.gamma > 0 {
-            gmbs = gm * parameters.gamma / (2.0 * sqrt(twoPhiMinusVbs))
+            gmbs = gm * parameters.gamma / (2.0 * sqrt(phiMinusVbs))
         } else {
             gmbs = 0
         }
@@ -484,12 +484,12 @@ public struct BoundPMOSL1: BoundDevice, VoltageLimitingDevice, Sendable {
         let vsg = op.reversed ? (nodeVoltage(drainIdx, state) - nodeVoltage(gateIdx, state)) : (nodeVoltage(sourceIdx, state) - nodeVoltage(gateIdx, state))
         let vsd = abs(nodeVoltage(sourceIdx, state) - nodeVoltage(drainIdx, state))
 
-        let twoPhi = 2.0 * parameters.phi
-        let sqrtTwoPhi = sqrt(abs(twoPhi))
+        let surfacePotential = parameters.phi
+        let sqrtPhi = sqrt(abs(surfacePotential))
         let vbs = nodeVoltage(bulkIdx, state) - nodeVoltage(sourceIdx, state)
-        let twoPhiMinusVbs = max(twoPhi - vbs, 0.01)
+        let phiMinusVbs = max(surfacePotential - vbs, 0.01)
         // For PMOS: Vtp < 0, so |Vtp| is the conduction threshold for Vsg
-        let vtp = parameters.vto + parameters.gamma * (sqrt(twoPhiMinusVbs) - sqrtTwoPhi)
+        let vtp = parameters.vto + parameters.gamma * (sqrt(phiMinusVbs) - sqrtPhi)
         let vtpAbs = -vtp
 
         let coxWL = cox * w * l
