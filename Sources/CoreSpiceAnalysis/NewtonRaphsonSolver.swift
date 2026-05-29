@@ -72,6 +72,10 @@ public struct NewtonRaphsonSolver: Sendable {
         var localMatrix = matrix
         var localRHS = rhs
 
+        // Buffers for the physical KCL residual check at the candidate solution.
+        var residualMatrix = matrix
+        var residualRHS = [Double](repeating: 0, count: n)
+
         // Adaptive damping state
         var previousUpdateNorm: Double = .infinity
 
@@ -190,6 +194,44 @@ public struct NewtonRaphsonSolver: Sendable {
                     if case .notConverged = device.checkConvergence(
                         state: currentState, previousState: prevState
                     ) {
+                        converged = false
+                        break
+                    }
+                }
+            }
+
+            // Verify the physical KCL residual F(x) = (G(x) + gmin)·x - s(x) is
+            // within tolerance, not just the solution update. Without this a
+            // stalled point (e.g. all devices off while an independent current
+            // source is unsatisfied) is falsely accepted as converged, silently
+            // returning a wrong operating point. Only evaluated once the update
+            // criterion is met, so the extra stamp runs at most once per solve.
+            if converged {
+                residualMatrix.clear()
+                for i in 0..<n { residualRHS[i] = 0 }
+                var residualStamper = MatrixStamper(
+                    variableMap: variableMap,
+                    stampMatrix: { row, col, val in
+                        residualMatrix.addValue(row: row, col: col, value: val)
+                    },
+                    stampRHS: { row, val in
+                        residualRHS[row] += val
+                    },
+                    stampValue: { idx, val in
+                        residualMatrix.addValueDirect(at: idx, value: val)
+                    }
+                )
+                let residualState = SolutionState(variables: x, variableMap: variableMap)
+                stampFunction(&residualStamper, residualState)
+                for i in 0..<n {
+                    residualMatrix.addValue(row: i, col: i, value: config.gmin)
+                }
+                let gx = residualMatrix.multiply(vector: x)
+                for i in 0..<n {
+                    let residual = abs(gx[i] - residualRHS[i])
+                    let tol = (branchCurrentIndices.contains(i) ? config.vntol : config.abstol)
+                        + config.reltol * abs(residualRHS[i])
+                    if residual > tol {
                         converged = false
                         break
                     }

@@ -763,8 +763,9 @@ struct TransientIntegrationTests {
 
     @Test("C15: Current source pulse driving a resistor")
     func currentSourcePulse() async throws {
-        // I1(PULSE 0→1mA, pw=0.49ms, per=1ms) → R(1kΩ) → GND
-        // V(out) = I × R = 1mA × 1kΩ = 1V during pulse
+        // I1(PULSE 0→1mA, pw=0.49ms, per=1ms) from "out" to GND, R(1kΩ) out→GND.
+        // SPICE convention: I1 out 0 draws current from "out", so during the
+        // pulse V(out) = -I × R = -1V (verified against ngspice).
         var netlist = Netlist()
         let out = netlist.node("out")
         try netlist.addInstance(name: "I1", typeName: "isource", nodes: ["out", "0"],
@@ -787,11 +788,11 @@ struct TransientIntegrationTests {
         let waveform = result.voltageWaveform(at: out)
         #expect(waveform.count > 20)
 
-        // During pulse high (e.g., t=0.25ms): V = I × R = 1V
+        // During pulse high (e.g., t=0.25ms): V = -I × R = -1V
         let highIdx = timeIndex(in: result, closest: 0.25e-3)
         let vHigh = result.voltage(at: out, timeIndex: highIdx)
-        #expect(abs(vHigh - 1.0) < 0.15,
-                "During pulse, V should be ~1V (I×R), got \(vHigh)")
+        #expect(abs(vHigh + 1.0) < 0.15,
+                "During pulse, V should be ~-1V (-I×R), got \(vHigh)")
 
         // During pulse low (e.g., t=0.75ms): V = 0V
         let lowIdx = timeIndex(in: result, closest: 0.75e-3)

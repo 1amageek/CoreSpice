@@ -331,9 +331,11 @@ private struct SPICEParserImpl {
                     // SPICE source syntax: V1 n1 n2 dc <value> ac <value>
                     // "dc <value>" sets the DC voltage/current
                     // "ac <value>" sets the AC magnitude
+                    // Current sources carry their DC value under "i"; voltage sources under "v".
+                    let dcKey = (type == .currentSource) ? "i" : "v"
                     if case .number(let n) = currentToken {
                         if lower == "dc" {
-                            params["v"] = .numeric(n)
+                            params[dcKey] = .numeric(n)
                         } else {
                             params["ac"] = .numeric(n)
                         }
@@ -341,7 +343,7 @@ private struct SPICEParserImpl {
                     } else if case .identifier(let valStr) = currentToken,
                               let n = parseNumberFromIdentifier(valStr) {
                         if lower == "dc" {
-                            params["v"] = .numeric(n)
+                            params[dcKey] = .numeric(n)
                         } else {
                             params["ac"] = .numeric(n)
                         }
@@ -379,9 +381,12 @@ private struct SPICEParserImpl {
                     params["c"] = .numeric(n)
                 } else if type == .inductor && params["l"] == nil {
                     params["l"] = .numeric(n)
-                } else if (type == .voltageSource || type == .currentSource) && params["v"] == nil {
-                    // Bare positional DC value for sources: V1 n1 n2 5
+                } else if type == .voltageSource && params["v"] == nil {
+                    // Bare positional DC value for a voltage source: V1 n1 n2 5
                     params["v"] = .numeric(n)
+                } else if type == .currentSource && params["i"] == nil {
+                    // Bare positional DC value for a current source: I1 n1 n2 1m
+                    params["i"] = .numeric(n)
                 } else if type == .vcvs && params["e"] == nil {
                     params["e"] = .numeric(n)
                 } else if type == .vccs && params["g"] == nil {

@@ -2,8 +2,9 @@ import CoreSpiceIR
 
 /// A current source bound to specific circuit nodes.
 ///
-/// Current flows from the negative terminal to the positive terminal
-/// (conventional current enters the positive node).
+/// SPICE convention: positive current flows from the positive node, through the
+/// source, to the negative node, so current is drawn from the positive node and
+/// injected into the negative node.
 /// No branch variable is needed; only the RHS is stamped.
 public struct BoundCurrentSource: BoundDevice, Sendable {
 
@@ -40,11 +41,14 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
+        // SPICE convention: positive current flows from the positive node,
+        // through the source, to the negative node. Current is drawn from the
+        // positive node and injected into the negative node.
         if let i = posIdx {
-            stamper.stampRHS(i, dcCurrent)
+            stamper.stampRHS(i, -dcCurrent)
         }
         if let j = negIdx {
-            stamper.stampRHS(j, -dcCurrent)
+            stamper.stampRHS(j, dcCurrent)
         }
     }
 
@@ -60,10 +64,10 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
     ) {
         let current = waveform.value(at: integration.currentTime)
         if let i = posIdx {
-            stamper.stampRHS(i, current)
+            stamper.stampRHS(i, -current)
         }
         if let j = negIdx {
-            stamper.stampRHS(j, -current)
+            stamper.stampRHS(j, current)
         }
     }
 
@@ -85,10 +89,10 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
     public func stampDCScaled(into stamper: inout MatrixStamper, state: SolutionState, factor: Double) {
         let scaledCurrent = dcCurrent * factor
         if let i = posIdx {
-            stamper.stampRHS(i, scaledCurrent)
+            stamper.stampRHS(i, -scaledCurrent)
         }
         if let j = negIdx {
-            stamper.stampRHS(j, -scaledCurrent)
+            stamper.stampRHS(j, scaledCurrent)
         }
     }
 }
