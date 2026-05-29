@@ -13,11 +13,14 @@ Exit code 0 if all circuits pass, 1 otherwise.
 """
 import argparse
 import csv
+import json
 import math
 import os
 import subprocess
 import sys
 import tempfile
+
+GOLDEN_PATH = os.path.join(os.path.dirname(__file__), "golden.json")
 
 # Node counts per device type, to map node names to CoreSpice numeric node IDs
 # (assigned in first-appearance order, ground "0" excluded).
@@ -699,13 +702,33 @@ X1 vin out vdd 0 inv
 """, c_inverter_vtc, ("dc VIN 0 3.3 0.15", ["v(out)"]))
 
 
+def shape_ng(name, cols):
+    """Shape raw ngspice wrdata columns into the form each checker expects."""
+    if name.startswith("13"):
+        return {"out": cols[0][1], "da": cols[0][3]}
+    if name.startswith("15"):
+        return {"o1": cols[0][1], "o2": cols[0][3]}
+    if name.startswith("14"):
+        return osc_freq([c[0] for c in cols], [c[1] for c in cols])
+    return cols
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--corespice",
                     default=os.path.join(os.path.dirname(__file__), "..", ".build", "debug", "corespice"))
     ap.add_argument("--ngspice", default="ngspice")
+    ap.add_argument("--update-golden", action="store_true",
+                    help="Regenerate the committed golden references by running ngspice.")
     args = ap.parse_args()
     corespice = os.path.abspath(args.corespice)
+
+    # Golden mode (default) reads frozen references so the gate runs without
+    # ngspice; --update-golden regenerates them from a live ngspice run.
+    golden = {}
+    if not args.update_golden:
+        with open(GOLDEN_PATH) as f:
+            golden = json.load(f)
 
     results = []
     for name, deck, checker, ng_spec in CIRCUITS:
@@ -714,24 +737,24 @@ def main():
                 cs = run_corespice(corespice, deck, wd)
                 ng = None
                 if ng_spec is not None:
-                    control, vectors = ng_spec
-                    cols = run_ngspice(args.ngspice, deck, control, vectors, wd)
-                    # Provide ngspice data in the shape each checker expects.
-                    if name.startswith("13"):
-                        ng = {"out": cols[0][1], "da": cols[0][3]}
-                    elif name.startswith("15"):
-                        ng = {"o1": cols[0][1], "o2": cols[0][3]}
-                    elif name.startswith("14") or name.startswith("11"):
-                        if name.startswith("14"):
-                            ng = osc_freq([c[0] for c in cols], [c[1] for c in cols])
-                        else:
-                            ng = cols
+                    if args.update_golden:
+                        control, vectors = ng_spec
+                        cols = run_ngspice(args.ngspice, deck, control, vectors, wd)
+                        ng = shape_ng(name, cols)
+                        golden[name] = ng
                     else:
-                        ng = cols
+                        if name not in golden:
+                            raise RuntimeError("missing golden reference; run --update-golden")
+                        ng = golden[name]
                 passed, detail = checker(cs, ng, node_ids(deck))
             except Exception as e:
                 passed, detail = False, f"ERROR: {e}"
         results.append((name, passed, detail))
+
+    if args.update_golden:
+        with open(GOLDEN_PATH, "w") as f:
+            json.dump(golden, f, indent=1)
+        print(f"Wrote golden references for {len(golden)} circuits to {GOLDEN_PATH}")
 
     print("=" * 78)
     print("CoreSpice numerical trust gate")
