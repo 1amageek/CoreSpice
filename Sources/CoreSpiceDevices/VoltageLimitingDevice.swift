@@ -19,4 +19,16 @@ public protocol VoltageLimitingDevice: BoundDevice {
     ///   - solution: The current NR solution vector (modified in place).
     ///   - previousSolution: The solution vector from the previous NR iteration.
     func limitVoltages(solution: inout [Double], previousSolution: [Double])
+
+    /// Whether limiting must also run on the first NR iteration (from the zero
+    /// initial guess). Exponential PN junctions set this true: without it, a
+    /// junction driven by a current source jumps to an enormous voltage on the
+    /// first step and cannot recover. Polynomial devices (MOSFETs) leave it
+    /// false so the first step can reach the operating region freely.
+    var limitsFirstIteration: Bool { get }
+}
+
+public extension VoltageLimitingDevice {
+    /// Default: do not limit on the first iteration (suits polynomial devices).
+    var limitsFirstIteration: Bool { false }
 }

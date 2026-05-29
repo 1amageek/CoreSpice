@@ -154,16 +154,17 @@ public struct NewtonRaphsonSolver: Sendable {
             swap(&x, &previousX)
             // Now: previousX = old x, x = stale buffer (will be overwritten)
 
-            // Device-level voltage limiting on the raw NR solution.
-            // Applied before damping to prevent exponential blow-up.
-            // Skip on the first iteration to allow the initial guess to jump
-            // to a reasonable operating region from a zero initial state.
+            // Device-level voltage limiting on the raw NR solution, applied before
+            // damping to prevent overshoot/blow-up. On the first iteration only
+            // exponential PN-junction devices are limited (they would otherwise
+            // jump to an enormous voltage from the zero initial guess and could not
+            // recover); polynomial devices (MOSFETs) keep the unlimited first step
+            // so they can reach their operating region freely.
             // After swap: previousX = old x (iter-1), x = stale (will be overwritten).
-            if iter > 0 {
-                for device in devices {
-                    if let limiter = device as? VoltageLimitingDevice {
-                        limiter.limitVoltages(solution: &dx, previousSolution: previousX)
-                    }
+            for device in devices {
+                if let limiter = device as? VoltageLimitingDevice,
+                   iter > 0 || limiter.limitsFirstIteration {
+                    limiter.limitVoltages(solution: &dx, previousSolution: previousX)
                 }
             }
 

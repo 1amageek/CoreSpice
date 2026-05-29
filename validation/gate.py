@@ -361,6 +361,15 @@ def c_mos_l3_vsat(cs, ng, nodes):
     return err < 2e-3, f"max rel |Id - level-3 analytic(kappa)| = {err:.2e} (tol 2e-3)"
 
 
+def c_isrc_diode(cs, ng, nodes):
+    # Convergence stressor: a current source driving a diode through a resistor.
+    # Requires first-iteration junction limiting to avoid the exponential blow-up.
+    header, rows = cs
+    v = rows[0][cs_col(header, f"V({nodes['n1']})")]
+    v_ng = ng[0][1]
+    return abs(v - v_ng) < 0.01, f"V(n1) CoreSpice={v:.4f} ngspice={v_ng:.4f} (tol 0.01)"
+
+
 def c_diode_cap(cs, ng, nodes):
     # Small-signal capacitance Im(I)/omega of the diode vs ngspice across frequency
     # (depletion junction cap on reverse bias, transit-time diffusion cap on forward).
@@ -663,6 +672,16 @@ D1 a 0 DM
 .ac dec 2 1e6 1e8
 .end
 """, c_diode_cap, ("ac dec 2 1e6 1e8", ["imag(i(vd))"]))
+
+
+add("27 current-source-driven diode (convergence, vs ngspice)", """* 1mA current source drives a diode through a resistor
+I1 0 n1 dc 1m
+R1 n1 n2 1k
+D1 n2 0 DM
+.model DM D(is=1e-14)
+.op
+.end
+""", c_isrc_diode, ("op", ["v(n1)"]))
 
 
 def main():

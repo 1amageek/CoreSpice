@@ -298,6 +298,10 @@ public struct BoundDiode: BoundDevice, VoltageLimitingDevice, Sendable {
 
     // MARK: - VoltageLimitingDevice
 
+    /// PN junctions must be limited from the first iteration to avoid an
+    /// exponential blow-up when driven far from the operating point.
+    public var limitsFirstIteration: Bool { true }
+
     public func limitVoltages(solution: inout [Double], previousSolution: [Double]) {
         let vt = parameters.emissionCoefficient * parameters.thermalVoltage
         let isat = parameters.saturationCurrent

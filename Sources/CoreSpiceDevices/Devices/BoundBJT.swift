@@ -338,6 +338,9 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
 
     // MARK: - VoltageLimitingDevice
 
+    /// BJT junctions are exponential and must be limited from the first iteration.
+    public var limitsFirstIteration: Bool { true }
+
     public func limitVoltages(solution: inout [Double], previousSolution: [Double]) {
         let nfVt = parameters.forwardEmissionCoefficient * parameters.thermalVoltage
         let nrVt = parameters.reverseEmissionCoefficient * parameters.thermalVoltage

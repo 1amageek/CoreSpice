@@ -10,14 +10,14 @@ discrepancies are root-caused and fixed in CoreSpice — never silently accepted
 ```bash
 brew install ngspice
 swift build --product corespice
-python3 validation/gate.py        # 26/26 circuits must pass
+python3 validation/gate.py        # 27/27 circuits must pass
 ```
 
 `gate.py` runs each circuit through CoreSpice and compares the result to the
 analytic solution and/or ngspice, with per-circuit tolerances. Exit code is 0
 only when every circuit passes.
 
-## Corpus (26 circuits, all passing)
+## Corpus (27 circuits, all passing)
 
 | # | Circuit | Analysis | Oracle | Tolerance |
 |---|---|---|---|---|
@@ -58,9 +58,17 @@ drive current matches ngspice to ~0.03%. The ring oscillator is within 0.56%.
 | Current source sign inverted vs SPICE | non-standard convention in `BoundCurrentSource` | draw from + node, inject into − node (SPICE) | CurrentSourceConventionTests |
 | NR could accept a false (degenerate) DC solution | convergence checked only the update norm ‖Δx‖ | also require KCL residual ‖F(x)=(G+gmin)·x−s‖ within tol | (guarded by OTA/mirror in gate.py + CurrentSourceConventionTests) |
 | MOSFET body effect 22% off (Vsb≠0) | threshold used `2·phi` but SPICE PHI is already the full surface potential | use PHI directly in all 6 MOSFET levels (L1/2/3 × N/P) | gate.py #16 + MOSFETPhysicsTests gmbs |
+| Negative DC source values parsed as 0 (`V1 a 0 dc -2`) | lexer emits '-' as a separate token; source-value paths only read a bare number | parser `parseSignedNumber` reassembles the sign in value contexts | CurrentSourceValueTests negative* |
+| Current-source-driven PN junctions failed to converge | the first NR iteration skipped limiting, so a diode blew up exponentially | limit PN junctions (diode/BJT) on the first iteration too (`limitsFirstIteration`); MOSFETs keep the unlimited first step | gate.py #27 + CurrentSourceConventionTests |
 
 A pre-existing test (C15) encoded the old, inverted current-source sign; it was
 corrected to the SPICE convention (V = −I·R), verified against ngspice.
+
+Known convergence limitation: a current source driving 2+ *series* diodes with no
+resistive path (a pure stacked-exponential string) does not converge — it fails
+loudly (reported convergence failure), never a silent wrong answer. Bistable
+latches have multiple valid DC solutions, so which operating point a solver
+reaches is path-dependent (not a correctness issue).
 
 ## Method note
 

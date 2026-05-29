@@ -54,4 +54,26 @@ struct CurrentSourceConventionTests {
         #expect(v > 0.6 && v < 1.0,
                 "Diode-connected MOSFET driven by 20uA should bias ~0.83V, got \(v)")
     }
+
+    @Test("Current source drives a diode through a resistor (first-iteration limiting)",
+          .timeLimit(.minutes(1)))
+    func currentSourceDrivesDiode() async throws {
+        // I1(1mA) 0->n1, R1 n1->n2 1k, D1 n2->0. The exponential junction would
+        // blow up on the first NR step from x=0 without first-iteration limiting;
+        // it must converge to a forward-biased ~1.66V (diode drop + 1mA*1k).
+        var netlist = Netlist()
+        let n1 = netlist.node("n1")
+        let _ = netlist.node("n2")
+        try netlist.addInstance(name: "I1", typeName: "isource", nodes: ["0", "n1"],
+                                parameters: ["i": .real(1e-3)])
+        try netlist.addInstance(name: "R1", typeName: "resistor", nodes: ["n1", "n2"],
+                                parameters: ["r": .real(1000)])
+        try netlist.addInstance(name: "D1", typeName: "diode", nodes: ["n2", "0"],
+                                parameters: ["is": .real(1e-14)])
+
+        let result = try await CircuitFactory.runDC(netlist)
+        let v = result.voltage(at: n1)
+        #expect(v > 1.5 && v < 1.8,
+                "V(n1) should be ~1.66V (diode drop + 1mA*1k), got \(v)")
+    }
 }
