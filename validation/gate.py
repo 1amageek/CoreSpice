@@ -13,9 +13,12 @@ Exit code 0 if all circuits pass, 1 otherwise.
 """
 import argparse
 import csv
+import datetime
+import hashlib
 import json
 import math
 import os
+import platform
 import subprocess
 import sys
 import tempfile
@@ -89,6 +92,77 @@ def run_ngspice(ngspice, deck, control, vectors, workdir):
                 continue
             cols.append(vals)
     return cols
+
+
+def sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def sha256_text(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def write_artifacts(artifact_dir, args, results):
+    os.makedirs(artifact_dir, exist_ok=True)
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    gate_path = os.path.abspath(__file__)
+    golden_hash = sha256_file(GOLDEN_PATH) if os.path.exists(GOLDEN_PATH) else None
+    corespice_hash = sha256_file(args.corespice) if os.path.exists(args.corespice) else None
+
+    comparison = {
+        "schemaVersion": 1,
+        "gate": "corespice-numerical-trust-gate",
+        "mode": "update-golden" if args.update_golden else "golden",
+        "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "results": [
+            {"name": name, "passed": passed, "detail": detail}
+            for name, passed, detail in results
+        ],
+    }
+    comparison_path = os.path.join(artifact_dir, "oracle-comparison.json")
+    with open(comparison_path, "w") as f:
+        json.dump(comparison, f, indent=2, sort_keys=True)
+        f.write("\n")
+
+    manifest = {
+        "schemaVersion": 1,
+        "runType": "trust-gate",
+        "tool": "CoreSpice",
+        "generatedAt": comparison["generatedAt"],
+        "inputs": {
+            "gateScript": os.path.relpath(gate_path, root),
+            "gateScriptSha256": sha256_file(gate_path),
+            "golden": os.path.relpath(GOLDEN_PATH, root),
+            "goldenSha256": golden_hash,
+            "corespice": os.path.abspath(args.corespice),
+            "corespiceSha256": corespice_hash,
+        },
+        "environment": {
+            "python": sys.version.split()[0],
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+        },
+        "outputs": {
+            "oracleComparison": "oracle-comparison.json",
+            "oracleComparisonSha256": sha256_file(comparison_path),
+        },
+        "summary": {
+            "total": len(results),
+            "passed": sum(1 for _, passed, _ in results if passed),
+            "failed": sum(1 for _, passed, _ in results if not passed),
+        },
+        "reproducibility": {
+            "randomSeedPolicy": "No stochastic sampling is used by this gate.",
+            "artifactHash": sha256_text(json.dumps(comparison, sort_keys=True)),
+        },
+    }
+    with open(os.path.join(artifact_dir, "manifest.json"), "w") as f:
+        json.dump(manifest, f, indent=2, sort_keys=True)
+        f.write("\n")
 
 
 # --- oscillation / metric helpers --------------------------------------------
@@ -702,6 +776,124 @@ X1 vin out vdd 0 inv
 """, c_inverter_vtc, ("dc VIN 0 3.3 0.15", ["v(out)"]))
 
 
+# --- G5: extraction-scale validation (CoreSpice vs ngspice, within model envelope) -
+# Validates that CoreSpice matches ngspice on netlists with the TOPOLOGY and SCALE of
+# real PEX extractions, within CoreSpice's level-1/2/3 + RLC envelope. Real silicon
+# uses BSIM4 (out of scope by design); these decks render devices as level-1 and use
+# the REAL extracted parasitic network / large RC interconnects to stress the
+# transient solver at a scale the 28-circuit corpus does not reach.
+
+def _interp(ts, vs, t):
+    if t <= ts[0]:
+        return vs[0]
+    if t >= ts[-1]:
+        return vs[-1]
+    for k in range(1, len(ts)):
+        if ts[k] >= t:
+            dt = ts[k] - ts[k - 1]
+            f = (t - ts[k - 1]) / dt if dt else 0.0
+            return vs[k - 1] + f * (vs[k] - vs[k - 1])
+    return vs[-1]
+
+
+def _tran_maxdiff(cs, ng, vname, samples=200):
+    """Max |V_cs - V_ng| for V(vname) over a common uniform time grid (linear interp)."""
+    header, rows = cs
+    vi = cs_col(header, vname)
+    cs_t = [r[0] for r in rows]
+    cs_v = [r[vi] for r in rows]
+    ng_t = [c[0] for c in ng]
+    ng_v = [c[1] for c in ng]
+    t0 = max(cs_t[0], ng_t[0])
+    t1 = min(cs_t[-1], ng_t[-1])
+    md = 0.0
+    for i in range(samples + 1):
+        t = t0 + (t1 - t0) * i / samples
+        md = max(md, abs(_interp(cs_t, cs_v, t) - _interp(ng_t, ng_v, t)))
+    return md
+
+
+def c_inv1_postlayout(cs, ng, nodes):
+    md = _tran_maxdiff(cs, ng, f"V({nodes['Y']})")
+    return md < 0.05, f"max|V(Y) CoreSpice-ngspice| over real inv_1 parasitics = {md:.4f} V (tol 0.05)"
+
+
+def rc_scale_checker(node, tol):
+    def chk(cs, ng, nodes):
+        md = _tran_maxdiff(cs, ng, f"V({nodes[node]})")
+        return md < tol, f"max|V({node}) CoreSpice-ngspice| at scale = {md:.4f} V (tol {tol})"
+    return chk
+
+
+# Real parasitic C network extracted from sky130_fd_sc_hd__inv_1 via the LSI PEX flow
+# (Magic ext2spice). VPB (n-well) tied to VPWR, VNB (substrate) tied to VGND.
+add("29 sky130 inv_1 real-extraction post-layout transient (vs ngspice)", """* inv_1 post-layout
+VPWR VPWR 0 dc 1.8
+VGND VGND 0 dc 0
+VVPB VPB VPWR 0
+VVNB VNB VGND 0
+VA A 0 PULSE(0 1.8 0.5n 50p 50p 2n 4n)
+MN Y A VGND VNB NM W=0.65u L=0.15u
+MP Y A VPWR VPB PM W=1u L=0.15u
+C0 VPWR VGND 0.03401f
+C1 VPWR Y 0.12759f
+C2 A VGND 0.04768f
+C3 VPB VGND 0.01319f
+C4 A Y 0.0476f
+C5 VPB Y 0.01774f
+C6 A VPWR 0.04571f
+C7 VPB VPWR 0.06649f
+C8 VPB A 0.04506f
+C9 Y VGND 0.09986f
+C10 VGND VNB 0.24421f
+C11 Y VNB 0.0961f
+C12 VPWR VNB 0.20582f
+C13 A VNB 0.13301f
+C14 VPB VNB 0.33898f
+.model NM NMOS level=1 vto=0.45 kp=120u lambda=0.1 gamma=0.4 phi=0.65
+.model PM PMOS level=1 vto=-0.45 kp=40u lambda=0.1 gamma=0.4 phi=0.65
+.tran 5p 8n
+.end
+""", c_inv1_postlayout, ("tran 5p 8n", ["v(Y)"]))
+
+
+def rc_line_deck(n, rtot, ctot):
+    """An n-segment distributed RC interconnect driven by a level-1 inverter; node
+    n{n} is the far end. Same physical line for every n (finer mesh = more nodes),
+    so the far-end waveform is mesh-independent and CoreSpice must match ngspice."""
+    rseg = rtot / n
+    cseg = ctot / n
+    lines = [f"* RC interconnect, {n} segments (Rtot={rtot} Ctot={ctot})"]
+    lines += [
+        "VPWR vdd 0 dc 1.8",
+        "VIN a 0 PULSE(0 1.8 1n 100p 100p 20n 40n)",
+        "MN n0 a 0 0 NM W=4u L=0.15u",
+        "MP n0 a vdd vdd PM W=8u L=0.15u",
+    ]
+    for i in range(n):
+        lines.append(f"R{i} n{i} n{i + 1} {rseg:.6g}")
+        lines.append(f"C{i} n{i + 1} 0 {cseg:.6g}")
+    lines += [
+        ".model NM NMOS level=1 vto=0.45 kp=120u lambda=0.1 gamma=0.4 phi=0.65",
+        ".model PM PMOS level=1 vto=-0.45 kp=40u lambda=0.1 gamma=0.4 phi=0.65",
+        ".tran 100p 60n",
+        ".end",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+add("30 RC interconnect at scale: 64 segments (vs ngspice)",
+    rc_line_deck(64, 50e3, 200e-15),
+    rc_scale_checker("n64", 0.05),
+    ("tran 100p 60n", ["v(n64)"]))
+
+add("31 RC interconnect at scale: 256 segments (vs ngspice)",
+    rc_line_deck(256, 50e3, 200e-15),
+    rc_scale_checker("n256", 0.05),
+    ("tran 100p 60n", ["v(n256)"]))
+
+
 def shape_ng(name, cols):
     """Shape raw ngspice wrdata columns into the form each checker expects."""
     if name.startswith("13"):
@@ -720,6 +912,8 @@ def main():
     ap.add_argument("--ngspice", default="ngspice")
     ap.add_argument("--update-golden", action="store_true",
                     help="Regenerate the committed golden references by running ngspice.")
+    ap.add_argument("--artifact-dir",
+                    help="Write manifest.json and oracle-comparison.json for reproducibility.")
     args = ap.parse_args()
     corespice = os.path.abspath(args.corespice)
 
@@ -768,6 +962,10 @@ def main():
         print(f"        {detail}")
     print("-" * 78)
     print(f"{npass}/{len(results)} circuits passed")
+
+    if args.artifact_dir:
+        write_artifacts(args.artifact_dir, args, results)
+
     return 0 if npass == len(results) else 1
 
 
