@@ -30,6 +30,20 @@ struct ReliabilityContractTests {
         let devices: [Device]
     }
 
+    private struct CorpusManifest: Decodable {
+        struct Case: Decodable {
+            let id: String
+            let name: String
+            let analysis: String
+            let oracle: String
+            let goldenRequired: Bool
+            let tolerance: String
+        }
+
+        let schemaVersion: Int
+        let cases: [Case]
+    }
+
     private func packageRoot() -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -82,4 +96,36 @@ struct ReliabilityContractTests {
             _ = device.knownLimitations
         }
     }
+
+    @Test("Trust-gate corpus manifest matches committed golden references")
+    func trustGateCorpusManifestMatchesGoldenReferences() throws {
+        let manifest = try decode("validation/corpus-manifest.json", as: CorpusManifest.self)
+        #expect(manifest.schemaVersion == 1)
+        #expect(manifest.cases.count == 31)
+
+        var seenIDs: Set<String> = []
+        var seenNames: Set<String> = []
+        for item in manifest.cases {
+            #expect(!item.id.isEmpty)
+            #expect(!item.name.isEmpty)
+            #expect(!item.analysis.isEmpty)
+            #expect(!item.oracle.isEmpty)
+            #expect(!item.tolerance.isEmpty)
+            #expect(seenIDs.insert(item.id).inserted)
+            #expect(seenNames.insert(item.name).inserted)
+        }
+
+        let goldenURL = packageRoot().appendingPathComponent("validation/golden.json")
+        let goldenData = try Data(contentsOf: goldenURL)
+        let goldenObject = try JSONSerialization.jsonObject(with: goldenData)
+        guard let golden = goldenObject as? [String: Any] else {
+            throw ReliabilityContractError.invalidGoldenJSON
+        }
+        let requiredGolden = Set(manifest.cases.filter(\.goldenRequired).map(\.name))
+        #expect(Set(golden.keys) == requiredGolden)
+    }
+}
+
+private enum ReliabilityContractError: Error {
+    case invalidGoldenJSON
 }

@@ -24,6 +24,7 @@ import sys
 import tempfile
 
 GOLDEN_PATH = os.path.join(os.path.dirname(__file__), "golden.json")
+CORPUS_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "corpus-manifest.json")
 
 # Node counts per device type, to map node names to CoreSpice numeric node IDs
 # (assigned in first-appearance order, ground "0" excluded).
@@ -136,6 +137,8 @@ def write_artifacts(artifact_dir, args, results):
         "inputs": {
             "gateScript": os.path.relpath(gate_path, root),
             "gateScriptSha256": sha256_file(gate_path),
+            "corpusManifest": os.path.relpath(CORPUS_MANIFEST_PATH, root),
+            "corpusManifestSha256": sha256_file(CORPUS_MANIFEST_PATH),
             "golden": os.path.relpath(GOLDEN_PATH, root),
             "goldenSha256": golden_hash,
             "corespice": os.path.abspath(args.corespice),

@@ -9,7 +9,7 @@ discrepancies are root-caused and fixed in CoreSpice — never silently accepted
 
 ```bash
 swift build --product corespice
-python3 validation/gate.py        # golden mode (default): 28/28 must pass, no ngspice
+python3 validation/gate.py        # golden mode (default): 31/31 must pass, no ngspice
 swift test --filter TrustGateTests # same gate, run from the Swift test suite
 ```
 
@@ -34,6 +34,7 @@ The machine-readable reliability contracts are:
 
 | File | Purpose |
 |---|---|
+| `validation/corpus-manifest.json` | Numerical trust-gate corpus, oracle source, and tolerance contract |
 | `validation/analysis-coverage.json` | Public analysis coverage and required gates |
 | `validation/device-passports.json` | Device physics boundaries, parameter policy, oracle requirements |
 
@@ -48,10 +49,12 @@ brew install ngspice
 python3 validation/gate.py --update-golden   # rewrites validation/golden.json
 ```
 
-Circuits whose oracle is closed-form analytic (01–04, 08, 10, 16, 20–23) need no
-golden data; only the ngspice-compared circuits are stored in `golden.json`.
+Circuits whose oracle is closed-form analytic (01–04, 10, 20–23) need no
+golden data; all ngspice-compared and real-extraction-scale circuits are stored
+in `golden.json`. `validation/corpus-manifest.json` is the machine-readable
+source of the expected corpus membership.
 
-## Corpus (28 circuits, all passing)
+## Corpus (31 circuits, all passing)
 
 | # | Circuit | Analysis | Oracle | Tolerance |
 |---|---|---|---|---|
@@ -83,6 +86,9 @@ golden data; only the ngspice-compared circuits are stored in `golden.json`.
 | 26 | diode forward diffusion capacitance | AC | ngspice | 0.02 rel |
 | 27 | current-source-driven diode (convergence) | DC (op) | ngspice | 0.01 V |
 | 28 | subcircuit (.subckt) inverter VTC | DC sweep | ngspice | 0.03 V |
+| 29 | sky130 inv_1 real-extraction post-layout transient | TRAN | real PEX + ngspice | 0.05 V |
+| 30 | RC interconnect at scale: 64 segments | TRAN | PEX-scale + ngspice | 0.05 V |
+| 31 | RC interconnect at scale: 256 segments | TRAN | PEX-scale + ngspice | 0.05 V |
 
 The common-source amp (09) uses a solidly-saturated bias and matches ngspice to
 0.000 dB. The triode/saturation boundary is intrinsically gain-sensitive in the

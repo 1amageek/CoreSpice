@@ -8,6 +8,33 @@ import Foundation
 /// or a circuit changes.
 @Suite("Numerical trust gate (golden)")
 struct TrustGateTests {
+    private struct CorpusManifest: Decodable {
+        struct Case: Decodable {
+            let name: String
+        }
+
+        let cases: [Case]
+    }
+
+    private struct GateManifest: Decodable {
+        struct Summary: Decodable {
+            let total: Int
+            let passed: Int
+            let failed: Int
+        }
+
+        let summary: Summary
+    }
+
+    private struct OracleComparison: Decodable {
+        struct Result: Decodable {
+            let name: String
+            let passed: Bool
+            let detail: String
+        }
+
+        let results: [Result]
+    }
 
     private func packageRoot() -> URL {
         // .../Tests/CoreSpiceCLITests/TrustGateTests.swift -> package root
@@ -65,5 +92,18 @@ struct TrustGateTests {
         let comparison = artifactDir.appendingPathComponent("oracle-comparison.json")
         #expect(FileManager.default.fileExists(atPath: manifest.path))
         #expect(FileManager.default.fileExists(atPath: comparison.path))
+
+        let corpusURL = root.appendingPathComponent("validation/corpus-manifest.json")
+        let corpus = try JSONDecoder().decode(CorpusManifest.self, from: Data(contentsOf: corpusURL))
+        let gateManifest = try JSONDecoder().decode(GateManifest.self, from: Data(contentsOf: manifest))
+        let oracleComparison = try JSONDecoder().decode(OracleComparison.self, from: Data(contentsOf: comparison))
+
+        #expect(gateManifest.summary.total == corpus.cases.count)
+        #expect(gateManifest.summary.passed == corpus.cases.count)
+        #expect(gateManifest.summary.failed == 0)
+        #expect(oracleComparison.results.count == corpus.cases.count)
+        #expect(Set(oracleComparison.results.map(\.name)) == Set(corpus.cases.map(\.name)))
+        #expect(oracleComparison.results.allSatisfy { $0.passed })
+        #expect(oracleComparison.results.allSatisfy { !$0.detail.isEmpty })
     }
 }
