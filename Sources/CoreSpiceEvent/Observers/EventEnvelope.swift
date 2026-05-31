@@ -53,6 +53,19 @@ public struct EventEnvelope: Sendable, Codable {
             if let failure = info.failure {
                 payload["failureReason"] = failure.reason
                 payload["failureMessage"] = failure.message
+                payload["failureSeverity"] = failure.severity
+                if let stage = failure.stage {
+                    payload["failureStage"] = stage
+                }
+                if let component = failure.component {
+                    payload["failureComponent"] = component
+                }
+                if !failure.suggestedActions.isEmpty {
+                    payload["failureSuggestedActions"] = failure.suggestedActions.joined(separator: ",")
+                }
+                for (key, value) in failure.metadata.sorted(by: { $0.key < $1.key }) {
+                    payload["failure.\(key)"] = value
+                }
             }
             return payload
         case .progressUpdate(let info):
@@ -93,12 +106,25 @@ public struct EventEnvelope: Sendable, Codable {
                 "converged": String(info.converged),
             ]
         case .newtonConvergenceFailure(let info):
-            return [
+            var payload = [
                 "id": info.id.rawValue.uuidString,
                 "iteration": String(info.iteration),
                 "residualNorm": String(info.residualNorm),
                 "reason": info.reason,
             ]
+            if let worstVariable = info.worstVariable {
+                payload["worstVariable"] = worstVariable
+            }
+            if let worstVariableIndex = info.worstVariableIndex {
+                payload["worstVariableIndex"] = String(worstVariableIndex)
+            }
+            if let finalDamping = info.finalDamping {
+                payload["finalDamping"] = String(finalDamping)
+            }
+            if !info.suggestedActions.isEmpty {
+                payload["suggestedActions"] = info.suggestedActions.joined(separator: ",")
+            }
+            return payload
         case .timeStepCompleted(let info):
             return [
                 "id": info.id.rawValue.uuidString,

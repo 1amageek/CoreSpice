@@ -124,6 +124,7 @@ public struct NMOSL2Descriptor: DeviceDescriptor, Sendable {
         if let v = try extractReal("pd") { params.pd = v }
         if let v = try extractReal("ps") { params.ps = v }
 
+        try params.validate(device: instance.name)
         return params
     }
 }

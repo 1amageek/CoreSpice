@@ -17,6 +17,26 @@ swift test --filter TrustGateTests # same gate, run from the Swift test suite
 analytic solution and/or a frozen reference, with per-circuit tolerances. Exit
 code is 0 only when every circuit passes.
 
+For auditable Agent runs, write a reproducibility artifact bundle:
+
+```bash
+python3 validation/gate.py --artifact-dir .xcircuite/runs/<run-id>/simulation
+```
+
+The artifact directory contains:
+
+| File | Purpose |
+|---|---|
+| `manifest.json` | Gate inputs, hashes, environment, summary, and output hashes |
+| `oracle-comparison.json` | Per-circuit pass/fail and comparison details |
+
+The machine-readable reliability contracts are:
+
+| File | Purpose |
+|---|---|
+| `validation/analysis-coverage.json` | Public analysis coverage and required gates |
+| `validation/device-passports.json` | Device physics boundaries, parameter policy, oracle requirements |
+
 By default the gate runs in **golden mode**: the ngspice-derived references are
 read from the committed `validation/golden.json`, so the gate (and the
 `TrustGateTests` Swift test that drives it) runs in CI without ngspice

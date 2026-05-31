@@ -149,13 +149,22 @@ struct EventDispatcherTests {
             wallTime: .seconds(1),
             failure: AnalysisFailureInfo(
                 reason: "nonFiniteSolution",
-                message: "AC solution contains non-finite values"
+                message: "AC solution contains non-finite values",
+                stage: "ac",
+                component: "complexSolver",
+                suggestedActions: ["inspect_operating_point"],
+                metadata: ["frequency": "1000.0"]
             )
         )))
 
         #expect(envelope.payload["status"] == "failed")
         #expect(envelope.payload["failureReason"] == "nonFiniteSolution")
         #expect(envelope.payload["failureMessage"] == "AC solution contains non-finite values")
+        #expect(envelope.payload["failureSeverity"] == "error")
+        #expect(envelope.payload["failureStage"] == "ac")
+        #expect(envelope.payload["failureComponent"] == "complexSolver")
+        #expect(envelope.payload["failureSuggestedActions"] == "inspect_operating_point")
+        #expect(envelope.payload["failure.frequency"] == "1000.0")
     }
 
     @Test("Sequential await calls preserve order")

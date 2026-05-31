@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "scope": "CoreSpice device physics reliability passports",
+  "policy": {
+    "requiredFields": [
+      "typeName",
+      "modelFamily",
+      "supportedAnalyses",
+      "supportedRegions",
+      "parameterPolicy",
+      "oracleRequirements",
+      "knownLimitations"
+    ],
+    "highReliabilityRequires": [
+      "finite numeric parameters",
+      "validated port count",
+      "documented physical domain",
+      "oracle curve coverage for dc, ac, transient when applicable"
+    ]
+  },
+  "devices": [
+    {
+      "typeName": "resistor",
+      "modelFamily": "linear ohmic resistor",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "noise", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["positive resistance"],
+      "parameterPolicy": "r must be finite and positive",
+      "oracleRequirements": ["analytic dc", "analytic ac", "thermal noise"],
+      "knownLimitations": []
+    },
+    {
+      "typeName": "capacitor",
+      "modelFamily": "linear capacitor companion model",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["non-negative capacitance"],
+      "parameterPolicy": "c must be finite and non-negative; ic must be finite when provided",
+      "oracleRequirements": ["analytic rc transient", "analytic ac impedance"],
+      "knownLimitations": ["higher-order Gear integration is not implemented"]
+    },
+    {
+      "typeName": "inductor",
+      "modelFamily": "linear inductor companion model",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["positive inductance"],
+      "parameterPolicy": "l must be finite and positive; ic must be finite when provided",
+      "oracleRequirements": ["analytic rl transient", "analytic ac impedance"],
+      "knownLimitations": ["ideal inductive loops can create singular systems"]
+    },
+    {
+      "typeName": "vsource",
+      "modelFamily": "ideal independent voltage source",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["dc", "pulse", "sine", "pwl"],
+      "parameterPolicy": "waveform parameters must be finite and physically ordered",
+      "oracleRequirements": ["source waveform samples", "branch current convention"],
+      "knownLimitations": ["ideal voltage source loops can create singular systems"]
+    },
+    {
+      "typeName": "isource",
+      "modelFamily": "ideal independent current source",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["dc", "pulse", "sine", "pwl"],
+      "parameterPolicy": "waveform parameters must be finite and physically ordered",
+      "oracleRequirements": ["source waveform samples", "SPICE current direction convention"],
+      "knownLimitations": ["pure stacked exponential strings may fail to converge"]
+    },
+    {
+      "typeName": "diode",
+      "modelFamily": "SPICE PN junction diode subset",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "noise", "sens", "mc"],
+      "supportedRegions": ["forward", "reverse", "breakdown", "junction capacitance", "diffusion capacitance"],
+      "parameterPolicy": "is, n, vt, capacitances, and temperature parameters must be finite and positive where physically required",
+      "oracleRequirements": ["ngspice iv sweep", "ngspice cv sweep", "current-source convergence case"],
+      "knownLimitations": ["series diode strings without a resistive path can fail loudly"]
+    },
+    {
+      "typeName": "npn",
+      "modelFamily": "Ebers-Moll BJT with Early effect and capacitances",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "noise", "sens", "mc"],
+      "supportedRegions": ["cutoff", "forward-active", "reverse-active", "saturation"],
+      "parameterPolicy": "transport, beta, Early voltage, and capacitance parameters must be finite and physically valid",
+      "oracleRequirements": ["ngspice bias", "ngspice ac gain", "temperature sweep"],
+      "knownLimitations": ["advanced Gummel-Poon effects are out of scope"]
+    },
+    {
+      "typeName": "pnp",
+      "modelFamily": "Ebers-Moll BJT with Early effect and capacitances",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "noise", "sens", "mc"],
+      "supportedRegions": ["cutoff", "forward-active", "reverse-active", "saturation"],
+      "parameterPolicy": "transport, beta, Early voltage, and capacitance parameters must be finite and physically valid",
+      "oracleRequirements": ["ngspice bias", "ngspice ac gain", "temperature sweep"],
+      "knownLimitations": ["advanced Gummel-Poon effects are out of scope"]
+    },
+    {
+      "typeName": "nmos_l1",
+      "modelFamily": "Shichman-Hodges level-1 NMOS",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
+      "supportedRegions": ["cutoff", "linear", "saturation", "body effect", "source-drain reversal", "Meyer capacitance subset"],
+      "parameterPolicy": "w, l, kp, phi, and capacitance geometry must be finite and physically valid",
+      "oracleRequirements": ["analytic level-1 iv", "ngspice level-1 dc", "ngspice capacitance ac"],
+      "knownLimitations": ["not BSIM", "not signoff-grade short-channel physics"]
+    },
+    {
+      "typeName": "pmos_l1",
+      "modelFamily": "Shichman-Hodges level-1 PMOS",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
+      "supportedRegions": ["cutoff", "linear", "saturation", "body effect", "source-drain reversal", "Meyer capacitance subset"],
+      "parameterPolicy": "w, l, kp, phi, and capacitance geometry must be finite and physically valid",
+      "oracleRequirements": ["analytic level-1 iv", "ngspice level-1 dc", "ngspice capacitance ac"],
+      "knownLimitations": ["not BSIM", "not signoff-grade short-channel physics"]
+    },
+    {
+      "typeName": "nmos_l2",
+      "modelFamily": "CoreSpice empirical level-1 extension with theta and eta",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
+      "supportedRegions": ["level-1 reduction", "mobility degradation", "DIBL"],
+      "parameterPolicy": "level-2 extension parameters must be finite; w and l must be positive",
+      "oracleRequirements": ["closed-form CoreSpice equation", "level-1 reduction"],
+      "knownLimitations": ["not ngspice level-2 compatible", "not BSIM"]
+    },
+    {
+      "typeName": "pmos_l2",
+      "modelFamily": "CoreSpice empirical level-1 extension with theta and eta",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
+      "supportedRegions": ["level-1 reduction", "mobility degradation", "DIBL"],
+      "parameterPolicy": "level-2 extension parameters must be finite; w and l must be positive",
+      "oracleRequirements": ["closed-form CoreSpice equation", "level-1 reduction"],
+      "knownLimitations": ["not ngspice level-2 compatible", "not BSIM"]
+    },
+    {
+      "typeName": "nmos_l3",
+      "modelFamily": "CoreSpice empirical level-1 extension with velocity saturation",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
+      "supportedRegions": ["level-1 reduction", "velocity saturation"],
+      "parameterPolicy": "level-3 extension parameters must be finite; w and l must be positive",
+      "oracleRequirements": ["closed-form CoreSpice equation", "level-1 reduction"],
+      "knownLimitations": ["not ngspice level-3 compatible", "not BSIM"]
+    },
+    {
+      "typeName": "pmos_l3",
+      "modelFamily": "CoreSpice empirical level-1 extension with velocity saturation",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
+      "supportedRegions": ["level-1 reduction", "velocity saturation"],
+      "parameterPolicy": "level-3 extension parameters must be finite; w and l must be positive",
+      "oracleRequirements": ["closed-form CoreSpice equation", "level-1 reduction"],
+      "knownLimitations": ["not ngspice level-3 compatible", "not BSIM"]
+    },
+    {
+      "typeName": "vcvs",
+      "modelFamily": "ideal voltage-controlled voltage source",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["linear controlled source"],
+      "parameterPolicy": "gain must be finite",
+      "oracleRequirements": ["analytic linear circuit"],
+      "knownLimitations": ["ideal source loops can create singular systems"]
+    },
+    {
+      "typeName": "vccs",
+      "modelFamily": "ideal voltage-controlled current source",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["linear controlled source"],
+      "parameterPolicy": "transconductance must be finite",
+      "oracleRequirements": ["analytic linear circuit"],
+      "knownLimitations": []
+    },
+    {
+      "typeName": "cccs",
+      "modelFamily": "ideal current-controlled current source",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["linear controlled source"],
+      "parameterPolicy": "gain must be finite and sense source must exist",
+      "oracleRequirements": ["analytic linear circuit"],
+      "knownLimitations": ["depends on branch-current reference binding"]
+    },
+    {
+      "typeName": "ccvs",
+      "modelFamily": "ideal current-controlled voltage source",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["linear controlled source"],
+      "parameterPolicy": "transresistance must be finite and sense source must exist",
+      "oracleRequirements": ["analytic linear circuit"],
+      "knownLimitations": ["depends on branch-current reference binding"]
+    },
+    {
+      "typeName": "optoelectronic",
+      "modelFamily": "CoreSpice optoelectronic subset",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "noise"],
+      "supportedRegions": ["laser", "led", "photodiode", "eo modulator", "waveguide", "splitter"],
+      "parameterPolicy": "optical power, responsivity, loss, and modulation parameters must be finite and physically valid",
+      "oracleRequirements": ["analytic optical power propagation", "photodiode current conversion", "laser threshold behavior"],
+      "knownLimitations": ["not a foundry photonic PDK model"]
+    }
+  ]
+}

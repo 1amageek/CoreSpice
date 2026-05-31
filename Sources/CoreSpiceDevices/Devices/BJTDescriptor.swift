@@ -22,7 +22,7 @@ public struct NPNDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
-        let params = extractBJTParameters(from: instance, polarity: .npn)
+        let params = try extractBJTParameters(from: instance, polarity: .npn)
 
         let collectorNode = instance.nodes[0]
         let baseNode = instance.nodes[1]
@@ -80,7 +80,7 @@ public struct PNPDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
-        let params = extractBJTParameters(from: instance, polarity: .pnp)
+        let params = try extractBJTParameters(from: instance, polarity: .pnp)
 
         let collectorNode = instance.nodes[0]
         let baseNode = instance.nodes[1]
@@ -139,31 +139,40 @@ private let bjtParameterDescriptors: [ParameterDescriptor] = [
     ParameterDescriptor(name: "mjc", defaultValue: .real(0.33), description: "B-C grading coefficient"),
 ]
 
-private func extractBJTParameters(from instance: Instance, polarity: BJTPolarity) -> BJTModelParameters {
-    func extractReal(_ key: String, default defaultValue: Double) -> Double {
-        guard case .real(let v) = instance.parameters[key] else { return defaultValue }
+private func extractBJTParameters(from instance: Instance, polarity: BJTPolarity) throws -> BJTModelParameters {
+    func extractReal(_ key: String, default defaultValue: Double) throws -> Double {
+        guard let value = instance.parameters[key] else { return defaultValue }
+        guard case .real(let v) = value else {
+            throw DeviceBindingError.invalidParameterType(
+                device: instance.name,
+                parameter: key,
+                expected: "real"
+            )
+        }
         return v
     }
 
-    return BJTModelParameters(
+    let params = BJTModelParameters(
         polarity: polarity,
-        saturationCurrent: extractReal("is", default: 1e-16),
-        forwardBeta: extractReal("bf", default: 100),
-        reverseBeta: extractReal("br", default: 1),
-        forwardEmissionCoefficient: extractReal("nf", default: 1.0),
-        reverseEmissionCoefficient: extractReal("nr", default: 1.0),
-        forwardEarlyVoltage: extractReal("vaf", default: 1e100),
-        reverseEarlyVoltage: extractReal("var", default: 1e100),
-        baseResistance: extractReal("rb", default: 0),
-        collectorResistance: extractReal("rc", default: 0),
-        emitterResistance: extractReal("re", default: 0),
-        baseEmitterCapacitance: extractReal("cje", default: 0),
-        baseCollectorCapacitance: extractReal("cjc", default: 0),
-        forwardTransitTime: extractReal("tf", default: 0),
-        reverseTransitTime: extractReal("tr", default: 0),
-        baseEmitterPotential: extractReal("vje", default: 0.75),
-        baseCollectorPotential: extractReal("vjc", default: 0.75),
-        baseEmitterGradingCoeff: extractReal("mje", default: 0.33),
-        baseCollectorGradingCoeff: extractReal("mjc", default: 0.33)
+        saturationCurrent: try extractReal("is", default: 1e-16),
+        forwardBeta: try extractReal("bf", default: 100),
+        reverseBeta: try extractReal("br", default: 1),
+        forwardEmissionCoefficient: try extractReal("nf", default: 1.0),
+        reverseEmissionCoefficient: try extractReal("nr", default: 1.0),
+        forwardEarlyVoltage: try extractReal("vaf", default: 1e100),
+        reverseEarlyVoltage: try extractReal("var", default: 1e100),
+        baseResistance: try extractReal("rb", default: 0),
+        collectorResistance: try extractReal("rc", default: 0),
+        emitterResistance: try extractReal("re", default: 0),
+        baseEmitterCapacitance: try extractReal("cje", default: 0),
+        baseCollectorCapacitance: try extractReal("cjc", default: 0),
+        forwardTransitTime: try extractReal("tf", default: 0),
+        reverseTransitTime: try extractReal("tr", default: 0),
+        baseEmitterPotential: try extractReal("vje", default: 0.75),
+        baseCollectorPotential: try extractReal("vjc", default: 0.75),
+        baseEmitterGradingCoeff: try extractReal("mje", default: 0.33),
+        baseCollectorGradingCoeff: try extractReal("mjc", default: 0.33)
     )
+    try params.validate(device: instance.name)
+    return params
 }

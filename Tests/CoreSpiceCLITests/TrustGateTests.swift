@@ -35,6 +35,17 @@ struct TrustGateTests {
     func trustGatePasses() throws {
         let root = packageRoot()
         let corespice = root.appendingPathComponent(".build/debug/corespice")
+        let artifactDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("corespice-trust-gate-\(UUID().uuidString)")
+        defer {
+            if FileManager.default.fileExists(atPath: artifactDir.path) {
+                do {
+                    try FileManager.default.removeItem(at: artifactDir)
+                } catch {
+                    Issue.record("failed to remove trust gate artifact directory: \(error)")
+                }
+            }
+        }
 
         // Ensure the CLI binary the gate drives is built.
         if !FileManager.default.fileExists(atPath: corespice.path) {
@@ -43,7 +54,16 @@ struct TrustGateTests {
         }
 
         let gate = root.appendingPathComponent("validation/gate.py").path
-        let (status, output) = try run("python3", [gate, "--corespice", corespice.path], cwd: root)
+        let (status, output) = try run(
+            "python3",
+            [gate, "--corespice", corespice.path, "--artifact-dir", artifactDir.path],
+            cwd: root
+        )
         #expect(status == 0, "trust gate did not pass:\n\(output)")
+
+        let manifest = artifactDir.appendingPathComponent("manifest.json")
+        let comparison = artifactDir.appendingPathComponent("oracle-comparison.json")
+        #expect(FileManager.default.fileExists(atPath: manifest.path))
+        #expect(FileManager.default.fileExists(atPath: comparison.path))
     }
 }

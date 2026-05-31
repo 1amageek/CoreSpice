@@ -78,6 +78,7 @@ public struct NewtonRaphsonSolver: Sendable {
 
         // Adaptive damping state
         var previousUpdateNorm: Double = .infinity
+        var lastDamping = 1.0
 
         for iter in 0..<config.maxIterations {
             if cancellation.isCancelled {
@@ -149,6 +150,7 @@ public struct NewtonRaphsonSolver: Sendable {
                 damping = max(config.minDamping, damping)
             }
             previousUpdateNorm = rawUpdateNorm
+            lastDamping = damping
 
             // Save previous solution via O(1) pointer swap, then compute new x
             swap(&x, &previousX)
@@ -260,20 +262,45 @@ public struct NewtonRaphsonSolver: Sendable {
         rhs = localRHS
 
         var residual = 0.0
+        var worstIndex: Int?
         for i in 0..<localRHS.count {
             let a = abs(localRHS[i])
-            if a > residual { residual = a }
+            if a > residual {
+                residual = a
+                worstIndex = i
+            }
         }
+        let worstVariable = worstIndex.flatMap { variableName(for: $0, variableMap: variableMap) }
 
         await observer?.emit(.newtonConvergenceFailure(NewtonFailureInfo(
             id: analysisID,
             iteration: config.maxIterations,
             residualNorm: residual,
-            reason: "Maximum iterations exceeded"
+            reason: "Maximum iterations exceeded",
+            worstVariable: worstVariable,
+            worstVariableIndex: worstIndex,
+            finalDamping: lastDamping,
+            suggestedActions: [
+                "inspect_worst_kcl_variable",
+                "try_gmin_stepping",
+                "try_source_stepping",
+                "provide_initial_condition_or_nodeset",
+                "check_nonlinear_device_parameters"
+            ]
         )))
         throw AnalysisError.convergenceFailure(
             iterations: config.maxIterations,
             residualNorm: residual
         )
+    }
+
+    private func variableName(
+        for index: Int,
+        variableMap: [MNAVariable: Int]
+    ) -> String? {
+        for (variable, mappedIndex) in variableMap where mappedIndex == index {
+            return String(describing: variable)
+        }
+        return nil
     }
 }

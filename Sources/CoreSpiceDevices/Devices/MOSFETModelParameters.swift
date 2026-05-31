@@ -146,4 +146,74 @@ public struct MOSFETModelParameters: Sendable {
         guard tox > 0 else { return 0 }
         return 3.453e-11 / tox  // eps_ox = 3.9 * eps_0 = 3.9 * 8.854e-12
     }
+
+    public func validate(device: String) throws {
+        try requirePositive(w, "w", device: device)
+        try requirePositive(l, "l", device: device)
+        try requireNonNegative(kp, "kp", device: device)
+        try requireNonNegative(gamma, "gamma", device: device)
+        try requirePositive(phi, "phi", device: device)
+        try requireNonNegative(tox, "tox", device: device)
+        try requireNonNegative(cgso, "cgso", device: device)
+        try requireNonNegative(cgdo, "cgdo", device: device)
+        try requireNonNegative(cgbo, "cgbo", device: device)
+        try requireNonNegative(cj, "cj", device: device)
+        try requireNonNegative(cjsw, "cjsw", device: device)
+        try requireNonNegative(ad, "ad", device: device)
+        try requireNonNegative(asrc, "as", device: device)
+        try requireNonNegative(pd, "pd", device: device)
+        try requireNonNegative(ps, "ps", device: device)
+        try requireFinite(vto, "vto", device: device)
+        try requireFinite(lambda, "lambda", device: device)
+        try requireFinite(theta, "theta", device: device)
+        try requireFinite(eta, "eta", device: device)
+        try requireFinite(kappa, "kappa", device: device)
+        try requireNonNegative(vmax, "vmax", device: device)
+        try requireGrading(mj, "mj", device: device)
+        try requireGrading(mjsw, "mjsw", device: device)
+        try requirePositive(pb, "pb", device: device)
+    }
+
+    private func requireFinite(_ value: Double, _ parameter: String, device: String) throws {
+        guard value.isFinite else {
+            throw DeviceBindingError.invalidParameterValue(
+                device: device,
+                parameter: parameter,
+                message: "Parameter must be finite"
+            )
+        }
+    }
+
+    private func requirePositive(_ value: Double, _ parameter: String, device: String) throws {
+        try requireFinite(value, parameter, device: device)
+        guard value > 0 else {
+            throw DeviceBindingError.invalidParameterValue(
+                device: device,
+                parameter: parameter,
+                message: "Parameter must be positive"
+            )
+        }
+    }
+
+    private func requireNonNegative(_ value: Double, _ parameter: String, device: String) throws {
+        try requireFinite(value, parameter, device: device)
+        guard value >= 0 else {
+            throw DeviceBindingError.invalidParameterValue(
+                device: device,
+                parameter: parameter,
+                message: "Parameter must be non-negative"
+            )
+        }
+    }
+
+    private func requireGrading(_ value: Double, _ parameter: String, device: String) throws {
+        try requireFinite(value, parameter, device: device)
+        guard value >= 0 && value < 1 else {
+            throw DeviceBindingError.invalidParameterValue(
+                device: device,
+                parameter: parameter,
+                message: "Junction grading coefficient must be in [0, 1)"
+            )
+        }
+    }
 }

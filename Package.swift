@@ -125,7 +125,16 @@ let package = Package(
         // ==========================================================================
 
         .testTarget(name: "CoreSpiceIRTests", dependencies: ["CoreSpiceIR"]),
-        .testTarget(name: "CoreSpiceDevicesTests", dependencies: ["CoreSpiceDevices"]),
+        .testTarget(
+            name: "CoreSpiceDevicesTests",
+            dependencies: [
+                "CoreSpiceDevices",
+                "CoreSpiceIR",
+                "CoreSpiceCompile",
+                "CoreSpiceAnalysis",
+                "CoreSpiceEvent"
+            ]
+        ),
         .testTarget(name: "CoreSpiceCompileTests", dependencies: ["CoreSpiceCompile"]),
         .testTarget(name: "CoreSpiceAnalysisTests", dependencies: ["CoreSpiceAnalysis"]),
         .testTarget(name: "CoreSpiceBackendTests", dependencies: ["CoreSpiceBackend"]),

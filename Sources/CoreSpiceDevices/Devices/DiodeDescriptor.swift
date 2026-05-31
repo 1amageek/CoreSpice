@@ -35,18 +35,19 @@ public struct DiodeDescriptor: DeviceDescriptor, Sendable {
         }
 
         let params = DiodeModelParameters(
-            saturationCurrent: extractReal(instance.parameters["is"]) ?? 1e-14,
-            emissionCoefficient: extractReal(instance.parameters["n"]) ?? 1.0,
-            seriesResistance: extractReal(instance.parameters["rs"]) ?? 0.0,
-            breakdownVoltage: extractReal(instance.parameters["bv"]) ?? 1e100,
-            breakdownCurrent: extractReal(instance.parameters["ibv"]) ?? 1e-3,
-            junctionCapacitance: extractReal(instance.parameters["cjo"]) ?? 0.0,
-            junctionPotential: extractReal(instance.parameters["vj"]) ?? 1.0,
-            gradingCoefficient: extractReal(instance.parameters["m"]) ?? 0.5,
-            transitTime: extractReal(instance.parameters["tt"]) ?? 0.0,
-            energyGap: extractReal(instance.parameters["eg"]) ?? 1.11,
-            saturationCurrentExponent: extractReal(instance.parameters["xti"]) ?? 3.0
+            saturationCurrent: try extractReal(instance.parameters["is"], parameter: "is", device: instance.name) ?? 1e-14,
+            emissionCoefficient: try extractReal(instance.parameters["n"], parameter: "n", device: instance.name) ?? 1.0,
+            seriesResistance: try extractReal(instance.parameters["rs"], parameter: "rs", device: instance.name) ?? 0.0,
+            breakdownVoltage: try extractReal(instance.parameters["bv"], parameter: "bv", device: instance.name) ?? 1e100,
+            breakdownCurrent: try extractReal(instance.parameters["ibv"], parameter: "ibv", device: instance.name) ?? 1e-3,
+            junctionCapacitance: try extractReal(instance.parameters["cjo"], parameter: "cjo", device: instance.name) ?? 0.0,
+            junctionPotential: try extractReal(instance.parameters["vj"], parameter: "vj", device: instance.name) ?? 1.0,
+            gradingCoefficient: try extractReal(instance.parameters["m"], parameter: "m", device: instance.name) ?? 0.5,
+            transitTime: try extractReal(instance.parameters["tt"], parameter: "tt", device: instance.name) ?? 0.0,
+            energyGap: try extractReal(instance.parameters["eg"], parameter: "eg", device: instance.name) ?? 1.11,
+            saturationCurrentExponent: try extractReal(instance.parameters["xti"], parameter: "xti", device: instance.name) ?? 3.0
         )
+        try params.validate(device: instance.name)
 
         let anodeNode = instance.nodes[0]
         let cathodeNode = instance.nodes[1]
@@ -73,8 +74,15 @@ public struct DiodeDescriptor: DeviceDescriptor, Sendable {
         )
     }
 
-    private func extractReal(_ value: ParameterValue?) -> Double? {
-        guard case .real(let v) = value else { return nil }
+    private func extractReal(_ value: ParameterValue?, parameter: String, device: String) throws -> Double? {
+        guard let value else { return nil }
+        guard case .real(let v) = value else {
+            throw DeviceBindingError.invalidParameterType(
+                device: device,
+                parameter: parameter,
+                expected: "real"
+            )
+        }
         return v
     }
 }

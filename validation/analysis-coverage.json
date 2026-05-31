@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "scope": "CoreSpice supported-subset reliability contract",
+  "policy": {
+    "oracleOrder": [
+      "analytic",
+      "live-ngspice",
+      "frozen-golden",
+      "metamorphic"
+    ],
+    "highReliabilityRequires": [
+      "documented supported domain",
+      "independent oracle or metamorphic property",
+      "structured failure behavior",
+      "reproducible artifact output"
+    ],
+    "unsupportedBehavior": "unsupported cases must fail loudly or be marked out-of-scope"
+  },
+  "analyses": [
+    {
+      "id": "op",
+      "status": "supported",
+      "primaryRisks": [
+        "multiple valid operating points",
+        "floating nodes",
+        "strong exponential nonlinearities"
+      ],
+      "requiredGates": [
+        "analytic-linear-op",
+        "ngspice-nonlinear-op",
+        "convergence-stress-op",
+        "structured-failure-op"
+      ]
+    },
+    {
+      "id": "dc",
+      "status": "supported",
+      "primaryRisks": [
+        "source stepping path dependence",
+        "device-region discontinuities",
+        "current source sign conventions"
+      ],
+      "requiredGates": [
+        "analytic-dc-sweep",
+        "ngspice-dc-sweep",
+        "metamorphic-source-scaling",
+        "regression-current-source-convention"
+      ]
+    },
+    {
+      "id": "ac",
+      "status": "supported",
+      "primaryRisks": [
+        "incorrect operating point linearization",
+        "complex solver singularity",
+        "dynamic capacitance mismatch"
+      ],
+      "requiredGates": [
+        "analytic-transfer-functions",
+        "ngspice-small-signal",
+        "metamorphic-frequency-scaling",
+        "nonfinite-solution-failure"
+      ]
+    },
+    {
+      "id": "tran",
+      "status": "supported",
+      "primaryRisks": [
+        "local truncation error control",
+        "breakpoint handling",
+        "stiff circuit stability",
+        "history state consistency"
+      ],
+      "requiredGates": [
+        "analytic-step-response",
+        "ngspice-transient-waveform",
+        "timestep-refinement",
+        "stiff-circuit-stress",
+        "structured-timestep-failure"
+      ]
+    },
+    {
+      "id": "noise",
+      "status": "supported-subset",
+      "primaryRisks": [
+        "incomplete device noise sources",
+        "temperature dependence",
+        "input-referred noise definition"
+      ],
+      "requiredGates": [
+        "analytic-resistor-noise",
+        "device-noise-passport",
+        "frequency-integration"
+      ]
+    },
+    {
+      "id": "tf",
+      "status": "supported",
+      "primaryRisks": [
+        "input source interpretation",
+        "operating point dependency"
+      ],
+      "requiredGates": [
+        "analytic-transfer-function",
+        "pole-zero-dc-gain-consistency"
+      ]
+    },
+    {
+      "id": "pz",
+      "status": "supported-subset",
+      "primaryRisks": [
+        "generalized eigenvalue conditioning",
+        "zero extraction robustness"
+      ],
+      "requiredGates": [
+        "analytic-rc-pole",
+        "rlc-conjugate-poles",
+        "tf-dc-gain-consistency"
+      ]
+    },
+    {
+      "id": "four",
+      "status": "supported",
+      "primaryRisks": [
+        "period extraction",
+        "sample spacing sensitivity",
+        "harmonic leakage"
+      ],
+      "requiredGates": [
+        "analytic-sine",
+        "analytic-two-tone",
+        "rectifier-harmonics"
+      ]
+    },
+    {
+      "id": "sens",
+      "status": "supported-subset",
+      "primaryRisks": [
+        "finite-difference step sensitivity",
+        "nonlinear discontinuities",
+        "parameter naming"
+      ],
+      "requiredGates": [
+        "analytic-divider-sensitivity",
+        "nonlinear-device-sensitivity",
+        "normalized-sensitivity"
+      ]
+    },
+    {
+      "id": "mc",
+      "status": "supported",
+      "primaryRisks": [
+        "seed handling",
+        "statistical convergence",
+        "parameter override binding"
+      ],
+      "requiredGates": [
+        "fixed-seed-reproducibility",
+        "statistical-moment-check",
+        "artifact-seed-recording"
+      ]
+    }
+  ]
+}
