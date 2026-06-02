@@ -95,7 +95,7 @@ public struct FourierAnalysis: Analysis, Sendable {
                 // Extract time-value pairs for the last period
                 let waveform = Self.extractLastPeriod(
                     timePoints: transientResult.timePoints,
-                    values: transientResult.solutions.map { $0[varIndex] },
+                    values: transientResult.solutionTrace.column(variableIndex: varIndex),
                     period: period
                 )
 
@@ -161,15 +161,16 @@ public struct FourierAnalysis: Analysis, Sendable {
     // MARK: - Public Computation Helpers
 
     /// Extracts the data points within the last period of the simulation.
-    public static func extractLastPeriod(
+    public static func extractLastPeriod<Values: Collection>(
         timePoints: [Double],
-        values: [Double],
+        values: Values,
         period: Double
-    ) -> [(time: Double, value: Double)] {
+    ) -> [(time: Double, value: Double)] where Values.Element == Double, Values.Index == Int {
         guard let lastTime = timePoints.last else { return [] }
         let periodStart = lastTime - period
 
         var result: [(time: Double, value: Double)] = []
+        result.reserveCapacity(timePoints.count)
         for (i, t) in timePoints.enumerated() {
             if t >= periodStart {
                 result.append((time: t, value: values[i]))

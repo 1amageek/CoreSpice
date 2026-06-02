@@ -112,28 +112,30 @@ import Foundation
 
 extension ExportConfiguration {
 
-    /// Applies configured filters to waveform data.
+    /// Applies configured filters as a lazy waveform projection.
     ///
     /// - Parameter data: The original waveform data.
-    /// - Returns: A new waveform data with filters applied.
-    public func applyFilters(to data: WaveformData) -> WaveformData {
-        var filteredData = data
+    /// - Returns: A read-only view with filters applied.
+    public func applyFilters(to data: any WaveformReadable) -> WaveformDataView {
+        var variableIndices: [Int]?
+        var pointIndices: [Int]?
 
-        // Apply variable filter
         if let filter = variableFilter, !filter.isEmpty {
-            filteredData = filterVariables(filteredData, matching: filter)
+            variableIndices = matchingVariableIndices(in: data, patterns: filter)
         }
 
-        // Apply sweep range filter
         if let range = sweepRange {
-            filteredData = filterSweepRange(filteredData, to: range)
+            pointIndices = matchingPointIndices(in: data, range: range)
         }
 
-        return filteredData
+        return WaveformDataView(
+            base: data,
+            pointIndices: pointIndices,
+            variableIndices: variableIndices
+        )
     }
 
-    /// Filters variables by name patterns.
-    private func filterVariables(_ data: WaveformData, matching patterns: [String]) -> WaveformData {
+    private func matchingVariableIndices(in data: any WaveformReadable, patterns: [String]) -> [Int] {
         var matchedIndices: [Int] = []
 
         for (index, variable) in data.variables.enumerated() {
@@ -145,121 +147,20 @@ extension ExportConfiguration {
             }
         }
 
-        guard !matchedIndices.isEmpty else { return data }
-
-        // Rebuild variables with new indices
-        let filteredVariables: [VariableDescriptor] = matchedIndices.enumerated().map { newIndex, oldIndex in
-            let old = data.variables[oldIndex]
-            return VariableDescriptor(
-                name: old.name,
-                unit: old.unit,
-                type: old.type,
-                index: newIndex
-            )
-        }
-
-        // Filter data
-        let filteredRealData: [[Double]]?
-        let filteredComplexData: [[(real: Double, imag: Double)]]?
-
-        if data.isComplex {
-            filteredRealData = nil
-            filteredComplexData = data.allComplexData?.map { point in
-                matchedIndices.map { point[$0] }
-            }
-        } else {
-            filteredRealData = data.allRealData?.map { point in
-                matchedIndices.map { point[$0] }
-            }
-            filteredComplexData = nil
-        }
-
-        let newMetadata = SimulationMetadata(
-            title: data.metadata.title,
-            analysisType: data.metadata.analysisType,
-            pointCount: data.metadata.pointCount,
-            variableCount: filteredVariables.count,
-            isComplex: data.metadata.isComplex
-        )
-
-        if data.isComplex, let cdata = filteredComplexData {
-            return WaveformData(
-                metadata: newMetadata,
-                sweepVariable: data.sweepVariable,
-                sweepValues: data.sweepValues,
-                variables: filteredVariables,
-                complexData: cdata
-            )
-        } else if let rdata = filteredRealData {
-            return WaveformData(
-                metadata: newMetadata,
-                sweepVariable: data.sweepVariable,
-                sweepValues: data.sweepValues,
-                variables: filteredVariables,
-                realData: rdata
-            )
-        }
-
-        return data
+        return matchedIndices
     }
 
-    /// Filters sweep range to the specified bounds.
-    private func filterSweepRange(_ data: WaveformData, to range: ClosedRange<Double>) -> WaveformData {
+    private func matchingPointIndices(in data: any WaveformReadable, range: ClosedRange<Double>) -> [Int] {
         var includedIndices: [Int] = []
 
-        for (index, value) in data.sweepValues.enumerated() {
+        for index in 0..<data.pointCount {
+            guard let value = data.sweepValue(at: index) else { continue }
             if range.contains(value) {
                 includedIndices.append(index)
             }
         }
 
-        guard !includedIndices.isEmpty else { return data }
-
-        let filteredSweepValues = includedIndices.map { data.sweepValues[$0] }
-
-        // Filter data points
-        let filteredRealData: [[Double]]?
-        let filteredComplexData: [[(real: Double, imag: Double)]]?
-
-        if data.isComplex {
-            filteredRealData = nil
-            filteredComplexData = data.allComplexData.map { allData in
-                includedIndices.map { allData[$0] }
-            }
-        } else {
-            filteredRealData = data.allRealData.map { allData in
-                includedIndices.map { allData[$0] }
-            }
-            filteredComplexData = nil
-        }
-
-        let newMetadata = SimulationMetadata(
-            title: data.metadata.title,
-            analysisType: data.metadata.analysisType,
-            pointCount: includedIndices.count,
-            variableCount: data.metadata.variableCount,
-            isComplex: data.metadata.isComplex
-        )
-
-        if data.isComplex, let cdata = filteredComplexData {
-            return WaveformData(
-                metadata: newMetadata,
-                sweepVariable: data.sweepVariable,
-                sweepValues: filteredSweepValues,
-                variables: data.variables,
-                complexData: cdata
-            )
-        } else if let rdata = filteredRealData {
-            return WaveformData(
-                metadata: newMetadata,
-                sweepVariable: data.sweepVariable,
-                sweepValues: filteredSweepValues,
-                variables: data.variables,
-                realData: rdata
-            )
-        }
-
-        return data
+        return includedIndices
     }
 
     /// Matches a name against a wildcard pattern.

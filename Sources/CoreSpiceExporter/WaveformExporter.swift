@@ -27,7 +27,7 @@ public protocol WaveformExporter: Sendable {
     ///   - configuration: Export configuration options.
     /// - Returns: The export result.
     func export(
-        _ data: WaveformData,
+        _ data: any WaveformReadable,
         to destination: ExportDestination,
         configuration: ExportConfiguration
     ) async throws -> ExportResult
@@ -37,7 +37,7 @@ extension WaveformExporter {
 
     /// Exports with default configuration.
     public func export(
-        _ data: WaveformData,
+        _ data: any WaveformReadable,
         to destination: ExportDestination
     ) async throws -> ExportResult {
         try await export(data, to: destination, configuration: .default)
@@ -45,7 +45,7 @@ extension WaveformExporter {
 
     /// Exports to a file at the given path.
     public func export(
-        _ data: WaveformData,
+        _ data: any WaveformReadable,
         toPath path: String,
         configuration: ExportConfiguration = .default
     ) async throws -> ExportResult {
@@ -54,7 +54,7 @@ extension WaveformExporter {
 
     /// Exports to memory and returns the data.
     public func exportToData(
-        _ data: WaveformData,
+        _ data: any WaveformReadable,
         configuration: ExportConfiguration = .default
     ) async throws -> Data {
         let result = try await export(data, to: .memory, configuration: configuration)

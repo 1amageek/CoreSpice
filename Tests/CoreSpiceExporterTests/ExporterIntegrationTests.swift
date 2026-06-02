@@ -360,9 +360,20 @@ struct ExporterIntegrationTests {
         #expect(psfResult.success)
         #expect(psfResult.pointsExported == pointCount)
 
-        // Test export with variable filter (applyFilters is called by the caller, not the exporter)
+        // Test direct export with a lazy variable filter.
         var filterConfig = ExportConfiguration.default
         filterConfig.variableFilter = ["V(n0)", "V(n9)"]
+        let directFilteredResult = try await csvExporter.export(
+            waveform,
+            to: .memory,
+            configuration: filterConfig
+        )
+
+        #expect(directFilteredResult.success)
+        #expect(directFilteredResult.variablesExported == 2,
+                "Direct filtered export should have 2 variables, got \(directFilteredResult.variablesExported)")
+
+        // Test export of a prebuilt lazy view.
         let filteredWaveform = filterConfig.applyFilters(to: waveform)
 
         #expect(filteredWaveform.variableCount == 2,
@@ -381,12 +392,11 @@ struct ExporterIntegrationTests {
             #expect(!fHeader.contains("V(n1)"), "Filtered header should not contain V(n1)")
         }
 
-        // Test export with sweep range filter
+        // Test direct export with a lazy sweep range filter.
         var rangeConfig = ExportConfiguration.default
         rangeConfig.sweepRange = 0.0...1e-4 // First 10% of time
-        let rangeWaveform = rangeConfig.applyFilters(to: waveform)
 
-        let rangeResult = try await csvExporter.export(rangeWaveform, to: .memory, configuration: .default)
+        let rangeResult = try await csvExporter.export(waveform, to: .memory, configuration: rangeConfig)
         #expect(rangeResult.success)
         // Should have approximately 1001 points (10% of 10000, inclusive of endpoints)
         #expect(rangeResult.pointsExported > 900 && rangeResult.pointsExported < 1100,

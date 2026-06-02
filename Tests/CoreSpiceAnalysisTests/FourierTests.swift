@@ -288,6 +288,31 @@ struct FourierTests {
         #expect(result[4].value == 0.0)
     }
 
+    /// Test extractLastPeriod accepts a strided SolutionTrace column view.
+    @Test func extractLastPeriodFromSolutionTraceColumn() {
+        let timePoints = [0.0, 0.5, 1.0, 1.5, 2.0]
+        let trace = SolutionTrace(
+            variableCount: 2,
+            rowMajorValues: [
+                10.0, 0.0,
+                20.0, 1.0,
+                30.0, 0.0,
+                40.0, 1.0,
+                50.0, 0.0
+            ]
+        )
+
+        let result = FourierAnalysis.extractLastPeriod(
+            timePoints: timePoints,
+            values: trace.column(variableIndex: 1),
+            period: 1.0
+        )
+
+        #expect(result.count == 3)
+        #expect(result.map(\.time) == [1.0, 1.5, 2.0])
+        #expect(result.map(\.value) == [0.0, 1.0, 0.0])
+    }
+
     /// Test DFT with a pure sine wave: should have only fundamental, THD ≈ 0.
     @Test func pureSineDFTDirect() {
         let freq = 500.0

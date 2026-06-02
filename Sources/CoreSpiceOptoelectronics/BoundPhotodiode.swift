@@ -17,7 +17,7 @@ import CoreSpiceDevices
 /// The `gm_opto` Jacobian entries ensure quadratic convergence of the
 /// Newton-Raphson solver when the optical power depends on electrical
 /// variables (e.g., laser diode drive current).
-public struct BoundPhotodiode: OptoelectronicDevice, VoltageLimitingDevice, NoisyDevice, Sendable {
+public struct BoundPhotodiode: OptoelectronicDevice, VoltageLimitingDevice, NoisyDevice, TransientStateCommittingDevice, Sendable {
 
     public let instance: Instance
     private let anode: Node
@@ -30,6 +30,7 @@ public struct BoundPhotodiode: OptoelectronicDevice, VoltageLimitingDevice, Nois
 
     /// Optical input node from which this photodiode receives light.
     private let opticalInput: OpticalNode
+    private let capacitanceStore: TransientCapacitanceStore
 
     private static let maxExpArg: Double = 40.0
     private static let gmin: Double = 1e-12
@@ -54,6 +55,7 @@ public struct BoundPhotodiode: OptoelectronicDevice, VoltageLimitingDevice, Nois
         self.cathodeIdx = cathodeIdx
         self.opticalInput = opticalInput
         self.parameters = parameters
+        self.capacitanceStore = TransientCapacitanceStore()
     }
 
     // MARK: - Voltage Helpers
@@ -186,10 +188,25 @@ public struct BoundPhotodiode: OptoelectronicDevice, VoltageLimitingDevice, Nois
 
         let aIdx = stamper.nodeIndex(anode)
         let cIdx = stamper.nodeIndex(cathode)
-        stampTransientCapacitance(
+        capacitanceStore.stamp(
+            key: "junction",
             into: &stamper,
             node1: aIdx, node2: cIdx,
-            cap: cj,
+            capacitance: cj,
+            state: state,
+            integration: integration
+        )
+    }
+
+    public func commitTransientStep(state: SolutionState, integration: IntegrationState) {
+        let op = operatingPoint(state: state)
+        let cjDepl = junctionCapacitance(vd: op.vd)
+        let cDiff = parameters.transitTime * op.gd
+        capacitanceStore.commit(
+            key: "junction",
+            node1: anodeIdx,
+            node2: cathodeIdx,
+            capacitance: cjDepl + cDiff,
             state: state,
             integration: integration
         )
@@ -368,48 +385,4 @@ public struct BoundPhotodiode: OptoelectronicDevice, VoltageLimitingDevice, Nois
         }
     }
 
-    private func stampTransientCapacitance(
-        into stamper: inout MatrixStamper,
-        node1: Int?, node2: Int?,
-        cap: Double,
-        state: SolutionState,
-        integration: IntegrationState
-    ) {
-        guard cap > 0 else { return }
-        let geq = integration.coefficient * cap
-        let v1 = node1.map { state.previousValue(at: $0) } ?? 0.0
-        let v2 = node2.map { state.previousValue(at: $0) } ?? 0.0
-        let vPrev = v1 - v2
-
-        let ieq: Double
-        switch integration.method {
-        case .backwardEuler:
-            ieq = geq * vPrev
-        case .trapezoidal:
-            let v1pp = node1.map { state.twoPreviousValue(at: $0) } ?? 0.0
-            let v2pp = node2.map { state.twoPreviousValue(at: $0) } ?? 0.0
-            let vPrevPrev = v1pp - v2pp
-            let dtPrev = integration.previousTimeStep ?? integration.timeStep
-            let iCapPrev = cap * (vPrev - vPrevPrev) / dtPrev
-            ieq = geq * vPrev + iCapPrev
-        }
-
-        if let n1 = node1 {
-            stamper.stampMatrix(n1, n1, geq)
-        }
-        if let n2 = node2 {
-            stamper.stampMatrix(n2, n2, geq)
-        }
-        if let n1 = node1, let n2 = node2 {
-            stamper.stampMatrix(n1, n2, -geq)
-            stamper.stampMatrix(n2, n1, -geq)
-        }
-
-        if let n1 = node1 {
-            stamper.stampRHS(n1, ieq)
-        }
-        if let n2 = node2 {
-            stamper.stampRHS(n2, -ieq)
-        }
-    }
 }

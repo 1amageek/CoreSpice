@@ -159,8 +159,10 @@ public struct DCAnalysis: Analysis, Sendable {
         )
 
         let nr = NewtonRaphsonSolver(config: config)
-        let result = try await nr.solve(
+        var solution = [Double](repeating: 0.0, count: initialGuess.count)
+        let iterations = try await nr.solve(
             initialGuess: initialGuess,
+            solution: &solution,
             matrix: &matrix,
             rhs: &rhs,
             devices: devices,
@@ -191,9 +193,9 @@ public struct DCAnalysis: Analysis, Sendable {
         )
 
         return DCResult(
-            variables: result.solution,
+            variables: solution,
             variableMap: variableMap,
-            iterations: result.iterations,
+            iterations: iterations,
             opticalState: plan.opticalNetwork != nil ? opticalState : nil
         )
     }
@@ -248,6 +250,7 @@ public struct DCAnalysis: Analysis, Sendable {
     ) async throws -> DCResult {
         let dim = plan.topology.dimension
         var x = [Double](repeating: 0, count: dim)
+        var solution = [Double](repeating: 0, count: dim)
         var totalIterations = 0
         var matrix = SparseMatrix(structure: plan.matrixStructure)
         var rhs = [Double](repeating: 0, count: dim)
@@ -260,8 +263,9 @@ public struct DCAnalysis: Analysis, Sendable {
 
         for factor in sourceStepping.sourceFactors() {
             let nr = NewtonRaphsonSolver(config: config)
-            let result = try await nr.solve(
+            let iterations = try await nr.solve(
                 initialGuess: x,
+                solution: &solution,
                 matrix: &matrix,
                 rhs: &rhs,
                 devices: devices,
@@ -294,8 +298,8 @@ public struct DCAnalysis: Analysis, Sendable {
                 analysisID: analysisID,
                 cancellation: cancellation
             )
-            x = result.solution
-            totalIterations += result.iterations
+            swap(&x, &solution)
+            totalIterations += iterations
         }
 
         return DCResult(

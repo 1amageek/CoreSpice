@@ -26,7 +26,7 @@ private final class MutableDouble: Sendable {
 /// from the previous accepted timestep. This is stored in
 /// `committedCapCurrent` and updated after each step acceptance
 /// via `commitTransientStep(state:integration:)`.
-public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, Sendable {
+public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, TransientStateCommittingDevice, Sendable {
 
     public let instance: Instance
     private let posNode: Node

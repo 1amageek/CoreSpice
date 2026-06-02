@@ -35,7 +35,7 @@ public struct BJTCSRIndices: Sendable {
 ///
 /// The device is linearised around the current operating point for
 /// Newton-Raphson iteration.
-public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
+public struct BoundBJT: BoundDevice, VoltageLimitingDevice, TransientStateCommittingDevice, NoisyDevice, Sendable {
 
     public let instance: Instance
     private let collector: Node
@@ -52,6 +52,7 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
 
     /// Pre-resolved CSR value indices for O(1) stamping.
     private let csrIndices: BJTCSRIndices
+    private let capacitanceStore: TransientCapacitanceStore
 
     /// Convergence tolerance for terminal voltages (V).
     private static let voltageTolerance: Double = 1e-6
@@ -82,6 +83,7 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
         self.emitterIdx = emitterIdx
         self.parameters = parameters
         self.csrIndices = csrIndices
+        self.capacitanceStore = TransientCapacitanceStore()
     }
 
     // MARK: - Index-Based Voltage Helpers
@@ -187,15 +189,45 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
         let cIdx = stamper.nodeIndex(collector)
 
         // Cbe: between base and emitter
-        stampTransientCapacitance(
-            into: &stamper, node1: bIdx, node2: eIdx,
-            cap: caps.cbe, state: state, integration: integration
+        capacitanceStore.stamp(
+            key: "cbe",
+            into: &stamper,
+            node1: bIdx,
+            node2: eIdx,
+            capacitance: caps.cbe,
+            state: state,
+            integration: integration
         )
 
         // Cbc: between base and collector
-        stampTransientCapacitance(
-            into: &stamper, node1: bIdx, node2: cIdx,
-            cap: caps.cbc, state: state, integration: integration
+        capacitanceStore.stamp(
+            key: "cbc",
+            into: &stamper,
+            node1: bIdx,
+            node2: cIdx,
+            capacitance: caps.cbc,
+            state: state,
+            integration: integration
+        )
+    }
+
+    public func commitTransientStep(state: SolutionState, integration: IntegrationState) {
+        let caps = bjtCapacitances(state: state)
+        capacitanceStore.commit(
+            key: "cbe",
+            node1: baseIdx,
+            node2: emitterIdx,
+            capacitance: caps.cbe,
+            state: state,
+            integration: integration
+        )
+        capacitanceStore.commit(
+            key: "cbc",
+            node1: baseIdx,
+            node2: collectorIdx,
+            capacitance: caps.cbc,
+            state: state,
+            integration: integration
         )
     }
 
@@ -213,6 +245,31 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
             return .converged
         }
         return .notConverged(maxDelta: maxDelta, deviceName: instance.name)
+    }
+
+    public func noiseContributions(state: SolutionState, frequency: Double) -> [NoiseSource] {
+        let op = operatingPoint(state: state)
+        let q = 1.602176634e-19
+        var sources: [NoiseSource] = []
+        let collectorShot = 2.0 * q * abs(op.ic)
+        if collectorShot > 0 {
+            sources.append(NoiseSource(
+                name: "\(instance.name)_collector_shot",
+                positiveNode: collector,
+                negativeNode: emitter,
+                currentSpectralDensity: collectorShot
+            ))
+        }
+        let baseShot = 2.0 * q * abs(op.ib)
+        if baseShot > 0 {
+            sources.append(NoiseSource(
+                name: "\(instance.name)_base_shot",
+                positiveNode: base,
+                negativeNode: emitter,
+                currentSpectralDensity: baseShot
+            ))
+        }
+        return sources
     }
 
     // MARK: - Internal Model
@@ -497,57 +554,6 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, Sendable {
         if let n1 = node1, let n2 = node2 {
             stamper.stampMatrix(n1, n2, 0.0, -susceptance)
             stamper.stampMatrix(n2, n1, 0.0, -susceptance)
-        }
-    }
-
-    /// Stamp a capacitance companion model for transient analysis.
-    ///
-    /// Uses backward Euler or trapezoidal integration. Trapezoidal
-    /// includes the previous capacitor current for O(h^2) accuracy.
-    private func stampTransientCapacitance(
-        into stamper: inout MatrixStamper,
-        node1: Int?, node2: Int?,
-        cap: Double,
-        state: SolutionState,
-        integration: IntegrationState
-    ) {
-        guard cap > 0 else { return }
-        let geq = integration.coefficient * cap
-        let v1 = node1.map { state.previousValue(at: $0) } ?? 0.0
-        let v2 = node2.map { state.previousValue(at: $0) } ?? 0.0
-        let vPrev = v1 - v2
-
-        let ieq: Double
-        switch integration.method {
-        case .backwardEuler:
-            ieq = geq * vPrev
-        case .trapezoidal:
-            let v1pp = node1.map { state.twoPreviousValue(at: $0) } ?? 0.0
-            let v2pp = node2.map { state.twoPreviousValue(at: $0) } ?? 0.0
-            let vPrevPrev = v1pp - v2pp
-            let dtPrev = integration.previousTimeStep ?? integration.timeStep
-            let iCapPrev = cap * (vPrev - vPrevPrev) / dtPrev
-            ieq = geq * vPrev + iCapPrev
-        }
-
-        // Conductance stamp
-        if let n1 = node1 {
-            stamper.stampMatrix(n1, n1, geq)
-        }
-        if let n2 = node2 {
-            stamper.stampMatrix(n2, n2, geq)
-        }
-        if let n1 = node1, let n2 = node2 {
-            stamper.stampMatrix(n1, n2, -geq)
-            stamper.stampMatrix(n2, n1, -geq)
-        }
-
-        // History current source
-        if let n1 = node1 {
-            stamper.stampRHS(n1, ieq)
-        }
-        if let n2 = node2 {
-            stamper.stampRHS(n2, -ieq)
         }
     }
 

@@ -17,43 +17,40 @@ public struct PSFExporter: WaveformExporter, StreamingWaveformExporter {
     public init() {}
 
     public func export(
-        _ data: WaveformData,
+        _ data: any WaveformReadable,
         to destination: ExportDestination,
         configuration: ExportConfiguration
     ) async throws -> ExportResult {
-        let session = try await beginExport(
-            to: destination,
-            metadata: data.metadata,
-            sweepVariable: data.sweepVariable,
-            variables: data.variables,
+        let exportData = configuration.applyFilters(to: data)
+        let session = try PSFExportSession(
+            destination: destination,
+            metadata: exportData.metadata,
+            sweepVariable: exportData.sweepVariable,
+            variables: exportData.variables,
             configuration: configuration
         )
 
         // Write all data points
-        if data.isComplex {
-            for point in 0..<data.pointCount {
-                var values: [(real: Double, imag: Double)] = []
-                for varIdx in 0..<data.variableCount {
-                    if let v = data.complexValue(variable: varIdx, point: point) {
-                        values.append(v)
-                    }
+        if exportData.isComplex {
+            for point in 0..<exportData.pointCount {
+                guard let sweepValue = exportData.sweepValue(at: point) else {
+                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
                 }
-                try await session.writeComplexPoint(
-                    sweepValue: data.sweepValues[point],
-                    values: values
+                try session.writeComplexPointValues(
+                    sweepValue: sweepValue,
+                    source: exportData,
+                    point: point
                 )
             }
         } else {
-            for point in 0..<data.pointCount {
-                var values: [Double] = []
-                for varIdx in 0..<data.variableCount {
-                    if let v = data.realValue(variable: varIdx, point: point) {
-                        values.append(v)
-                    }
+            for point in 0..<exportData.pointCount {
+                guard let sweepValue = exportData.sweepValue(at: point) else {
+                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
                 }
-                try await session.writePoint(
-                    sweepValue: data.sweepValues[point],
-                    values: values
+                try session.writePointValues(
+                    sweepValue: sweepValue,
+                    source: exportData,
+                    point: point
                 )
             }
         }
@@ -113,6 +110,15 @@ final class PSFExportSession: ExportSession, Sendable {
     }
 
     func writePoint(sweepValue: Double, values: [Double]) async throws {
+        try values.withUnsafeBufferPointer { buffer in
+            try writePointBuffer(sweepValue: sweepValue, values: buffer)
+        }
+    }
+
+    func writePointBuffer(
+        sweepValue: Double,
+        values: UnsafeBufferPointer<Double>
+    ) throws {
         let needsHeader = localState.withLock { state -> Bool in
             if !state.headerWritten {
                 state.headerWritten = true
@@ -130,10 +136,41 @@ final class PSFExportSession: ExportSession, Sendable {
         helper.incrementPointCount()
     }
 
+    func writePointValues(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        let needsHeader = localState.withLock { state -> Bool in
+            if !state.headerWritten {
+                state.headerWritten = true
+                state.isComplex = false
+                return true
+            }
+            return false
+        }
+
+        if needsHeader {
+            try writeHeader(isComplex: false)
+        }
+
+        try writeValuePoint(sweepValue: sweepValue, source: source, point: point)
+        helper.incrementPointCount()
+    }
+
     func writeComplexPoint(
         sweepValue: Double,
         values: [(real: Double, imag: Double)]
     ) async throws {
+        try values.withUnsafeBufferPointer { buffer in
+            try writeComplexPointBuffer(sweepValue: sweepValue, values: buffer)
+        }
+    }
+
+    func writeComplexPointBuffer(
+        sweepValue: Double,
+        values: UnsafeBufferPointer<(real: Double, imag: Double)>
+    ) throws {
         let needsHeader = localState.withLock { state -> Bool in
             if !state.headerWritten {
                 state.headerWritten = true
@@ -148,6 +185,28 @@ final class PSFExportSession: ExportSession, Sendable {
         }
 
         try writeComplexValuePoint(sweepValue: sweepValue, values: values)
+        helper.incrementPointCount()
+    }
+
+    func writeComplexPointValues(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        let needsHeader = localState.withLock { state -> Bool in
+            if !state.headerWritten {
+                state.headerWritten = true
+                state.isComplex = true
+                return true
+            }
+            return false
+        }
+
+        if needsHeader {
+            try writeHeader(isComplex: true)
+        }
+
+        try writeComplexValuePoint(sweepValue: sweepValue, source: source, point: point)
         helper.incrementPointCount()
     }
 
@@ -287,7 +346,10 @@ final class PSFExportSession: ExportSession, Sendable {
         return writer.getData()
     }
 
-    private func writeValuePoint(sweepValue: Double, values: [Double]) throws {
+    private func writeValuePoint(
+        sweepValue: Double,
+        values: UnsafeBufferPointer<Double>
+    ) throws {
         localState.withLock { state in
             // Write sweep value
             state.valueBuffer.writeDouble(sweepValue)
@@ -299,9 +361,25 @@ final class PSFExportSession: ExportSession, Sendable {
         }
     }
 
+    private func writeValuePoint(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        try localState.withLock { state in
+            state.valueBuffer.writeDouble(sweepValue)
+            let completed = source.forEachRealValue(at: point) { value in
+                state.valueBuffer.writeDouble(value)
+            }
+            guard completed else {
+                throw ExporterError.unsupportedDataFormat(reason: "Real point storage unavailable")
+            }
+        }
+    }
+
     private func writeComplexValuePoint(
         sweepValue: Double,
-        values: [(real: Double, imag: Double)]
+        values: UnsafeBufferPointer<(real: Double, imag: Double)>
     ) throws {
         localState.withLock { state in
             // Write sweep value as complex (real, imag=0)
@@ -310,6 +388,22 @@ final class PSFExportSession: ExportSession, Sendable {
             // Write each complex variable
             for value in values {
                 state.valueBuffer.writeComplex(real: value.real, imag: value.imag)
+            }
+        }
+    }
+
+    private func writeComplexValuePoint(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        try localState.withLock { state in
+            state.valueBuffer.writeComplex(real: sweepValue, imag: 0.0)
+            let completed = source.forEachComplexValue(at: point) { value in
+                state.valueBuffer.writeComplex(real: value.real, imag: value.imag)
+            }
+            guard completed else {
+                throw ExporterError.unsupportedDataFormat(reason: "Complex point storage unavailable")
             }
         }
     }

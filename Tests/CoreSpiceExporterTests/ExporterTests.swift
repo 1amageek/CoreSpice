@@ -43,6 +43,44 @@ struct RAWExporterTests {
     }
 
     @Test
+    func exportRowMajorDataToMemory() async throws {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                title: "Row Major RAW",
+                analysisType: .transient,
+                pointCount: 2,
+                variableCount: 2
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0],
+            variables: [
+                .voltage(node: "out", index: 0),
+                .current(device: "R1", index: 1)
+            ],
+            realRowMajorData: [
+                1.0, 0.001,
+                2.0, 0.002
+            ],
+            pointCount: 2,
+            variableCount: 2
+        )
+
+        let exporter = RAWExporter(useBinaryFormat: false)
+        let result = try await exporter.export(waveform, to: .memory, configuration: .default)
+
+        #expect(result.success)
+        #expect(result.pointsExported == 2)
+
+        guard let data = result.data, let content = String(data: data, encoding: .utf8) else {
+            Issue.record("RAW export produced no data")
+            return
+        }
+
+        #expect(content.contains("0\t0.000000000000000e+00\t1.000000000000000e+00\t1.000000000000000e-03"))
+        #expect(content.contains("1\t1.000000000000000e+00\t2.000000000000000e+00\t2.000000000000000e-03"))
+    }
+
+    @Test
     func exportBinaryFormat() async throws {
         let metadata = SimulationMetadata(
             title: "Binary Test",
@@ -137,6 +175,46 @@ struct CSVExporterTests {
             #expect(lines[0].contains("V(out)"))
             #expect(lines[0].contains("I(R1)"))
         }
+    }
+
+    @Test
+    func exportRowMajorDataToMemory() async throws {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                title: "Row Major CSV",
+                analysisType: .transient,
+                pointCount: 2,
+                variableCount: 2
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0],
+            variables: [
+                .voltage(node: "out", index: 0),
+                .current(device: "R1", index: 1)
+            ],
+            realRowMajorData: [
+                1.0, 0.001,
+                2.0, 0.002
+            ],
+            pointCount: 2,
+            variableCount: 2
+        )
+
+        let exporter = CSVExporter()
+        let result = try await exporter.export(waveform, to: .memory, configuration: .default)
+
+        #expect(result.success)
+        #expect(result.pointsExported == 2)
+
+        guard let data = result.data, let content = String(data: data, encoding: .utf8) else {
+            Issue.record("CSV export produced no data")
+            return
+        }
+
+        let lines = content.split(separator: "\n")
+        #expect(lines.count == 3)
+        #expect(lines[1] == "0,1,0.001")
+        #expect(lines[2] == "1,2,0.002")
     }
 
     @Test
@@ -255,6 +333,47 @@ struct PSFExporterTests {
     }
 
     @Test
+    func exportRowMajorDataToMemory() async throws {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                title: "Row Major PSF",
+                analysisType: .transient,
+                pointCount: 2,
+                variableCount: 2
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0],
+            variables: [
+                .voltage(node: "out", index: 0),
+                .current(device: "R1", index: 1)
+            ],
+            realRowMajorData: [
+                1.0, 0.001,
+                2.0, 0.002
+            ],
+            pointCount: 2,
+            variableCount: 2
+        )
+
+        let exporter = PSFExporter()
+        let result = try await exporter.export(waveform, to: .memory, configuration: .default)
+
+        #expect(result.success)
+        #expect(result.pointsExported == 2)
+
+        guard let data = result.data else {
+            Issue.record("PSF export produced no data")
+            return
+        }
+
+        #expect(data.count > 4)
+        #expect(data[0] == 0x00)
+        #expect(data[1] == 0x00)
+        #expect(data[2] == 0x00)
+        #expect(data[3] == 0x01)
+    }
+
+    @Test
     func exportComplexData() async throws {
         let metadata = SimulationMetadata(
             title: "PSF AC Test",
@@ -330,6 +449,52 @@ struct ExportConfigurationTests {
     }
 
     @Test
+    func filterVariablesKeepsRowMajorStorage() {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                analysisType: .transient,
+                pointCount: 3,
+                variableCount: 3
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0, 2.0],
+            variables: [
+                .voltage(node: "in", index: 0),
+                .voltage(node: "out", index: 1),
+                .current(device: "R1", index: 2)
+            ],
+            realRowMajorData: [
+                1.0, 2.0, 0.1,
+                4.0, 5.0, 0.2,
+                7.0, 8.0, 0.3
+            ],
+            pointCount: 3,
+            variableCount: 3
+        )
+
+        var config = ExportConfiguration.default
+        config.variableFilter = ["V(out)", "I(R1)"]
+
+        let filtered = config.applyFilters(to: waveform)
+
+        #expect(filtered.variableCount == 2)
+        var projectedValues: [Double] = []
+        let completed = filtered.forEachRealValue(at: 1) { value in
+            projectedValues.append(value)
+        }
+        #expect(completed)
+        #expect(projectedValues == [5.0, 0.2])
+
+        let borrowsBaseStorage = waveform.withRealValues(at: 1) { basePoint in
+            filtered.withRealValues(at: 1) { filteredPoint in
+                #expect(Array(filteredPoint) == [5.0, 0.2])
+                return filteredPoint.baseAddress == basePoint.baseAddress.map { $0 + 1 }
+            } ?? false
+        } ?? false
+        #expect(borrowsBaseStorage)
+    }
+
+    @Test
     func filterByWildcard() {
         let metadata = SimulationMetadata(
             analysisType: .transient,
@@ -359,6 +524,43 @@ struct ExportConfigurationTests {
     }
 
     @Test
+    func unmatchedVariableFilterReturnsEmptyProjection() {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                analysisType: .transient,
+                pointCount: 2,
+                variableCount: 2
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0],
+            variables: [
+                .voltage(node: "in", index: 0),
+                .voltage(node: "out", index: 1)
+            ],
+            realRowMajorData: [
+                1.0, 2.0,
+                3.0, 4.0
+            ],
+            pointCount: 2,
+            variableCount: 2
+        )
+
+        var config = ExportConfiguration.default
+        config.variableFilter = ["I(missing)"]
+
+        let filtered = config.applyFilters(to: waveform)
+
+        #expect(filtered.pointCount == 2)
+        #expect(filtered.variableCount == 0)
+        var values: [Double] = []
+        let completed = filtered.forEachRealValue(at: 0) { value in
+            values.append(value)
+        }
+        #expect(completed)
+        #expect(values.isEmpty)
+    }
+
+    @Test
     func filterBySweepRange() {
         let metadata = SimulationMetadata(
             analysisType: .transient,
@@ -380,7 +582,119 @@ struct ExportConfigurationTests {
         let filtered = config.applyFilters(to: waveform)
 
         #expect(filtered.pointCount == 3)
-        #expect(filtered.sweepValues == [1.0, 2.0, 3.0])
+        let sweepValues = (0..<filtered.pointCount).compactMap { filtered.sweepValue(at: $0) }
+        #expect(sweepValues == [1.0, 2.0, 3.0])
+    }
+
+    @Test
+    func filterSweepRangeKeepsRowMajorStorage() {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                analysisType: .transient,
+                pointCount: 3,
+                variableCount: 2
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0, 2.0],
+            variables: [
+                .voltage(node: "out", index: 0),
+                .current(device: "R1", index: 1)
+            ],
+            realRowMajorData: [
+                1.0, 0.1,
+                2.0, 0.2,
+                3.0, 0.3
+            ],
+            pointCount: 3,
+            variableCount: 2
+        )
+
+        var config = ExportConfiguration.default
+        config.sweepRange = 1.0...2.0
+
+        let filtered = config.applyFilters(to: waveform)
+
+        #expect(filtered.pointCount == 2)
+        let sweepValues = (0..<filtered.pointCount).compactMap { filtered.sweepValue(at: $0) }
+        #expect(sweepValues == [1.0, 2.0])
+
+        var projectedValues: [Double] = []
+        let completed = filtered.forEachRealValue(at: 1) { value in
+            projectedValues.append(value)
+        }
+        #expect(completed)
+        #expect(projectedValues == [3.0, 0.3])
+
+        let borrowsBaseStorage = waveform.withRealValues(at: 2) { basePoint in
+            filtered.withRealValues(at: 1) { filteredPoint in
+                #expect(Array(filteredPoint) == [3.0, 0.3])
+                return filteredPoint.baseAddress == basePoint.baseAddress
+            } ?? false
+        } ?? false
+        #expect(borrowsBaseStorage)
+    }
+
+    @Test
+    func unmatchedSweepRangeReturnsEmptyProjection() {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                analysisType: .transient,
+                pointCount: 2,
+                variableCount: 1
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0],
+            variables: [.voltage(node: "out", index: 0)],
+            realRowMajorData: [1.0, 2.0],
+            pointCount: 2,
+            variableCount: 1
+        )
+
+        var config = ExportConfiguration.default
+        config.sweepRange = 2.0...3.0
+
+        let filtered = config.applyFilters(to: waveform)
+
+        #expect(filtered.pointCount == 0)
+        #expect(filtered.variableCount == 1)
+    }
+
+    @Test
+    func filtersCanComposeOnLazyViews() {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                analysisType: .transient,
+                pointCount: 3,
+                variableCount: 2
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0, 2.0],
+            variables: [
+                .voltage(node: "in", index: 0),
+                .voltage(node: "out", index: 1)
+            ],
+            realRowMajorData: [
+                1.0, 2.0,
+                3.0, 4.0,
+                5.0, 6.0
+            ],
+            pointCount: 3,
+            variableCount: 2
+        )
+
+        var variableConfig = ExportConfiguration.default
+        variableConfig.variableFilter = ["V(out)"]
+        let variableView = variableConfig.applyFilters(to: waveform)
+
+        var rangeConfig = ExportConfiguration.default
+        rangeConfig.sweepRange = 1.0...2.0
+        let composedView = rangeConfig.applyFilters(to: variableView)
+
+        #expect(composedView.pointCount == 2)
+        #expect(composedView.variableCount == 1)
+        #expect(composedView.sweepValue(at: 0) == 1.0)
+        #expect(composedView.realValue(variable: 0, point: 0) == 4.0)
+        #expect(composedView.realValue(variable: 0, point: 1) == 6.0)
     }
 
     @Test

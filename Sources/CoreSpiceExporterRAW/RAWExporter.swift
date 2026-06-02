@@ -22,43 +22,41 @@ public struct RAWExporter: WaveformExporter, StreamingWaveformExporter {
     }
 
     public func export(
-        _ data: WaveformData,
+        _ data: any WaveformReadable,
         to destination: ExportDestination,
         configuration: ExportConfiguration
     ) async throws -> ExportResult {
-        let session = try await beginExport(
-            to: destination,
-            metadata: data.metadata,
-            sweepVariable: data.sweepVariable,
-            variables: data.variables,
-            configuration: configuration
+        let exportData = configuration.applyFilters(to: data)
+        let session = try RAWExportSession(
+            destination: destination,
+            metadata: exportData.metadata,
+            sweepVariable: exportData.sweepVariable,
+            variables: exportData.variables,
+            configuration: configuration,
+            useBinaryFormat: useBinaryFormat
         )
 
         // Write all data points
-        if data.isComplex {
-            for point in 0..<data.pointCount {
-                var values: [(real: Double, imag: Double)] = []
-                for varIdx in 0..<data.variableCount {
-                    if let v = data.complexValue(variable: varIdx, point: point) {
-                        values.append(v)
-                    }
+        if exportData.isComplex {
+            for point in 0..<exportData.pointCount {
+                guard let sweepValue = exportData.sweepValue(at: point) else {
+                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
                 }
-                try await session.writeComplexPoint(
-                    sweepValue: data.sweepValues[point],
-                    values: values
+                try session.writeComplexPointValues(
+                    sweepValue: sweepValue,
+                    source: exportData,
+                    point: point
                 )
             }
         } else {
-            for point in 0..<data.pointCount {
-                var values: [Double] = []
-                for varIdx in 0..<data.variableCount {
-                    if let v = data.realValue(variable: varIdx, point: point) {
-                        values.append(v)
-                    }
+            for point in 0..<exportData.pointCount {
+                guard let sweepValue = exportData.sweepValue(at: point) else {
+                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
                 }
-                try await session.writePoint(
-                    sweepValue: data.sweepValues[point],
-                    values: values
+                try session.writePointValues(
+                    sweepValue: sweepValue,
+                    source: exportData,
+                    point: point
                 )
             }
         }
@@ -122,6 +120,15 @@ final class RAWExportSession: ExportSession, Sendable {
     }
 
     func writePoint(sweepValue: Double, values: [Double]) async throws {
+        try values.withUnsafeBufferPointer { buffer in
+            try writePointBuffer(sweepValue: sweepValue, values: buffer)
+        }
+    }
+
+    func writePointBuffer(
+        sweepValue: Double,
+        values: UnsafeBufferPointer<Double>
+    ) throws {
         let needsHeader = localState.withLock { state -> Bool in
             if !state.headerWritten {
                 state.headerWritten = true
@@ -143,10 +150,45 @@ final class RAWExportSession: ExportSession, Sendable {
         helper.incrementPointCount()
     }
 
+    func writePointValues(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        let needsHeader = localState.withLock { state -> Bool in
+            if !state.headerWritten {
+                state.headerWritten = true
+                return true
+            }
+            return false
+        }
+
+        if needsHeader {
+            try writeHeader(isComplex: false)
+        }
+
+        if useBinaryFormat {
+            try writeBinaryPointValues(sweepValue: sweepValue, source: source, point: point)
+        } else {
+            try writeASCIIPointValues(sweepValue: sweepValue, source: source, point: point)
+        }
+
+        helper.incrementPointCount()
+    }
+
     func writeComplexPoint(
         sweepValue: Double,
         values: [(real: Double, imag: Double)]
     ) async throws {
+        try values.withUnsafeBufferPointer { buffer in
+            try writeComplexPointBuffer(sweepValue: sweepValue, values: buffer)
+        }
+    }
+
+    func writeComplexPointBuffer(
+        sweepValue: Double,
+        values: UnsafeBufferPointer<(real: Double, imag: Double)>
+    ) throws {
         let needsHeader = localState.withLock { state -> Bool in
             if !state.headerWritten {
                 state.headerWritten = true
@@ -163,6 +205,32 @@ final class RAWExportSession: ExportSession, Sendable {
             try writeBinaryComplexPoint(sweepValue: sweepValue, values: values)
         } else {
             try writeASCIIComplexPoint(sweepValue: sweepValue, values: values)
+        }
+
+        helper.incrementPointCount()
+    }
+
+    func writeComplexPointValues(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        let needsHeader = localState.withLock { state -> Bool in
+            if !state.headerWritten {
+                state.headerWritten = true
+                return true
+            }
+            return false
+        }
+
+        if needsHeader {
+            try writeHeader(isComplex: true)
+        }
+
+        if useBinaryFormat {
+            try writeBinaryComplexPointValues(sweepValue: sweepValue, source: source, point: point)
+        } else {
+            try writeASCIIComplexPointValues(sweepValue: sweepValue, source: source, point: point)
         }
 
         helper.incrementPointCount()
@@ -239,15 +307,19 @@ final class RAWExportSession: ExportSession, Sendable {
         try helper.write(header)
     }
 
-    private func writeBinaryPoint(sweepValue: Double, values: [Double]) throws {
+    private func writeBinaryPoint(
+        sweepValue: Double,
+        values: UnsafeBufferPointer<Double>
+    ) throws {
         var data = Data()
+        data.reserveCapacity((values.count + 1) * MemoryLayout<UInt64>.size)
 
         // Write sweep value as double with correct byte order
-        data.append(doubleToData(sweepValue))
+        appendDouble(sweepValue, to: &data)
 
         // Write each variable
         for value in values {
-            data.append(doubleToData(value))
+            appendDouble(value, to: &data)
         }
 
         try helper.write(data)
@@ -255,25 +327,66 @@ final class RAWExportSession: ExportSession, Sendable {
 
     private func writeBinaryComplexPoint(
         sweepValue: Double,
-        values: [(real: Double, imag: Double)]
+        values: UnsafeBufferPointer<(real: Double, imag: Double)>
     ) throws {
         var data = Data()
+        data.reserveCapacity(((values.count + 1) * 2) * MemoryLayout<UInt64>.size)
 
         // Write sweep value as complex (real, imag=0)
-        data.append(doubleToData(sweepValue))
-        data.append(doubleToData(0.0))
+        appendDouble(sweepValue, to: &data)
+        appendDouble(0.0, to: &data)
 
         // Write each complex variable
         for value in values {
-            data.append(doubleToData(value.real))
-            data.append(doubleToData(value.imag))
+            appendDouble(value.real, to: &data)
+            appendDouble(value.imag, to: &data)
         }
 
         try helper.write(data)
     }
 
-    /// Converts a Double to Data with the configured byte order.
-    private func doubleToData(_ value: Double) -> Data {
+    private func writeBinaryPointValues(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        var data = Data()
+        data.reserveCapacity((source.variableCount + 1) * MemoryLayout<UInt64>.size)
+
+        appendDouble(sweepValue, to: &data)
+        let completed = source.forEachRealValue(at: point) { value in
+            appendDouble(value, to: &data)
+        }
+        guard completed else {
+            throw ExporterError.unsupportedDataFormat(reason: "Real point storage unavailable")
+        }
+
+        try helper.write(data)
+    }
+
+    private func writeBinaryComplexPointValues(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        var data = Data()
+        data.reserveCapacity(((source.variableCount + 1) * 2) * MemoryLayout<UInt64>.size)
+
+        appendDouble(sweepValue, to: &data)
+        appendDouble(0.0, to: &data)
+        let completed = source.forEachComplexValue(at: point) { value in
+            appendDouble(value.real, to: &data)
+            appendDouble(value.imag, to: &data)
+        }
+        guard completed else {
+            throw ExporterError.unsupportedDataFormat(reason: "Complex point storage unavailable")
+        }
+
+        try helper.write(data)
+    }
+
+    /// Appends a Double to Data with the configured byte order.
+    private func appendDouble(_ value: Double, to data: inout Data) {
         var bytes = value.bitPattern
 
         switch byteOrder {
@@ -286,10 +399,13 @@ final class RAWExportSession: ExportSession, Sendable {
             bytes = bytes.bigEndian
         }
 
-        return withUnsafeBytes(of: bytes) { Data($0) }
+        withUnsafeBytes(of: bytes) { data.append(contentsOf: $0) }
     }
 
-    private func writeASCIIPoint(sweepValue: Double, values: [Double]) throws {
+    private func writeASCIIPoint(
+        sweepValue: Double,
+        values: UnsafeBufferPointer<Double>
+    ) throws {
         var line = "\(helper.pointsWritten)\t\(formatDouble(sweepValue))"
         for value in values {
             line += "\t\(formatDouble(value))"
@@ -298,13 +414,45 @@ final class RAWExportSession: ExportSession, Sendable {
         try helper.write(line)
     }
 
+    private func writeASCIIPointValues(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        var line = "\(helper.pointsWritten)\t\(formatDouble(sweepValue))"
+        let completed = source.forEachRealValue(at: point) { value in
+            line += "\t\(formatDouble(value))"
+        }
+        guard completed else {
+            throw ExporterError.unsupportedDataFormat(reason: "Real point storage unavailable")
+        }
+        line += "\n"
+        try helper.write(line)
+    }
+
     private func writeASCIIComplexPoint(
         sweepValue: Double,
-        values: [(real: Double, imag: Double)]
+        values: UnsafeBufferPointer<(real: Double, imag: Double)>
     ) throws {
         var line = "\(helper.pointsWritten)\t\(formatDouble(sweepValue)),\(formatDouble(0.0))"
         for value in values {
             line += "\t\(formatDouble(value.real)),\(formatDouble(value.imag))"
+        }
+        line += "\n"
+        try helper.write(line)
+    }
+
+    private func writeASCIIComplexPointValues(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        var line = "\(helper.pointsWritten)\t\(formatDouble(sweepValue)),\(formatDouble(0.0))"
+        let completed = source.forEachComplexValue(at: point) { value in
+            line += "\t\(formatDouble(value.real)),\(formatDouble(value.imag))"
+        }
+        guard completed else {
+            throw ExporterError.unsupportedDataFormat(reason: "Complex point storage unavailable")
         }
         line += "\n"
         try helper.write(line)

@@ -6,7 +6,7 @@ import CoreSpiceIR
 /// Extends the Level 1 Shichman-Hodges model with:
 /// - Mobility degradation (`theta`)
 /// - Drain-induced barrier lowering (`eta`)
-public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, Sendable {
+public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, TransientStateCommittingDevice, Sendable {
 
     public let instance: Instance
     private let drain: Node
@@ -24,6 +24,7 @@ public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, Sendable {
     /// Pre-resolved CSR value indices for O(1) stamping.
     /// Only used when device is not in reversed mode.
     private let csrIndices: MOSFETCSRIndices
+    private let capacitanceStore: TransientCapacitanceStore
 
     /// Convergence tolerance for terminal voltages (V).
     private static let voltageTolerance: Double = 1e-6
@@ -68,6 +69,7 @@ public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, Sendable {
         self.sourceIdx = sourceIdx
         self.bulkIdx = bulkIdx
         self.csrIndices = csrIndices
+        self.capacitanceStore = TransientCapacitanceStore()
     }
 
     /// Retrieve a node voltage by pre-resolved index, returning 0 for ground nodes.
@@ -165,11 +167,23 @@ public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, Sendable {
         let gIdx2 = stamper.nodeIndex(gate)
         let bIdx2 = stamper.nodeIndex(bulk)
 
-        stampTransientCapacitance(into: &stamper, node1: gIdx2, node2: esIdx, cap: caps.cgs, state: state, integration: integration)
-        stampTransientCapacitance(into: &stamper, node1: gIdx2, node2: edIdx, cap: caps.cgd, state: state, integration: integration)
-        stampTransientCapacitance(into: &stamper, node1: gIdx2, node2: bIdx2, cap: caps.cgb, state: state, integration: integration)
-        stampTransientCapacitance(into: &stamper, node1: bIdx2, node2: edIdx, cap: caps.cbd, state: state, integration: integration)
-        stampTransientCapacitance(into: &stamper, node1: bIdx2, node2: esIdx, cap: caps.cbs, state: state, integration: integration)
+        capacitanceStore.stamp(key: "cgs", into: &stamper, node1: gIdx2, node2: esIdx, capacitance: caps.cgs, state: state, integration: integration)
+        capacitanceStore.stamp(key: "cgd", into: &stamper, node1: gIdx2, node2: edIdx, capacitance: caps.cgd, state: state, integration: integration)
+        capacitanceStore.stamp(key: "cgb", into: &stamper, node1: gIdx2, node2: bIdx2, capacitance: caps.cgb, state: state, integration: integration)
+        capacitanceStore.stamp(key: "cbd", into: &stamper, node1: bIdx2, node2: edIdx, capacitance: caps.cbd, state: state, integration: integration)
+        capacitanceStore.stamp(key: "cbs", into: &stamper, node1: bIdx2, node2: esIdx, capacitance: caps.cbs, state: state, integration: integration)
+    }
+
+    public func commitTransientStep(state: SolutionState, integration: IntegrationState) {
+        let caps = meyerCapacitances(state: state)
+        let op = operatingPoint(state: state)
+        let edIdx = op.reversed ? sourceIdx : drainIdx
+        let esIdx = op.reversed ? drainIdx : sourceIdx
+        capacitanceStore.commit(key: "cgs", node1: gateIdx, node2: esIdx, capacitance: caps.cgs, state: state, integration: integration)
+        capacitanceStore.commit(key: "cgd", node1: gateIdx, node2: edIdx, capacitance: caps.cgd, state: state, integration: integration)
+        capacitanceStore.commit(key: "cgb", node1: gateIdx, node2: bulkIdx, capacitance: caps.cgb, state: state, integration: integration)
+        capacitanceStore.commit(key: "cbd", node1: bulkIdx, node2: edIdx, capacitance: caps.cbd, state: state, integration: integration)
+        capacitanceStore.commit(key: "cbs", node1: bulkIdx, node2: esIdx, capacitance: caps.cbs, state: state, integration: integration)
     }
 
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
@@ -529,48 +543,4 @@ public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, Sendable {
         }
     }
 
-    private func stampTransientCapacitance(
-        into stamper: inout MatrixStamper,
-        node1: Int?, node2: Int?,
-        cap: Double,
-        state: SolutionState,
-        integration: IntegrationState
-    ) {
-        guard cap > 0 else { return }
-        let geq = integration.coefficient * cap
-        let v1 = node1.map { state.previousValue(at: $0) } ?? 0.0
-        let v2 = node2.map { state.previousValue(at: $0) } ?? 0.0
-        let vPrev = v1 - v2
-
-        let ieq: Double
-        switch integration.method {
-        case .backwardEuler:
-            ieq = geq * vPrev
-        case .trapezoidal:
-            let v1pp = node1.map { state.twoPreviousValue(at: $0) } ?? 0.0
-            let v2pp = node2.map { state.twoPreviousValue(at: $0) } ?? 0.0
-            let vPrevPrev = v1pp - v2pp
-            let dtPrev = integration.previousTimeStep ?? integration.timeStep
-            let iCapPrev = cap * (vPrev - vPrevPrev) / dtPrev
-            ieq = geq * vPrev + iCapPrev
-        }
-
-        if let n1 = node1 {
-            stamper.stampMatrix(n1, n1, geq)
-        }
-        if let n2 = node2 {
-            stamper.stampMatrix(n2, n2, geq)
-        }
-        if let n1 = node1, let n2 = node2 {
-            stamper.stampMatrix(n1, n2, -geq)
-            stamper.stampMatrix(n2, n1, -geq)
-        }
-
-        if let n1 = node1 {
-            stamper.stampRHS(n1, ieq)
-        }
-        if let n2 = node2 {
-            stamper.stampRHS(n2, -ieq)
-        }
-    }
 }

@@ -9,11 +9,8 @@ public struct TransientResult: Sendable {
     /// The simulation time values at which solutions were saved.
     public let timePoints: [Double]
 
-    /// Solution vectors, one per time point.
-    ///
-    /// `solutions[t][i]` is the value of MNA variable `i` at time
-    /// `timePoints[t]`.
-    public let solutions: [[Double]]
+    /// Solution vectors, one per time point, stored in row-major order.
+    public let solutionTrace: SolutionTrace
 
     /// Mapping from MNA variables to indices in each solution vector.
     public let variableMap: [MNAVariable: Int]
@@ -26,13 +23,13 @@ public struct TransientResult: Sendable {
 
     public init(
         timePoints: [Double],
-        solutions: [[Double]],
+        solutionTrace: SolutionTrace,
         variableMap: [MNAVariable: Int],
         timeSteps: Int,
         rejectedSteps: Int
     ) {
         self.timePoints = timePoints
-        self.solutions = solutions
+        self.solutionTrace = solutionTrace
         self.variableMap = variableMap
         self.timeSteps = timeSteps
         self.rejectedSteps = rejectedSteps
@@ -44,13 +41,29 @@ public struct TransientResult: Sendable {
     public func voltage(at node: Node, timeIndex: Int) -> Double {
         if node == .ground { return 0.0 }
         guard let idx = variableMap[.nodeVoltage(node)] else { return 0.0 }
-        return solutions[timeIndex][idx]
+        return solutionTrace.value(pointIndex: timeIndex, variableIndex: idx)
+    }
+
+    public func value(variableIndex: Int, timeIndex: Int) -> Double {
+        solutionTrace.value(pointIndex: timeIndex, variableIndex: variableIndex)
+    }
+
+    public func withSolution<R>(
+        at timeIndex: Int,
+        _ body: (UnsafeBufferPointer<Double>) throws -> R
+    ) rethrows -> R {
+        try solutionTrace.withPoint(at: timeIndex, body)
     }
 
     /// Returns the full voltage waveform at the given node as time-value pairs.
     public func voltageWaveform(at node: Node) -> [(time: Double, value: Double)] {
-        timePoints.enumerated().map { (idx, t) in
-            (time: t, value: voltage(at: node, timeIndex: idx))
+        guard node != .ground else {
+            return timePoints.map { (time: $0, value: 0.0) }
+        }
+        guard let variableIndex = variableMap[.nodeVoltage(node)] else { return [] }
+        let column = solutionTrace.column(variableIndex: variableIndex)
+        return timePoints.enumerated().map { (idx, t) in
+            (time: t, value: column[idx])
         }
     }
 }

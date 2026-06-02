@@ -23,7 +23,7 @@ import CoreSpiceDevices
 /// 1. **Upstream**: `dP_out/dV_j = T(V) × dP_in/dV_j` (chain rule from optical input)
 /// 2. **Local**: `dP_out/dV_elec = P_in × dT/dV` where
 ///    `dT/dV = -IL × sin(2×arg) × π/(2×Vπ)`
-public struct BoundEOModulator: OpticalEmitter, Sendable {
+public struct BoundEOModulator: OpticalEmitter, TransientStateCommittingDevice, Sendable {
 
     public let instance: Instance
 
@@ -41,6 +41,7 @@ public struct BoundEOModulator: OpticalEmitter, Sendable {
     private let opticalOutput: OpticalNode
 
     private let parameters: EOModulatorModelParameters
+    private let capacitanceStore: TransientCapacitanceStore
 
     private static let voltageTolerance: Double = 1e-6
 
@@ -73,6 +74,7 @@ public struct BoundEOModulator: OpticalEmitter, Sendable {
         self.opticalInput = opticalInput
         self.opticalOutput = opticalOutput
         self.parameters = parameters
+        self.capacitanceStore = TransientCapacitanceStore()
     }
 
     // MARK: - Voltage Helpers
@@ -276,9 +278,21 @@ public struct BoundEOModulator: OpticalEmitter, Sendable {
 
         let spIdx = stamper.nodeIndex(signalPos)
         let snIdx = stamper.nodeIndex(signalNeg)
-        stampTransientCapacitance(
+        capacitanceStore.stamp(
+            key: "electrode",
             into: &stamper, node1: spIdx, node2: snIdx,
-            cap: cElec, state: state, integration: integration
+            capacitance: cElec, state: state, integration: integration
+        )
+    }
+
+    public func commitTransientStep(state: SolutionState, integration: IntegrationState) {
+        capacitanceStore.commit(
+            key: "electrode",
+            node1: signalPosIdx,
+            node2: signalNegIdx,
+            capacitance: parameters.electrodeCapacitance,
+            state: state,
+            integration: integration
         )
     }
 
@@ -352,41 +366,4 @@ public struct BoundEOModulator: OpticalEmitter, Sendable {
                         opticalState: OpticalState(), previousOpticalState: OpticalState())
     }
 
-    // MARK: - Transient Capacitance Helper
-
-    private func stampTransientCapacitance(
-        into stamper: inout MatrixStamper,
-        node1: Int?, node2: Int?,
-        cap: Double,
-        state: SolutionState,
-        integration: IntegrationState
-    ) {
-        guard cap > 0 else { return }
-        let geq = integration.coefficient * cap
-        let v1 = node1.map { state.previousValue(at: $0) } ?? 0.0
-        let v2 = node2.map { state.previousValue(at: $0) } ?? 0.0
-        let vPrev = v1 - v2
-
-        let ieq: Double
-        switch integration.method {
-        case .backwardEuler:
-            ieq = geq * vPrev
-        case .trapezoidal:
-            let v1pp = node1.map { state.twoPreviousValue(at: $0) } ?? 0.0
-            let v2pp = node2.map { state.twoPreviousValue(at: $0) } ?? 0.0
-            let vPrevPrev = v1pp - v2pp
-            let dtPrev = integration.previousTimeStep ?? integration.timeStep
-            let iCapPrev = cap * (vPrev - vPrevPrev) / dtPrev
-            ieq = geq * vPrev + iCapPrev
-        }
-
-        if let n1 = node1 { stamper.stampMatrix(n1, n1, geq) }
-        if let n2 = node2 { stamper.stampMatrix(n2, n2, geq) }
-        if let n1 = node1, let n2 = node2 {
-            stamper.stampMatrix(n1, n2, -geq)
-            stamper.stampMatrix(n2, n1, -geq)
-        }
-        if let n1 = node1 { stamper.stampRHS(n1, ieq) }
-        if let n2 = node2 { stamper.stampRHS(n2, -ieq) }
-    }
 }

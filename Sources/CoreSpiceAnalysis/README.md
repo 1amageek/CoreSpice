@@ -192,15 +192,22 @@ public struct ACResult: Sendable {
 
 public struct TransientResult: Sendable {
     public let timePoints: [Double]
-    public let solutions: [[Double]]
+    public let solutionTrace: SolutionTrace
     public let variableMap: [MNAVariable: Int]
     public let timeSteps: Int
     public let rejectedSteps: Int
 
     public func voltage(at node: Node, timeIndex: Int) -> Double
+    public func value(variableIndex: Int, timeIndex: Int) -> Double
+    public func withSolution<R>(at timeIndex: Int, _ body: (UnsafeBufferPointer<Double>) throws -> R) rethrows -> R
     public func voltageWaveform(at node: Node) -> [(time: Double, value: Double)]
 }
 ```
+
+`solutionTrace` is the canonical transient storage. Nested `[[Double]]`
+transient storage is intentionally not part of `TransientResult`; any row
+materialization must be an explicit boundary operation outside the computation
+hot path.
 
 ## Implementation Status
 
@@ -234,7 +241,7 @@ public struct TransientResult: Sendable {
 
 4. **Event-Driven Observability**: The `EventDispatcher` integration provides comprehensive progress and diagnostic events.
 
-5. **Mutex for Thread Safety**: The `NewtonRaphsonSolver` and `ACAnalysis` use `Mutex<T>` from Swift Synchronization to protect shared state accessed by `@Sendable` closures.
+5. **Caller-Owned Buffers**: Transient and Newton-Raphson hot paths reuse caller-owned solution buffers and row-major trace storage to avoid nested-array churn.
 
 ### Code Quality Assessment
 
@@ -246,24 +253,12 @@ public struct TransientResult: Sendable {
 - Proper error handling with typed errors
 - Good use of Swift concurrency (async/await, Sendable)
 
-**Issues Found:**
+**Open Follow-ups:**
 
-1. **Unused Variable** (`TransientAnalysis.swift`, line 131):
-   ```swift
-   let integrationState = IntegrationState(...)
-   ```
-   This variable is created but never used; a new `currentIntegration` is created inside the while loop.
-
-2. **Incorrect Iteration Count** (`TransientAnalysis.swift`, line 300):
-   ```swift
-   iterations: convergenceConfig.maxIterations
-   ```
-   For the first timestep event, `maxIterations` is reported instead of the actual iteration count from `newtonResult.iterations`.
-
-3. **Missing Error Handling for Complex Solver** (`ACAnalysis.swift`, lines 137-138):
+1. **Missing Error Handling for Complex Solver** (`ACAnalysis.swift`, lines 137-138):
    The `factorize()` and `solve()` calls throw but do not wrap errors in `AnalysisError` types like the DC analysis does.
 
-4. **Potential Precision Issue** (`BreakpointManager.swift`, line 27):
+2. **Potential Precision Issue** (`BreakpointManager.swift`, line 27):
    Near-duplicate detection uses `1e-15` which may be too tight for typical simulation time scales. Consider making this configurable or relative to the time values.
 
 ### Dependencies
@@ -273,15 +268,10 @@ This module depends on:
 - `CoreSpiceDevices` - BoundDevice, IntegrationMethod, IntegrationState, SolutionState
 - `CoreSpiceIR` - Node, Branch, MNAVariable
 - `CoreSpiceEvent` - EventDispatcher, AnalysisID, various Info types
-- `Synchronization` - Mutex<T> for thread-safe access
 - `Foundation` - Basic math functions
 
 ### Recommendations
 
-1. Remove or utilize the unused `integrationState` variable in `TransientAnalysis`.
+1. Add error wrapping for complex solver failures in `ACAnalysis`.
 
-2. Fix the iteration count reporting for the first transient timestep.
-
-3. Add error wrapping for complex solver failures in `ACAnalysis`.
-
-4. Consider implementing Gear integration methods for improved accuracy in stiff circuits.
+2. Consider implementing Gear integration methods for improved accuracy in stiff circuits.

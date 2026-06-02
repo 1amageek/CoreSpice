@@ -39,43 +39,44 @@ public struct CSVExporter: WaveformExporter, StreamingWaveformExporter {
     }
 
     public func export(
-        _ data: WaveformData,
+        _ data: any WaveformReadable,
         to destination: ExportDestination,
         configuration: ExportConfiguration
     ) async throws -> ExportResult {
-        let session = try await beginExport(
-            to: destination,
-            metadata: data.metadata,
-            sweepVariable: data.sweepVariable,
-            variables: data.variables,
-            configuration: configuration
+        let exportData = configuration.applyFilters(to: data)
+        let session = try CSVExportSession(
+            destination: destination,
+            metadata: exportData.metadata,
+            sweepVariable: exportData.sweepVariable,
+            variables: exportData.variables,
+            configuration: configuration,
+            separator: separator,
+            includeHeader: includeHeader,
+            includeUnits: includeUnits,
+            quoteFields: quoteFields
         )
 
         // Write all data points
-        if data.isComplex {
-            for point in 0..<data.pointCount {
-                var values: [(real: Double, imag: Double)] = []
-                for varIdx in 0..<data.variableCount {
-                    if let v = data.complexValue(variable: varIdx, point: point) {
-                        values.append(v)
-                    }
+        if exportData.isComplex {
+            for point in 0..<exportData.pointCount {
+                guard let sweepValue = exportData.sweepValue(at: point) else {
+                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
                 }
-                try await session.writeComplexPoint(
-                    sweepValue: data.sweepValues[point],
-                    values: values
+                try session.writeComplexPointValues(
+                    sweepValue: sweepValue,
+                    source: exportData,
+                    point: point
                 )
             }
         } else {
-            for point in 0..<data.pointCount {
-                var values: [Double] = []
-                for varIdx in 0..<data.variableCount {
-                    if let v = data.realValue(variable: varIdx, point: point) {
-                        values.append(v)
-                    }
+            for point in 0..<exportData.pointCount {
+                guard let sweepValue = exportData.sweepValue(at: point) else {
+                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
                 }
-                try await session.writePoint(
-                    sweepValue: data.sweepValues[point],
-                    values: values
+                try session.writePointValues(
+                    sweepValue: sweepValue,
+                    source: exportData,
+                    point: point
                 )
             }
         }
@@ -150,6 +151,15 @@ final class CSVExportSession: ExportSession, Sendable {
     }
 
     func writePoint(sweepValue: Double, values: [Double]) async throws {
+        try values.withUnsafeBufferPointer { buffer in
+            try writePointBuffer(sweepValue: sweepValue, values: buffer)
+        }
+    }
+
+    func writePointBuffer(
+        sweepValue: Double,
+        values: UnsafeBufferPointer<Double>
+    ) throws {
         let needsHeader = localState.withLock { state -> Bool in
             if !state.headerWritten {
                 state.headerWritten = true
@@ -163,12 +173,46 @@ final class CSVExportSession: ExportSession, Sendable {
             try writeHeader(isComplex: false)
         }
 
-        var fields: [String] = [formatDouble(sweepValue)]
+        var line = formatDouble(sweepValue)
         for value in values {
-            fields.append(formatDouble(value))
+            line += separator
+            line += formatDouble(value)
+        }
+        line += "\n"
+
+        try helper.write(line)
+        helper.incrementPointCount()
+    }
+
+    func writePointValues(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        let needsHeader = localState.withLock { state -> Bool in
+            if !state.headerWritten {
+                state.headerWritten = true
+                state.isComplex = false
+                return true
+            }
+            return false
         }
 
-        try helper.write(fields.joined(separator: separator) + "\n")
+        if needsHeader {
+            try writeHeader(isComplex: false)
+        }
+
+        var line = formatDouble(sweepValue)
+        let completed = source.forEachRealValue(at: point) { value in
+            line += separator
+            line += formatDouble(value)
+        }
+        guard completed else {
+            throw ExporterError.unsupportedDataFormat(reason: "Real point storage unavailable")
+        }
+        line += "\n"
+
+        try helper.write(line)
         helper.incrementPointCount()
     }
 
@@ -176,6 +220,15 @@ final class CSVExportSession: ExportSession, Sendable {
         sweepValue: Double,
         values: [(real: Double, imag: Double)]
     ) async throws {
+        try values.withUnsafeBufferPointer { buffer in
+            try writeComplexPointBuffer(sweepValue: sweepValue, values: buffer)
+        }
+    }
+
+    func writeComplexPointBuffer(
+        sweepValue: Double,
+        values: UnsafeBufferPointer<(real: Double, imag: Double)>
+    ) throws {
         let needsHeader = localState.withLock { state -> Bool in
             if !state.headerWritten {
                 state.headerWritten = true
@@ -189,13 +242,50 @@ final class CSVExportSession: ExportSession, Sendable {
             try writeHeader(isComplex: true)
         }
 
-        var fields: [String] = [formatDouble(sweepValue)]
+        var line = formatDouble(sweepValue)
         for value in values {
-            fields.append(formatDouble(value.real))
-            fields.append(formatDouble(value.imag))
+            line += separator
+            line += formatDouble(value.real)
+            line += separator
+            line += formatDouble(value.imag)
+        }
+        line += "\n"
+
+        try helper.write(line)
+        helper.incrementPointCount()
+    }
+
+    func writeComplexPointValues(
+        sweepValue: Double,
+        source: any WaveformReadable,
+        point: Int
+    ) throws {
+        let needsHeader = localState.withLock { state -> Bool in
+            if !state.headerWritten {
+                state.headerWritten = true
+                state.isComplex = true
+                return true
+            }
+            return false
         }
 
-        try helper.write(fields.joined(separator: separator) + "\n")
+        if needsHeader {
+            try writeHeader(isComplex: true)
+        }
+
+        var line = formatDouble(sweepValue)
+        let completed = source.forEachComplexValue(at: point) { value in
+            line += separator
+            line += formatDouble(value.real)
+            line += separator
+            line += formatDouble(value.imag)
+        }
+        guard completed else {
+            throw ExporterError.unsupportedDataFormat(reason: "Complex point storage unavailable")
+        }
+        line += "\n"
+
+        try helper.write(line)
         helper.incrementPointCount()
     }
 

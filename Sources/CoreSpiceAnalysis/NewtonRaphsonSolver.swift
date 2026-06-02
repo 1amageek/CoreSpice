@@ -51,8 +51,53 @@ public struct NewtonRaphsonSolver: Sendable {
         analysisID: AnalysisID,
         cancellation: CancellationToken
     ) async throws -> (solution: [Double], iterations: Int) {
-        var x = initialGuess
-        let n = x.count
+        var solution = [Double](repeating: 0.0, count: initialGuess.count)
+        let iterations = try await solve(
+            initialGuess: initialGuess,
+            solution: &solution,
+            matrix: &matrix,
+            rhs: &rhs,
+            devices: devices,
+            variableMap: variableMap,
+            solver: &solver,
+            stampFunction: stampFunction,
+            observer: observer,
+            analysisID: analysisID,
+            cancellation: cancellation
+        )
+        return (solution, iterations)
+    }
+
+    /// Runs Newton-Raphson iteration and writes the converged solution into
+    /// caller-owned storage.
+    ///
+    /// The `solution` buffer is reused across iterations, avoiding the final
+    /// solution allocation and allowing callers to rotate ownership with their
+    /// own working buffers.
+    public func solve(
+        initialGuess: [Double],
+        solution: inout [Double],
+        matrix: inout SparseMatrix,
+        rhs: inout [Double],
+        devices: [any BoundDevice],
+        variableMap: [MNAVariable: Int],
+        solver: inout any LinearSolver,
+        stampFunction: (_ stamper: inout MatrixStamper, _ state: SolutionState) -> Void,
+        observer: EventDispatcher?,
+        analysisID: AnalysisID,
+        cancellation: CancellationToken
+    ) async throws -> Int {
+        let n = initialGuess.count
+        if solution.count != n {
+            solution = [Double](repeating: 0.0, count: n)
+        }
+        initialGuess.withUnsafeBufferPointer { src in
+            solution.withUnsafeMutableBufferPointer { dst in
+                if let srcBase = src.baseAddress, let dstBase = dst.baseAddress {
+                    dstBase.update(from: srcBase, count: n)
+                }
+            }
+        }
 
         // Extract branch current indices for per-variable convergence tolerances
         let branchCurrentIndices: Set<Int> = Set(
@@ -66,6 +111,7 @@ public struct NewtonRaphsonSolver: Sendable {
         var previousX = [Double](repeating: 0, count: n)
         var dx = [Double](repeating: 0, count: n)
         var vdspTemp = [Double](repeating: 0, count: n)
+        var residualProduct = [Double](repeating: 0, count: n)
 
         // Use local copies so non-@Sendable escaping closures can capture them.
         // The stamping is single-threaded — no synchronisation needed.
@@ -100,7 +146,7 @@ public struct NewtonRaphsonSolver: Sendable {
             }
 
             // Build the Jacobian and residual from the current solution
-            let state = SolutionState(variables: x, variableMap: variableMap)
+            let state = SolutionState(variables: solution, variableMap: variableMap)
             var stamper = MatrixStamper(
                 variableMap: variableMap,
                 stampMatrix: { row, col, val in
@@ -139,7 +185,7 @@ public struct NewtonRaphsonSolver: Sendable {
             }
 
             // Compute raw update norm for adaptive damping (vDSP — SIMD accelerated)
-            vDSP_vsubD(x, 1, dx, 1, &vdspTemp, 1, vDSP_Length(n))
+            vDSP_vsubD(solution, 1, dx, 1, &vdspTemp, 1, vDSP_Length(n))
             var rawUpdateNorm = 0.0
             vDSP_maxmgvD(vdspTemp, 1, &rawUpdateNorm, vDSP_Length(n))
 
@@ -153,8 +199,8 @@ public struct NewtonRaphsonSolver: Sendable {
             lastDamping = damping
 
             // Save previous solution via O(1) pointer swap, then compute new x
-            swap(&x, &previousX)
-            // Now: previousX = old x, x = stale buffer (will be overwritten)
+            swap(&solution, &previousX)
+            // Now: previousX = old x, solution = stale buffer (will be overwritten)
 
             // Device-level voltage limiting on the raw NR solution, applied before
             // damping to prevent overshoot/blow-up. On the first iteration only
@@ -176,22 +222,22 @@ public struct NewtonRaphsonSolver: Sendable {
             //            = previousX[i] + damping * (dx[i] - previousX[i])
             //            = (1 - damping) * previousX[i] + damping * dx[i]
             var d = damping
-            vDSP_vintbD(previousX, 1, dx, 1, &d, &x, 1, vDSP_Length(n))
+            vDSP_vintbD(previousX, 1, dx, 1, &d, &solution, 1, vDSP_Length(n))
 
             // Compute residual norm (vDSP — SIMD accelerated)
-            vDSP_vsubD(previousX, 1, x, 1, &vdspTemp, 1, vDSP_Length(n))
+            vDSP_vsubD(previousX, 1, solution, 1, &vdspTemp, 1, vDSP_Length(n))
             var residualNorm = 0.0
             vDSP_maxmgvD(vdspTemp, 1, &residualNorm, vDSP_Length(n))
 
             var converged = config.isConverged(
-                previousX: previousX, currentX: x,
+                previousX: previousX, currentX: solution,
                 branchCurrentIndices: branchCurrentIndices
             )
 
 
             // Poll per-device convergence when global convergence is met
             if converged {
-                let currentState = SolutionState(variables: x, variableMap: variableMap)
+                let currentState = SolutionState(variables: solution, variableMap: variableMap)
                 let prevState = SolutionState(variables: previousX, variableMap: variableMap)
                 for device in devices {
                     if case .notConverged = device.checkConvergence(
@@ -224,14 +270,14 @@ public struct NewtonRaphsonSolver: Sendable {
                         residualMatrix.addValueDirect(at: idx, value: val)
                     }
                 )
-                let residualState = SolutionState(variables: x, variableMap: variableMap)
+                let residualState = SolutionState(variables: solution, variableMap: variableMap)
                 stampFunction(&residualStamper, residualState)
                 for i in 0..<n {
                     residualMatrix.addValue(row: i, col: i, value: config.gmin)
                 }
-                let gx = residualMatrix.multiply(vector: x)
+                residualMatrix.multiply(vector: solution, into: &residualProduct)
                 for i in 0..<n {
-                    let residual = abs(gx[i] - residualRHS[i])
+                    let residual = abs(residualProduct[i] - residualRHS[i])
                     let tol = (branchCurrentIndices.contains(i) ? config.vntol : config.abstol)
                         + config.reltol * abs(residualRHS[i])
                     if residual > tol {
@@ -253,7 +299,7 @@ public struct NewtonRaphsonSolver: Sendable {
                 // Write back final state
                 matrix = localMatrix
                 rhs = localRHS
-                return (x, iter + 1)
+                return iter + 1
             }
         }
 

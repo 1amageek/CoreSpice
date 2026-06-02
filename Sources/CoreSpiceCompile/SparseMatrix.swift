@@ -79,6 +79,17 @@ public struct SparseMatrix: Sendable {
     public func multiply(vector: [Double]) -> [Double] {
         let n = structure.dimension
         var result = Array(repeating: 0.0, count: n)
+        multiply(vector: vector, into: &result)
+        return result
+    }
+
+    /// Computes the matrix-vector product `A * vector` into caller-owned storage.
+    ///
+    /// This is the zero-allocation variant of ``multiply(vector:)``.
+    public func multiply(vector: [Double], into result: inout [Double]) {
+        let n = structure.dimension
+        precondition(result.count == n, "result length must match matrix dimension")
+        precondition(vector.count == n, "vector length must match matrix dimension")
         for row in 0..<n {
             let start = structure.rowPointers[row]
             let end = structure.rowPointers[row + 1]
@@ -88,7 +99,6 @@ public struct SparseMatrix: Sendable {
             }
             result[row] = sum
         }
-        return result
     }
 
     /// Returns a new matrix with rows and columns permuted.

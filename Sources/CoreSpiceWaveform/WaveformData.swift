@@ -28,12 +28,12 @@ public struct WaveformData: Sendable {
 
     /// The number of data points.
     public var pointCount: Int {
-        sweepValues.count
+        storage.pointCount
     }
 
     /// The number of variables (excluding sweep).
     public var variableCount: Int {
-        variables.count
+        storage.variableCount
     }
 
     /// Creates a real-valued waveform.
@@ -49,6 +49,38 @@ public struct WaveformData: Sendable {
         self.sweepValues = sweepValues
         self.variables = variables
         self.storage = .real(realData)
+    }
+
+    /// Creates a real-valued waveform backed by row-major storage.
+    ///
+    /// `realRowMajorData[(point * variableCount) + variable]` stores the value
+    /// for a point and variable. The array is retained with Swift copy-on-write
+    /// semantics, so construction does not deep-copy when the caller passes an
+    /// unmodified array buffer.
+    public init(
+        metadata: SimulationMetadata,
+        sweepVariable: VariableDescriptor,
+        sweepValues: [Double],
+        variables: [VariableDescriptor],
+        realRowMajorData: [Double],
+        pointCount: Int,
+        variableCount: Int
+    ) {
+        precondition(sweepValues.count == pointCount, "sweep value count must match point count")
+        precondition(variables.count == variableCount, "variable descriptor count must match variable count")
+        precondition(
+            realRowMajorData.count == pointCount * variableCount,
+            "row-major data count must equal pointCount * variableCount"
+        )
+        self.metadata = metadata
+        self.sweepVariable = sweepVariable
+        self.sweepValues = sweepValues
+        self.variables = variables
+        self.storage = .realRowMajor(
+            values: realRowMajorData,
+            pointCount: pointCount,
+            variableCount: variableCount
+        )
     }
 
     /// Creates a complex-valued waveform.
@@ -82,6 +114,27 @@ public struct WaveformData: Sendable {
         storage.complexValue(point: point, variable: variable)
     }
 
+    /// Provides a real-valued point as a borrowed contiguous buffer.
+    ///
+    /// The buffer is valid only for the duration of `body`. This avoids
+    /// materializing a per-point `[Double]` when storage is already contiguous.
+    public func withRealValues<R>(
+        at point: Int,
+        _ body: (UnsafeBufferPointer<Double>) throws -> R
+    ) rethrows -> R? {
+        try storage.withRealValues(point: point, body)
+    }
+
+    /// Provides a complex-valued point as a borrowed contiguous buffer.
+    ///
+    /// The buffer is valid only for the duration of `body`.
+    public func withComplexValues<R>(
+        at point: Int,
+        _ body: (UnsafeBufferPointer<(real: Double, imag: Double)>) throws -> R
+    ) rethrows -> R? {
+        try storage.withComplexValues(point: point, body)
+    }
+
     /// Gets the magnitude of a complex value.
     public func magnitude(variable: Int, point: Int) -> Double? {
         guard let (r, i) = complexValue(variable: variable, point: point) else { return nil }
@@ -110,52 +163,22 @@ public struct WaveformData: Sendable {
 
     /// Returns a real waveform for the named variable.
     public func realWaveform(named name: String) -> RealWaveform? {
-        guard let descriptor = variables.first(where: { $0.name == name }) else {
-            return nil
-        }
-        return realWaveform(at: descriptor.index)
+        realSeries(named: name)?.materialized()
     }
 
     /// Returns a real waveform at the given variable index.
     public func realWaveform(at index: Int) -> RealWaveform? {
-        guard index < variables.count else { return nil }
-        var values = [Double]()
-        values.reserveCapacity(pointCount)
-        for point in 0..<pointCount {
-            guard let v = realValue(variable: index, point: point) else { return nil }
-            values.append(v)
-        }
-        return RealWaveform(
-            name: variables[index].name,
-            unit: variables[index].unit,
-            sweepValues: sweepValues,
-            values: values
-        )
+        realSeries(at: index)?.materialized()
     }
 
     /// Returns a complex waveform for the named variable.
     public func complexWaveform(named name: String) -> ComplexWaveform? {
-        guard let descriptor = variables.first(where: { $0.name == name }) else {
-            return nil
-        }
-        return complexWaveform(at: descriptor.index)
+        complexSeries(named: name)?.materialized()
     }
 
     /// Returns a complex waveform at the given variable index.
     public func complexWaveform(at index: Int) -> ComplexWaveform? {
-        guard index < variables.count else { return nil }
-        var values = [(real: Double, imag: Double)]()
-        values.reserveCapacity(pointCount)
-        for point in 0..<pointCount {
-            guard let v = complexValue(variable: index, point: point) else { return nil }
-            values.append(v)
-        }
-        return ComplexWaveform(
-            name: variables[index].name,
-            unit: variables[index].unit,
-            sweepValues: sweepValues,
-            values: values
-        )
+        complexSeries(at: index)?.materialized()
     }
 
     /// Finds a variable descriptor by name.
@@ -174,12 +197,7 @@ public struct WaveformData: Sendable {
     ///
     /// Returns nil if this waveform contains complex data.
     public var allRealData: [[Double]]? {
-        switch storage {
-        case .real(let data):
-            return data
-        case .complex:
-            return nil
-        }
+        storage.materializedRealRows
     }
 
     /// Returns all complex data as a 2D array [point][(real, imag)].
@@ -187,11 +205,20 @@ public struct WaveformData: Sendable {
     /// Returns nil if this waveform contains only real data.
     public var allComplexData: [[(real: Double, imag: Double)]]? {
         switch storage {
-        case .real:
+        case .real, .realRowMajor:
             return nil
         case .complex(let data):
             return data
         }
+    }
+
+    /// Returns real row-major storage when this waveform contains real data.
+    ///
+    /// For row-major-backed waveforms this returns the existing storage with
+    /// Swift copy-on-write semantics. For nested-array-backed waveforms it
+    /// materializes a flat copy.
+    public var realRowMajorValues: (values: [Double], pointCount: Int, variableCount: Int)? {
+        storage.realRowMajorValues
     }
 
     /// Returns all real data, converting complex to real part if needed.
@@ -199,6 +226,8 @@ public struct WaveformData: Sendable {
         switch storage {
         case .real(let data):
             return data
+        case .realRowMajor:
+            return storage.materializedRealRows ?? []
         case .complex(let data):
             return data.map { $0.map { $0.real } }
         }
@@ -209,6 +238,10 @@ public struct WaveformData: Sendable {
         switch storage {
         case .real(let data):
             return data.map { $0.map { (real: $0, imag: 0.0) } }
+        case .realRowMajor:
+            return (storage.materializedRealRows ?? []).map { row in
+                row.map { (real: $0, imag: 0.0) }
+            }
         case .complex(let data):
             return data
         }

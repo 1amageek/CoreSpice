@@ -89,9 +89,8 @@ extension WaveformData {
         topology: CircuitTopology,
         title: String? = nil
     ) -> WaveformData {
-        let (variables, realData) = buildVariablesFromMNA(
+        let variables = buildVariableDescriptorsFromMNA(
             variableMap: transientResult.variableMap,
-            solutions: transientResult.solutions,
             topology: topology
         )
 
@@ -109,7 +108,9 @@ extension WaveformData {
             sweepVariable: sweepVariable,
             sweepValues: transientResult.timePoints,
             variables: variables,
-            realData: realData
+            realRowMajorData: transientResult.solutionTrace.rowMajorValues,
+            pointCount: transientResult.solutionTrace.pointCount,
+            variableCount: transientResult.solutionTrace.variableCount
         )
     }
 
@@ -490,10 +491,36 @@ extension WaveformData {
         solutions: [[Double]],
         topology: CircuitTopology
     ) -> (variables: [VariableDescriptor], data: [[Double]]) {
-        // Sort variables by their index to maintain consistent ordering
+        let variables = buildVariableDescriptorsFromMNA(
+            variableMap: variableMap,
+            topology: topology
+        )
+        let sortedVars = variableMap.sorted { $0.value < $1.value }
+
+        // Transpose data to [point][variable] format
+        var data: [[Double]] = []
+        data.reserveCapacity(solutions.count)
+        for solution in solutions {
+            var point: [Double] = []
+            point.reserveCapacity(sortedVars.count)
+            for (_, mnaIdx) in sortedVars {
+                point.append(solution[mnaIdx])
+            }
+            data.append(point)
+        }
+
+        return (variables, data)
+    }
+
+    /// Builds variable descriptors from MNA variables sorted by solver index.
+    private static func buildVariableDescriptorsFromMNA(
+        variableMap: [MNAVariable: Int],
+        topology: CircuitTopology
+    ) -> [VariableDescriptor] {
         let sortedVars = variableMap.sorted { $0.value < $1.value }
 
         var variables: [VariableDescriptor] = []
+        variables.reserveCapacity(sortedVars.count)
         for (idx, (mnaVar, _)) in sortedVars.enumerated() {
             let descriptor: VariableDescriptor
             switch mnaVar {
@@ -514,20 +541,7 @@ extension WaveformData {
             }
             variables.append(descriptor)
         }
-
-        // Transpose data to [point][variable] format
-        var data: [[Double]] = []
-        data.reserveCapacity(solutions.count)
-        for solution in solutions {
-            var point: [Double] = []
-            point.reserveCapacity(sortedVars.count)
-            for (_, mnaIdx) in sortedVars {
-                point.append(solution[mnaIdx])
-            }
-            data.append(point)
-        }
-
-        return (variables, data)
+        return variables
     }
 
     /// Builds complex variable descriptors and data from MNA solution vectors.

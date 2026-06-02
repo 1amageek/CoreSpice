@@ -8,7 +8,7 @@ import CoreSpiceIR
 /// - Reverse saturation current in reverse bias
 /// - Junction capacitance for transient analysis
 /// - Voltage limiting to prevent numerical overflow
-public struct BoundDiode: BoundDevice, VoltageLimitingDevice, Sendable {
+public struct BoundDiode: BoundDevice, VoltageLimitingDevice, TransientStateCommittingDevice, NoisyDevice, Sendable {
 
     public let instance: Instance
     private let anode: Node
@@ -25,6 +25,7 @@ public struct BoundDiode: BoundDevice, VoltageLimitingDevice, Sendable {
     private let stampCC: Int?
     private let stampAC: Int?
     private let stampCA: Int?
+    private let capacitanceStore: TransientCapacitanceStore
 
     /// Convergence tolerance for diode voltage (V).
     private static let voltageTolerance: Double = 1e-6
@@ -57,6 +58,7 @@ public struct BoundDiode: BoundDevice, VoltageLimitingDevice, Sendable {
         self.stampCC = stampCC
         self.stampAC = stampAC
         self.stampCA = stampCA
+        self.capacitanceStore = TransientCapacitanceStore()
     }
 
     // MARK: - Index-Based Voltage Helpers
@@ -152,65 +154,28 @@ public struct BoundDiode: BoundDevice, VoltageLimitingDevice, Sendable {
         let aIdx = stamper.nodeIndex(anode)
         let cIdx = stamper.nodeIndex(cathode)
 
-        stampTransientCapacitance(
+        capacitanceStore.stamp(
+            key: "junction",
             into: &stamper,
             node1: aIdx, node2: cIdx,
-            cap: cj,
+            capacitance: cj,
             state: state,
             integration: integration
         )
     }
 
-    /// Stamp a capacitance companion model for transient analysis.
-    ///
-    /// - Backward Euler: `Geq = C/dt`, `Ieq = Geq * Vprev`
-    /// - Trapezoidal: `Geq = 2C/dt`, `Ieq = Geq * Vprev + I_cap_prev`
-    ///   where `I_cap_prev = C * (Vprev - Vprevprev) / dtPrev`
-    private func stampTransientCapacitance(
-        into stamper: inout MatrixStamper,
-        node1: Int?, node2: Int?,
-        cap: Double,
-        state: SolutionState,
-        integration: IntegrationState
-    ) {
-        guard cap > 0 else { return }
-        let geq = integration.coefficient * cap
-        let v1 = node1.map { state.previousValue(at: $0) } ?? 0.0
-        let v2 = node2.map { state.previousValue(at: $0) } ?? 0.0
-        let vPrev = v1 - v2
-
-        let ieq: Double
-        switch integration.method {
-        case .backwardEuler:
-            ieq = geq * vPrev
-        case .trapezoidal:
-            let v1pp = node1.map { state.twoPreviousValue(at: $0) } ?? 0.0
-            let v2pp = node2.map { state.twoPreviousValue(at: $0) } ?? 0.0
-            let vPrevPrev = v1pp - v2pp
-            let dtPrev = integration.previousTimeStep ?? integration.timeStep
-            let iCapPrev = cap * (vPrev - vPrevPrev) / dtPrev
-            ieq = geq * vPrev + iCapPrev
-        }
-
-        // Conductance stamp
-        if let n1 = node1 {
-            stamper.stampMatrix(n1, n1, geq)
-        }
-        if let n2 = node2 {
-            stamper.stampMatrix(n2, n2, geq)
-        }
-        if let n1 = node1, let n2 = node2 {
-            stamper.stampMatrix(n1, n2, -geq)
-            stamper.stampMatrix(n2, n1, -geq)
-        }
-
-        // History current source
-        if let n1 = node1 {
-            stamper.stampRHS(n1, ieq)
-        }
-        if let n2 = node2 {
-            stamper.stampRHS(n2, -ieq)
-        }
+    public func commitTransientStep(state: SolutionState, integration: IntegrationState) {
+        let op = operatingPoint(state: state)
+        let cjDepl = junctionCapacitance(vd: op.vd)
+        let cDiff = parameters.transitTime * op.gd
+        capacitanceStore.commit(
+            key: "junction",
+            node1: anodeIdx,
+            node2: cathodeIdx,
+            capacitance: cjDepl + cDiff,
+            state: state,
+            integration: integration
+        )
     }
 
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
@@ -222,6 +187,21 @@ public struct BoundDiode: BoundDevice, VoltageLimitingDevice, Sendable {
             return .converged
         }
         return .notConverged(maxDelta: delta, deviceName: instance.name)
+    }
+
+    public func noiseContributions(state: SolutionState, frequency: Double) -> [NoiseSource] {
+        let op = operatingPoint(state: state)
+        let q = 1.602176634e-19
+        let shotNoise = 2.0 * q * abs(op.id)
+        guard shotNoise > 0 else { return [] }
+        return [
+            NoiseSource(
+                name: "\(instance.name)_shot",
+                positiveNode: anode,
+                negativeNode: cathode,
+                currentSpectralDensity: shotNoise
+            )
+        ]
     }
 
     // MARK: - Internal Model

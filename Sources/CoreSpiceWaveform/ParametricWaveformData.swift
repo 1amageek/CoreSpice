@@ -66,11 +66,11 @@ public struct ParametricWaveformData: Sendable {
         forVariable name: String
     ) -> WaveformStatistics? {
         guard let firstRun = runs.first,
-              let firstWaveform = firstRun.waveform.realWaveform(named: name) else {
+              firstRun.waveform.variableIndex(named: name) != nil else {
             return nil
         }
 
-        let pointCount = firstWaveform.count
+        let pointCount = firstRun.waveform.pointCount
         var means = [Double](repeating: 0.0, count: pointCount)
         var mins = [Double](repeating: .infinity, count: pointCount)
         var maxs = [Double](repeating: -.infinity, count: pointCount)
@@ -83,11 +83,13 @@ public struct ParametricWaveformData: Sendable {
         var allValues = [[Double]](repeating: [], count: pointCount)
 
         for run in runs {
-            guard let waveform = run.waveform.realWaveform(named: name) else {
+            guard let variableIndex = run.waveform.variableIndex(named: name) else {
                 continue
             }
-            for i in 0..<min(pointCount, waveform.count) {
-                let v = waveform[i]
+            for i in 0..<min(pointCount, run.waveform.pointCount) {
+                guard let v = run.waveform.realValue(variable: variableIndex, point: i) else {
+                    continue
+                }
                 allValues[i].append(v)
                 means[i] += v
                 mins[i] = min(mins[i], v)
@@ -133,7 +135,7 @@ public struct ParametricWaveformData: Sendable {
 
         return WaveformStatistics(
             variableName: name,
-            sweepValues: firstWaveform.sweepValues,
+            sweepValues: firstRun.waveform.sweepValues,
             mean: means,
             minimum: mins,
             maximum: maxs,
@@ -154,11 +156,12 @@ public struct ParametricWaveformData: Sendable {
         var values: [Double] = []
 
         for run in runs {
-            guard let waveform = run.waveform.realWaveform(named: name),
-                  sweepIndex < waveform.count else {
+            guard let variableIndex = run.waveform.variableIndex(named: name),
+                  sweepIndex < run.waveform.pointCount,
+                  let value = run.waveform.realValue(variable: variableIndex, point: sweepIndex) else {
                 continue
             }
-            values.append(waveform[sweepIndex])
+            values.append(value)
         }
 
         guard !values.isEmpty else { return nil }
@@ -215,12 +218,15 @@ public struct ParametricWaveformData: Sendable {
         at sweepIndex: Int = 0
     ) -> Run? {
         runs.min { a, b in
-            guard let wa = a.waveform.realWaveform(named: variable),
-                  let wb = b.waveform.realWaveform(named: variable),
-                  sweepIndex < wa.count, sweepIndex < wb.count else {
+            guard let aVariableIndex = a.waveform.variableIndex(named: variable),
+                  let bVariableIndex = b.waveform.variableIndex(named: variable),
+                  sweepIndex < a.waveform.pointCount,
+                  sweepIndex < b.waveform.pointCount,
+                  let aValue = a.waveform.realValue(variable: aVariableIndex, point: sweepIndex),
+                  let bValue = b.waveform.realValue(variable: bVariableIndex, point: sweepIndex) else {
                 return false
             }
-            return wa[sweepIndex] < wb[sweepIndex]
+            return aValue < bValue
         }
     }
 
@@ -230,12 +236,15 @@ public struct ParametricWaveformData: Sendable {
         at sweepIndex: Int = 0
     ) -> Run? {
         runs.max { a, b in
-            guard let wa = a.waveform.realWaveform(named: variable),
-                  let wb = b.waveform.realWaveform(named: variable),
-                  sweepIndex < wa.count, sweepIndex < wb.count else {
+            guard let aVariableIndex = a.waveform.variableIndex(named: variable),
+                  let bVariableIndex = b.waveform.variableIndex(named: variable),
+                  sweepIndex < a.waveform.pointCount,
+                  sweepIndex < b.waveform.pointCount,
+                  let aValue = a.waveform.realValue(variable: aVariableIndex, point: sweepIndex),
+                  let bValue = b.waveform.realValue(variable: bVariableIndex, point: sweepIndex) else {
                 return false
             }
-            return wa[sweepIndex] < wb[sweepIndex]
+            return aValue < bValue
         }
     }
 }

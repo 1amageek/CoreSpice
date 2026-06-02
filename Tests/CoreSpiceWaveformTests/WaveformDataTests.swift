@@ -1,4 +1,6 @@
 import Testing
+import CoreSpiceAnalysis
+import CoreSpiceIR
 @testable import CoreSpiceWaveform
 
 @Suite
@@ -39,6 +41,170 @@ struct WaveformDataTests {
 
         let value = waveform.realValue(variable: 0, point: 1)
         #expect(value == 2.0)
+    }
+
+    @Test
+    func rowMajorWaveformCreation() {
+        let metadata = SimulationMetadata(
+            title: "Row Major Test",
+            analysisType: .transient,
+            pointCount: 3,
+            variableCount: 2
+        )
+
+        let waveform = WaveformData(
+            metadata: metadata,
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0, 2.0],
+            variables: [
+                .voltage(node: "1", index: 0),
+                .current(device: "V1", index: 1)
+            ],
+            realRowMajorData: [
+                1.0, 0.1,
+                2.0, 0.2,
+                3.0, 0.3
+            ],
+            pointCount: 3,
+            variableCount: 2
+        )
+
+        #expect(waveform.pointCount == 3)
+        #expect(waveform.variableCount == 2)
+        #expect(!waveform.isComplex)
+        #expect(waveform.realValue(variable: 1, point: 2) == 0.3)
+        #expect(waveform.allRealData == [[1.0, 0.1], [2.0, 0.2], [3.0, 0.3]])
+    }
+
+    @Test
+    func realSeriesViewReadsLazyProjection() {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                title: "Series View",
+                analysisType: .transient,
+                pointCount: 3,
+                variableCount: 2
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0, 2.0],
+            variables: [
+                .voltage(node: "1", index: 0),
+                .current(device: "V1", index: 1)
+            ],
+            realRowMajorData: [
+                1.0, 0.1,
+                2.0, 0.2,
+                3.0, 0.3
+            ],
+            pointCount: 3,
+            variableCount: 2
+        )
+        let view = WaveformDataView(
+            base: waveform,
+            pointIndices: [1, 2],
+            variableIndices: [1]
+        )
+
+        guard let series = view.realSeries(named: "I(V1)") else {
+            Issue.record("Expected lazy series view")
+            return
+        }
+
+        #expect(series.count == 2)
+        #expect(series.sweepValue(at: 0) == 1.0)
+        #expect(series[0] == 0.2)
+        #expect(series[1] == 0.3)
+        #expect(series.materialized().values == [0.2, 0.3])
+    }
+
+    @Test
+    func transientConversionPreservesRowMajorStorageSharing() {
+        let node = Node(id: 1)
+        let branch = Branch(id: 1)
+        let trace = SolutionTrace(
+            variableCount: 2,
+            rowMajorValues: [
+                1.0, 0.1,
+                2.0, 0.2,
+                3.0, 0.3
+            ]
+        )
+        let result = TransientResult(
+            timePoints: [0.0, 1.0, 2.0],
+            solutionTrace: trace,
+            variableMap: [
+                .nodeVoltage(node): 0,
+                .branchCurrent(branch): 1
+            ],
+            timeSteps: 2,
+            rejectedSteps: 0
+        )
+        let topology = CircuitTopology(ir: CircuitIR(
+            nodes: [.ground, node],
+            branches: [branch],
+            instances: []
+        ))
+
+        let waveform = WaveformData.from(
+            transientResult: result,
+            topology: topology,
+            title: "Converted"
+        )
+
+        guard let rowMajor = waveform.realRowMajorValues else {
+            Issue.record("Converted transient waveform should expose row-major storage")
+            return
+        }
+
+        let source = result.solutionTrace.rowMajorValues
+        let sharesStorage = source.withUnsafeBufferPointer { sourceBuffer in
+            rowMajor.values.withUnsafeBufferPointer { rowMajorBuffer in
+                sourceBuffer.baseAddress == rowMajorBuffer.baseAddress
+            }
+        }
+
+        #expect(sharesStorage)
+        #expect(waveform.variables.map(\.name) == ["V(1)", "I(1)"])
+        #expect(waveform.realValue(variable: 0, point: 2) == 3.0)
+    }
+
+    @Test
+    func rowMajorPointBufferBorrowsStorage() {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                title: "Point Buffer",
+                analysisType: .transient,
+                pointCount: 3,
+                variableCount: 2
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0, 2.0],
+            variables: [
+                .voltage(node: "1", index: 0),
+                .current(device: "V1", index: 1)
+            ],
+            realRowMajorData: [
+                1.0, 0.1,
+                2.0, 0.2,
+                3.0, 0.3
+            ],
+            pointCount: 3,
+            variableCount: 2
+        )
+
+        guard let rowMajor = waveform.realRowMajorValues else {
+            Issue.record("Row-major waveform should expose row-major storage")
+            return
+        }
+
+        let sharesStorage = rowMajor.values.withUnsafeBufferPointer { storage in
+            waveform.withRealValues(at: 1) { point in
+                #expect(Array(point) == [2.0, 0.2])
+                return point.baseAddress == storage.baseAddress.map { $0 + 2 }
+            } ?? false
+        }
+
+        #expect(sharesStorage)
     }
 
     @Test

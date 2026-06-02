@@ -31,19 +31,12 @@ public struct TransientAnalysis: Analysis, Sendable {
     /// Convergence configuration for the Newton-Raphson solver at each timestep.
     public let convergenceConfig: ConvergenceConfig
 
-    /// Optional callback invoked after each accepted timestep.
-    /// Called with (time, solutionVector) on the simulation thread.
-    /// Designed for lightweight data capture (e.g., appending to a shared buffer).
-    public let onStepAccepted: (@Sendable (_ time: Double, _ solution: [Double]) -> Void)?
-
     public init(
         config: TransientConfig,
-        convergenceConfig: ConvergenceConfig = ConvergenceConfig(),
-        onStepAccepted: (@Sendable (_ time: Double, _ solution: [Double]) -> Void)? = nil
+        convergenceConfig: ConvergenceConfig = ConvergenceConfig()
     ) {
         self.config = config
         self.convergenceConfig = convergenceConfig
-        self.onStepAccepted = onStepAccepted
     }
 
     public func run(
@@ -106,6 +99,7 @@ public struct TransientAnalysis: Analysis, Sendable {
             var currentBuf = initialSolution
             var previousBuf = [Double](repeating: 0, count: dim)
             var twoPreviousBuf = [Double](repeating: 0, count: dim)
+            var newtonSolutionBuf = [Double](repeating: 0, count: dim)
             var hasTwoPrevious = false
             // Initialize previousBuf to initialSolution
             for i in 0..<dim { previousBuf[i] = initialSolution[i] }
@@ -114,7 +108,6 @@ public struct TransientAnalysis: Analysis, Sendable {
             let evaluator = OpticalNetworkEvaluator()
             let opticalNodeCount = plan.opticalNetwork?.opticalNodeCount ?? 0
             var currentOpticalState = OpticalState(nodeCount: opticalNodeCount)
-            var previousOpticalState = OpticalState(nodeCount: opticalNodeCount)
 
             // Saved results (pre-allocate estimated capacity)
             let estimatedSteps = max(
@@ -123,8 +116,8 @@ public struct TransientAnalysis: Analysis, Sendable {
             )
             var timePoints: [Double] = [0.0]
             timePoints.reserveCapacity(estimatedSteps)
-            var solutions: [[Double]] = [currentBuf]
-            solutions.reserveCapacity(estimatedSteps)
+            var solutionTrace = SolutionTrace(variableCount: dim, estimatedPointCapacity: estimatedSteps)
+            currentBuf.withUnsafeBufferPointer { solutionTrace.append($0) }
 
             // Timestep control
             let initialDt = config.initialTimeStep ?? (config.maxTimeStep / 10.0)
@@ -195,11 +188,12 @@ public struct TransientAnalysis: Analysis, Sendable {
 
                     // Newton-Raphson solve
                     let nr = NewtonRaphsonSolver(config: convergenceConfig)
-                    var newtonResult: (solution: [Double], iterations: Int)
+                    var newtonIterations: Int
 
                     do {
-                        newtonResult = try await nr.solve(
+                        newtonIterations = try await nr.solve(
                             initialGuess: currentBuf,
+                            solution: &newtonSolutionBuf,
                             matrix: &matrix,
                             rhs: &rhs,
                             devices: devices,
@@ -251,6 +245,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                                 let gminResult = try await tryGminStepping(
                                     currentBuf: currentBuf,
                                     previousBuf: previousBuf,
+                                    solution: &newtonSolutionBuf,
                                     opticalState: &currentOpticalState,
                                     evaluator: evaluator,
                                     opticalNetwork: plan.opticalNetwork,
@@ -265,7 +260,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                                     cancellation: cancellation
                                 )
                                 // GMIN stepping succeeded — use this solution
-                                newtonResult = gminResult
+                                newtonIterations = gminResult
                             } catch {
                                 // GMIN stepping failed — fall through to timestep reduction
                                 let oldDt = dt
@@ -309,7 +304,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                     // LTE check (skip for the very first step)
                     if acceptedSteps > 0 {
                         let lte = lteEstimator.estimate(
-                            current: newtonResult.solution,
+                            current: newtonSolutionBuf,
                             previous: currentBuf,
                             twoPrevious: hasTwoPrevious ? previousBuf : nil,
                             timeStep: dt,
@@ -363,14 +358,10 @@ public struct TransientAnalysis: Analysis, Sendable {
                         stepAccepted = true
                         swap(&twoPreviousBuf, &previousBuf)
                         swap(&previousBuf, &currentBuf)
-                        newtonResult.solution.withUnsafeBufferPointer { src in
-                            currentBuf.withUnsafeMutableBufferPointer { dst in
-                                memcpy(dst.baseAddress!, src.baseAddress!, dim &* MemoryLayout<Double>.stride)
-                            }
-                        }
+                        swap(&currentBuf, &newtonSolutionBuf)
                         hasTwoPrevious = true
 
-                        // Commit capacitor state for trapezoidal companion model.
+                        // Commit transient device state for trapezoidal companion models.
                         // After buffer rotation: currentBuf=V_n, previousBuf=V_{n-1}.
                         let commitState = SolutionState(
                             variables: currentBuf,
@@ -384,26 +375,24 @@ public struct TransientAnalysis: Analysis, Sendable {
                             previousTimeStep: previousDt
                         )
                         for device in devices {
-                            if let cap = device as? BoundCapacitor {
-                                cap.commitTransientStep(state: commitState, integration: commitIntegration)
+                            if let committingDevice = device as? any TransientStateCommittingDevice {
+                                committingDevice.commitTransientStep(state: commitState, integration: commitIntegration)
                             }
                         }
 
-                        previousOpticalState = currentOpticalState
                         previousDt = dt
                         currentTime += dt
                         acceptedSteps += 1
 
                         // Save the time point
                         timePoints.append(currentTime)
-                        solutions.append(currentBuf)
-                        onStepAccepted?(currentTime, currentBuf)
+                        currentBuf.withUnsafeBufferPointer { solutionTrace.append($0) }
 
                         await observer?.emit(.timeStepCompleted(TimeStepInfo(
                             id: analysisID,
                             time: currentTime,
                             timeStep: dt,
-                            iterations: newtonResult.iterations,
+                            iterations: newtonIterations,
                             lte: lte
                         )))
 
@@ -433,14 +422,10 @@ public struct TransientAnalysis: Analysis, Sendable {
                         // First step: no LTE check, just accept — O(1) buffer rotation
                         stepAccepted = true
                         swap(&previousBuf, &currentBuf)
-                        newtonResult.solution.withUnsafeBufferPointer { src in
-                            currentBuf.withUnsafeMutableBufferPointer { dst in
-                                memcpy(dst.baseAddress!, src.baseAddress!, dim &* MemoryLayout<Double>.stride)
-                            }
-                        }
+                        swap(&currentBuf, &newtonSolutionBuf)
                         // hasTwoPrevious stays false
 
-                        // Commit capacitor state (first step is always BE).
+                        // Commit transient device state (first step is always BE).
                         let commitState = SolutionState(
                             variables: currentBuf,
                             previousVariables: previousBuf,
@@ -453,25 +438,23 @@ public struct TransientAnalysis: Analysis, Sendable {
                             previousTimeStep: previousDt
                         )
                         for device in devices {
-                            if let cap = device as? BoundCapacitor {
-                                cap.commitTransientStep(state: commitState, integration: commitIntegration)
+                            if let committingDevice = device as? any TransientStateCommittingDevice {
+                                committingDevice.commitTransientStep(state: commitState, integration: commitIntegration)
                             }
                         }
 
-                        previousOpticalState = currentOpticalState
                         previousDt = dt
                         currentTime += dt
                         acceptedSteps += 1
 
                         timePoints.append(currentTime)
-                        solutions.append(currentBuf)
-                        onStepAccepted?(currentTime, currentBuf)
+                        currentBuf.withUnsafeBufferPointer { solutionTrace.append($0) }
 
                         await observer?.emit(.timeStepCompleted(TimeStepInfo(
                             id: analysisID,
                             time: currentTime,
                             timeStep: dt,
-                            iterations: newtonResult.iterations,
+                            iterations: newtonIterations,
                             lte: 0.0
                         )))
 
@@ -491,7 +474,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             let result = TransientResult(
                 timePoints: timePoints,
-                solutions: solutions,
+                solutionTrace: solutionTrace,
                 variableMap: variableMap,
                 timeSteps: acceptedSteps,
                 rejectedSteps: rejectedSteps
@@ -542,6 +525,7 @@ public struct TransientAnalysis: Analysis, Sendable {
     private func tryGminStepping(
         currentBuf: [Double],
         previousBuf: [Double],
+        solution: inout [Double],
         opticalState: inout OpticalState,
         evaluator: OpticalNetworkEvaluator,
         opticalNetwork: OpticalNetworkGraph?,
@@ -554,8 +538,18 @@ public struct TransientAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         analysisID: AnalysisID,
         cancellation: CancellationToken
-    ) async throws -> (solution: [Double], iterations: Int) {
-        var x = currentBuf
+    ) async throws -> Int {
+        var guess = [Double](repeating: 0.0, count: currentBuf.count)
+        currentBuf.withUnsafeBufferPointer { src in
+            guess.withUnsafeMutableBufferPointer { dst in
+                if let srcBase = src.baseAddress, let dstBase = dst.baseAddress {
+                    dstBase.update(from: srcBase, count: src.count)
+                }
+            }
+        }
+        if solution.count != currentBuf.count {
+            solution = [Double](repeating: 0.0, count: currentBuf.count)
+        }
         var totalIterations = 0
 
         for gmin in config.gminStepping.gminValues() {
@@ -564,8 +558,9 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             let nr = NewtonRaphsonSolver(config: stepConfig)
             do {
-                let result = try await nr.solve(
-                    initialGuess: x,
+                let iterations = try await nr.solve(
+                    initialGuess: guess,
+                    solution: &solution,
                     matrix: &matrix,
                     rhs: &rhs,
                     devices: devices,
@@ -608,14 +603,15 @@ public struct TransientAnalysis: Analysis, Sendable {
                     analysisID: analysisID,
                     cancellation: cancellation
                 )
-                x = result.solution
-                totalIterations += result.iterations
+                swap(&guess, &solution)
+                totalIterations += iterations
             } catch {
                 throw AnalysisError.internalError("GMIN stepping failed at gmin \(gmin): \(error)")
             }
         }
 
-        return (solution: x, iterations: totalIterations)
+        swap(&guess, &solution)
+        return totalIterations
     }
 
     /// Builds the initial solution vector from device initial conditions (UIC mode).

@@ -268,14 +268,21 @@ public struct SPICEMeasureEvaluator: Sendable {
         guard let descriptor = waveform.variable(namedCaseInsensitive: name) else {
             throw SPICEMeasurementError.variableNotFound(name)
         }
-        guard let series = waveform.realWaveform(at: descriptor.index) else {
-            throw SPICEMeasurementError.variableNotFound(name)
+
+        var values: [Double] = []
+        values.reserveCapacity(waveform.pointCount)
+        for point in 0..<waveform.pointCount {
+            guard let value = waveform.realValue(variable: descriptor.index, point: point) else {
+                throw SPICEMeasurementError.variableNotFound(name)
+            }
+            values.append(value)
         }
+
         return MeasuredSeries(
             name: descriptor.name,
             unit: descriptor.unit,
-            sweepValues: series.sweepValues,
-            values: series.values
+            sweepValues: waveform.sweepValues,
+            values: values
         )
     }
 
