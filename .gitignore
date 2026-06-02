@@ -10,6 +10,7 @@ DerivedData/
 
 # Swift Package Manager
 /.build
+/Benchmarks/.build
 /Packages
 Package.resolved
 
