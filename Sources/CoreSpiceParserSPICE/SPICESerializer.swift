@@ -20,7 +20,12 @@ public struct SPICESerializer: NetlistSerializer {
         }
 
         // Global parameters
-        if !netlist.parameters.isEmpty {
+        if !netlist.parameterDefinitions.isEmpty {
+            for definition in netlist.parameterDefinitions {
+                lines.append(".param \(definition.name) = \(serializeExpression(definition.value, options))")
+            }
+            if options.prettyPrint { lines.append("") }
+        } else if !netlist.parameters.isEmpty {
             for (name, expr) in sortedIfNeeded(netlist.parameters, options) {
                 lines.append(".param \(name) = \(serializeExpression(expr, options))")
             }
@@ -60,9 +65,22 @@ public struct SPICESerializer: NetlistSerializer {
         }
 
         // Initial conditions
-        if !netlist.initialConditions.isEmpty {
+        let controlsProvideInitialConditions = netlist.controls.contains { control in
+            if case .initialCondition = control { return true }
+            return false
+        }
+        if !controlsProvideInitialConditions && !netlist.initialConditions.isEmpty {
             let ics = netlist.initialConditions.map { ".ic \($0.key)=\(serializeValue($0.value, options))" }
             lines.append(contentsOf: ics)
+        }
+
+        let controlsProvideNodeSets = netlist.controls.contains { control in
+            if case .nodeSet = control { return true }
+            return false
+        }
+        if !controlsProvideNodeSets && !netlist.nodeSets.isEmpty {
+            let nodeSets = netlist.nodeSets.map { ".nodeset \($0.key)=\(serializeValue($0.value, options))" }
+            lines.append(contentsOf: nodeSets)
         }
 
         // Analyses
@@ -146,6 +164,16 @@ public struct SPICESerializer: NetlistSerializer {
         lines.append(header)
 
         // Body
+        if !subckt.body.parameterDefinitions.isEmpty {
+            for definition in subckt.body.parameterDefinitions {
+                lines.append(".param \(definition.name) = \(serializeExpression(definition.value, options))")
+            }
+        } else if !subckt.body.parameters.isEmpty {
+            for (name, expr) in sortedIfNeeded(subckt.body.parameters, options) {
+                lines.append(".param \(name) = \(serializeExpression(expr, options))")
+            }
+        }
+
         for model in subckt.body.models {
             lines.append(serializeModel(model, options))
         }
@@ -230,9 +258,6 @@ public struct SPICESerializer: NetlistSerializer {
             }
             return ".lib \"\(path)\""
 
-        case .param(let name, let value, _):
-            return ".param \(name) = \(serializeExpression(value, options))"
-
         case .option(let name, let value, _):
             if let v = value {
                 return ".option \(name)=\(serializeValue(v, options))"
@@ -273,8 +298,100 @@ public struct SPICESerializer: NetlistSerializer {
         case .endControl:
             return ".endc"
 
-        case .measure, .alter, .function, .hdl:
-            return nil
+        case .measure(let spec):
+            return serializeMeasure(spec, options)
+
+        case .alter(let spec):
+            return ".alter \(spec.target) \(spec.parameter)=\(serializeValue(spec.value, options))"
+
+        case .function(let name, let parameters, let body, _):
+            let argumentList = parameters.joined(separator: ", ")
+            return ".func \(name)(\(argumentList)) = {\(serializeExpression(body, options))}"
+
+        case .hdl(let path, _):
+            return ".hdl \"\(path)\""
+        }
+    }
+
+    private func serializeMeasure(
+        _ spec: MeasureSpec,
+        _ options: SerializerOptions
+    ) -> String {
+        var parts = [".meas", spec.analysisType.rawValue, spec.resultName]
+        switch spec.measureType {
+        case .when(let condition, let target):
+            parts.append("when")
+            parts.append(serializeExpression(condition, options))
+            if let target {
+                parts.append("target=\(serializeExpression(target, options))")
+            }
+        case .find(let variable, let at):
+            parts.append("find")
+            parts.append(serializeOutputVariable(variable))
+            parts.append("at=\(serializeValue(at, options))")
+        case .average(let variable, let from, let to):
+            parts.append("avg")
+            appendMeasureVariableAndRange(variable, from: from, to: to, into: &parts, options: options)
+        case .rms(let variable, let from, let to):
+            parts.append("rms")
+            appendMeasureVariableAndRange(variable, from: from, to: to, into: &parts, options: options)
+        case .min(let variable, let from, let to):
+            parts.append("min")
+            appendMeasureVariableAndRange(variable, from: from, to: to, into: &parts, options: options)
+        case .max(let variable, let from, let to):
+            parts.append("max")
+            appendMeasureVariableAndRange(variable, from: from, to: to, into: &parts, options: options)
+        case .peakToPeak(let variable, let from, let to):
+            parts.append("pp")
+            appendMeasureVariableAndRange(variable, from: from, to: to, into: &parts, options: options)
+        case .integral(let variable, let from, let to):
+            parts.append("integ")
+            appendMeasureVariableAndRange(variable, from: from, to: to, into: &parts, options: options)
+        case .riseTime(let variable, let lowThreshold, let highThreshold):
+            parts.append("rise_time")
+            parts.append(serializeOutputVariable(variable))
+            parts.append("low=\(formatNumber(lowThreshold, options))")
+            parts.append("high=\(formatNumber(highThreshold, options))")
+        case .fallTime(let variable, let highThreshold, let lowThreshold):
+            parts.append("fall_time")
+            parts.append(serializeOutputVariable(variable))
+            parts.append("high=\(formatNumber(highThreshold, options))")
+            parts.append("low=\(formatNumber(lowThreshold, options))")
+        case .delay(let variable1, let value1, let variable2, let value2):
+            parts.append("trig")
+            parts.append(serializeOutputVariable(variable1))
+            parts.append("val=\(serializeValue(value1, options))")
+            parts.append("targ")
+            parts.append(serializeOutputVariable(variable2))
+            parts.append("val=\(serializeValue(value2, options))")
+        case .unsupported(let keyword, let arguments, let reason):
+            return "* Unsupported .meas \(spec.analysisType.rawValue) \(spec.resultName) \(keyword) \(arguments.joined(separator: " ")) -- \(reason)"
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private func appendMeasureVariableAndRange(
+        _ variable: OutputVariable,
+        from: ParsedParameterValue?,
+        to: ParsedParameterValue?,
+        into parts: inout [String],
+        options: SerializerOptions
+    ) {
+        parts.append(serializeOutputVariable(variable))
+        appendMeasureRange(from: from, to: to, into: &parts, options: options)
+    }
+
+    private func appendMeasureRange(
+        from: ParsedParameterValue?,
+        to: ParsedParameterValue?,
+        into parts: inout [String],
+        options: SerializerOptions
+    ) {
+        if let from {
+            parts.append("from=\(serializeValue(from, options))")
+        }
+        if let to {
+            parts.append("to=\(serializeValue(to, options))")
         }
     }
 

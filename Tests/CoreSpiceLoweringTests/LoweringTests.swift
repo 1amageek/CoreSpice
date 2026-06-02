@@ -90,6 +90,35 @@ struct ExpressionEvaluatorTests {
     }
 
     @Test
+    func evaluateUserDefinedFunction() throws {
+        let context = LoweringContext()
+        context.registerFunction(
+            name: "scale",
+            parameters: ["x", "factor"],
+            body: .binaryOp(.multiply, .identifier("x"), .identifier("factor"))
+        )
+        let evaluator = ExpressionEvaluator(context: context)
+
+        let call = ParsedExpression.functionCall(name: "scale", arguments: [.literal(4), .literal(2.5)])
+        #expect(try evaluator.evaluate(call) == 10.0)
+    }
+
+    @Test
+    func recursiveUserDefinedFunctionFailsLoud() throws {
+        let context = LoweringContext()
+        context.registerFunction(
+            name: "loop",
+            parameters: ["x"],
+            body: .functionCall(name: "loop", arguments: [.identifier("x")])
+        )
+        let evaluator = ExpressionEvaluator(context: context)
+
+        #expect(throws: LoweringError.self) {
+            _ = try evaluator.evaluate(.functionCall(name: "loop", arguments: [.literal(1)]))
+        }
+    }
+
+    @Test
     func evaluateConditional() throws {
         let context = LoweringContext()
         let evaluator = ExpressionEvaluator(context: context)
@@ -215,6 +244,39 @@ struct NetlistLoweringTests {
         #expect(circuit.instances.count == 1)
         if case .real(let r) = circuit.instances[0].parameters["r"] {
             #expect(r == 2000.0)
+        }
+    }
+
+    @Test
+    func lowerWithUserDefinedFunctionParameter() throws {
+        let netlist = ParsedNetlist(
+            components: [
+                ParsedComponent(
+                    name: "R1",
+                    type: .resistor,
+                    nodes: ["in", "out"],
+                    parameters: ["r": .expression(.functionCall(name: "scale", arguments: [.identifier("base")]))]
+                )
+            ],
+            controls: [
+                .function(
+                    name: "scale",
+                    parameters: ["x"],
+                    body: .binaryOp(.multiply, .identifier("x"), .literal(2)),
+                    location: nil
+                )
+            ],
+            parameters: ["base": .literal(1000)]
+        )
+
+        let lowering = NetlistLowering()
+        let circuit = try lowering.lower(netlist)
+
+        #expect(circuit.instances.count == 1)
+        if case .real(let r) = circuit.instances[0].parameters["r"] {
+            #expect(r == 2000.0)
+        } else {
+            Issue.record("Expected lowered resistor parameter.")
         }
     }
 }
@@ -347,6 +409,135 @@ struct SubcircuitExpansionTests {
         if case .real(let r) = circuit.instances[0].parameters["r"] {
             #expect(r == 5000.0)
         }
+    }
+
+    @Test
+    func subcircuitBodyParametersAreScopedAndLowered() throws {
+        let resistor = ParsedComponent(
+            name: "R1",
+            type: .resistor,
+            nodes: ["p", "n"],
+            parameters: ["r": .expression(.identifier("local_r"))]
+        )
+        let body = ParsedNetlistBody(
+            components: [resistor],
+            parameters: [
+                "local_r": .binaryOp(.multiply, .identifier("base_r"), .literal(2))
+            ],
+            parameterDefinitions: [
+                ParsedParameterDefinition(
+                    name: "local_r",
+                    value: .binaryOp(.multiply, .identifier("base_r"), .literal(2))
+                )
+            ]
+        )
+        let subcircuit = ParsedSubcircuit(
+            name: "derived_res",
+            ports: ["p", "n"],
+            parameters: ["base_r": .numeric(1000)],
+            body: body
+        )
+        let instance = ParsedComponent(
+            name: "X1",
+            type: .subcircuitInstance,
+            nodes: ["a", "0"],
+            modelName: "derived_res",
+            parameters: ["base_r": .numeric(1500)]
+        )
+        let netlist = ParsedNetlist(
+            components: [instance],
+            subcircuits: [subcircuit]
+        )
+
+        let circuit = try NetlistLowering().lower(netlist)
+
+        #expect(circuit.instances.count == 1)
+        if case .real(let r) = circuit.instances[0].parameters["r"] {
+            #expect(r == 3000.0)
+        } else {
+            Issue.record("Expected lowered resistor parameter.")
+        }
+    }
+
+    @Test
+    func subcircuitBodyParameterCannotShadowPublicParameter() throws {
+        let resistor = ParsedComponent(
+            name: "R1",
+            type: .resistor,
+            nodes: ["p", "n"],
+            parameters: ["r": .expression(.identifier("base_r"))]
+        )
+        let subcircuit = ParsedSubcircuit(
+            name: "ambiguous_res",
+            ports: ["p", "n"],
+            parameters: ["base_r": .numeric(1000)],
+            body: ParsedNetlistBody(
+                components: [resistor],
+                parameters: ["base_r": .literal(2000)]
+            )
+        )
+        let instance = ParsedComponent(
+            name: "X1",
+            type: .subcircuitInstance,
+            nodes: ["a", "0"],
+            modelName: "ambiguous_res",
+            parameters: ["base_r": .numeric(1500)]
+        )
+        let netlist = ParsedNetlist(
+            components: [instance],
+            subcircuits: [subcircuit]
+        )
+
+        do {
+            _ = try NetlistLowering().lower(netlist)
+            Issue.record("Expected public/local parameter conflict to fail.")
+        } catch let error as LoweringError {
+            guard case .invalidComponent(let name, let reason) = error else {
+                Issue.record("Unexpected lowering error: \(error)")
+                return
+            }
+            #expect(name == "ambiguous_res")
+            #expect(reason.contains("conflicts with a public subcircuit parameter"))
+        }
+    }
+
+    @Test
+    func subcircuitBodyModelsAreScopedAndLowered() throws {
+        let mosfet = ParsedComponent(
+            name: "M1",
+            type: .mosfet,
+            nodes: ["d", "g", "s", "b"],
+            modelName: "pch_local",
+            parameters: [
+                "w": .numeric(1e-6),
+                "l": .numeric(1e-6)
+            ]
+        )
+        let subcircuit = ParsedSubcircuit(
+            name: "pmos_cell",
+            ports: ["d", "g", "s", "b"],
+            body: ParsedNetlistBody(
+                components: [mosfet],
+                models: [
+                    ParsedModel(name: "pch_local", type: .pmos, level: 1)
+                ]
+            )
+        )
+        let instance = ParsedComponent(
+            name: "X1",
+            type: .subcircuitInstance,
+            nodes: ["out", "in", "vdd", "vdd"],
+            modelName: "pmos_cell"
+        )
+        let netlist = ParsedNetlist(
+            components: [instance],
+            subcircuits: [subcircuit]
+        )
+
+        let circuit = try NetlistLowering().lower(netlist)
+
+        #expect(circuit.instances.count == 1)
+        #expect(circuit.instances[0].typeName == "pmos_l1")
     }
 }
 

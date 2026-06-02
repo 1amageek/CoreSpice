@@ -100,6 +100,11 @@ public struct NetlistLowering: Sendable {
         for subcircuit in netlist.subcircuits {
             context.registerSubcircuit(subcircuit)
         }
+        for control in netlist.controls {
+            if case .function(let name, let parameters, let body, _) = control {
+                context.registerFunction(name: name, parameters: parameters, body: body)
+            }
+        }
 
         // Evaluate global parameters
         let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)

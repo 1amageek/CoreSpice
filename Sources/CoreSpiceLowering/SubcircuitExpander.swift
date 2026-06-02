@@ -154,8 +154,18 @@ public struct SubcircuitExpander: Sendable {
             portMapping[port] = externalNode
         }
 
+        let publicParameterNames = Set(instanceParams.keys.map { $0.lowercased() })
+
         // Expand subcircuit body with new scope
         try context.withScope(parameters: instanceParams) {
+            for model in subcircuit.body.models {
+                try context.registerScopedModel(model)
+            }
+            try applyBodyParameters(
+                subcircuit.body.parameters,
+                subcircuitName: subcircuit.name,
+                protectedNames: publicParameterNames
+            )
             for bodyComponent in subcircuit.body.components {
                 // Map component nodes through port mapping or to internal nodes
                 var mappedComponent = bodyComponent
@@ -184,6 +194,53 @@ public struct SubcircuitExpander: Sendable {
                 // Nodes are already resolved (ports -> external, internals ->
                 // prefixed), so do not prefix them again.
                 try expandComponent(mappedComponent, into: &builder, prefix: instancePrefix, mapNodes: false)
+            }
+        }
+    }
+
+    private func applyBodyParameters(
+        _ parameters: [String: ParsedExpression],
+        subcircuitName: String,
+        protectedNames: Set<String>
+    ) throws {
+        var pending = parameters
+        var lastFailure: Error?
+        let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
+
+        while !pending.isEmpty {
+            var progressed = false
+
+            for name in pending.keys.sorted() {
+                let lowered = name.lowercased()
+                if protectedNames.contains(lowered) {
+                    throw LoweringError.invalidComponent(
+                        name: subcircuitName,
+                        reason: "Local parameter '\(name)' conflicts with a public subcircuit parameter"
+                    )
+                }
+
+                guard let expression = pending[name] else {
+                    continue
+                }
+
+                do {
+                    let value = try evaluator.evaluate(expression)
+                    try context.setScopedParameter(name, value: value)
+                    pending.removeValue(forKey: name)
+                    progressed = true
+                } catch {
+                    lastFailure = error
+                }
+            }
+
+            if !progressed {
+                if let lastFailure {
+                    throw lastFailure
+                }
+                throw LoweringError.expressionEvaluationFailed(
+                    expression: subcircuitName,
+                    reason: "Could not resolve local subcircuit parameters"
+                )
             }
         }
     }

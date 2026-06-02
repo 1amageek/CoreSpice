@@ -66,16 +66,20 @@ public struct SPICELexer: Sendable {
             return SPICEToken.Located(token: .continuation, location: startLocation)
         }
 
-        // Handle directives
-        if char == "." {
-            return scanDirective(startLocation: startLocation)
-        }
-
         // Handle numbers. A leading +/- is emitted as a separate token here; the
         // parser reassembles the sign in value contexts (see parseSignedNumber),
         // which keeps '-' available as the subtraction operator in expressions.
         if char.isNumber || (char == "." && peek()?.isNumber == true) {
             return scanNumber(startLocation: startLocation)
+        }
+
+        if char == ".", let token = scanDotOperator(startLocation: startLocation) {
+            return token
+        }
+
+        // Handle directives
+        if char == "." {
+            return scanDirective(startLocation: startLocation)
         }
 
         // Handle identifiers
@@ -132,12 +136,27 @@ public struct SPICELexer: Sendable {
         case "^":
             advance()
             return SPICEToken.Located(token: .caret, location: startLocation)
+        case "%":
+            advance()
+            return SPICEToken.Located(token: .percent, location: startLocation)
         case "<":
             advance()
             return SPICEToken.Located(token: .lessThan, location: startLocation)
         case ">":
             advance()
             return SPICEToken.Located(token: .greaterThan, location: startLocation)
+        case "!":
+            advance()
+            return SPICEToken.Located(token: .exclamation, location: startLocation)
+        case "&":
+            advance()
+            return SPICEToken.Located(token: .ampersand, location: startLocation)
+        case "|":
+            advance()
+            return SPICEToken.Located(token: .pipe, location: startLocation)
+        case "?":
+            advance()
+            return SPICEToken.Located(token: .question, location: startLocation)
         case ":":
             advance()
             return SPICEToken.Located(token: .colon, location: startLocation)
@@ -167,6 +186,20 @@ public struct SPICELexer: Sendable {
             token: .directive(name.lowercased()),
             location: startLocation
         )
+    }
+
+    private mutating func scanDotOperator(startLocation: SourceLocation) -> SPICEToken.Located? {
+        let operators = ["eq", "ne", "le", "ge", "lt", "gt", "and", "or", "not"]
+        for name in operators {
+            let pattern = ".\(name)."
+            if source[index...].lowercased().hasPrefix(pattern) {
+                for _ in pattern {
+                    advance()
+                }
+                return SPICEToken.Located(token: .dotOperator(name), location: startLocation)
+            }
+        }
+        return nil
     }
 
     private mutating func scanNumber(startLocation: SourceLocation) -> SPICEToken.Located {
@@ -202,73 +235,69 @@ public struct SPICELexer: Sendable {
                 numberStr.append(current)
                 advance()
             }
+            var exponentDigits = 0
             while !isAtEnd && current.isNumber {
                 numberStr.append(current)
                 advance()
+                exponentDigits += 1
+            }
+            if exponentDigits == 0 {
+                return SPICEToken.Located(token: .invalidNumericLiteral(numberStr), location: startLocation)
             }
         }
 
-        // Handle SPICE scale suffixes
-        let scale = scanScaleSuffix()
-        let value = (Double(numberStr) ?? 0) * scale
+        let suffix = scanScaleSuffix()
+        guard let scale = suffix.scale else {
+            return SPICEToken.Located(token: .invalidNumericSuffix(suffix.text), location: startLocation)
+        }
+        guard let parsedValue = Double(numberStr) else {
+            return SPICEToken.Located(token: .invalidNumericLiteral(numberStr), location: startLocation)
+        }
+        let value = parsedValue * scale
 
         return SPICEToken.Located(token: .number(value), location: startLocation)
     }
 
-    private mutating func scanScaleSuffix() -> Double {
-        guard !isAtEnd else { return 1.0 }
+    private mutating func scanScaleSuffix() -> (text: String, scale: Double?) {
+        let start = index
+        while !isAtEnd, current.isLetter {
+            advance()
+        }
 
-        let char = current.lowercased()
-        let nextChar = peek()?.lowercased()
+        let suffix = String(source[start..<index]).lowercased()
+        guard !suffix.isEmpty else {
+            return (suffix, 1.0)
+        }
+        if suffix.hasPrefix("meg") {
+            return (suffix, 1e6)
+        }
+        if suffix.hasPrefix("mil") {
+            return (suffix, 25.4e-6)
+        }
 
-        switch char {
+        switch suffix.first {
         case "t":
-            advance()
-            return 1e12
+            return (suffix, 1e12)
         case "g":
-            advance()
-            return 1e9
+            return (suffix, 1e9)
         case "x":
-            // HSPICE MEG as x
-            advance()
-            return 1e6
-        case "m":
-            advance()
-            // Check for "meg"
-            if nextChar == "e" {
-                if source[index...].lowercased().hasPrefix("eg") {
-                    advance()
-                    advance()
-                    return 1e6
-                }
-                // Check for "mil"
-                if source[index...].lowercased().hasPrefix("il") {
-                    advance()
-                    advance()
-                    return 25.4e-6
-                }
-            }
-            return 1e-3
+            return (suffix, 1e6)
         case "k":
-            advance()
-            return 1e3
+            return (suffix, 1e3)
+        case "m":
+            return (suffix, 1e-3)
         case "u":
-            advance()
-            return 1e-6
+            return (suffix, 1e-6)
         case "n":
-            advance()
-            return 1e-9
+            return (suffix, 1e-9)
         case "p":
-            advance()
-            return 1e-12
+            return (suffix, 1e-12)
         case "f":
-            advance()
-            return 1e-15
+            return (suffix, 1e-15)
         case "a":
-            advance()
-            return 1e-18
+            return (suffix, 1e-18)
         default:
-            return 1.0
+            return (suffix, nil)
         }
     }
 

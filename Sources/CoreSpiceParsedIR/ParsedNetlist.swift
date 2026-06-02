@@ -22,8 +22,14 @@ public struct ParsedNetlist: Sendable, Hashable {
     /// Control statements.
     public let controls: [ParsedControlStatement]
 
+    /// Source-level global parameter declarations in deck order.
+    public let parameterDefinitions: [ParsedParameterDefinition]
+
     /// Global parameter definitions.
     public let parameters: [String: ParsedExpression]
+
+    /// Source-level preprocessing evidence.
+    public let preprocessingEvents: [SPICEPreprocessingEvent]
 
     /// Initial conditions for nodes.
     public let initialConditions: [String: ParsedParameterValue]
@@ -50,7 +56,9 @@ public struct ParsedNetlist: Sendable, Hashable {
         subcircuits: [ParsedSubcircuit] = [],
         analyses: [ParsedAnalysisCommand] = [],
         controls: [ParsedControlStatement] = [],
+        parameterDefinitions: [ParsedParameterDefinition] = [],
         parameters: [String: ParsedExpression] = [:],
+        preprocessingEvents: [SPICEPreprocessingEvent] = [],
         initialConditions: [String: ParsedParameterValue] = [:],
         nodeSets: [String: ParsedParameterValue] = [:],
         globalNodes: [String] = [],
@@ -64,7 +72,9 @@ public struct ParsedNetlist: Sendable, Hashable {
         self.subcircuits = subcircuits
         self.analyses = analyses
         self.controls = controls
+        self.parameterDefinitions = parameterDefinitions
         self.parameters = parameters
+        self.preprocessingEvents = preprocessingEvents
         self.initialConditions = initialConditions
         self.nodeSets = nodeSets
         self.globalNodes = globalNodes
@@ -82,7 +92,8 @@ public struct ParsedNetlist: Sendable, Hashable {
             components: components,
             models: models,
             subcircuits: subcircuits,
-            parameters: parameters
+            parameters: parameters,
+            parameterDefinitions: parameterDefinitions
         )
     }
 
@@ -107,9 +118,13 @@ extension ParsedNetlist: CustomStringConvertible {
             lines.append("* Untitled netlist")
         }
 
-        if !parameters.isEmpty {
-            for (name, expr) in parameters.sorted(by: { $0.key < $1.key }) {
-                lines.append(".param \(name) = \(expr)")
+        if !parameterDefinitions.isEmpty {
+            for definition in parameterDefinitions {
+                lines.append(".param \(definition.name) = \(definition.value)")
+            }
+        } else if !parameters.isEmpty {
+            for (name, expression) in parameters.sorted(by: { $0.key < $1.key }) {
+                lines.append(".param \(name) = \(expression)")
             }
         }
 

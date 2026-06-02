@@ -14,6 +14,8 @@
 
 // Re-export all I/O modules
 @_exported import CoreSpiceIR
+@_exported import CoreSpiceDevices
+@_exported import CoreSpiceAnalysis
 @_exported import CoreSpiceParsedIR
 @_exported import CoreSpiceWaveform
 @_exported import CoreSpiceParser
@@ -55,6 +57,29 @@ public enum SPICEIO {
     ) async -> ParseResult {
         let parser = SPICEParser()
         return await parser.parse(source: source, fileName: fileName)
+    }
+
+    /// Parses a SPICE netlist string with explicit parser configuration and file resolution.
+    ///
+    /// - Parameters:
+    ///   - source: The netlist source text.
+    ///   - fileName: Optional file name for diagnostics and relative include resolution.
+    ///   - configuration: Parser configuration options.
+    ///   - fileResolver: Resolver used for `.include` and `.lib`.
+    /// - Returns: The parse result.
+    public static func parse(
+        _ source: String,
+        fileName: String? = nil,
+        configuration: ParserConfiguration,
+        fileResolver: any FileResolver
+    ) async -> ParseResult {
+        let parser = SPICEParser()
+        return await parser.parse(
+            source: source,
+            fileName: fileName,
+            configuration: configuration,
+            fileResolver: fileResolver
+        )
     }
 
     /// Parses and lowers a SPICE netlist to CircuitIR.

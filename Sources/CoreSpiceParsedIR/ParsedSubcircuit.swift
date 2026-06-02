@@ -51,16 +51,21 @@ public struct ParsedNetlistBody: Sendable, Hashable {
     /// Local parameter definitions.
     public let parameters: [String: ParsedExpression]
 
+    /// Source-level local parameter declarations in body order.
+    public let parameterDefinitions: [ParsedParameterDefinition]
+
     public init(
         components: [ParsedComponent] = [],
         models: [ParsedModel] = [],
         subcircuits: [ParsedSubcircuit] = [],
-        parameters: [String: ParsedExpression] = [:]
+        parameters: [String: ParsedExpression] = [:],
+        parameterDefinitions: [ParsedParameterDefinition] = []
     ) {
         self.components = components
         self.models = models
         self.subcircuits = subcircuits
         self.parameters = parameters
+        self.parameterDefinitions = parameterDefinitions
     }
 
     /// An empty body.

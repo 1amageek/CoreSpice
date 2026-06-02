@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import CoreSpiceParserSPICE
 @testable import CoreSpiceParser
 @testable import CoreSpiceParsedIR
@@ -39,6 +40,20 @@ struct SPICELexerTests {
         if case .directive(let name) = tokens[0].token {
             #expect(name == "model")
         }
+    }
+
+    @Test
+    func expressionOperatorTokenization() {
+        let source = "a>=b && c!=d ? e%2 : f"
+        var lexer = SPICELexer(source: source)
+        let tokenDescriptions = lexer.tokenize().map { $0.token.description }
+
+        #expect(tokenDescriptions.contains(">"))
+        #expect(tokenDescriptions.contains("&"))
+        #expect(tokenDescriptions.contains("!"))
+        #expect(tokenDescriptions.contains("?"))
+        #expect(tokenDescriptions.contains("%"))
+        #expect(tokenDescriptions.contains(":"))
     }
 
     @Test
@@ -192,6 +207,695 @@ struct SPICEParserTests {
     }
 
     @Test
+    func conditionalPreprocessorSelectsTrueBranch() async throws {
+        let source = """
+        Conditional Test
+        .param use_alt=1
+        .if use_alt
+        R1 in out 1k
+        .else
+        .unknown_control should_not_parse
+        R2 in out 2k
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source, fileName: "conditional.sp")
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.sourcePath == "conditional.sp")
+        #expect(netlist.components.map(\.name) == ["r1"])
+        #expect(netlist.parameterDefinitions.map(\.name) == ["use_alt"])
+        #expect(netlist.preprocessingEvents.contains { event in
+            event.kind == .ifStatement && event.expression == "use_alt" && event.active
+        })
+    }
+
+    @Test
+    func conditionalPreprocessorSelectsElseIfBranch() async throws {
+        let source = """
+        Conditional Elseif Test
+        .param mode=2 limit={1k/2}
+        .if mode == 1
+        R1 in out 1k
+        .elseif mode == 2 && limit >= 500
+        R2 in out 2k
+        .else
+        R3 in out 3k
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.components.map(\.name) == ["r2"])
+        #expect(netlist.preprocessingEvents.contains { event in
+            event.kind == .elseIf && event.expression == "mode == 2 && limit >= 500" && event.active
+        })
+    }
+
+    @Test
+    func conditionalPreprocessorSupportsNestedBlocks() async throws {
+        let source = """
+        Nested Conditional Test
+        .param outer=1 inner=0
+        .if outer
+        .if inner
+        R1 in out 1k
+        .else
+        R2 in out 2k
+        .endif
+        .else
+        R3 in out 3k
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.components.map(\.name) == ["r2"])
+    }
+
+    @Test
+    func conditionalPreprocessorKeepsSubcircuitParameterScopeLocal() async throws {
+        let source = """
+        Subcircuit Scope Conditional Test
+        .param local=0
+        .subckt cell a b
+        .param local=1
+        .if local
+        R1 a b 1k
+        .endif
+        .ends cell
+        .if local
+        Rtop in out 1k
+        .else
+        R2 in out 2k
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.subcircuits.first?.body.components.map(\.name) == ["r1"])
+        #expect(netlist.components.map(\.name) == ["r2"])
+    }
+
+    @Test
+    func subcircuitParameterDefinitionsStayBodyLocal() async throws {
+        let source = """
+        Subcircuit Parameter Evidence Test
+        .param global_scale=2
+        .subckt cell a b
+        .param local_r={global_scale * 1k}
+        R1 a b {local_r}
+        .ends cell
+        X1 in out cell
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.parameterDefinitions.map(\.name) == ["global_scale"])
+
+        let subcircuit = try #require(netlist.subcircuits.first)
+        #expect(subcircuit.body.parameterDefinitions.map(\.name) == ["local_r"])
+        #expect(subcircuit.body.parameters["local_r"] != nil)
+
+        let output = SPICESerializer().serialize(netlist, options: .default)
+        let globalParamCount = output.components(separatedBy: ".param global_scale").count - 1
+        let localParamCount = output.components(separatedBy: ".param local_r").count - 1
+        #expect(globalParamCount == 1)
+        #expect(localParamCount == 1)
+        let subcircuitHeader = try #require(output.range(of: ".subckt cell")?.lowerBound)
+        let localParameter = try #require(output.range(of: ".param local_r")?.lowerBound)
+        let subcircuitEnd = try #require(output.range(of: ".ends cell")?.lowerBound)
+        #expect(subcircuitHeader < localParameter)
+        #expect(localParameter < subcircuitEnd)
+    }
+
+    @Test
+    func conditionalPreprocessorReadsSubcircuitParamsClause() async throws {
+        let source = """
+        Subcircuit Params Conditional Test
+        .subckt cell a b params: enabled=1
+        .if enabled
+        R1 a b 1k
+        .endif
+        .ends cell
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.subcircuits.first?.body.components.map(\.name) == ["r1"])
+    }
+
+    @Test
+    func conditionalPreprocessorSupportsSpiceDotOperators() async throws {
+        let source = """
+        Dot Operator Conditional Test
+        .param mode=2 disabled=0
+        .if mode .eq. 2 .and. .not. disabled
+        R1 in out 1k
+        .else
+        R2 in out 2k
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.components.map(\.name) == ["r1"])
+    }
+
+    @Test
+    func conditionalPreprocessorStripsInlineCommentsFromConditions() async throws {
+        let source = """
+        Commented Conditional Test
+        .param mode=1
+        .if mode == 1 ; select resistor branch
+        R1 in out 1k
+        .else
+        R2 in out 2k
+        .endif
+        .if mode == 1 $ select capacitor branch
+        C1 out 0 1p
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.components.map(\.name) == ["r1", "c1"])
+        #expect(netlist.preprocessingEvents.contains { event in
+            event.kind == .ifStatement && event.expression == "mode == 1" && event.active
+        })
+    }
+
+    @Test
+    func conditionalPreprocessorRejectsUnknownNumericSuffix() async {
+        let source = """
+        Unknown Suffix Conditional Test
+        .if 1qq
+        R1 in out 1k
+        .else
+        R2 in out 2k
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message.contains("Unknown numeric suffix 'qq'")
+        })
+        #expect(result.netlist?.components.isEmpty == true)
+    }
+
+    @Test
+    func conditionalPreprocessorUsesUserFunctionInParameterCondition() async throws {
+        let source = """
+        Conditional User Function Test
+        .func enabled(x) {x - 0.5}
+        .param mode=enabled(1)
+        .if mode > 0
+        R1 in out 1k
+        .else
+        R2 in out 2k
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.components.map(\.name) == ["r1"])
+        #expect(netlist.controls.contains { control in
+            if case .function(let name, let parameters, _, _) = control {
+                return name == "enabled" && parameters == ["x"]
+            }
+            return false
+        })
+    }
+
+    @Test
+    func conditionalPreprocessorRejectsRecursiveUserFunction() async {
+        let source = """
+        Recursive Conditional User Function Test
+        .func loop(x) {loop(x)}
+        .if loop(1)
+        R1 in out 1k
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message.contains("Recursive conditional function 'loop'")
+        })
+        #expect(result.netlist?.components.isEmpty == true)
+    }
+
+    @Test
+    func conditionalPreprocessorUsesLoweringCompatibleBuiltInFunctions() async throws {
+        let source = """
+        Conditional Builtin Function Test
+        .if limit(2, 0, 1) == 1 && sign(-2) == -1 && int(1.9) == 1
+        R1 in out 1k
+        .else
+        R2 in out 2k
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.components.map(\.name) == ["r1"])
+    }
+
+    @Test
+    func sharedExpressionParserRequiresCompleteStandaloneInput() throws {
+        let parser = SPICEExpressionParser()
+
+        do {
+            _ = try parser.parse("gain)")
+            Issue.record("Expected trailing ')' to fail.")
+        } catch let diagnostic as ParserDiagnostic {
+            #expect(diagnostic.message.contains("Unexpected token"))
+        }
+    }
+
+    @Test
+    func sharedExpressionParserParsesSpiceDotOperators() throws {
+        let expression = try SPICEExpressionParser().parse("mode .eq. 2 .and. .not. disabled")
+
+        guard case .binaryOp(.and, let lhs, let rhs) = expression else {
+            Issue.record("Expected logical-and expression, got \(expression).")
+            return
+        }
+        guard case .binaryOp(.equal, .identifier("mode"), .literal(2)) = lhs else {
+            Issue.record("Expected equality lhs, got \(lhs).")
+            return
+        }
+        guard case .unaryOp(.not, .identifier("disabled")) = rhs else {
+            Issue.record("Expected not rhs, got \(rhs).")
+            return
+        }
+    }
+
+    @Test
+    func sharedExpressionParserDoesNotRewriteIdentifierText() throws {
+        let expression = try SPICEExpressionParser().parse("foo.or.bar")
+
+        #expect(expression == .identifier("foo.or.bar"))
+    }
+
+    @Test
+    func invalidNumericLiteralFailsInsteadOfBecomingZero() async {
+        let source = """
+        Invalid Number Test
+        R1 in out 1e+
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message.contains("Invalid numeric literal '1e+'")
+        })
+    }
+
+    @Test
+    func invalidPositionalNumericSuffixFailsComponentParsing() async {
+        let source = """
+        Invalid Suffix Test
+        R1 in out 1qq
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message.contains("Unknown numeric suffix 'qq'")
+        })
+    }
+
+    @Test
+    func inactiveConditionalBranchCanContainInvalidSyntax() async throws {
+        let source = """
+        Inactive Branch Test
+        .if 0
+        .unknown_control should_not_parse
+        R1 in out 1k
+        .else
+        R2 in out 2k
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.components.map(\.name) == ["r2"])
+    }
+
+    @Test
+    func conditionalPreprocessorRejectsUnknownActiveParameter() async {
+        let source = """
+        Unknown Conditional Parameter Test
+        .if missing == 1
+        R1 in out 1k
+        .else
+        R2 in out 2k
+        .endif
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message.contains("Unknown conditional parameter 'missing'")
+        })
+        #expect(result.netlist?.components.isEmpty == true)
+    }
+
+    @Test
+    func conditionalPreprocessorRejectsUnbalancedBlock() async {
+        let source = """
+        Unbalanced Conditional Test
+        .if 1
+        R1 in out 1k
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message == "Unterminated SPICE conditional block"
+        })
+    }
+
+    @Test
+    func parseFunctionDefinitionAndParameterCall() async throws {
+        let source = """
+        Function Test
+        .func scale(x) {x * 2}
+        .param rload=scale(1k)
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.controls.contains { control in
+            if case .function(let name, let parameters, _, _) = control {
+                return name == "scale" && parameters == ["x"]
+            }
+            return false
+        })
+        if case .functionCall(let name, let arguments) = netlist.parameters["rload"] {
+            #expect(name == "scale")
+            #expect(arguments.count == 1)
+        } else {
+            Issue.record("Expected rload to be parsed as a function call expression.")
+        }
+    }
+
+    @Test
+    func parseFunctionAndParameterExpressionsPreserveFullOperatorIR() async throws {
+        let source = """
+        Full Expression Function Test
+        .func choose(x, y) {x .gt. y ? x : y}
+        .param selected={choose(2, 1) .eq. 2 .and. 3 % 2 .eq. 1}
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        guard case .function(_, _, let body, _)? = netlist.controls.first else {
+            Issue.record("Expected function control.")
+            return
+        }
+        guard case .conditional(let condition, let thenExpression, let elseExpression) = body else {
+            Issue.record("Expected ternary function body, got \(body).")
+            return
+        }
+        guard case .binaryOp(.greaterThan, .identifier("x"), .identifier("y")) = condition else {
+            Issue.record("Expected comparison condition, got \(condition).")
+            return
+        }
+        #expect(thenExpression == .identifier("x"))
+        #expect(elseExpression == .identifier("y"))
+
+        guard let selected = netlist.parameters["selected"] else {
+            Issue.record("Expected expression parameter.")
+            return
+        }
+        guard case .binaryOp(.and, _, _) = selected else {
+            Issue.record("Expected logical-and parameter expression, got \(selected).")
+            return
+        }
+    }
+
+    @Test
+    func parseProbeAndSaveVariablesWithoutLosingCallSyntax() async throws {
+        let source = """
+        Probe Test
+        .save V(out) I(V1) all
+        .probe V(in,out)
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.controls.contains { control in
+            if case .save(let variables, _) = control {
+                return variables == ["v(out)", "i(v1)", "all"]
+            }
+            return false
+        })
+        #expect(netlist.controls.contains { control in
+            if case .probe(let variables, _) = control {
+                return variables == ["v(in,out)"]
+            }
+            return false
+        })
+    }
+
+    @Test
+    func parseInitialConditionsAndNodeSetsWithVoltageSyntax() async throws {
+        let source = """
+        IC Test
+        .ic V(out)=1.2 in=0
+        .nodeset V(mid)=0.5
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        if case .numeric(let out)? = netlist.initialConditions["out"] {
+            #expect(out == 1.2)
+        } else {
+            Issue.record("Expected V(out) initial condition.")
+        }
+        if case .numeric(let input)? = netlist.initialConditions["in"] {
+            #expect(input == 0)
+        } else {
+            Issue.record("Expected plain node initial condition.")
+        }
+        if case .numeric(let mid)? = netlist.nodeSets["mid"] {
+            #expect(mid == 0.5)
+        } else {
+            Issue.record("Expected V(mid) nodeset.")
+        }
+    }
+
+    @Test
+    func resolvedIncludeKeepsControlEvidenceAndMergesContent() async throws {
+        let source = """
+        Include Test
+        .include "models.inc"
+        .end
+        """
+        let resolver = MemoryFileResolver(
+            includes: [
+                "models.inc": """
+                .param rload=1k
+                .model dmod d
+                """
+            ]
+        )
+        var configuration = ParserConfiguration.default
+        configuration.resolveIncludes = true
+
+        let parser = SPICEParser()
+        let result = await parser.parse(
+            source: source,
+            fileName: "top.sp",
+            configuration: configuration,
+            fileResolver: resolver
+        )
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.parameters["rload"] != nil)
+        #expect(netlist.models.first?.name == "dmod")
+        #expect(netlist.controls.contains { control in
+            if case .include(let path, _) = control {
+                return path == "models.inc"
+            }
+            return false
+        })
+    }
+
+    @Test
+    func resolvedIncludeConditionCanUseParentParameters() async throws {
+        let source = """
+        Include Conditional Test
+        .param corner=2
+        .include "conditional.inc"
+        .end
+        """
+        let resolver = MemoryFileResolver(
+            includes: [
+                "conditional.inc": """
+                .if corner == 2
+                R1 in out 1k
+                .else
+                R2 in out 2k
+                .endif
+                """
+            ]
+        )
+        var configuration = ParserConfiguration.default
+        configuration.resolveIncludes = true
+
+        let parser = SPICEParser()
+        let result = await parser.parse(
+            source: source,
+            fileName: "top.sp",
+            configuration: configuration,
+            fileResolver: resolver
+        )
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.components.map(\.name) == ["r1"])
+    }
+
+    @Test
+    func localLibraryResolverExtractsNamedSectionAndKeepsEvidence() async throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("corespice-lib-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer {
+            do {
+                try FileManager.default.removeItem(at: root)
+            } catch {
+                Issue.record("Failed to remove temporary library directory: \(error)")
+            }
+        }
+
+        let libraryURL = root.appendingPathComponent("corners.lib")
+        try """
+        .lib tt
+        .param corner_scale=1
+        .model dtt d
+        .endl tt
+        .lib ss
+        .param corner_scale=2
+        .model dss d
+        .endl ss
+        """.write(to: libraryURL, atomically: true, encoding: .utf8)
+
+        let source = """
+        Library Test
+        .lib "corners.lib" ss
+        .end
+        """
+        var configuration = ParserConfiguration.default
+        configuration.resolveIncludes = true
+
+        let parser = SPICEParser()
+        let result = await parser.parse(
+            source: source,
+            fileName: root.appendingPathComponent("top.sp").path,
+            configuration: configuration,
+            fileResolver: LocalFileResolver(searchPaths: [root.path])
+        )
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        if case .literal(let value)? = netlist.parameters["corner_scale"] {
+            #expect(value == 2)
+        } else {
+            Issue.record("Expected selected library section parameter.")
+        }
+        #expect(netlist.models.map(\.name) == ["dss"])
+        #expect(netlist.controls.contains { control in
+            if case .library(let path, let section, _) = control {
+                return path == "corners.lib" && section == "ss"
+            }
+            return false
+        })
+    }
+
+    @Test
     func canParseDetection() {
         let parser = SPICEParser()
 
@@ -207,6 +911,37 @@ struct SPICEParserTests {
         without spice syntax
         """
         #expect(!parser.canParse(source: notSpice))
+    }
+}
+
+private struct MemoryFileResolver: FileResolver {
+    let includes: [String: String]
+    let libraries: [String: String]
+
+    init(includes: [String: String] = [:], libraries: [String: String] = [:]) {
+        self.includes = includes
+        self.libraries = libraries
+    }
+
+    func resolveInclude(path: String, relativeTo: String?) async throws -> String {
+        guard let content = includes[path] else {
+            throw FileResolverError.fileNotFound(path: path)
+        }
+        return content
+    }
+
+    func resolveLibrary(path: String, section: String?, relativeTo: String?) async throws -> String {
+        guard let content = libraries[path] else {
+            throw FileResolverError.fileNotFound(path: path)
+        }
+        return content
+    }
+
+    func readFile(at path: String) async throws -> String {
+        guard let content = includes[path] ?? libraries[path] else {
+            throw FileResolverError.fileNotFound(path: path)
+        }
+        return content
     }
 }
 
@@ -233,6 +968,53 @@ struct SPICESerializerTests {
         #expect(output.contains("Test Circuit"))
         #expect(output.contains("R1"))
         #expect(output.contains(".end"))
+    }
+
+    @Test
+    func serializeParsedFunctionParameterAndMeasureWithoutDroppingDependencies() async throws {
+        let source = """
+        Serialize Intent Test
+        .func scale(x) {x * 2}
+        .param gain=scale(1k)
+        .op
+        .meas op gain_at_zero find V(1) at=0
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+        let netlist = try result.get()
+
+        let output = SPICESerializer().serialize(netlist)
+
+        #expect(output.components(separatedBy: ".param").count - 1 == 1)
+        #expect(output.contains(".func scale(x)"))
+        #expect(output.contains("scale(1.0k)"))
+        #expect(output.contains(".meas op gain_at_zero find v(1) at=0"))
+    }
+
+    @Test
+    func parseUnsupportedMeasureAsBlockedIntent() async throws {
+        let source = """
+        Unsupported Measure Test
+        .meas tran strange unsupported_token arg=1
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+        let netlist = try result.get()
+
+        guard case .measure(let measure)? = netlist.controls.first else {
+            Issue.record("Expected measure control.")
+            return
+        }
+        guard case .unsupported(let keyword, let arguments, _) = measure.measureType else {
+            Issue.record("Expected unsupported measure, got \(measure.measureType).")
+            return
+        }
+        #expect(keyword == "unsupported_token")
+        #expect(arguments.contains("arg"))
     }
 }
 
@@ -380,5 +1162,39 @@ struct AdvancedAnalysisParserTests {
         // The test verifies that the parser at least processes the netlist
         // without crashing, even if .meas is not fully implemented
         #expect(result.netlist != nil || result.diagnostics.count > 0)
+    }
+
+    @Test
+    func parseOperatingPointMeasureWithNumericNode() async throws {
+        let source = """
+        OP Measure Test
+        .meas op vout find V(2) at=0
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+        let netlist = try result.get()
+
+        let control = try #require(netlist.controls.first)
+        guard case .measure(let measure) = control else {
+            Issue.record("expected measure control, got \(control)")
+            return
+        }
+        #expect(measure.analysisType == .op)
+        guard case .find(let variable, let at) = measure.measureType else {
+            Issue.record("expected find measure, got \(measure.measureType)")
+            return
+        }
+        guard case .voltage(let node, nil) = variable else {
+            Issue.record("expected voltage variable, got \(variable)")
+            return
+        }
+        #expect(node == "2")
+        guard case .numeric(let value) = at else {
+            Issue.record("expected numeric at value, got \(at)")
+            return
+        }
+        #expect(value == 0)
     }
 }

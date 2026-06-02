@@ -7,6 +7,8 @@ public enum SPICEToken: Sendable, Hashable {
     case number(Double)
     case identifier(String)
     case string(String)
+    case invalidNumericLiteral(String)
+    case invalidNumericSuffix(String)
 
     // Punctuation
     case equals
@@ -20,10 +22,16 @@ public enum SPICEToken: Sendable, Hashable {
     case asterisk
     case slash
     case caret
+    case percent
     case lessThan
     case greaterThan
+    case exclamation
+    case ampersand
+    case pipe
+    case question
     case colon
     case semicolon
+    case dotOperator(String)
 
     // Special
     case newline
@@ -55,6 +63,10 @@ extension SPICEToken: CustomStringConvertible {
             return "identifier(\(name))"
         case .string(let value):
             return "string(\"\(value)\")"
+        case .invalidNumericLiteral(let text):
+            return "invalidNumericLiteral(\(text))"
+        case .invalidNumericSuffix(let suffix):
+            return "invalidNumericSuffix(\(suffix))"
         case .equals:
             return "="
         case .comma:
@@ -77,14 +89,26 @@ extension SPICEToken: CustomStringConvertible {
             return "/"
         case .caret:
             return "^"
+        case .percent:
+            return "%"
         case .lessThan:
             return "<"
         case .greaterThan:
             return ">"
+        case .exclamation:
+            return "!"
+        case .ampersand:
+            return "&"
+        case .pipe:
+            return "|"
+        case .question:
+            return "?"
         case .colon:
             return ":"
         case .semicolon:
             return ";"
+        case .dotOperator(let name):
+            return ".\(name)."
         case .newline:
             return "newline"
         case .continuation:

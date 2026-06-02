@@ -43,7 +43,9 @@ public struct SPICEParser: NetlistParser {
                 let directive = trimmed.dropFirst().split(separator: " ").first ?? ""
                 let spiceDirectives = ["subckt", "model", "param", "include", "lib", "end", "ends",
                                        "tran", "ac", "dc", "op", "print", "plot", "option", "options",
-                                       "ic", "nodeset", "global", "temp"]
+                                       "ic", "nodeset", "global", "temp", "func", "function",
+                                       "probe", "save", "measure", "meas", "if", "elseif", "elif",
+                                       "else", "endif"]
                 if spiceDirectives.contains(String(directive)) {
                     return true
                 }
@@ -72,6 +74,7 @@ private struct SPICEParserImpl {
     private let configuration: ParserConfiguration
     private let fileResolver: any FileResolver
     private let includeDepth: Int
+    private let conditionalParameterExpressions: [String: String]
 
     private var tokens: [SPICEToken.Located] = []
     private var current = 0
@@ -83,7 +86,9 @@ private struct SPICEParserImpl {
     private var subcircuits: [ParsedSubcircuit] = []
     private var analyses: [ParsedAnalysisCommand] = []
     private var controls: [ParsedControlStatement] = []
+    private var parameterDefinitions: [ParsedParameterDefinition] = []
     private var parameters: [String: ParsedExpression] = [:]
+    private var preprocessingEvents: [SPICEPreprocessingEvent] = []
     private var initialConditions: [String: ParsedParameterValue] = [:]
     private var nodeSets: [String: ParsedParameterValue] = [:]
     private var globalNodes: [String] = []
@@ -94,18 +99,32 @@ private struct SPICEParserImpl {
         fileName: String?,
         configuration: ParserConfiguration,
         fileResolver: any FileResolver,
-        includeDepth: Int = 0
+        includeDepth: Int = 0,
+        conditionalParameterExpressions: [String: String] = [:]
     ) {
         self.source = source
         self.fileName = fileName
         self.configuration = configuration
         self.fileResolver = fileResolver
         self.includeDepth = includeDepth
+        self.conditionalParameterExpressions = conditionalParameterExpressions
     }
 
     mutating func parse() async -> ParseResult {
+        let conditionalResult = SPICEConditionalPreprocessor().process(
+            source: source,
+            fileName: fileName,
+            initialParameters: conditionalParameterExpressions
+        )
+        preprocessingEvents.append(contentsOf: conditionalResult.events)
+        diagnostics.append(contentsOf: conditionalResult.diagnostics)
+
         // Tokenize
-        var lexer = SPICELexer(source: source, fileName: fileName, configuration: configuration)
+        var lexer = SPICELexer(
+            source: conditionalResult.source,
+            fileName: fileName,
+            configuration: configuration
+        )
         tokens = lexer.tokenize()
 
         // Parse title (first line)
@@ -132,10 +151,13 @@ private struct SPICEParserImpl {
             subcircuits: subcircuits,
             analyses: analyses,
             controls: controls,
+            parameterDefinitions: parameterDefinitions,
             parameters: parameters,
+            preprocessingEvents: preprocessingEvents,
             initialConditions: initialConditions,
             nodeSets: nodeSets,
-            globalNodes: globalNodes
+            globalNodes: globalNodes,
+            sourcePath: fileName
         )
 
         if diagnostics.contains(where: { $0.severity == .error }) {
@@ -212,6 +234,8 @@ private struct SPICEParserImpl {
             try await parseInclude(location: loc)
         case "lib":
             try await parseLib(location: loc)
+        case "endl":
+            skipToEndOfLine()
         case "end":
             skipToEndOfLine()
         case "ends":
@@ -241,6 +265,8 @@ private struct SPICEParserImpl {
             try parsePlot(location: loc)
         case "save":
             try parseSave(location: loc)
+        case "probe":
+            try parseProbe(location: loc)
         case "noise":
             try parseNoiseAnalysis(location: loc)
         case "tf":
@@ -255,6 +281,8 @@ private struct SPICEParserImpl {
             try parseMonteCarloAnalysis(location: loc)
         case "meas", "measure":
             try parseMeasure(location: loc)
+        case "func", "function":
+            try parseFunction(location: loc)
         default:
             throw ParserDiagnostic.error("Unsupported SPICE directive: .\(name)", at: loc)
         }
@@ -291,6 +319,10 @@ private struct SPICEParserImpl {
                 } else if case .number(let n) = currentToken {
                     tokens.append(String(Int(n)))
                     advance()
+                } else if case .invalidNumericLiteral(let text) = currentToken {
+                    throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
+                } else if case .invalidNumericSuffix(let suffix) = currentToken {
+                    throw ParserDiagnostic.error("Unknown numeric suffix '\(suffix)'", at: currentLocation)
                 } else {
                     break
                 }
@@ -309,6 +341,10 @@ private struct SPICEParserImpl {
                 } else if case .number(let n) = currentToken {
                     nodes.append(ParsedNodeRef(name: String(Int(n)), location: currentLocation))
                     advance()
+                } else if case .invalidNumericLiteral(let text) = currentToken {
+                    throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
+                } else if case .invalidNumericSuffix(let suffix) = currentToken {
+                    throw ParserDiagnostic.error("Unknown numeric suffix '\(suffix)'", at: currentLocation)
                 }
             }
 
@@ -337,7 +373,7 @@ private struct SPICEParserImpl {
                     // "ac <value>" sets the AC magnitude
                     // Current sources carry their DC value under "i"; voltage sources under "v".
                     let dcKey = (type == .currentSource) ? "i" : "v"
-                    if let value = parseSignedNumber() {
+                    if let value = try parseSignedNumber() {
                         params[lower == "dc" ? dcKey : "ac"] = .numeric(value)
                     }
                 } else if (type == .voltageSource || type == .currentSource),
@@ -370,9 +406,13 @@ private struct SPICEParserImpl {
                     params[key] = .numeric(n)
                 }
                 advance()
+            } else if case .invalidNumericLiteral(let text) = currentToken {
+                throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
+            } else if case .invalidNumericSuffix(let suffix) = currentToken {
+                throw ParserDiagnostic.error("Unknown numeric suffix '\(suffix)'", at: currentLocation)
             } else if isSignToken(currentToken) {
                 // Signed positional value, e.g. a negative source DC value (V1 n1 n2 -2).
-                if let value = parseSignedNumber(), let key = positionalKey(for: type, existing: params) {
+                if let value = try parseSignedNumber(), let key = positionalKey(for: type, existing: params) {
                     params[key] = .numeric(value)
                 }
             } else {
@@ -394,7 +434,7 @@ private struct SPICEParserImpl {
     /// returns the signed value. The lexer emits a separate `.minus`/`.plus`
     /// token before a number, so source values and positional component values
     /// (which are not expressions) must reassemble the sign here.
-    private mutating func parseSignedNumber() -> Double? {
+    private mutating func parseSignedNumber() throws -> Double? {
         var sign = 1.0
         if case .minus = currentToken {
             sign = -1.0
@@ -405,6 +445,12 @@ private struct SPICEParserImpl {
         if case .number(let n) = currentToken {
             advance()
             return sign * n
+        }
+        if case .invalidNumericLiteral(let text) = currentToken {
+            throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
+        }
+        if case .invalidNumericSuffix(let suffix) = currentToken {
+            throw ParserDiagnostic.error("Unknown numeric suffix '\(suffix)'", at: currentLocation)
         }
         if case .identifier(let s) = currentToken, let n = parseNumberFromIdentifier(s) {
             advance()
@@ -471,6 +517,26 @@ private struct SPICEParserImpl {
         return base * scale
     }
 
+    private mutating func parseNumericTokenIfPresent() throws -> Double? {
+        switch currentToken {
+        case .number(let value):
+            advance()
+            return value
+        case .invalidNumericLiteral(let text):
+            throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
+        case .invalidNumericSuffix(let suffix):
+            throw ParserDiagnostic.error("Unknown numeric suffix '\(suffix)'", at: currentLocation)
+        case .identifier(let text):
+            guard let value = parseNumberFromIdentifier(text) else {
+                return nil
+            }
+            advance()
+            return value
+        default:
+            return nil
+        }
+    }
+
     /// Parse PULSE(v1 v2 td tr tf pw per) parameters.
     private mutating func parseSourcePulse(into params: inout [String: ParsedParameterValue]) throws {
         // Expect '(' after PULSE
@@ -480,13 +546,8 @@ private struct SPICEParserImpl {
         let keys = ["v1", "v2", "td", "tr", "tf", "pw", "per"]
         for key in keys {
             if case .rightParen = currentToken { break }
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 params[key] = .numeric(n)
-                advance()
-            } else if case .identifier(let id) = currentToken,
-                      let n = parseNumberFromIdentifier(id) {
-                params[key] = .numeric(n)
-                advance()
             }
         }
 
@@ -501,13 +562,8 @@ private struct SPICEParserImpl {
         let keys = ["vo", "va", "freq", "td", "phase"]
         for key in keys {
             if case .rightParen = currentToken { break }
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 params[key] = .numeric(n)
-                advance()
-            } else if case .identifier(let id) = currentToken,
-                      let n = parseNumberFromIdentifier(id) {
-                params[key] = .numeric(n)
-                advance()
             }
         }
 
@@ -522,6 +578,10 @@ private struct SPICEParserImpl {
             case .number(let n):
                 advance()
                 return .numeric(-n)
+            case .invalidNumericLiteral(let text):
+                throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
+            case .invalidNumericSuffix(let suffix):
+                throw ParserDiagnostic.error("Unknown numeric suffix '\(suffix)'", at: currentLocation)
             case .identifier(let id):
                 advance()
                 if let n = parseNumberFromIdentifier(id) {
@@ -542,7 +602,14 @@ private struct SPICEParserImpl {
         case .number(let n):
             advance()
             return .numeric(n)
+        case .invalidNumericLiteral(let text):
+            throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
+        case .invalidNumericSuffix(let suffix):
+            throw ParserDiagnostic.error("Unknown numeric suffix '\(suffix)'", at: currentLocation)
         case .identifier(let id):
+            if current + 1 < tokens.count, case .leftParen = tokens[current + 1].token {
+                return .expression(try parseExpression())
+            }
             advance()
             // Check if it's a number with suffix
             if let n = parseNumberFromIdentifier(id) {
@@ -577,109 +644,10 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseExpression() throws -> ParsedExpression {
-        try parseAdditiveExpression()
-    }
-
-    private mutating func parseAdditiveExpression() throws -> ParsedExpression {
-        var left = try parseMultiplicativeExpression()
-
-        while !isAtEnd {
-            if case .plus = currentToken {
-                advance()
-                let right = try parseMultiplicativeExpression()
-                left = .binaryOp(.add, left, right)
-            } else if case .minus = currentToken {
-                advance()
-                let right = try parseMultiplicativeExpression()
-                left = .binaryOp(.subtract, left, right)
-            } else {
-                break
-            }
-        }
-
-        return left
-    }
-
-    private mutating func parseMultiplicativeExpression() throws -> ParsedExpression {
-        var left = try parsePowerExpression()
-
-        while !isAtEnd {
-            if case .asterisk = currentToken {
-                advance()
-                let right = try parsePowerExpression()
-                left = .binaryOp(.multiply, left, right)
-            } else if case .slash = currentToken {
-                advance()
-                let right = try parsePowerExpression()
-                left = .binaryOp(.divide, left, right)
-            } else {
-                break
-            }
-        }
-
-        return left
-    }
-
-    private mutating func parsePowerExpression() throws -> ParsedExpression {
-        let base = try parseUnaryExpression()
-
-        if !isAtEnd, case .caret = currentToken {
-            advance()
-            let exponent = try parsePowerExpression()
-            return .binaryOp(.power, base, exponent)
-        }
-
-        return base
-    }
-
-    private mutating func parseUnaryExpression() throws -> ParsedExpression {
-        if case .minus = currentToken {
-            advance()
-            let expr = try parsePrimaryExpression()
-            return .unaryOp(.negate, expr)
-        }
-        return try parsePrimaryExpression()
-    }
-
-    private mutating func parsePrimaryExpression() throws -> ParsedExpression {
-        switch currentToken {
-        case .number(let n):
-            advance()
-            return .literal(n)
-        case .identifier(let name):
-            advance()
-            // Check for function call
-            if case .leftParen = currentToken {
-                advance()
-                var args: [ParsedExpression] = []
-                while !isAtEnd {
-                    if case .rightParen = currentToken { break }
-
-                    args.append(try parseExpression())
-                    if case .comma = currentToken {
-                        advance()
-                    }
-                }
-                if case .rightParen = currentToken {
-                    advance()
-                }
-                return .functionCall(name: name, arguments: args)
-            }
-            // Check if it's a number with suffix
-            if let n = parseNumberFromIdentifier(name) {
-                return .literal(n)
-            }
-            return .identifier(name)
-        case .leftParen:
-            advance()
-            let expr = try parseExpression()
-            if case .rightParen = currentToken {
-                advance()
-            }
-            return expr
-        default:
-            throw ParserDiagnostic.error("Unexpected token in expression: \(currentToken)", at: currentLocation)
-        }
+        var expressionParser = SPICEExpressionTokenParser(tokens: tokens, currentIndex: current)
+        let expression = try expressionParser.parseExpression()
+        current = expressionParser.currentIndex
+        return expression
     }
 
     private mutating func parseSubcircuit(location: SourceLocation?) async throws {
@@ -697,6 +665,10 @@ private struct SPICEParserImpl {
             } else if case .number(let n) = currentToken {
                 ports.append(String(Int(n)))
                 advance()
+            } else if case .invalidNumericLiteral(let text) = currentToken {
+                throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
+            } else if case .invalidNumericSuffix(let suffix) = currentToken {
+                throw ParserDiagnostic.error("Unknown numeric suffix '\(suffix)'", at: currentLocation)
             } else {
                 break
             }
@@ -704,7 +676,7 @@ private struct SPICEParserImpl {
 
         // Parse parameters
         var params: [String: ParsedParameterValue] = [:]
-        if case .identifier(let id) = currentToken, id.lowercased() == "params" {
+        if case .identifier(let id) = currentToken, isParamsKeyword(id) {
             advance()
             if case .colon = currentToken { advance() }
             while !isAtEnd && !isNewline {
@@ -727,17 +699,20 @@ private struct SPICEParserImpl {
         var bodyModels: [ParsedModel] = []
         var bodySubcircuits: [ParsedSubcircuit] = []
         var bodyParams: [String: ParsedExpression] = [:]
+        var bodyParameterDefinitions: [ParsedParameterDefinition] = []
 
         // Save current state
         let savedComponents = components
         let savedModels = models
         let savedSubcircuits = subcircuits
         let savedParams = parameters
+        let savedParameterDefinitions = parameterDefinitions
 
         components = []
         models = []
         subcircuits = []
         parameters = [:]
+        parameterDefinitions = []
 
         // Parse until .ends. Skip leading newlines/comments before the .ends
         // check, otherwise parseStatement (which skips them itself) would consume
@@ -757,18 +732,21 @@ private struct SPICEParserImpl {
         bodyModels = models
         bodySubcircuits = subcircuits
         bodyParams = parameters
+        bodyParameterDefinitions = parameterDefinitions
 
         // Restore state
         components = savedComponents
         models = savedModels
         subcircuits = savedSubcircuits
         parameters = savedParams
+        parameterDefinitions = savedParameterDefinitions
 
         let body = ParsedNetlistBody(
             components: bodyComponents,
             models: bodyModels,
             subcircuits: bodySubcircuits,
-            parameters: bodyParams
+            parameters: bodyParams,
+            parameterDefinitions: bodyParameterDefinitions
         )
 
         subcircuits.append(ParsedSubcircuit(
@@ -843,28 +821,31 @@ private struct SPICEParserImpl {
                 advance()
                 if case .equals = currentToken {
                     advance()
-                    if case .number(let n) = currentToken {
-                        parameters[name] = .literal(n)
-                        advance()
-                    } else if case .identifier(let id) = currentToken {
-                        if let n = parseNumberFromIdentifier(id) {
-                            parameters[name] = .literal(n)
-                        } else {
-                            parameters[name] = .identifier(id)
-                        }
-                        advance()
-                    } else if case .leftBrace = currentToken {
-                        advance()
-                        parameters[name] = try parseExpression()
-                        if case .rightBrace = currentToken {
-                            advance()
-                        }
-                    }
+                    let expression = try parseParameterExpression()
+                    parameters[name] = expression
+                    parameterDefinitions.append(ParsedParameterDefinition(
+                        name: name,
+                        value: expression,
+                        location: location
+                    ))
                 }
             } else {
                 advance()
             }
         }
+    }
+
+    private mutating func parseParameterExpression() throws -> ParsedExpression {
+        if case .leftBrace = currentToken {
+            advance()
+            let expression = try parseExpression()
+            guard case .rightBrace = currentToken else {
+                throw ParserDiagnostic.error("Expected '}' after parameter expression", at: currentLocation)
+            }
+            advance()
+            return expression
+        }
+        return try parseExpression()
     }
 
     private mutating func parseInclude(location: SourceLocation?) async throws {
@@ -878,6 +859,8 @@ private struct SPICEParserImpl {
         }
 
         skipToEndOfLine()
+
+        controls.append(.include(path: path, location: location))
 
         // Resolve include if enabled
         if configuration.resolveIncludes {
@@ -899,19 +882,23 @@ private struct SPICEParserImpl {
                     at: location
                 ))
             }
-        } else {
-            controls.append(.include(path: path, location: location))
         }
     }
 
     /// Parses included file content and merges it into the current state.
     private mutating func parseIncludedContent(_ content: String, fileName: String) async throws {
+        var inheritedConditionalParameters = conditionalParameterExpressions
+        for (name, expression) in parameters {
+            inheritedConditionalParameters[name.lowercased()] = expression.description
+        }
+
         var includedParser = SPICEParserImpl(
             source: content,
             fileName: fileName,
             configuration: configuration,
             fileResolver: fileResolver,
-            includeDepth: includeDepth + 1
+            includeDepth: includeDepth + 1,
+            conditionalParameterExpressions: inheritedConditionalParameters
         )
 
         let result = await includedParser.parse()
@@ -923,6 +910,8 @@ private struct SPICEParserImpl {
             subcircuits.append(contentsOf: netlist.subcircuits)
             analyses.append(contentsOf: netlist.analyses)
             controls.append(contentsOf: netlist.controls)
+            parameterDefinitions.append(contentsOf: netlist.parameterDefinitions)
+            preprocessingEvents.append(contentsOf: netlist.preprocessingEvents)
             for (key, value) in netlist.parameters {
                 parameters[key] = value
             }
@@ -958,6 +947,8 @@ private struct SPICEParserImpl {
 
         skipToEndOfLine()
 
+        controls.append(.library(path: path, section: section, location: location))
+
         // Resolve library if enabled
         if configuration.resolveIncludes {
             // Check include depth
@@ -982,8 +973,6 @@ private struct SPICEParserImpl {
                     at: location
                 ))
             }
-        } else {
-            controls.append(.library(path: path, section: section, location: location))
         }
     }
 
@@ -992,29 +981,16 @@ private struct SPICEParserImpl {
         var stepTime: ParsedParameterValue?
         var startTime: ParsedParameterValue?
 
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             stepTime = .numeric(n)
-            advance()
-        } else if case .identifier(let id) = currentToken {
-            if let n = parseNumberFromIdentifier(id) {
-                stepTime = .numeric(n)
-            }
-            advance()
         }
 
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             stopTime = .numeric(n)
-            advance()
-        } else if case .identifier(let id) = currentToken {
-            if let n = parseNumberFromIdentifier(id) {
-                stopTime = .numeric(n)
-            }
-            advance()
         }
 
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             startTime = .numeric(n)
-            advance()
         }
 
         analyses.append(.transient(TransientAnalysisSpec(
@@ -1041,29 +1017,16 @@ private struct SPICEParserImpl {
             advance()
         }
 
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             points = Int(n)
-            advance()
         }
 
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             startFreq = .numeric(n)
-            advance()
-        } else if case .identifier(let id) = currentToken {
-            if let n = parseNumberFromIdentifier(id) {
-                startFreq = .numeric(n)
-            }
-            advance()
         }
 
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             stopFreq = .numeric(n)
-            advance()
-        } else if case .identifier(let id) = currentToken {
-            if let n = parseNumberFromIdentifier(id) {
-                stopFreq = .numeric(n)
-            }
-            advance()
         }
 
         analyses.append(.ac(ACAnalysisSpec(
@@ -1085,17 +1048,14 @@ private struct SPICEParserImpl {
         var stop: ParsedParameterValue = .numeric(1)
         var step: ParsedParameterValue = .numeric(0.1)
 
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             start = .numeric(n)
-            advance()
         }
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             stop = .numeric(n)
-            advance()
         }
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             step = .numeric(n)
-            advance()
         }
 
         analyses.append(.dc(DCAnalysisSpec(
@@ -1159,33 +1119,20 @@ private struct SPICEParserImpl {
 
         // Parse number of points
         var points = 10
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             points = Int(n)
-            advance()
         }
 
         // Parse start frequency
         var startFreq: ParsedParameterValue = .numeric(1.0)
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             startFreq = .numeric(n)
-            advance()
-        } else if case .identifier(let id) = currentToken {
-            if let n = parseNumberFromIdentifier(id) {
-                startFreq = .numeric(n)
-            }
-            advance()
         }
 
         // Parse stop frequency
         var stopFreq: ParsedParameterValue = .numeric(1e6)
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             stopFreq = .numeric(n)
-            advance()
-        } else if case .identifier(let id) = currentToken {
-            if let n = parseNumberFromIdentifier(id) {
-                stopFreq = .numeric(n)
-            }
-            advance()
         }
 
         analyses.append(.noise(NoiseAnalysisSpec(
@@ -1276,31 +1223,18 @@ private struct SPICEParserImpl {
             }
 
             var points = 10
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 points = Int(n)
-                advance()
             }
 
             var startFreq: ParsedParameterValue = .numeric(1.0)
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 startFreq = .numeric(n)
-                advance()
-            } else if case .identifier(let id) = currentToken {
-                if let n = parseNumberFromIdentifier(id) {
-                    startFreq = .numeric(n)
-                }
-                advance()
             }
 
             var stopFreq: ParsedParameterValue = .numeric(1e6)
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 stopFreq = .numeric(n)
-                advance()
-            } else if case .identifier(let id) = currentToken {
-                if let n = parseNumberFromIdentifier(id) {
-                    stopFreq = .numeric(n)
-                }
-                advance()
             }
 
             acSpec = ACAnalysisSpec(
@@ -1322,14 +1256,8 @@ private struct SPICEParserImpl {
     private mutating func parseFourierAnalysis(location: SourceLocation?) throws {
         // Parse fundamental frequency
         var frequency: ParsedParameterValue = .numeric(1e6)
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             frequency = .numeric(n)
-            advance()
-        } else if case .identifier(let id) = currentToken {
-            if let n = parseNumberFromIdentifier(id) {
-                frequency = .numeric(n)
-            }
-            advance()
         }
 
         // Parse output variables
@@ -1382,6 +1310,10 @@ private struct SPICEParserImpl {
             } else if case .number(let n) = currentToken {
                 nodes.append(String(Int(n)))
                 advance()
+            } else if case .invalidNumericLiteral(let text) = currentToken {
+                throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
+            } else if case .invalidNumericSuffix(let suffix) = currentToken {
+                throw ParserDiagnostic.error("Unknown numeric suffix '\(suffix)'", at: currentLocation)
             } else {
                 throw ParserDiagnostic.error("Expected 4 nodes for pole-zero analysis", at: currentLocation)
             }
@@ -1429,9 +1361,8 @@ private struct SPICEParserImpl {
     private mutating func parseMonteCarloAnalysis(location: SourceLocation?) throws {
         // Parse number of iterations
         var iterations = 100
-        if case .number(let n) = currentToken {
+        if let n = try parseNumericTokenIfPresent() {
             iterations = Int(n)
-            advance()
         }
 
         // Parse inner analysis
@@ -1447,24 +1378,12 @@ private struct SPICEParserImpl {
             var stopTime: ParsedParameterValue = .numeric(1e-6)
             var stepTime: ParsedParameterValue?
 
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 stepTime = .numeric(n)
-                advance()
-            } else if case .identifier(let id) = currentToken {
-                if let n = parseNumberFromIdentifier(id) {
-                    stepTime = .numeric(n)
-                }
-                advance()
             }
 
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 stopTime = .numeric(n)
-                advance()
-            } else if case .identifier(let id) = currentToken {
-                if let n = parseNumberFromIdentifier(id) {
-                    stopTime = .numeric(n)
-                }
-                advance()
             }
 
             innerAnalysis = .transient(TransientAnalysisSpec(
@@ -1488,19 +1407,16 @@ private struct SPICEParserImpl {
                 advance()
             }
 
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 points = Int(n)
-                advance()
             }
 
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 startFreq = .numeric(n)
-                advance()
             }
 
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 stopFreq = .numeric(n)
-                advance()
             }
 
             innerAnalysis = .ac(ACAnalysisSpec(
@@ -1520,17 +1436,14 @@ private struct SPICEParserImpl {
             var stop: ParsedParameterValue = .numeric(1)
             var step: ParsedParameterValue = .numeric(0.1)
 
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 start = .numeric(n)
-                advance()
             }
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 stop = .numeric(n)
-                advance()
             }
-            if case .number(let n) = currentToken {
+            if let n = try parseNumericTokenIfPresent() {
                 step = .numeric(n)
-                advance()
             }
 
             innerAnalysis = .dc(DCAnalysisSpec(
@@ -1553,9 +1466,8 @@ private struct SPICEParserImpl {
                     if case .equals = currentToken {
                         advance()
                     }
-                    if case .number(let n) = currentToken {
+                    if let n = try parseNumericTokenIfPresent() {
                         seed = Int(n)
-                        advance()
                     }
                 }
             } else {
@@ -1582,6 +1494,7 @@ private struct SPICEParserImpl {
             case "dc": analysisType = .dc
             case "ac": analysisType = .ac
             case "tran": analysisType = .transient
+            case "op": analysisType = .op
             default: break
             }
             advance()
@@ -1596,10 +1509,12 @@ private struct SPICEParserImpl {
         // Parse measurement type keyword or trigger/target
         var measureType: MeasureType?
 
-        if case .identifier(let keyword) = currentToken {
-            let lowerKeyword = keyword.lowercased()
+        guard case .identifier(let keyword) = currentToken else {
+            throw ParserDiagnostic.error("Expected measurement type", at: currentLocation)
+        }
+        let lowerKeyword = keyword.lowercased()
 
-            switch lowerKeyword {
+        switch lowerKeyword {
             case "trig":
                 // Delay measurement: trig ... targ ...
                 advance()
@@ -1721,16 +1636,14 @@ private struct SPICEParserImpl {
                         if lowerParam == "low" || lowerParam == "from" {
                             advance()
                             if case .equals = currentToken { advance() }
-                            if case .number(let n) = currentToken {
+                            if let n = try parseNumericTokenIfPresent() {
                                 low = n
-                                advance()
                             }
                         } else if lowerParam == "high" || lowerParam == "to" {
                             advance()
                             if case .equals = currentToken { advance() }
-                            if case .number(let n) = currentToken {
+                            if let n = try parseNumericTokenIfPresent() {
                                 high = n
-                                advance()
                             }
                         } else {
                             advance()
@@ -1754,16 +1667,14 @@ private struct SPICEParserImpl {
                         if lowerParam == "high" || lowerParam == "from" {
                             advance()
                             if case .equals = currentToken { advance() }
-                            if case .number(let n) = currentToken {
+                            if let n = try parseNumericTokenIfPresent() {
                                 high = n
-                                advance()
                             }
                         } else if lowerParam == "low" || lowerParam == "to" {
                             advance()
                             if case .equals = currentToken { advance() }
-                            if case .number(let n) = currentToken {
+                            if let n = try parseNumericTokenIfPresent() {
                                 low = n
-                                advance()
                             }
                         } else {
                             advance()
@@ -1775,11 +1686,13 @@ private struct SPICEParserImpl {
 
                 measureType = .fallTime(variable: variable, highThreshold: high, lowThreshold: low)
 
-            default:
-                // Try to parse as simple expression-based measurement
-                let variable = try parseOutputVariable()
-                measureType = .average(variable: variable, from: nil, to: nil)
-            }
+        default:
+            advance()
+            measureType = .unsupported(
+                keyword: lowerKeyword,
+                arguments: collectRemainingLineTokenDescriptions(),
+                reason: "Measurement keyword '\(keyword)' is not supported by CoreSpice"
+            )
         }
 
         if let mType = measureType {
@@ -1791,6 +1704,72 @@ private struct SPICEParserImpl {
             )))
         }
 
+        skipToEndOfLine()
+    }
+
+    private mutating func collectRemainingLineTokenDescriptions() -> [String] {
+        var descriptions: [String] = []
+        while !isAtEnd && !isNewline {
+            descriptions.append(tokenEvidenceText(currentToken))
+            advance()
+        }
+        return descriptions
+    }
+
+    private func tokenEvidenceText(_ token: SPICEToken) -> String {
+        switch token {
+        case .directive(let name):
+            return ".\(name)"
+        case .comment(let text):
+            return text
+        case .number(let value):
+            return value.description
+        case .identifier(let name):
+            return name
+        case .string(let value):
+            return "\"\(value)\""
+        case .invalidNumericLiteral(let text):
+            return text
+        case .invalidNumericSuffix(let suffix):
+            return suffix
+        default:
+            return token.description
+        }
+    }
+
+    /// Parses .func name(arg, ...) = expression.
+    private mutating func parseFunction(location: SourceLocation?) throws {
+        guard case .identifier(let name) = currentToken else {
+            throw ParserDiagnostic.error("Expected function name", at: currentLocation)
+        }
+        advance()
+
+        var parameters: [String] = []
+        if case .leftParen = currentToken {
+            advance()
+            while !isAtEnd {
+                if case .rightParen = currentToken {
+                    advance()
+                    break
+                }
+                if case .identifier(let parameter) = currentToken {
+                    parameters.append(parameter)
+                    advance()
+                    if case .comma = currentToken {
+                        advance()
+                    }
+                } else {
+                    throw ParserDiagnostic.error("Expected function parameter name", at: currentLocation)
+                }
+            }
+        }
+
+        if case .equals = currentToken {
+            advance()
+        }
+
+        let body = try parseParameterExpression()
+        controls.append(.function(name: name, parameters: parameters, body: body, location: location))
         skipToEndOfLine()
     }
 
@@ -1822,24 +1801,20 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseTemp(location: SourceLocation?) throws {
-        if case .number(let n) = currentToken {
-            controls.append(.temp(value: .numeric(n), location: location))
-            advance()
-        }
+        let value = try parseParameterValue()
+        controls.append(.temp(value: value, location: location))
         skipToEndOfLine()
     }
 
     private mutating func parseIC(location: SourceLocation?) throws {
         while !isAtEnd && !isNewline {
-            if case .identifier(let node) = currentToken {
-                advance()
-                if case .equals = currentToken {
-                    advance()
-                    if case .number(let v) = currentToken {
-                        initialConditions[node] = .numeric(v)
-                        advance()
-                    }
-                }
+            if let assignment = try parseNodeVoltageAssignment() {
+                initialConditions[assignment.node] = assignment.value
+                controls.append(.initialCondition(
+                    node: assignment.node,
+                    voltage: assignment.value,
+                    location: location
+                ))
             } else {
                 advance()
             }
@@ -1848,19 +1823,63 @@ private struct SPICEParserImpl {
 
     private mutating func parseNodeset(location: SourceLocation?) throws {
         while !isAtEnd && !isNewline {
-            if case .identifier(let node) = currentToken {
-                advance()
-                if case .equals = currentToken {
-                    advance()
-                    if case .number(let v) = currentToken {
-                        nodeSets[node] = .numeric(v)
-                        advance()
-                    }
-                }
+            if let assignment = try parseNodeVoltageAssignment() {
+                nodeSets[assignment.node] = assignment.value
+                controls.append(.nodeSet(
+                    node: assignment.node,
+                    voltage: assignment.value,
+                    location: location
+                ))
             } else {
                 advance()
             }
         }
+    }
+
+    private mutating func parseNodeVoltageAssignment() throws -> (node: String, value: ParsedParameterValue)? {
+        let saved = current
+        var node: String?
+
+        if case .identifier(let name) = currentToken, name.lowercased() == "v" {
+            advance()
+            guard case .leftParen = currentToken else {
+                current = saved
+                return nil
+            }
+            advance()
+            if case .identifier(let parsedNode) = currentToken {
+                node = parsedNode
+                advance()
+            } else if case .number(let numericNode) = currentToken {
+                node = String(Int(numericNode))
+                advance()
+            } else if case .invalidNumericLiteral(let text) = currentToken {
+                throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
+            } else if case .invalidNumericSuffix(let suffix) = currentToken {
+                throw ParserDiagnostic.error("Unknown numeric suffix '\(suffix)'", at: currentLocation)
+            }
+            guard case .rightParen = currentToken else {
+                current = saved
+                return nil
+            }
+            advance()
+        } else if case .identifier(let parsedNode) = currentToken {
+            node = parsedNode
+            advance()
+        }
+
+        guard let node else {
+            current = saved
+            return nil
+        }
+        guard case .equals = currentToken else {
+            current = saved
+            return nil
+        }
+        advance()
+
+        let value = try parseParameterValue()
+        return (node: node, value: value)
     }
 
     private mutating func parseGlobal(location: SourceLocation?) throws {
@@ -1898,6 +1917,7 @@ private struct SPICEParserImpl {
             case "dc": analysisType = .dc
             case "ac": analysisType = .ac
             case "tran": analysisType = .transient
+            case "op": analysisType = .op
             default: break
             }
             advance()
@@ -1929,6 +1949,7 @@ private struct SPICEParserImpl {
             case "dc": analysisType = .dc
             case "ac": analysisType = .ac
             case "tran": analysisType = .transient
+            case "op": analysisType = .op
             default: break
             }
             advance()
@@ -1953,16 +1974,57 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseSave(location: SourceLocation?) throws {
+        let variables = parseOutputVariableTexts()
+        controls.append(.save(variables: variables, location: location))
+    }
+
+    private mutating func parseProbe(location: SourceLocation?) throws {
+        let variables = parseOutputVariableTexts()
+        controls.append(.probe(variables: variables, location: location))
+    }
+
+    private mutating func parseOutputVariableTexts() -> [String] {
         var variables: [String] = []
         while !isAtEnd && !isNewline {
-            if case .identifier(let name) = currentToken {
-                variables.append(name)
-                advance()
+            if let variable = parseOutputVariableText() {
+                variables.append(variable)
             } else {
                 advance()
             }
         }
-        controls.append(.save(variables: variables, location: location))
+        return variables
+    }
+
+    private mutating func parseOutputVariableText() -> String? {
+        guard case .identifier(let name) = currentToken else { return nil }
+        advance()
+
+        let lower = name.lowercased()
+        if lower == "v" || lower == "i" {
+            guard case .leftParen = currentToken else { return name }
+            advance()
+            var parts: [String] = []
+            while !isAtEnd {
+                if case .rightParen = currentToken {
+                    advance()
+                    break
+                }
+                if case .identifier(let value) = currentToken {
+                    parts.append(value)
+                    advance()
+                } else if case .number(let numericValue) = currentToken {
+                    parts.append(String(Int(numericValue)))
+                    advance()
+                } else if case .comma = currentToken {
+                    advance()
+                } else {
+                    break
+                }
+            }
+            return "\(lower)(\(parts.joined(separator: ",")))"
+        }
+
+        return name
     }
 
     private mutating func parseOutputVariable() throws -> OutputVariable {
@@ -1976,16 +2038,14 @@ private struct SPICEParserImpl {
         if lower == "v" {
             if case .leftParen = currentToken {
                 advance()
-                guard case .identifier(let node) = currentToken else {
+                guard let node = parseOutputNodeName() else {
                     throw ParserDiagnostic.error("Expected node name", at: currentLocation)
                 }
-                advance()
                 var refNode: String?
                 if case .comma = currentToken {
                     advance()
-                    if case .identifier(let ref) = currentToken {
+                    if let ref = parseOutputNodeName() {
                         refNode = ref
-                        advance()
                     }
                 }
                 if case .rightParen = currentToken {
@@ -2009,6 +2069,18 @@ private struct SPICEParserImpl {
 
         // Generic identifier
         return .voltage(node: name, reference: nil)
+    }
+
+    private mutating func parseOutputNodeName() -> String? {
+        if case .identifier(let node) = currentToken {
+            advance()
+            return node
+        }
+        if case .number(let numericNode) = currentToken {
+            advance()
+            return String(Int(numericNode))
+        }
+        return nil
     }
 
     // MARK: - Helper Methods
@@ -2040,11 +2112,16 @@ private struct SPICEParserImpl {
                 }
             }
             // Check for "params:"
-            if id.lowercased() == "params" {
+            if isParamsKeyword(id) {
                 return true
             }
         }
         return false
+    }
+
+    private func isParamsKeyword(_ id: String) -> Bool {
+        let lower = id.lowercased()
+        return lower == "params" || lower == "params:"
     }
 
     private mutating func advance() {

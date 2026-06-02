@@ -13,10 +13,13 @@ public final class LoweringContext: Sendable {
         var parameters: [String: Double] = [:]
         var models: [String: ParsedModel] = [:]
         var subcircuits: [String: ParsedSubcircuit] = [:]
+        var functions: [String: UserFunctionDefinition] = [:]
         var scopeStack: [[String: Double]] = []
+        var modelScopeStack: [[String: ParsedModel]] = []
         var depth: Int = 0
         var temperature: Double = 27.0
         var evaluatingParameters: Set<String> = []
+        var evaluatingFunctions: Set<String> = []
     }
 
     private let state: Mutex<MutableState>
@@ -98,7 +101,15 @@ public final class LoweringContext: Sendable {
 
     /// Gets a model by name.
     public func model(_ name: String) -> ParsedModel? {
-        state.withLock { $0.models[name.lowercased()] }
+        state.withLock { state in
+            let lowered = name.lowercased()
+            for scope in state.modelScopeStack.reversed() {
+                if let model = scope[lowered] {
+                    return model
+                }
+            }
+            return state.models[lowered]
+        }
     }
 
     // MARK: - Subcircuit Management
@@ -127,6 +138,41 @@ public final class LoweringContext: Sendable {
         state.withLock { $0.subcircuits[name.lowercased()] }
     }
 
+    // MARK: - Function Management
+
+    /// Registers a user-defined SPICE function.
+    public func registerFunction(name: String, parameters: [String], body: ParsedExpression) {
+        state.withLock { state in
+            state.functions[name.lowercased()] = UserFunctionDefinition(
+                name: name,
+                parameters: parameters.map { $0.lowercased() },
+                body: body
+            )
+        }
+    }
+
+    /// Gets a user-defined SPICE function by name.
+    public func function(_ name: String) -> UserFunctionDefinition? {
+        state.withLock { $0.functions[name.lowercased()] }
+    }
+
+    /// Marks a function as currently being evaluated for recursion detection.
+    public func beginEvaluatingFunction(_ name: String) -> Bool {
+        state.withLock { state in
+            let lowered = name.lowercased()
+            if state.evaluatingFunctions.contains(lowered) {
+                return false
+            }
+            state.evaluatingFunctions.insert(lowered)
+            return true
+        }
+    }
+
+    /// Marks a function as finished evaluating.
+    public func endEvaluatingFunction(_ name: String) {
+        _ = state.withLock { $0.evaluatingFunctions.remove(name.lowercased()) }
+    }
+
     // MARK: - Scope Management
 
     /// Enters a new scope for subcircuit expansion.
@@ -137,6 +183,7 @@ public final class LoweringContext: Sendable {
                 throw LoweringError.maxExpansionDepthExceeded(depth: maxDepth)
             }
             state.scopeStack.append(parameters)
+            state.modelScopeStack.append([:])
         }
     }
 
@@ -145,6 +192,9 @@ public final class LoweringContext: Sendable {
         state.withLock { state in
             if !state.scopeStack.isEmpty {
                 state.scopeStack.removeLast()
+            }
+            if !state.modelScopeStack.isEmpty {
+                state.modelScopeStack.removeLast()
             }
             state.depth = max(0, state.depth - 1)
         }
@@ -158,5 +208,33 @@ public final class LoweringContext: Sendable {
         try enterScope(parameters: parameters)
         defer { exitScope() }
         return try body()
+    }
+
+    /// Sets a parameter in the current local scope.
+    public func setScopedParameter(_ name: String, value: Double) throws {
+        try state.withLock { state in
+            guard !state.scopeStack.isEmpty else {
+                throw LoweringError.expressionEvaluationFailed(
+                    expression: name,
+                    reason: "No active parameter scope"
+                )
+            }
+            let index = state.scopeStack.index(before: state.scopeStack.endIndex)
+            state.scopeStack[index][name.lowercased()] = value
+        }
+    }
+
+    /// Registers a model in the current local scope.
+    public func registerScopedModel(_ model: ParsedModel) throws {
+        try state.withLock { state in
+            guard !state.modelScopeStack.isEmpty else {
+                throw LoweringError.expressionEvaluationFailed(
+                    expression: model.name,
+                    reason: "No active model scope"
+                )
+            }
+            let index = state.modelScopeStack.index(before: state.modelScopeStack.endIndex)
+            state.modelScopeStack[index][model.name.lowercased()] = model
+        }
     }
 }

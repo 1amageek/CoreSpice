@@ -248,10 +248,34 @@ public struct ExpressionEvaluator: Sendable {
             return args[0] + args[1] * z
 
         default:
+            if let function = context.function(lowered) {
+                return try evaluateUserFunction(function, arguments: args)
+            }
             throw LoweringError.expressionEvaluationFailed(
                 expression: name,
                 reason: "Unknown function: \(name)"
             )
+        }
+    }
+
+    private func evaluateUserFunction(_ function: UserFunctionDefinition, arguments: [Double]) throws -> Double {
+        guard function.parameters.count == arguments.count else {
+            throw argCountError(function.name, expected: function.parameters.count, got: arguments.count)
+        }
+        guard context.beginEvaluatingFunction(function.name) else {
+            throw LoweringError.expressionEvaluationFailed(
+                expression: function.name,
+                reason: "Recursive function evaluation is not supported"
+            )
+        }
+        defer { context.endEvaluatingFunction(function.name) }
+
+        var scopedParameters: [String: Double] = [:]
+        for (name, value) in zip(function.parameters, arguments) {
+            scopedParameters[name] = value
+        }
+        return try context.withScope(parameters: scopedParameters) {
+            try evaluate(function.body)
         }
     }
 

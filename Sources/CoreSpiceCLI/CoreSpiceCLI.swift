@@ -79,7 +79,13 @@ struct CLI {
     ) async throws {
         var session = Session()
         let source = try String(contentsOfFile: deckPath, encoding: .utf8)
+        if let coveragePath = outputs.coverageJSON {
+            let parseResult = await SPICEIO.parse(source, fileName: deckPath)
+            let report = SPICEDeckCoverageReport.generate(from: parseResult)
+            try writeCoverageReport(report, path: coveragePath)
+        }
         try await session.loadNetlist(source: source, fileName: deckPath)
+        reportOptionDiagnostics(session.analysisOptions.diagnostics)
         if let mc = session.monteCarloSpec {
             let parametric = try await session.runMonteCarlo(spec: mc, inner: mc.analysis)
             try await export(parametric: parametric, outputs: outputs)
@@ -96,6 +102,7 @@ struct CLI {
             let waveform = try await session.run(.op)
             try await export(waveform: waveform, outputs: outputs)
         }
+        printMeasurements(session.lastMeasurements)
     }
 
     // MARK: REPL command handling
@@ -112,6 +119,7 @@ struct CLI {
             let path = tokens[1]
             let source = try String(contentsOfFile: path, encoding: .utf8)
             try await session.loadNetlist(source: source, fileName: path)
+            reportOptionDiagnostics(session.analysisOptions.diagnostics)
             print("loaded \(path)")
         case "run":
             guard session.isLoaded else { throw CLIError.state("no netlist loaded; use 'source <path>'") }
@@ -125,10 +133,12 @@ struct CLI {
                 _ = try await session.run(.op)
                 print("analysis complete")
             }
+            printMeasurements(session.lastMeasurements)
         case "op":
             guard session.isLoaded else { throw CLIError.state("no netlist loaded") }
             _ = try await session.run(.op)
             print("op complete")
+            printMeasurements(session.lastMeasurements)
         case "tran":
             guard session.isLoaded else { throw CLIError.state("no netlist loaded") }
             guard tokens.count >= 3 else { throw CLIError.invalidArguments("usage: tran <tstep> <tstop>") }
@@ -137,6 +147,7 @@ struct CLI {
             }
             _ = try await session.run(.tran(tstep: tstep, tstop: tstop))
             print("tran complete")
+            printMeasurements(session.lastMeasurements)
         case "ac":
             guard session.isLoaded else { throw CLIError.state("no netlist loaded") }
             guard tokens.count >= 5 else { throw CLIError.invalidArguments("usage: ac dec|lin <points> <start> <stop>") }
@@ -155,6 +166,7 @@ struct CLI {
             }
             _ = try await session.run(.ac(sweep: sweep))
             print("ac complete")
+            printMeasurements(session.lastMeasurements)
         case "dc":
             guard session.isLoaded else { throw CLIError.state("no netlist loaded") }
             guard tokens.count >= 5 else { throw CLIError.invalidArguments("usage: dc <source> <start> <stop> <step>") }
@@ -164,6 +176,7 @@ struct CLI {
             }
             _ = try await session.run(.dcSweep(source: source, start: start, stop: stop, step: step))
             print("dc sweep complete")
+            printMeasurements(session.lastMeasurements)
         case "write":
             guard tokens.count >= 3 else { throw CLIError.invalidArguments("usage: write raw|csv|psf <path>") }
             guard let waveform = session.lastWaveform else { throw CLIError.state("no result to write; run an analysis first") }
@@ -234,6 +247,9 @@ struct CLI {
         if let idx = args.firstIndex(of: "--psf"), idx + 1 < args.count {
             result.psf = args[idx + 1]
         }
+        if let idx = args.firstIndex(of: "--coverage-json"), idx + 1 < args.count {
+            result.coverageJSON = args[idx + 1]
+        }
         return result
     }
 
@@ -282,7 +298,7 @@ struct CLI {
     private func printHelp() {
         print("""
 Usage:
-  corespice -b <deck.cir> [--tran tstep tstop | --ac dec|lin points start stop | --dc source start stop step] [-r out.raw] [--csv out.csv] [--psf out.psf]
+  corespice -b <deck.cir> [--tran tstep tstop | --ac dec|lin points start stop | --dc source start stop step] [-r out.raw] [--csv out.csv] [--psf out.psf] [--coverage-json report.json]
   corespice            # interactive shell
 
 Commands (REPL):
@@ -294,6 +310,29 @@ Commands (REPL):
   quit                 Exit
 """)
     }
+
+    private func reportOptionDiagnostics(_ diagnostics: [SPICEAnalysisOptionDiagnostic]) {
+        for diagnostic in diagnostics {
+            fputs("warning: \(diagnostic.message)\n", stderr)
+        }
+    }
+
+    private func printMeasurements(_ measurements: [SPICEMeasurementResult]) {
+        for measurement in measurements {
+            let suffix = measurement.unit.isEmpty ? "" : " \(measurement.unit)"
+            print("measure \(measurement.analysisType.rawValue) \(measurement.name)=\(measurement.value)\(suffix)")
+        }
+    }
+
+    private func writeCoverageReport(
+        _ report: SPICEDeckCoverageReport,
+        path: String
+    ) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(report)
+        try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+    }
 }
 
 // MARK: - Session and Analysis
@@ -304,9 +343,11 @@ struct Session {
     private(set) var devices: [any BoundDevice] = []
     private(set) var lastWaveform: WaveformData?
     private(set) var lastParametric: ParametricWaveformData?
+    private(set) var lastMeasurements: [SPICEMeasurementResult] = []
     private(set) var lastSource: String = ""
     private(set) var parsedNetlist: ParsedNetlist?
     private(set) var monteCarloSpec: MonteCarloSpec?
+    private(set) var analysisOptions: SPICEAnalysisOptions = .default
 
     var isLoaded: Bool { plan != nil }
 
@@ -315,12 +356,13 @@ struct Session {
         let parseResult = await SPICEIO.parse(source, fileName: fileName)
         let netlist = try parseResult.get()
         parsedNetlist = netlist
+        analysisOptions = try SPICEAnalysisOptions.resolve(from: netlist)
         monteCarloSpec = netlist.analyses.compactMap { analysis in
             if case .monteCarlo(let spec) = analysis { return spec }
             return nil
         }.first
 
-        let ir = try SPICEIO.lower(netlist, configuration: .default)
+        let ir = try SPICEIO.lower(netlist, configuration: analysisOptions.loweringConfiguration())
         let compiler = StandardCompiler()
         var compiled = try compiler.compile(ir: ir)
 
@@ -333,6 +375,7 @@ struct Session {
         self.devices = bound
         self.lastWaveform = nil
         self.lastParametric = nil
+        self.lastMeasurements = []
     }
 
     mutating func run(_ command: AnalysisCommand) async throws -> WaveformData {
@@ -343,7 +386,7 @@ struct Session {
         let waveform: WaveformData
         switch command {
         case .op:
-            let analysis = DCAnalysis()
+            let analysis = DCAnalysis(config: analysisOptions.convergence)
             let result = try await analysis.run(
                 plan: plan,
                 devices: devices,
@@ -356,12 +399,17 @@ struct Session {
             guard tstop > 0, tstep > 0, tstop.isFinite, tstep.isFinite else {
                 throw CLIError.invalidArguments("transient analysis requires tstep > 0 and tstop > 0 (got tstep=\(tstep), tstop=\(tstop))")
             }
-            let config = TransientConfig(
+            let config = try analysisOptions.transientConfig(
                 stopTime: tstop,
-                maxTimeStep: tstep,
-                initialTimeStep: tstep
+                stepTime: tstep,
+                startTime: nil,
+                maxStep: nil,
+                useInitialConditions: false
             )
-            let analysis = TransientAnalysis(config: config)
+            let analysis = TransientAnalysis(
+                config: config,
+                convergenceConfig: analysisOptions.convergence
+            )
             let result = try await analysis.run(
                 plan: plan,
                 devices: devices,
@@ -371,7 +419,7 @@ struct Session {
             )
             waveform = WaveformData.from(transientResult: result, topology: plan.topology.circuitTopology, title: "Transient")
         case .ac(let sweep):
-            let analysis = ACAnalysis(sweep: sweep)
+            let analysis = ACAnalysis(sweep: sweep, dcConfig: analysisOptions.convergence)
             let result = try await analysis.run(
                 plan: plan,
                 devices: devices,
@@ -388,7 +436,7 @@ struct Session {
 
             for value in values {
                 let devices = try bindDevices(plan: plan, overrideSource: (source, value))
-                let dc = DCAnalysis()
+                let dc = DCAnalysis(config: analysisOptions.convergence)
                 let result = try await dc.run(
                     plan: plan,
                     devices: devices,
@@ -405,6 +453,7 @@ struct Session {
 
         self.lastWaveform = waveform
         self.lastParametric = nil
+        self.lastMeasurements = try evaluateMeasurements(for: waveform)
         return waveform
     }
 
@@ -431,10 +480,12 @@ struct Session {
             analysis,
             plan: plan,
             devices: devices,
-            registry: registry
+            registry: registry,
+            options: analysisOptions
         )
         self.lastWaveform = waveform
         self.lastParametric = nil
+        self.lastMeasurements = try evaluateMeasurements(for: waveform)
         return waveform
     }
 
@@ -451,7 +502,7 @@ struct Session {
 
         for i in 0..<spec.iterations {
             let seed = baseSeed &+ UInt64(i)
-            let config = NetlistLowering.Configuration(randomSeed: seed)
+            let config = analysisOptions.loweringConfiguration(randomSeed: seed)
             let ir = try SPICEIO.lower(netlist, configuration: config)
             let compiler = StandardCompiler()
             let compiled = try compiler.compile(ir: ir)
@@ -478,7 +529,8 @@ struct Session {
                 inner,
                 plan: mcPlan,
                 devices: bound,
-                registry: registry
+                registry: registry,
+                options: analysisOptions
             )
             let run = ParametricWaveformData.Run(
                 index: i,
@@ -497,6 +549,11 @@ struct Session {
 
         self.lastParametric = parametric
         self.lastWaveform = runs.first?.waveform
+        if let waveform = runs.first?.waveform {
+            self.lastMeasurements = try evaluateMeasurements(for: waveform)
+        } else {
+            self.lastMeasurements = []
+        }
         return parametric
     }
 
@@ -504,14 +561,15 @@ struct Session {
         _ analysis: ParsedAnalysisCommand,
         plan: ExecutionPlan,
         devices: [any BoundDevice],
-        registry: DeviceRegistry
+        registry: DeviceRegistry,
+        options: SPICEAnalysisOptions
     ) async throws -> WaveformData {
         let cancellation = CancellationToken()
         let solver = SparseLUSolver()
 
         switch analysis {
         case .op:
-            let result = try await DCAnalysis().run(
+            let result = try await DCAnalysis(config: options.convergence).run(
                 plan: plan,
                 devices: devices,
                 solver: solver,
@@ -528,12 +586,19 @@ struct Session {
             guard step > 0, step.isFinite else {
                 throw CLIError.invalidArguments("transient analysis requires a positive time step")
             }
-            let config = TransientConfig(
+            let start = spec.startTime?.numericValue
+            let maxStep = spec.maxStep?.numericValue
+            let config = try options.transientConfig(
                 stopTime: stop,
-                maxTimeStep: step,
-                initialTimeStep: step
+                stepTime: step,
+                startTime: start,
+                maxStep: maxStep,
+                useInitialConditions: spec.useInitialConditions
             )
-            let result = try await TransientAnalysis(config: config).run(
+            let result = try await TransientAnalysis(
+                config: config,
+                convergenceConfig: options.convergence
+            ).run(
                 plan: plan,
                 devices: devices,
                 solver: solver,
@@ -552,7 +617,7 @@ struct Session {
             case .octave: sweep = .octave(start: start, stop: stop, pointsPerOctave: points)
             case .linear: sweep = .linear(start: start, stop: stop, points: points)
             }
-            let result = try await ACAnalysis(sweep: sweep).run(
+            let result = try await ACAnalysis(sweep: sweep, dcConfig: options.convergence).run(
                 plan: plan,
                 devices: devices,
                 solver: solver,
@@ -570,7 +635,7 @@ struct Session {
             var results: [DCResult] = []
             for value in values {
                 let devices = try bindDevices(plan: plan, registry: registry, overrideSource: (spec.source, value))
-                let dc = DCAnalysis()
+                let dc = DCAnalysis(config: options.convergence)
                 let result = try await dc.run(
                     plan: plan,
                     devices: devices,
@@ -590,6 +655,21 @@ struct Session {
         case .noise, .poleZero, .sensitivity, .transferFunction, .fourier:
             throw CLIError.state("analysis not supported in CLI Monte Carlo")
         }
+    }
+
+    private func evaluateMeasurements(
+        for waveform: WaveformData
+    ) throws -> [SPICEMeasurementResult] {
+        guard let parsedNetlist else {
+            return []
+        }
+        let measures = parsedNetlist.controls.compactMap { control -> MeasureSpec? in
+            if case .measure(let measure) = control {
+                return measure
+            }
+            return nil
+        }
+        return try SPICEMeasureEvaluator().evaluate(measures: measures, waveform: waveform)
     }
 
     private func bindDevices(
@@ -680,6 +760,7 @@ struct OutputTargets {
     var raw: String?
     var csv: String?
     var psf: String?
+    var coverageJSON: String?
 }
 
 enum CLIError: LocalizedError {

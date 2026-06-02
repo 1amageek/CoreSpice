@@ -85,4 +85,31 @@ struct AnalysisSetupTests {
             return
         }
     }
+
+    @Test
+    func sessionResolvesOptionsAndOperatingPointMeasurements() async throws {
+        let deck = """
+        op measure deck
+        V1 1 0 dc 2
+        R1 1 2 1k
+        R2 2 0 1k
+        .options reltol=1e-4
+        .op
+        .meas op vout find V(2) at=0
+        .end
+        """
+        var session = Session()
+        try await session.loadNetlist(source: deck, fileName: "op-measure.cir")
+
+        #expect(approxEqual(session.analysisOptions.convergence.reltol, 1e-4))
+
+        let analysis = try #require(session.firstRunnableAnalysis)
+        _ = try await session.runParsed(analysis)
+
+        let measurement = try #require(session.lastMeasurements.first)
+        #expect(measurement.analysisType == .op)
+        #expect(measurement.name == "vout")
+        #expect(approxEqual(measurement.value, 1.0, rel: 1e-9))
+        #expect(measurement.unit == "V")
+    }
 }

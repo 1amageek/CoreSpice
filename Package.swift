@@ -95,7 +95,8 @@ let package = Package(
 
         // --- I/O Umbrella: Re-exports all I/O modules ---
         .target(name: "CoreSpiceIO",
-                dependencies: ["CoreSpiceIR", "CoreSpiceParsedIR", "CoreSpiceWaveform",
+                dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceAnalysis",
+                               "CoreSpiceParsedIR", "CoreSpiceWaveform",
                                "CoreSpiceParser", "CoreSpiceParserSPICE",
                                "CoreSpiceLowering", "CoreSpiceExporter",
                                "CoreSpiceExporterRAW", "CoreSpiceExporterCSV",
@@ -149,6 +150,7 @@ let package = Package(
         .testTarget(name: "CoreSpiceParsedIRTests", dependencies: ["CoreSpiceParsedIR"]),
         .testTarget(name: "CoreSpiceWaveformTests", dependencies: ["CoreSpiceWaveform", "CoreSpiceAnalysis"]),
         .testTarget(name: "CoreSpiceParserSPICETests", dependencies: ["CoreSpiceParserSPICE"]),
+        .testTarget(name: "CoreSpiceIOTests", dependencies: ["CoreSpiceIO"]),
         .testTarget(name: "CoreSpiceLoweringTests", dependencies: ["CoreSpiceLowering", "CoreSpiceIR"]),
         .testTarget(name: "CoreSpiceExporterTests", dependencies: ["CoreSpiceExporterRAW", "CoreSpiceExporterCSV", "CoreSpiceExporterPSF", "CoreSpiceWaveform"]),
         .testTarget(

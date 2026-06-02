@@ -9,9 +9,6 @@ public enum ParsedControlStatement: Sendable, Hashable {
     /// Include a library section.
     case library(path: String, section: String?, location: SourceLocation?)
 
-    /// Set a global parameter.
-    case param(name: String, value: ParsedExpression, location: SourceLocation?)
-
     /// Set a simulator option.
     case option(name: String, value: ParsedParameterValue?, location: SourceLocation?)
 
@@ -57,6 +54,7 @@ public enum ParsedControlStatement: Sendable, Hashable {
     /// HDL include (Verilog-A, etc.).
     case hdl(path: String, location: SourceLocation?)
 }
+
 
 /// Specification for print statements.
 public struct PrintSpec: Sendable, Hashable {
@@ -207,6 +205,9 @@ public enum MeasureType: Sendable, Hashable {
 
     /// Delay between two signals.
     case delay(variable1: OutputVariable, value1: ParsedParameterValue, variable2: OutputVariable, value2: ParsedParameterValue)
+
+    /// A parsed but unsupported measurement form.
+    case unsupported(keyword: String, arguments: [String], reason: String)
 }
 
 /// Specification for alter statements.
