@@ -53,6 +53,11 @@ public protocol WaveformReadable: Sendable {
     func withRealRowMajorValues<R>(
         _ body: (UnsafeBufferPointer<Double>, Int, Int) throws -> R
     ) rethrows -> R?
+
+    /// Borrows a real row-major buffer view when available.
+    func withRealRowMajorBuffer<R>(
+        _ body: (RealRowMajorBuffer) throws -> R
+    ) rethrows -> R?
 }
 
 extension WaveformReadable {
@@ -67,6 +72,21 @@ extension WaveformReadable {
         _ body: (UnsafeBufferPointer<Double>, Int, Int) throws -> R
     ) rethrows -> R? {
         nil
+    }
+
+    public func withRealRowMajorBuffer<R>(
+        _ body: (RealRowMajorBuffer) throws -> R
+    ) rethrows -> R? {
+        try withRealRowMajorValues { values, pointCount, variableCount in
+            try body(
+                RealRowMajorBuffer(
+                    values: values,
+                    pointCount: pointCount,
+                    variableCount: variableCount,
+                    rowStride: variableCount
+                )
+            )
+        }
     }
 
     /// Iterates visible real values without requiring materialization.

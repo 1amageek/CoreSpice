@@ -86,6 +86,57 @@ public enum WaveformBenchmarkOperations {
         )
     }
 
+    public static func projectedRowMajorScanComparison() throws -> BenchmarkComparison {
+        let pointCount = 12_000
+        let variableCount = 12
+        let waveform = WaveformBenchmarkFixture.waveform(
+            pointCount: pointCount,
+            variableCount: variableCount
+        )
+        let base: any WaveformReadable = waveform
+        let projection = WaveformProjection(
+            basePointCount: waveform.pointCount,
+            baseVariableCount: waveform.variableCount,
+            pointIndices: WaveformBenchmarkFixture.pointIndices(pointCount: pointCount),
+            variableIndices: WaveformBenchmarkFixture.variableIndices(variableCount: variableCount)
+        )
+        let layout = WaveformViewLayout(base: base, projection: projection)
+        let view = WaveformDataView(base: base, layout: layout)
+        let materialized = view.materialized()
+
+        let borrowedReference = sumProjectedRows(view)
+        let materializedReference = try sumMaterializedRows(materialized)
+        guard abs(borrowedReference - materializedReference) < abs(materializedReference) * 1e-12 else {
+            throw BenchmarkError.referenceMismatch(
+                name: "waveform.projectedRowMajorScan",
+                lhs: borrowedReference,
+                rhs: materializedReference
+            )
+        }
+
+        let borrowedScan = try BenchmarkRunner.measure(
+            "waveform.projectedBorrowedScan",
+            iterationsPerSample: 20
+        ) {
+            sumProjectedRows(view)
+        }
+
+        let materializedScan = try BenchmarkRunner.measure(
+            "waveform.projectedMaterializedScan",
+            iterationsPerSample: 8
+        ) {
+            try sumMaterializedRows(materialized)
+        }
+
+        return BenchmarkComparison(
+            name: "projected row-major scan",
+            measured: borrowedScan,
+            baseline: materializedScan,
+            maximumRatio: 0.35,
+            requirement: "Projected row-major scans should use strided borrowed storage instead of copied rows."
+        )
+    }
+
     public static func transientConversionComparison() throws -> BenchmarkComparison {
         let pointCount = 12_000
         let variableCount = 12
@@ -171,8 +222,8 @@ public enum WaveformBenchmarkOperations {
     }
 
     public static func sumBorrowedRows(_ waveform: WaveformDataView) -> Double {
-        waveform.withRealRowMajorValues { values, _, _ in
-            sum(values)
+        waveform.withRealRowMajorBuffer { buffer in
+            sum(buffer)
         } ?? {
             var sum = 0.0
             for point in 0..<waveform.pointCount {
@@ -183,6 +234,21 @@ public enum WaveformBenchmarkOperations {
                     return true
                 } ?? false
                 precondition(completed, "row-major benchmark fixture must expose point buffers")
+            }
+            return sum
+        }()
+    }
+
+    public static func sumProjectedRows(_ waveform: WaveformDataView) -> Double {
+        waveform.withRealRowMajorBuffer { buffer in
+            sum(buffer)
+        } ?? {
+            var sum = 0.0
+            for point in 0..<waveform.pointCount {
+                let completed = waveform.forEachRealValue(at: point) { value in
+                    sum += value
+                }
+                precondition(completed, "projected row-major benchmark fixture must expose real values")
             }
             return sum
         }()
@@ -206,6 +272,18 @@ public enum WaveformBenchmarkOperations {
         var sum = 0.0
         for index in 0..<values.count {
             sum += baseAddress[index]
+        }
+        return sum
+    }
+
+    private static func sum(_ buffer: RealRowMajorBuffer) -> Double {
+        guard let baseAddress = buffer.values.baseAddress else { return 0.0 }
+        var sum = 0.0
+        for point in 0..<buffer.pointCount {
+            let rowStart = buffer.startOffset + (point * buffer.rowStride)
+            for variable in 0..<buffer.variableCount {
+                sum += baseAddress[rowStart + variable]
+            }
         }
         return sum
     }

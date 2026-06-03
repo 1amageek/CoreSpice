@@ -217,6 +217,56 @@ struct WaveformDataTests {
     }
 
     @Test
+    func projectedViewExposesStridedRowMajorBuffer() {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                title: "Projected Buffer",
+                analysisType: .transient,
+                pointCount: 5,
+                variableCount: 3
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0, 2.0, 3.0, 4.0],
+            variables: [
+                .voltage(node: "1", index: 0),
+                .voltage(node: "2", index: 1),
+                .current(device: "V1", index: 2)
+            ],
+            realRowMajorData: [
+                1.0, 10.0, 100.0,
+                2.0, 20.0, 200.0,
+                3.0, 30.0, 300.0,
+                4.0, 40.0, 400.0,
+                5.0, 50.0, 500.0
+            ],
+            pointCount: 5,
+            variableCount: 3
+        )
+        let view = WaveformDataView(
+            base: waveform,
+            pointIndices: [0, 2, 4],
+            variableIndices: [1, 2]
+        )
+
+        let values = view.withRealRowMajorBuffer { buffer in
+            #expect(buffer.pointCount == 3)
+            #expect(buffer.variableCount == 2)
+            #expect(buffer.rowStride == 6)
+            #expect(buffer.startOffset == 1)
+            #expect(buffer.value(point: 0, variable: 0) == 10.0)
+            #expect(buffer.value(point: 1, variable: 1) == 300.0)
+            #expect(buffer.value(point: 2, variable: 0) == 50.0)
+            return (0..<buffer.pointCount).flatMap { point in
+                (0..<buffer.variableCount).map { variable in
+                    buffer.value(point: point, variable: variable) ?? .nan
+                }
+            }
+        }
+
+        #expect(values == [10.0, 100.0, 30.0, 300.0, 50.0, 500.0])
+    }
+
+    @Test
     func transientConversionPreservesRowMajorStorageSharing() {
         let node = Node(id: 1)
         let branch = Branch(id: 1)
