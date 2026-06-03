@@ -31,12 +31,17 @@ public struct TransientAnalysis: Analysis, Sendable {
     /// Convergence configuration for the Newton-Raphson solver at each timestep.
     public let convergenceConfig: ConvergenceConfig
 
+    /// Called after each accepted timestep with the accepted time and solution.
+    public let onStepAccepted: (@Sendable (Double, [Double]) -> Void)?
+
     public init(
         config: TransientConfig,
-        convergenceConfig: ConvergenceConfig = ConvergenceConfig()
+        convergenceConfig: ConvergenceConfig = ConvergenceConfig(),
+        onStepAccepted: (@Sendable (Double, [Double]) -> Void)? = nil
     ) {
         self.config = config
         self.convergenceConfig = convergenceConfig
+        self.onStepAccepted = onStepAccepted
     }
 
     public func run(
@@ -387,6 +392,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         // Save the time point
                         timePoints.append(currentTime)
                         currentBuf.withUnsafeBufferPointer { solutionTrace.append($0) }
+                        onStepAccepted?(currentTime, currentBuf)
 
                         await observer?.emit(.timeStepCompleted(TimeStepInfo(
                             id: analysisID,
@@ -449,6 +455,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
                         timePoints.append(currentTime)
                         currentBuf.withUnsafeBufferPointer { solutionTrace.append($0) }
+                        onStepAccepted?(currentTime, currentBuf)
 
                         await observer?.emit(.timeStepCompleted(TimeStepInfo(
                             id: analysisID,
