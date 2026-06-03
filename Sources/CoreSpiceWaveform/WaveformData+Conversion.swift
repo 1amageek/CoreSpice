@@ -89,11 +89,24 @@ extension WaveformData {
         topology: CircuitTopology,
         title: String? = nil
     ) -> WaveformData {
-        let variables = buildVariableDescriptorsFromMNA(
+        let variableLayout = WaveformVariableLayout(
             variableMap: transientResult.variableMap,
             topology: topology
         )
+        return from(transientResult: transientResult, variableLayout: variableLayout, title: title)
+    }
 
+    /// Creates waveform data from a transient result with a precomputed variable layout.
+    public static func from(
+        transientResult: TransientResult,
+        variableLayout: WaveformVariableLayout,
+        title: String? = nil
+    ) -> WaveformData {
+        let variables = variableLayout.variables
+        precondition(
+            variables.count == transientResult.solutionTrace.variableCount,
+            "variable layout width must match transient solution width"
+        )
         let metadata = SimulationMetadata(
             title: title,
             analysisType: .transient,
@@ -517,31 +530,7 @@ extension WaveformData {
         variableMap: [MNAVariable: Int],
         topology: CircuitTopology
     ) -> [VariableDescriptor] {
-        let sortedVars = variableMap.sorted { $0.value < $1.value }
-
-        var variables: [VariableDescriptor] = []
-        variables.reserveCapacity(sortedVars.count)
-        for (idx, (mnaVar, _)) in sortedVars.enumerated() {
-            let descriptor: VariableDescriptor
-            switch mnaVar {
-            case .nodeVoltage(let node):
-                descriptor = VariableDescriptor(
-                    name: "V(\(node.id))",
-                    unit: .volt,
-                    type: .voltage,
-                    index: idx
-                )
-            case .branchCurrent(let branch):
-                descriptor = VariableDescriptor(
-                    name: "I(\(branch.id))",
-                    unit: .ampere,
-                    type: .current,
-                    index: idx
-                )
-            }
-            variables.append(descriptor)
-        }
-        return variables
+        WaveformVariableLayout(variableMap: variableMap, topology: topology).variables
     }
 
     /// Builds complex variable descriptors and data from MNA solution vectors.

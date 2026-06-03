@@ -107,6 +107,19 @@ public enum WaveformStorage: Sendable {
         }
     }
 
+    public func withRealRowMajorValues<R>(
+        _ body: (UnsafeBufferPointer<Double>, Int, Int) throws -> R
+    ) rethrows -> R? {
+        switch self {
+        case .realRowMajor(let values, let pointCount, let variableCount):
+            return try values.withUnsafeBufferPointer { buffer in
+                try body(buffer, pointCount, variableCount)
+            }
+        case .real, .complex:
+            return nil
+        }
+    }
+
     public func withComplexValues<R>(
         point: Int,
         _ body: (UnsafeBufferPointer<(real: Double, imag: Double)>) throws -> R
@@ -143,13 +156,18 @@ public enum WaveformStorage: Sendable {
         case .real(let data):
             return data
         case .realRowMajor(let values, let pointCount, let variableCount):
-            var rows: [[Double]] = []
-            rows.reserveCapacity(pointCount)
-            for point in 0..<pointCount {
-                let start = point * variableCount
-                rows.append(Array(values[start..<(start + variableCount)]))
+            return values.withUnsafeBufferPointer { buffer in
+                var rows: [[Double]] = []
+                rows.reserveCapacity(pointCount)
+                guard let base = buffer.baseAddress else {
+                    return rows
+                }
+                for point in 0..<pointCount {
+                    let start = point * variableCount
+                    rows.append(Array(UnsafeBufferPointer(start: base + start, count: variableCount)))
+                }
+                return rows
             }
-            return rows
         case .complex:
             return nil
         }

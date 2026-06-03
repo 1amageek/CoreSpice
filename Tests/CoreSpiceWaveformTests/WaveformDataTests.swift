@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import CoreSpiceAnalysis
 import CoreSpiceIR
@@ -118,6 +119,104 @@ struct WaveformDataTests {
     }
 
     @Test
+    func prevalidatedProjectionCanBeReusedForViews() {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                title: "Projection Reuse",
+                analysisType: .transient,
+                pointCount: 4,
+                variableCount: 3
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0, 2.0, 3.0],
+            variables: [
+                .voltage(node: "1", index: 0),
+                .voltage(node: "2", index: 1),
+                .current(device: "V1", index: 2)
+            ],
+            realRowMajorData: [
+                1.0, 10.0, 100.0,
+                2.0, 20.0, 200.0,
+                3.0, 30.0, 300.0,
+                4.0, 40.0, 400.0
+            ],
+            pointCount: 4,
+            variableCount: 3
+        )
+        let projection = WaveformProjection(
+            basePointCount: waveform.pointCount,
+            baseVariableCount: waveform.variableCount,
+            pointIndices: [1, 3],
+            variableIndices: [1, 2]
+        )
+
+        let first = WaveformDataView(base: waveform, projection: projection)
+        let second = WaveformDataView(base: waveform, projection: projection)
+
+        #expect(first.pointCount == 2)
+        #expect(first.variableCount == 2)
+        #expect(first.realValue(variable: 0, point: 0) == 20.0)
+        #expect(first.realValue(variable: 1, point: 1) == 400.0)
+        #expect(second.variables.map(\.name) == ["V(2)", "I(V1)"])
+    }
+
+    @Test
+    func precomputedViewLayoutCanBeReusedForViews() {
+        let date = Date(timeIntervalSince1970: 1_234)
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                title: "Projection Layout",
+                date: date,
+                tool: "FixtureSpice",
+                toolVersion: "1.0",
+                analysisType: .transient,
+                temperature: 27.0,
+                pointCount: 5,
+                variableCount: 3,
+                options: ["mode": "test"]
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0, 2.0, 3.0, 4.0],
+            variables: [
+                .voltage(node: "1", index: 0),
+                .voltage(node: "2", index: 1),
+                .current(device: "V1", index: 2)
+            ],
+            realRowMajorData: [
+                1.0, 10.0, 100.0,
+                2.0, 20.0, 200.0,
+                3.0, 30.0, 300.0,
+                4.0, 40.0, 400.0,
+                5.0, 50.0, 500.0
+            ],
+            pointCount: 5,
+            variableCount: 3
+        )
+        let projection = WaveformProjection(
+            basePointCount: waveform.pointCount,
+            baseVariableCount: waveform.variableCount,
+            pointIndices: [0, 2, 4],
+            variableIndices: [1, 2]
+        )
+        let layout = WaveformViewLayout(base: waveform, projection: projection)
+
+        let first = WaveformDataView(base: waveform, layout: layout)
+        let second = WaveformDataView(base: waveform, layout: layout)
+
+        #expect(layout.projection.regularPointPattern?.start == 0)
+        #expect(layout.projection.regularPointPattern?.stride == 2)
+        #expect(first.metadata.date == date)
+        #expect(first.metadata.tool == "FixtureSpice")
+        #expect(first.metadata.toolVersion == "1.0")
+        #expect(first.metadata.temperature == 27.0)
+        #expect(first.metadata.options == ["mode": "test"])
+        #expect(first.metadata.pointCount == 3)
+        #expect(first.metadata.variableCount == 2)
+        #expect(first.variables.map(\.name) == ["V(2)", "I(V1)"])
+        #expect(second.realValue(variable: 0, point: 2) == 50.0)
+    }
+
+    @Test
     func transientConversionPreservesRowMajorStorageSharing() {
         let node = Node(id: 1)
         let branch = Branch(id: 1)
@@ -169,6 +268,36 @@ struct WaveformDataTests {
     }
 
     @Test
+    func transientConversionUsesPrecomputedVariableLayout() {
+        let node = Node(id: 1)
+        let trace = SolutionTrace(
+            variableCount: 1,
+            rowMajorValues: [1.0, 2.0]
+        )
+        let result = TransientResult(
+            timePoints: [0.0, 1.0],
+            solutionTrace: trace,
+            variableMap: [.nodeVoltage(node): 0],
+            timeSteps: 1,
+            rejectedSteps: 0
+        )
+        let topology = CircuitTopology(ir: CircuitIR(
+            nodes: [.ground, node],
+            branches: [],
+            instances: []
+        ))
+        let layout = WaveformVariableLayout(variableMap: result.variableMap, topology: topology)
+        let waveform = WaveformData.from(
+            transientResult: result,
+            variableLayout: layout,
+            title: "Converted"
+        )
+
+        #expect(waveform.variables.map(\.name) == ["V(1)"])
+        #expect(waveform.realValue(variable: 0, point: 1) == 2.0)
+    }
+
+    @Test
     func rowMajorPointBufferBorrowsStorage() {
         let waveform = WaveformData(
             metadata: SimulationMetadata(
@@ -201,6 +330,46 @@ struct WaveformDataTests {
             waveform.withRealValues(at: 1) { point in
                 #expect(Array(point) == [2.0, 0.2])
                 return point.baseAddress == storage.baseAddress.map { $0 + 2 }
+            } ?? false
+        }
+
+        #expect(sharesStorage)
+    }
+
+    @Test
+    func rowMajorWholeBufferBorrowsStorage() {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                title: "Whole Buffer",
+                analysisType: .transient,
+                pointCount: 2,
+                variableCount: 2
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0.0, 1.0],
+            variables: [
+                .voltage(node: "1", index: 0),
+                .current(device: "V1", index: 1)
+            ],
+            realRowMajorData: [
+                1.0, 0.1,
+                2.0, 0.2
+            ],
+            pointCount: 2,
+            variableCount: 2
+        )
+
+        guard let rowMajor = waveform.realRowMajorValues else {
+            Issue.record("Row-major waveform should expose storage")
+            return
+        }
+
+        let sharesStorage = rowMajor.values.withUnsafeBufferPointer { storage in
+            waveform.withRealRowMajorValues { values, pointCount, variableCount in
+                #expect(pointCount == 2)
+                #expect(variableCount == 2)
+                #expect(Array(values) == [1.0, 0.1, 2.0, 0.2])
+                return values.baseAddress == storage.baseAddress
             } ?? false
         }
 

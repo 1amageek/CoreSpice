@@ -125,6 +125,14 @@ public struct WaveformData: Sendable {
         try storage.withRealValues(point: point, body)
     }
 
+    /// Provides the full row-major real buffer when this waveform is backed by
+    /// contiguous row-major storage.
+    public func withRealRowMajorValues<R>(
+        _ body: (UnsafeBufferPointer<Double>, Int, Int) throws -> R
+    ) rethrows -> R? {
+        try storage.withRealRowMajorValues(body)
+    }
+
     /// Provides a complex-valued point as a borrowed contiguous buffer.
     ///
     /// The buffer is valid only for the duration of `body`.

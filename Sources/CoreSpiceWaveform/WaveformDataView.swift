@@ -8,11 +8,18 @@ public struct WaveformDataView: WaveformReadable {
     /// The backing waveform source.
     public let base: any WaveformReadable
 
+    /// Prevalidated visible point and variable mapping.
+    public let projection: WaveformProjection
+
     /// Visible base point indices. `nil` means identity projection.
-    public let pointIndices: [Int]?
+    public var pointIndices: [Int]? {
+        projection.pointIndices
+    }
 
     /// Visible base variable indices. `nil` means identity projection.
-    public let variableIndices: [Int]?
+    public var variableIndices: [Int]? {
+        projection.variableIndices
+    }
 
     /// Metadata describing the visible projection.
     public let metadata: SimulationMetadata
@@ -29,7 +36,7 @@ public struct WaveformDataView: WaveformReadable {
     }
 
     public var pointCount: Int {
-        pointIndices?.count ?? base.pointCount
+        projection.pointCount
     }
 
     public var variableCount: Int {
@@ -41,41 +48,34 @@ public struct WaveformDataView: WaveformReadable {
         pointIndices: [Int]? = nil,
         variableIndices: [Int]? = nil
     ) {
-        if let pointIndices {
-            precondition(pointIndices.allSatisfy { $0 >= 0 && $0 < base.pointCount })
-        }
-        if let variableIndices {
-            precondition(variableIndices.allSatisfy { $0 >= 0 && $0 < base.variableCount })
-        }
+        self.init(
+            base: base,
+            layout: WaveformViewLayout(
+                base: base,
+                pointIndices: pointIndices,
+                variableIndices: variableIndices
+            )
+        )
+    }
+
+    public init(
+        base: any WaveformReadable,
+        projection: WaveformProjection
+    ) {
+        self.init(base: base, layout: WaveformViewLayout(base: base, projection: projection))
+    }
+
+    public init(
+        base: any WaveformReadable,
+        layout: WaveformViewLayout
+    ) {
+        precondition(layout.projection.basePointCount == base.pointCount, "layout point shape must match base waveform")
+        precondition(layout.projection.baseVariableCount == base.variableCount, "layout variable shape must match base waveform")
 
         self.base = base
-        self.pointIndices = Self.identityOrNil(pointIndices, count: base.pointCount)
-        self.variableIndices = Self.identityOrNil(variableIndices, count: base.variableCount)
-        let visiblePointCount = self.pointIndices?.count ?? base.pointCount
-
-        let sourceVariables: [VariableDescriptor]
-        if let variableIndices = self.variableIndices {
-            sourceVariables = variableIndices.map { base.variables[$0] }
-        } else {
-            sourceVariables = base.variables
-        }
-
-        self.variables = sourceVariables.enumerated().map { visibleIndex, source in
-            VariableDescriptor(
-                name: source.name,
-                unit: source.unit,
-                type: source.type,
-                index: visibleIndex
-            )
-        }
-
-        self.metadata = SimulationMetadata(
-            title: base.metadata.title,
-            analysisType: base.metadata.analysisType,
-            pointCount: visiblePointCount,
-            variableCount: self.variables.count,
-            isComplex: base.metadata.isComplex
-        )
+        self.projection = layout.projection
+        self.variables = layout.variables
+        self.metadata = layout.metadata
     }
 
     /// Returns a materialized waveform for APIs that explicitly need ownership.
@@ -99,6 +99,10 @@ public struct WaveformDataView: WaveformReadable {
                 variables: variables,
                 complexData: rows
             )
+        }
+
+        if let materialized = materializedFromRealRowMajorStorage() {
+            return materialized
         }
 
         var values: [Double] = []
@@ -125,6 +129,15 @@ public struct WaveformDataView: WaveformReadable {
         return base.sweepValue(at: basePoint)
     }
 
+    public func withSweepValues<R>(
+        _ body: (UnsafeBufferPointer<Double>) throws -> R
+    ) rethrows -> R? {
+        guard projection.pointIndices == nil else {
+            return nil
+        }
+        return try base.withSweepValues(body)
+    }
+
     public func realValue(variable: Int, point: Int) -> Double? {
         guard let basePoint = basePointIndex(for: point),
               let baseVariable = baseVariableIndex(for: variable) else {
@@ -146,12 +159,12 @@ public struct WaveformDataView: WaveformReadable {
         _ body: (UnsafeBufferPointer<Double>) throws -> R
     ) rethrows -> R? {
         guard let basePoint = basePointIndex(for: point),
-              let variableSlice = contiguousVariableSlice() else {
+              let variableSlice = projection.contiguousVariableSlice else {
             return nil
         }
 
         return try base.withRealValues(at: basePoint) { values in
-            guard variableSlice.count > 0 else {
+            guard !variableSlice.isEmpty else {
                 return try body(UnsafeBufferPointer(start: nil, count: 0))
             }
             guard let baseAddress = values.baseAddress else {
@@ -159,7 +172,7 @@ public struct WaveformDataView: WaveformReadable {
             }
             return try body(
                 UnsafeBufferPointer(
-                    start: baseAddress + variableSlice.start,
+                    start: baseAddress + variableSlice.lowerBound,
                     count: variableSlice.count
                 )
             )
@@ -171,12 +184,12 @@ public struct WaveformDataView: WaveformReadable {
         _ body: (UnsafeBufferPointer<(real: Double, imag: Double)>) throws -> R
     ) rethrows -> R? {
         guard let basePoint = basePointIndex(for: point),
-              let variableSlice = contiguousVariableSlice() else {
+              let variableSlice = projection.contiguousVariableSlice else {
             return nil
         }
 
         return try base.withComplexValues(at: basePoint) { values in
-            guard variableSlice.count > 0 else {
+            guard !variableSlice.isEmpty else {
                 return try body(UnsafeBufferPointer(start: nil, count: 0))
             }
             guard let baseAddress = values.baseAddress else {
@@ -184,14 +197,28 @@ public struct WaveformDataView: WaveformReadable {
             }
             return try body(
                 UnsafeBufferPointer(
-                    start: baseAddress + variableSlice.start,
+                    start: baseAddress + variableSlice.lowerBound,
                     count: variableSlice.count
                 )
             )
         }
     }
 
+    public func withRealRowMajorValues<R>(
+        _ body: (UnsafeBufferPointer<Double>, Int, Int) throws -> R
+    ) rethrows -> R? {
+        guard projection.pointIndices == nil,
+              projection.contiguousVariableSlice == 0..<base.variableCount else {
+            return nil
+        }
+        return try base.withRealRowMajorValues(body)
+    }
+
     private func materializedSweepValues() -> [Double] {
+        if let values = materializedSweepValuesFromStorage() {
+            return values
+        }
+
         var values: [Double] = []
         values.reserveCapacity(pointCount)
         for point in 0..<pointCount {
@@ -203,38 +230,132 @@ public struct WaveformDataView: WaveformReadable {
         return values
     }
 
+    private func materializedSweepValuesFromStorage() -> [Double]? {
+        base.withSweepValues { sourceValues in
+            var values = Array(repeating: 0.0, count: pointCount)
+            guard !values.isEmpty else { return values }
+            guard let sourceBase = sourceValues.baseAddress else {
+                preconditionFailure("non-empty sweep buffer must have a base address")
+            }
+
+            values.withUnsafeMutableBufferPointer { output in
+                guard let outputBase = output.baseAddress else {
+                    preconditionFailure("non-empty sweep destination must have a base address")
+                }
+
+                if let pointPattern = projection.regularPointPattern {
+                    var sourcePoint = pointPattern.start
+                    for point in 0..<pointCount {
+                        outputBase[point] = sourceBase[sourcePoint]
+                        sourcePoint += pointPattern.stride
+                    }
+                    return
+                }
+
+                for point in 0..<pointCount {
+                    guard let basePoint = projection.basePointIndex(for: point) else {
+                        preconditionFailure("waveform view point index out of range")
+                    }
+                    outputBase[point] = sourceBase[basePoint]
+                }
+            }
+            return values
+        }
+    }
+
     private func basePointIndex(for point: Int) -> Int? {
-        guard point >= 0, point < pointCount else { return nil }
-        guard let pointIndices else { return point }
-        return pointIndices[point]
+        projection.basePointIndex(for: point)
     }
 
     private func baseVariableIndex(for variable: Int) -> Int? {
-        guard variable >= 0, variable < variableCount else { return nil }
-        guard let variableIndices else { return variable }
-        return variableIndices[variable]
+        projection.baseVariableIndex(for: variable)
     }
 
-    private func contiguousVariableSlice() -> (start: Int, count: Int)? {
-        guard let variableIndices else {
-            return (start: 0, count: base.variableCount)
-        }
-        guard let first = variableIndices.first else {
-            return (start: 0, count: 0)
-        }
-        for offset in 0..<variableIndices.count {
-            if variableIndices[offset] != first + offset {
-                return nil
-            }
-        }
-        return (start: first, count: variableIndices.count)
-    }
-
-    private static func identityOrNil(_ indices: [Int]?, count: Int) -> [Int]? {
-        guard let indices else { return nil }
-        if indices.elementsEqual(0..<count) {
+    private func materializedFromRealRowMajorStorage() -> WaveformData? {
+        guard let variableSlice = projection.contiguousVariableSlice else {
             return nil
         }
-        return indices
+        return base.withRealRowMajorValues { sourceValues, _, sourceVariableCount in
+            let totalCount = pointCount * variableCount
+            var values = Array(repeating: 0.0, count: totalCount)
+            fillRealRowMajorProjection(
+                sourceValues: sourceValues,
+                sourceVariableCount: sourceVariableCount,
+                variableSlice: variableSlice,
+                destination: &values
+            )
+
+            return WaveformData(
+                metadata: metadata,
+                sweepVariable: sweepVariable,
+                sweepValues: materializedSweepValues(),
+                variables: variables,
+                realRowMajorData: values,
+                pointCount: pointCount,
+                variableCount: variableCount
+            )
+        }
+    }
+
+    private func fillRealRowMajorProjection(
+        sourceValues: UnsafeBufferPointer<Double>,
+        sourceVariableCount: Int,
+        variableSlice: Range<Int>,
+        destination: inout [Double]
+    ) {
+        guard !destination.isEmpty else { return }
+        guard !variableSlice.isEmpty else { return }
+        guard let sourceBase = sourceValues.baseAddress else {
+            preconditionFailure("non-empty row-major buffer must have a base address")
+        }
+
+        destination.withUnsafeMutableBufferPointer { output in
+            guard let outputBase = output.baseAddress else {
+                preconditionFailure("non-empty destination buffer must have a base address")
+            }
+
+            var outputOffset = 0
+            if let pointPattern = projection.regularPointPattern {
+                var sourcePoint = pointPattern.start
+                for _ in 0..<pointCount {
+                    copyVariables(
+                        sourceBase: sourceBase,
+                        sourceOffset: (sourcePoint * sourceVariableCount) + variableSlice.lowerBound,
+                        outputBase: outputBase,
+                        outputOffset: outputOffset,
+                        count: variableSlice.count
+                    )
+                    sourcePoint += pointPattern.stride
+                    outputOffset += variableSlice.count
+                }
+                return
+            }
+
+            for point in 0..<pointCount {
+                guard let basePoint = projection.basePointIndex(for: point) else {
+                    preconditionFailure("waveform view point index out of range")
+                }
+                copyVariables(
+                    sourceBase: sourceBase,
+                    sourceOffset: (basePoint * sourceVariableCount) + variableSlice.lowerBound,
+                    outputBase: outputBase,
+                    outputOffset: outputOffset,
+                    count: variableSlice.count
+                )
+                outputOffset += variableSlice.count
+            }
+        }
+    }
+
+    private func copyVariables(
+        sourceBase: UnsafePointer<Double>,
+        sourceOffset: Int,
+        outputBase: UnsafeMutablePointer<Double>,
+        outputOffset: Int,
+        count: Int
+    ) {
+        for offset in 0..<count {
+            outputBase[outputOffset + offset] = sourceBase[sourceOffset + offset]
+        }
     }
 }

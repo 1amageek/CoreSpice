@@ -26,6 +26,11 @@ public protocol WaveformReadable: Sendable {
     /// Returns the visible sweep value at a point.
     func sweepValue(at point: Int) -> Double?
 
+    /// Borrows the visible sweep value buffer when available.
+    func withSweepValues<R>(
+        _ body: (UnsafeBufferPointer<Double>) throws -> R
+    ) rethrows -> R?
+
     /// Returns a real value for a visible variable and point.
     func realValue(variable: Int, point: Int) -> Double?
 
@@ -43,9 +48,26 @@ public protocol WaveformReadable: Sendable {
         at point: Int,
         _ body: (UnsafeBufferPointer<(real: Double, imag: Double)>) throws -> R
     ) rethrows -> R?
+
+    /// Borrows the full row-major real-valued buffer when available.
+    func withRealRowMajorValues<R>(
+        _ body: (UnsafeBufferPointer<Double>, Int, Int) throws -> R
+    ) rethrows -> R?
 }
 
 extension WaveformReadable {
+
+    public func withSweepValues<R>(
+        _ body: (UnsafeBufferPointer<Double>) throws -> R
+    ) rethrows -> R? {
+        nil
+    }
+
+    public func withRealRowMajorValues<R>(
+        _ body: (UnsafeBufferPointer<Double>, Int, Int) throws -> R
+    ) rethrows -> R? {
+        nil
+    }
 
     /// Iterates visible real values without requiring materialization.
     ///
