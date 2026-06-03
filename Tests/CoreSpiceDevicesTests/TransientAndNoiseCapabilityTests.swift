@@ -96,6 +96,57 @@ struct TransientAndNoiseCapabilityTests {
         #expect(collector.rhsSum(row: 1) == -4.0)
     }
 
+    @Test("MOSFET capacitance history follows physical terminals across reversal")
+    func mosfetCapacitanceHistoryFollowsPhysicalTerminalsAcrossReversal() throws {
+        let drain = Node(id: 1)
+        let gate = Node(id: 2)
+        let variableMap: [MNAVariable: Int] = [
+            .nodeVoltage(drain): 0,
+            .nodeVoltage(gate): 1
+        ]
+        var context = BindingContext(variableMap: variableMap, matrixDimension: variableMap.count)
+        let instance = Instance(
+            name: "MREV",
+            typeName: "nmos_l1",
+            nodes: [drain, gate, .ground, .ground],
+            parameters: [
+                "vto": .real(10.0),
+                "kp": .real(0.0),
+                "w": .real(1.0),
+                "l": .real(1.0),
+                "cgso": .real(1.0),
+                "cgdo": .real(3.0)
+            ]
+        )
+        let registry = DeviceRegistry.standard()
+        let descriptor = try #require(registry.descriptor(for: "nmos_l1"))
+        let device = try descriptor.bind(instance: instance, context: &context)
+        let committingDevice = try #require(device as? any TransientStateCommittingDevice)
+        let integration = IntegrationState(method: .trapezoidal, timeStep: 1.0, currentTime: 1.0)
+
+        let forwardState = SolutionState(
+            variables: [1.0, 4.0],
+            previousVariables: [0.0, 0.0],
+            variableMap: variableMap
+        )
+        committingDevice.commitTransientStep(state: forwardState, integration: integration)
+
+        let collector = CapabilityStampCollector()
+        var stamper = MatrixStamper(
+            variableMap: variableMap,
+            stampMatrix: { _, _, _ in },
+            stampRHS: { row, value in collector.addRHS(row, value) }
+        )
+        let reversedState = SolutionState(
+            variables: [-1.0, 4.0],
+            previousVariables: [1.0, 4.0],
+            variableMap: variableMap
+        )
+        device.stampTransient(into: &stamper, state: reversedState, integration: integration)
+
+        #expect(collector.rhsSum(row: 0) < -20.0)
+    }
+
     @Test("Built-in dynamic devices expose transient commit capability")
     func builtInDynamicDevicesExposeTransientCommitCapability() throws {
         let specs: [(String, [Node], [String: ParameterValue])] = [
@@ -169,6 +220,42 @@ struct TransientAndNoiseCapabilityTests {
         #expect(pnpNoise?.contains { $0.currentSpectralDensity > 0 } == true)
     }
 
+    @Test("MOSFET devices expose channel thermal noise sources")
+    func mosfetDevicesExposeChannelThermalNoiseSources() throws {
+        let nmosState = SolutionState(
+            variables: [1.0, 2.0],
+            variableMap: [
+                .nodeVoltage(Node(id: 1)): 0,
+                .nodeVoltage(Node(id: 2)): 1
+            ]
+        )
+        let pmosState = SolutionState(
+            variables: [0.0, 0.0, 5.0],
+            variableMap: [
+                .nodeVoltage(Node(id: 1)): 0,
+                .nodeVoltage(Node(id: 2)): 1,
+                .nodeVoltage(Node(id: 3)): 2
+            ]
+        )
+
+        let specs: [(String, [Node], [String: ParameterValue], SolutionState)] = [
+            ("nmos_l1", [Node(id: 1), Node(id: 2), .ground, .ground], nmosNoiseParameters(), nmosState),
+            ("nmos_l2", [Node(id: 1), Node(id: 2), .ground, .ground], nmosNoiseParameters(), nmosState),
+            ("nmos_l3", [Node(id: 1), Node(id: 2), .ground, .ground], nmosNoiseParameters(), nmosState),
+            ("pmos_l1", [Node(id: 1), Node(id: 2), Node(id: 3), Node(id: 3)], pmosNoiseParameters(), pmosState),
+            ("pmos_l2", [Node(id: 1), Node(id: 2), Node(id: 3), Node(id: 3)], pmosNoiseParameters(), pmosState),
+            ("pmos_l3", [Node(id: 1), Node(id: 2), Node(id: 3), Node(id: 3)], pmosNoiseParameters(), pmosState)
+        ]
+
+        for (typeName, nodes, parameters, state) in specs {
+            let device = try bindDevice(typeName: typeName, nodes: nodes, parameters: parameters)
+            let noisyDevice = try #require(device as? any NoisyDevice, "\(typeName) must expose MOSFET channel noise")
+            let contributions = noisyDevice.noiseContributions(state: state, frequency: 1_000)
+            #expect(contributions.contains { $0.name == "\(typeName.uppercased())_channel_thermal" })
+            #expect(contributions.contains { $0.currentSpectralDensity > 0 })
+        }
+    }
+
     private func bindDevice(
         typeName: String,
         nodes: [Node],
@@ -217,6 +304,24 @@ struct TransientAndNoiseCapabilityTests {
             "as": .real(1e-12),
             "pd": .real(4e-6),
             "ps": .real(4e-6)
+        ]
+    }
+
+    private func nmosNoiseParameters() -> [String: ParameterValue] {
+        [
+            "vto": .real(0.7),
+            "kp": .real(2e-5),
+            "w": .real(10e-6),
+            "l": .real(1e-6)
+        ]
+    }
+
+    private func pmosNoiseParameters() -> [String: ParameterValue] {
+        [
+            "vto": .real(-0.7),
+            "kp": .real(2e-5),
+            "w": .real(10e-6),
+            "l": .real(1e-6)
         ]
     }
 }

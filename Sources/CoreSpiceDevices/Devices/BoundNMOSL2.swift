@@ -6,7 +6,7 @@ import CoreSpiceIR
 /// Extends the Level 1 Shichman-Hodges model with:
 /// - Mobility degradation (`theta`)
 /// - Drain-induced barrier lowering (`eta`)
-public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, TransientStateCommittingDevice, Sendable {
+public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, TransientStateCommittingDevice, NoisyDevice, Sendable {
 
     public let instance: Instance
     private let drain: Node
@@ -166,12 +166,16 @@ public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, TransientStateCom
         let esIdx = stamper.nodeIndex(effectiveSource)
         let gIdx2 = stamper.nodeIndex(gate)
         let bIdx2 = stamper.nodeIndex(bulk)
+        let cgsKey = op.reversed ? "cgd" : "cgs"
+        let cgdKey = op.reversed ? "cgs" : "cgd"
+        let cbdKey = op.reversed ? "cbs" : "cbd"
+        let cbsKey = op.reversed ? "cbd" : "cbs"
 
-        capacitanceStore.stamp(key: "cgs", into: &stamper, node1: gIdx2, node2: esIdx, capacitance: caps.cgs, state: state, integration: integration)
-        capacitanceStore.stamp(key: "cgd", into: &stamper, node1: gIdx2, node2: edIdx, capacitance: caps.cgd, state: state, integration: integration)
+        capacitanceStore.stamp(key: cgsKey, into: &stamper, node1: gIdx2, node2: esIdx, capacitance: caps.cgs, state: state, integration: integration)
+        capacitanceStore.stamp(key: cgdKey, into: &stamper, node1: gIdx2, node2: edIdx, capacitance: caps.cgd, state: state, integration: integration)
         capacitanceStore.stamp(key: "cgb", into: &stamper, node1: gIdx2, node2: bIdx2, capacitance: caps.cgb, state: state, integration: integration)
-        capacitanceStore.stamp(key: "cbd", into: &stamper, node1: bIdx2, node2: edIdx, capacitance: caps.cbd, state: state, integration: integration)
-        capacitanceStore.stamp(key: "cbs", into: &stamper, node1: bIdx2, node2: esIdx, capacitance: caps.cbs, state: state, integration: integration)
+        capacitanceStore.stamp(key: cbdKey, into: &stamper, node1: bIdx2, node2: edIdx, capacitance: caps.cbd, state: state, integration: integration)
+        capacitanceStore.stamp(key: cbsKey, into: &stamper, node1: bIdx2, node2: esIdx, capacitance: caps.cbs, state: state, integration: integration)
     }
 
     public func commitTransientStep(state: SolutionState, integration: IntegrationState) {
@@ -179,11 +183,29 @@ public struct BoundNMOSL2: BoundDevice, VoltageLimitingDevice, TransientStateCom
         let op = operatingPoint(state: state)
         let edIdx = op.reversed ? sourceIdx : drainIdx
         let esIdx = op.reversed ? drainIdx : sourceIdx
-        capacitanceStore.commit(key: "cgs", node1: gateIdx, node2: esIdx, capacitance: caps.cgs, state: state, integration: integration)
-        capacitanceStore.commit(key: "cgd", node1: gateIdx, node2: edIdx, capacitance: caps.cgd, state: state, integration: integration)
+        let cgsKey = op.reversed ? "cgd" : "cgs"
+        let cgdKey = op.reversed ? "cgs" : "cgd"
+        let cbdKey = op.reversed ? "cbs" : "cbd"
+        let cbsKey = op.reversed ? "cbd" : "cbs"
+        capacitanceStore.commit(key: cgsKey, node1: gateIdx, node2: esIdx, capacitance: caps.cgs, state: state, integration: integration)
+        capacitanceStore.commit(key: cgdKey, node1: gateIdx, node2: edIdx, capacitance: caps.cgd, state: state, integration: integration)
         capacitanceStore.commit(key: "cgb", node1: gateIdx, node2: bulkIdx, capacitance: caps.cgb, state: state, integration: integration)
-        capacitanceStore.commit(key: "cbd", node1: bulkIdx, node2: edIdx, capacitance: caps.cbd, state: state, integration: integration)
-        capacitanceStore.commit(key: "cbs", node1: bulkIdx, node2: esIdx, capacitance: caps.cbs, state: state, integration: integration)
+        capacitanceStore.commit(key: cbdKey, node1: bulkIdx, node2: edIdx, capacitance: caps.cbd, state: state, integration: integration)
+        capacitanceStore.commit(key: cbsKey, node1: bulkIdx, node2: esIdx, capacitance: caps.cbs, state: state, integration: integration)
+    }
+
+    public func noiseContributions(state: SolutionState, frequency: Double) -> [NoiseSource] {
+        _ = frequency
+        let op = operatingPoint(state: state)
+        let effectiveDrain = op.reversed ? source : drain
+        let effectiveSource = op.reversed ? drain : source
+        return MOSFETNoiseModel.channelThermalNoiseSource(
+            instanceName: instance.name,
+            positiveNode: effectiveDrain,
+            negativeNode: effectiveSource,
+            gm: op.gm,
+            gds: op.gds
+        )
     }
 
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
