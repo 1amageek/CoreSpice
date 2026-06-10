@@ -5,4 +5,5 @@ public enum CompileError: Error, Sendable {
     case emptyCircuit
     case singularMatrix
     case incompatibleStructure(String)
+    case vectorDimensionMismatch(vector: String, expected: Int, actual: Int)
 }

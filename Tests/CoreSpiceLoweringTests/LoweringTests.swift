@@ -40,30 +40,30 @@ struct ExpressionEvaluatorTests {
         let context = LoweringContext()
         let evaluator = ExpressionEvaluator(context: context)
 
-        let expr = ParsedExpression.unaryOp(.negate, .literal(5.0))
+        let expr = ParsedExpression.unaryOperation(.negate, .literal(5.0))
         let result = try evaluator.evaluate(expr)
         #expect(result == -5.0)
     }
 
     @Test
-    func evaluateBinaryOps() throws {
+    func evaluateBinaryOperations() throws {
         let context = LoweringContext()
         let evaluator = ExpressionEvaluator(context: context)
 
         // Addition
-        let add = ParsedExpression.binaryOp(.add, .literal(2), .literal(3))
+        let add = ParsedExpression.binaryOperation(.add, .literal(2), .literal(3))
         #expect(try evaluator.evaluate(add) == 5.0)
 
         // Multiplication
-        let mul = ParsedExpression.binaryOp(.multiply, .literal(4), .literal(5))
+        let mul = ParsedExpression.binaryOperation(.multiply, .literal(4), .literal(5))
         #expect(try evaluator.evaluate(mul) == 20.0)
 
         // Division
-        let div = ParsedExpression.binaryOp(.divide, .literal(10), .literal(2))
+        let div = ParsedExpression.binaryOperation(.divide, .literal(10), .literal(2))
         #expect(try evaluator.evaluate(div) == 5.0)
 
         // Power
-        let pow = ParsedExpression.binaryOp(.power, .literal(2), .literal(3))
+        let pow = ParsedExpression.binaryOperation(.power, .literal(2), .literal(3))
         #expect(try evaluator.evaluate(pow) == 8.0)
     }
 
@@ -95,7 +95,7 @@ struct ExpressionEvaluatorTests {
         context.registerFunction(
             name: "scale",
             parameters: ["x", "factor"],
-            body: .binaryOp(.multiply, .identifier("x"), .identifier("factor"))
+            body: .binaryOperation(.multiply, .identifier("x"), .identifier("factor"))
         )
         let evaluator = ExpressionEvaluator(context: context)
 
@@ -262,7 +262,7 @@ struct NetlistLoweringTests {
                 .function(
                     name: "scale",
                     parameters: ["x"],
-                    body: .binaryOp(.multiply, .identifier("x"), .literal(2)),
+                    body: .binaryOperation(.multiply, .identifier("x"), .literal(2)),
                     location: nil
                 )
             ],
@@ -422,12 +422,12 @@ struct SubcircuitExpansionTests {
         let body = ParsedNetlistBody(
             components: [resistor],
             parameters: [
-                "local_r": .binaryOp(.multiply, .identifier("base_r"), .literal(2))
+                "local_r": .binaryOperation(.multiply, .identifier("base_r"), .literal(2))
             ],
             parameterDefinitions: [
                 ParsedParameterDefinition(
                     name: "local_r",
-                    value: .binaryOp(.multiply, .identifier("base_r"), .literal(2))
+                    value: .binaryOperation(.multiply, .identifier("base_r"), .literal(2))
                 )
             ]
         )

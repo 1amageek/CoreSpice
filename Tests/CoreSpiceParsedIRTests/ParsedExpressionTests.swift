@@ -21,7 +21,7 @@ struct ParsedExpressionTests {
     @Test
     func unaryExpression() {
         let inner = ParsedExpression.literal(5.0)
-        let expr = ParsedExpression.unaryOp(.negate, inner)
+        let expr = ParsedExpression.unaryOperation(.negate, inner)
         #expect(expr.description == "(-5.0)")
     }
 
@@ -29,7 +29,7 @@ struct ParsedExpressionTests {
     func binaryExpression() {
         let lhs = ParsedExpression.literal(2.0)
         let rhs = ParsedExpression.literal(3.0)
-        let expr = ParsedExpression.binaryOp(.multiply, lhs, rhs)
+        let expr = ParsedExpression.binaryOperation(.multiply, lhs, rhs)
         #expect(expr.description == "(2.0 * 3.0)")
     }
 

@@ -2,7 +2,7 @@
 
 A SPICE circuit simulator written in Swift. Supports electrical circuit analysis, optoelectronic device co-simulation, and photonic mesh computation on Metal GPU.
 
-**Requirements**: macOS 26+, Swift 6.2
+**Requirements**: macOS 26+, Swift 6.3
 
 ## Features
 
@@ -71,6 +71,13 @@ dependencies: [
     .product(name: "CoreSpiceIO", package: "CoreSpice"),
 ])
 ```
+
+## API Migration Notes
+
+| Previous API | Current API |
+|--------------|-------------|
+| `ParsedExpression.unaryOp` | `ParsedExpression.unaryOperation` |
+| `ParsedExpression.binaryOp` | `ParsedExpression.binaryOperation` |
 
 ## Quick Start
 

@@ -420,10 +420,10 @@ public struct SPICESerializer: NetlistSerializer {
             return formatNumber(n, options)
         case .identifier(let name):
             return name
-        case .unaryOp(let op, let inner):
-            return "\(op.rawValue)\(serializeExpression(inner, options))"
-        case .binaryOp(let op, let lhs, let rhs):
-            return "(\(serializeExpression(lhs, options)) \(op.rawValue) \(serializeExpression(rhs, options)))"
+        case .unaryOperation(let operation, let inner):
+            return "\(operation.rawValue)\(serializeExpression(inner, options))"
+        case .binaryOperation(let operation, let lhs, let rhs):
+            return "(\(serializeExpression(lhs, options)) \(operation.rawValue) \(serializeExpression(rhs, options)))"
         case .functionCall(let name, let args):
             return "\(name)(\(args.map { serializeExpression($0, options) }.joined(separator: ", ")))"
         case .conditional(let cond, let then, let `else`):

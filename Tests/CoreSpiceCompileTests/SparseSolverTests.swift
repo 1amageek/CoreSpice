@@ -216,6 +216,23 @@ struct SparseSolverTests {
         }
     }
 
+    @Test func realSolverRejectsMismatchedSolveVectors() throws {
+        var solver = SparseLUSolver()
+        try solver.factorize(matrix: Self.denseRealMatrix())
+
+        expectVectorDimensionMismatch(vector: "rhs", expected: 2, actual: 1) {
+            _ = try solver.solve(rhs: [1.0])
+        }
+        expectVectorDimensionMismatch(vector: "rhs", expected: 2, actual: 3) {
+            _ = try solver.solve(rhs: [1.0, 2.0, 3.0])
+        }
+
+        var shortResult = [0.0]
+        expectVectorDimensionMismatch(vector: "result", expected: 2, actual: 1) {
+            try solver.solve(rhs: [1.0, 2.0], into: &shortResult)
+        }
+    }
+
     // MARK: - Complex Solver Tests
 
     @Test func complexSolverWithAMDOrdering() throws {
@@ -244,6 +261,67 @@ struct SparseSolverTests {
         #expect(abs(result[0].imag) < 1e-9)
         #expect(abs(result[1].real - 1.0) < 1e-9)
         #expect(abs(result[1].imag) < 1e-9)
+    }
+
+    @Test func complexSolverRejectsMismatchedSolveVectors() throws {
+        var solver = ComplexSparseLUSolver()
+        try solver.factorize(matrix: Self.denseComplexMatrix())
+
+        expectVectorDimensionMismatch(vector: "rhs", expected: 2, actual: 1) {
+            _ = try solver.solve(rhs: [ComplexPair(real: 1.0, imag: 0.0)])
+        }
+        expectVectorDimensionMismatch(vector: "rhs", expected: 2, actual: 3) {
+            _ = try solver.solve(rhs: [
+                ComplexPair(real: 1.0, imag: 0.0),
+                ComplexPair(real: 2.0, imag: 0.0),
+                ComplexPair(real: 3.0, imag: 0.0),
+            ])
+        }
+
+        var shortResult = [ComplexPair.zero]
+        expectVectorDimensionMismatch(vector: "result", expected: 2, actual: 1) {
+            try solver.solve(
+                rhs: [
+                    ComplexPair(real: 1.0, imag: 0.0),
+                    ComplexPair(real: 2.0, imag: 0.0),
+                ],
+                into: &shortResult
+            )
+        }
+    }
+
+    @Test func sparseMatrixOutOfBoundsAccessUsesStructuralMissContract() {
+        let structure = SparseStructure.fromTriplets(dimension: 2, entries: [(0, 0), (1, 1)])
+
+        var matrix = SparseMatrix(structure: structure)
+        #expect(matrix.value(row: -1, col: 0) == 0)
+        #expect(matrix.value(row: 2, col: 0) == 0)
+        #expect(matrix.value(row: 0, col: -1) == 0)
+        #expect(matrix.value(row: 0, col: 2) == 0)
+
+        matrix.addValue(row: -1, col: 0, value: 1.0)
+        matrix.addValue(row: 2, col: 0, value: 1.0)
+        #expect(matrix.structuralMisses == [
+            SparseMatrixStructuralMiss(row: -1, col: 0),
+            SparseMatrixStructuralMiss(row: 2, col: 0),
+        ])
+    }
+
+    @Test func complexSparseMatrixOutOfBoundsAccessUsesStructuralMissContract() {
+        let structure = SparseStructure.fromTriplets(dimension: 2, entries: [(0, 0), (1, 1)])
+
+        var matrix = ComplexSparseMatrix(structure: structure)
+        #expect(matrix.value(row: -1, col: 0) == .zero)
+        #expect(matrix.value(row: 2, col: 0) == .zero)
+        #expect(matrix.value(row: 0, col: -1) == .zero)
+        #expect(matrix.value(row: 0, col: 2) == .zero)
+
+        matrix.addValue(row: -1, col: 0, value: ComplexPair(real: 1.0, imag: 0.0))
+        matrix.addValue(row: 2, col: 0, value: ComplexPair(real: 1.0, imag: 0.0))
+        #expect(matrix.structuralMisses == [
+            SparseMatrixStructuralMiss(row: -1, col: 0),
+            SparseMatrixStructuralMiss(row: 2, col: 0),
+        ])
     }
 
     // MARK: - Scalability Tests
@@ -532,6 +610,50 @@ struct SparseSolverTests {
         let result = matrix.multiply(vector: x)
         for i in 0..<n {
             #expect(abs(result[i] - rhs[i]) < 1e-9, "Mismatch at row \(i)")
+        }
+    }
+
+    private static func denseRealMatrix() -> SparseMatrix {
+        let structure = SparseStructure.fromTriplets(
+            dimension: 2,
+            entries: [(0, 0), (0, 1), (1, 0), (1, 1)]
+        )
+        var matrix = SparseMatrix(structure: structure)
+        matrix.addValue(row: 0, col: 0, value: 2.0)
+        matrix.addValue(row: 0, col: 1, value: 1.0)
+        matrix.addValue(row: 1, col: 0, value: 1.0)
+        matrix.addValue(row: 1, col: 1, value: 2.0)
+        return matrix
+    }
+
+    private static func denseComplexMatrix() -> ComplexSparseMatrix {
+        let structure = SparseStructure.fromTriplets(
+            dimension: 2,
+            entries: [(0, 0), (0, 1), (1, 0), (1, 1)]
+        )
+        var matrix = ComplexSparseMatrix(structure: structure)
+        matrix.addValue(row: 0, col: 0, value: ComplexPair(real: 2.0, imag: 0.0))
+        matrix.addValue(row: 0, col: 1, value: ComplexPair(real: 1.0, imag: 0.0))
+        matrix.addValue(row: 1, col: 0, value: ComplexPair(real: 1.0, imag: 0.0))
+        matrix.addValue(row: 1, col: 1, value: ComplexPair(real: 2.0, imag: 0.0))
+        return matrix
+    }
+
+    private func expectVectorDimensionMismatch(
+        vector: String,
+        expected: Int,
+        actual: Int,
+        operation: () throws -> Void
+    ) {
+        do {
+            try operation()
+            Issue.record("Expected vectorDimensionMismatch")
+        } catch CompileError.vectorDimensionMismatch(let observedVector, let observedExpected, let observedActual) {
+            #expect(observedVector == vector)
+            #expect(observedExpected == expected)
+            #expect(observedActual == actual)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 }

@@ -83,6 +83,10 @@ public struct SparseStructure: Sendable, Equatable {
     /// - Returns: The index into the values array, or `nil` if the position
     ///   is not part of the sparsity pattern.
     public func index(row: Int, col: Int) -> Int? {
+        guard row >= 0, row < dimension, col >= 0, col < dimension else {
+            return nil
+        }
+
         let start = rowPointers[row]
         let end = rowPointers[row + 1]
 

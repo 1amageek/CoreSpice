@@ -701,9 +701,9 @@ private struct SPICEConditionalExpressionEvaluator {
             return value
         case .identifier(let name):
             return try resolveIdentifier(name.lowercased())
-        case .unaryOp(let op, let expression):
+        case .unaryOperation(let operation, let expression):
             let value = try evaluate(expression)
-            switch op {
+            switch operation {
             case .negate:
                 return -value
             case .not:
@@ -711,10 +711,10 @@ private struct SPICEConditionalExpressionEvaluator {
             case .plus:
                 return value
             }
-        case .binaryOp(let op, let lhs, let rhs):
+        case .binaryOperation(let operation, let lhs, let rhs):
             let left = try evaluate(lhs)
             let right = try evaluate(rhs)
-            return try evaluateBinaryOperator(op, left: left, right: right)
+            return try evaluateBinaryOperation(operation, left: left, right: right)
         case .functionCall(let name, let arguments):
             let values = try arguments.map { try evaluate($0) }
             return try evaluateFunction(name: name.lowercased(), arguments: values)
@@ -726,12 +726,12 @@ private struct SPICEConditionalExpressionEvaluator {
         }
     }
 
-    private func evaluateBinaryOperator(
-        _ op: BinaryOperator,
+    private func evaluateBinaryOperation(
+        _ operation: BinaryOperator,
         left: Double,
         right: Double
     ) throws -> Double {
-        switch op {
+        switch operation {
         case .add:
             return left + right
         case .subtract:

@@ -587,7 +587,7 @@ private struct SPICEParserImpl {
                 if let n = parseNumberFromIdentifier(id) {
                     return .numeric(-n)
                 }
-                return .expression(.unaryOp(.negate, .identifier(id)))
+                return .expression(.unaryOperation(.negate, .identifier(id)))
             default:
                 throw ParserDiagnostic.error("Expected number after '-'", at: currentLocation)
             }

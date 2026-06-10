@@ -53,7 +53,7 @@ public enum WaveformStorage: Sendable {
     public func realValue(point: Int, variable: Int) -> Double? {
         switch self {
         case .real(let data):
-            guard point < data.count, variable < data[point].count else { return nil }
+            guard point >= 0, point < data.count, variable >= 0, variable < data[point].count else { return nil }
             return data[point][variable]
         case .realRowMajor(let values, let pointCount, let variableCount):
             guard point >= 0, point < pointCount, variable >= 0, variable < variableCount else {
@@ -61,7 +61,7 @@ public enum WaveformStorage: Sendable {
             }
             return values[(point * variableCount) + variable]
         case .complex(let data):
-            guard point < data.count, variable < data[point].count else { return nil }
+            guard point >= 0, point < data.count, variable >= 0, variable < data[point].count else { return nil }
             return data[point][variable].real
         }
     }
@@ -72,7 +72,7 @@ public enum WaveformStorage: Sendable {
     public func complexValue(point: Int, variable: Int) -> (real: Double, imag: Double)? {
         switch self {
         case .real(let data):
-            guard point < data.count, variable < data[point].count else { return nil }
+            guard point >= 0, point < data.count, variable >= 0, variable < data[point].count else { return nil }
             return (real: data[point][variable], imag: 0.0)
         case .realRowMajor(let values, let pointCount, let variableCount):
             guard point >= 0, point < pointCount, variable >= 0, variable < variableCount else {
@@ -80,7 +80,7 @@ public enum WaveformStorage: Sendable {
             }
             return (real: values[(point * variableCount) + variable], imag: 0.0)
         case .complex(let data):
-            guard point < data.count, variable < data[point].count else { return nil }
+            guard point >= 0, point < data.count, variable >= 0, variable < data[point].count else { return nil }
             return data[point][variable]
         }
     }

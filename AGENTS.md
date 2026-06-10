@@ -8,7 +8,7 @@
 - GPU assets: Metal shaders in `Sources/CoreSpiceBackend/Shaders`.
 
 ## Build, Test, and Development Commands
-- `swift build` — compile all library targets (macOS 26+, Swift 6.2, Metal SDK installed).
+- `swift build` — compile all library targets (macOS 26+, Swift 6.3, Metal SDK installed).
 - `swift test` — run the full Swift Testing suite; tests are parallel by default.
 - `swift test --filter CoreSpiceAnalysisTests` — scope to one module; add suite/test names to drill further (e.g., `--filter CoreSpiceIRTests.groundNodeIsZero`).
 - `swift package resolve` — refresh dependencies when `Package.resolved` changes.

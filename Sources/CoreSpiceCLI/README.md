@@ -214,5 +214,5 @@ Supported operators: `+`, `-`, `*`, `/`, `^`. Parentheses for grouping.
 
 ## Environment
 
-- macOS 26+, Swift 6.2
+- macOS 26+, Swift 6.3
 - Metal GPU required only for photonic mesh paths; all electrical analyses run on CPU.

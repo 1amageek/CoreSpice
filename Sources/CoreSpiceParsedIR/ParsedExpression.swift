@@ -11,10 +11,10 @@ public indirect enum ParsedExpression: Sendable, Hashable {
     case identifier(String)
 
     /// A unary operation applied to an expression.
-    case unaryOp(UnaryOperator, ParsedExpression)
+    case unaryOperation(UnaryOperator, ParsedExpression)
 
     /// A binary operation between two expressions.
-    case binaryOp(BinaryOperator, ParsedExpression, ParsedExpression)
+    case binaryOperation(BinaryOperator, ParsedExpression, ParsedExpression)
 
     /// A function call with arguments.
     case functionCall(name: String, arguments: [ParsedExpression])
@@ -59,10 +59,10 @@ extension ParsedExpression: CustomStringConvertible {
             return "\(value)"
         case .identifier(let name):
             return name
-        case .unaryOp(let op, let expr):
-            return "(\(op.rawValue)\(expr))"
-        case .binaryOp(let op, let lhs, let rhs):
-            return "(\(lhs) \(op.rawValue) \(rhs))"
+        case .unaryOperation(let operation, let expression):
+            return "(\(operation.rawValue)\(expression))"
+        case .binaryOperation(let operation, let lhs, let rhs):
+            return "(\(lhs) \(operation.rawValue) \(rhs))"
         case .functionCall(let name, let args):
             return "\(name)(\(args.map { $0.description }.joined(separator: ", ")))"
         case .conditional(let cond, let then, let `else`):

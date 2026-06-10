@@ -30,7 +30,7 @@ swift test --filter CoreSpiceIRTests.NodeTests       # Run one test suite
 swift test --filter CoreSpiceIRTests.groundNodeIsZero  # Run one test
 ```
 
-Platform: macOS 26+, Swift 6.2. Uses Swift Testing framework (`@Suite`, `@Test`).
+Platform: macOS 26+, Swift 6.3. Uses Swift Testing framework (`@Suite`, `@Test`).
 
 ## Module Dependency Graph
 
@@ -124,7 +124,7 @@ AnalysisResult → WaveformData → WaveformExporter → File (.raw, .csv, .psf)
 
 ### Concurrency
 
-Uses Swift 6.2 strict concurrency: all public types are `Sendable`, shared mutable state uses `Mutex<T>` from `Synchronization`, event dispatch uses `DispatchQueue`. No `@unchecked Sendable`.
+Uses Swift 6.3 strict concurrency: all public types are `Sendable`, shared mutable state uses `Mutex<T>` from `Synchronization`, event dispatch uses `DispatchQueue`. No `@unchecked Sendable`.
 
 ### Thread Safety in Tests
 

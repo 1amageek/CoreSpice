@@ -537,6 +537,7 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
         }
 
         let n = dimension
+        try validateVectorLength(name: "rhs", actual: rhs.count, expected: n)
 
         if n == 0 {
             return []
@@ -648,6 +649,8 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
         }
 
         let n = dimension
+        try validateVectorLength(name: "rhs", actual: rhs.count, expected: n)
+        try validateVectorLength(name: "result", actual: result.count, expected: n)
 
         if n == 0 {
             return
@@ -735,5 +738,11 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
 
         // 5. Apply inverse AMD permutation: solveX → result
         sym.permutation.applyInverse(from: solveX, into: &result)
+    }
+
+    private func validateVectorLength(name: String, actual: Int, expected: Int) throws {
+        guard actual == expected else {
+            throw CompileError.vectorDimensionMismatch(vector: name, expected: expected, actual: actual)
+        }
     }
 }

@@ -464,6 +464,40 @@ struct WaveformDataTests {
     }
 
     @Test
+    func valueAccessRejectsNegativeIndices() {
+        let realWaveform = WaveformData(
+            metadata: SimulationMetadata(analysisType: .transient, pointCount: 1, variableCount: 1),
+            sweepVariable: .time(),
+            sweepValues: [0.0],
+            variables: [.voltage(node: "out", index: 0)],
+            realData: [[1.0]]
+        )
+        let rowMajorWaveform = WaveformData(
+            metadata: SimulationMetadata(analysisType: .transient, pointCount: 1, variableCount: 1),
+            sweepVariable: .time(),
+            sweepValues: [0.0],
+            variables: [.voltage(node: "out", index: 0)],
+            realRowMajorData: [1.0],
+            pointCount: 1,
+            variableCount: 1
+        )
+        let complexWaveform = WaveformData(
+            metadata: SimulationMetadata(analysisType: .ac, pointCount: 1, variableCount: 1, isComplex: true),
+            sweepVariable: .frequency(),
+            sweepValues: [1.0],
+            variables: [.voltage(node: "out", index: 0)],
+            complexData: [[(real: 1.0, imag: 0.5)]]
+        )
+
+        for waveform in [realWaveform, rowMajorWaveform, complexWaveform] {
+            #expect(waveform.realValue(variable: -1, point: 0) == nil)
+            #expect(waveform.realValue(variable: 0, point: -1) == nil)
+            #expect(waveform.complexValue(variable: -1, point: 0) == nil)
+            #expect(waveform.complexValue(variable: 0, point: -1) == nil)
+        }
+    }
+
+    @Test
     func waveformExtraction() {
         let metadata = SimulationMetadata(
             analysisType: .transient,

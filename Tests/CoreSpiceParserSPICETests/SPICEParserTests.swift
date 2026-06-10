@@ -523,15 +523,15 @@ struct SPICEParserTests {
     func sharedExpressionParserParsesSpiceDotOperators() throws {
         let expression = try SPICEExpressionParser().parse("mode .eq. 2 .and. .not. disabled")
 
-        guard case .binaryOp(.and, let lhs, let rhs) = expression else {
+        guard case .binaryOperation(.and, let lhs, let rhs) = expression else {
             Issue.record("Expected logical-and expression, got \(expression).")
             return
         }
-        guard case .binaryOp(.equal, .identifier("mode"), .literal(2)) = lhs else {
+        guard case .binaryOperation(.equal, .identifier("mode"), .literal(2)) = lhs else {
             Issue.record("Expected equality lhs, got \(lhs).")
             return
         }
-        guard case .unaryOp(.not, .identifier("disabled")) = rhs else {
+        guard case .unaryOperation(.not, .identifier("disabled")) = rhs else {
             Issue.record("Expected not rhs, got \(rhs).")
             return
         }
@@ -689,7 +689,7 @@ struct SPICEParserTests {
             Issue.record("Expected ternary function body, got \(body).")
             return
         }
-        guard case .binaryOp(.greaterThan, .identifier("x"), .identifier("y")) = condition else {
+        guard case .binaryOperation(.greaterThan, .identifier("x"), .identifier("y")) = condition else {
             Issue.record("Expected comparison condition, got \(condition).")
             return
         }
@@ -700,7 +700,7 @@ struct SPICEParserTests {
             Issue.record("Expected expression parameter.")
             return
         }
-        guard case .binaryOp(.and, _, _) = selected else {
+        guard case .binaryOperation(.and, _, _) = selected else {
             Issue.record("Expected logical-and parameter expression, got \(selected).")
             return
         }

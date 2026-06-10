@@ -72,7 +72,7 @@ struct SPICEExpressionTokenParser {
 
         while consumePair(.pipe, .pipe) || consumeWordOperator("or") || consumeDotOperator("or") {
             let right = try parseLogicalAndExpression()
-            left = .binaryOp(.or, left, right)
+            left = .binaryOperation(.or, left, right)
         }
 
         return left
@@ -83,7 +83,7 @@ struct SPICEExpressionTokenParser {
 
         while consumePair(.ampersand, .ampersand) || consumeWordOperator("and") || consumeDotOperator("and") {
             let right = try parseEqualityExpression()
-            left = .binaryOp(.and, left, right)
+            left = .binaryOperation(.and, left, right)
         }
 
         return left
@@ -95,10 +95,10 @@ struct SPICEExpressionTokenParser {
         while true {
             if consumePair(.equals, .equals) || consume(.equals) || consumeDotOperator("eq") {
                 let right = try parseComparisonExpression()
-                left = .binaryOp(.equal, left, right)
+                left = .binaryOperation(.equal, left, right)
             } else if consumePair(.exclamation, .equals) || consumeDotOperator("ne") {
                 let right = try parseComparisonExpression()
-                left = .binaryOp(.notEqual, left, right)
+                left = .binaryOperation(.notEqual, left, right)
             } else {
                 return left
             }
@@ -111,16 +111,16 @@ struct SPICEExpressionTokenParser {
         while true {
             if consumePair(.lessThan, .equals) || consumeDotOperator("le") {
                 let right = try parseAdditiveExpression()
-                left = .binaryOp(.lessOrEqual, left, right)
+                left = .binaryOperation(.lessOrEqual, left, right)
             } else if consumePair(.greaterThan, .equals) || consumeDotOperator("ge") {
                 let right = try parseAdditiveExpression()
-                left = .binaryOp(.greaterOrEqual, left, right)
+                left = .binaryOperation(.greaterOrEqual, left, right)
             } else if consume(.lessThan) || consumeDotOperator("lt") {
                 let right = try parseAdditiveExpression()
-                left = .binaryOp(.lessThan, left, right)
+                left = .binaryOperation(.lessThan, left, right)
             } else if consume(.greaterThan) || consumeDotOperator("gt") {
                 let right = try parseAdditiveExpression()
-                left = .binaryOp(.greaterThan, left, right)
+                left = .binaryOperation(.greaterThan, left, right)
             } else {
                 return left
             }
@@ -133,10 +133,10 @@ struct SPICEExpressionTokenParser {
         while true {
             if consume(.plus) {
                 let right = try parseMultiplicativeExpression()
-                left = .binaryOp(.add, left, right)
+                left = .binaryOperation(.add, left, right)
             } else if consume(.minus) {
                 let right = try parseMultiplicativeExpression()
-                left = .binaryOp(.subtract, left, right)
+                left = .binaryOperation(.subtract, left, right)
             } else {
                 return left
             }
@@ -149,13 +149,13 @@ struct SPICEExpressionTokenParser {
         while true {
             if consume(.asterisk) {
                 let right = try parsePowerExpression()
-                left = .binaryOp(.multiply, left, right)
+                left = .binaryOperation(.multiply, left, right)
             } else if consume(.slash) {
                 let right = try parsePowerExpression()
-                left = .binaryOp(.divide, left, right)
+                left = .binaryOperation(.divide, left, right)
             } else if consume(.percent) {
                 let right = try parsePowerExpression()
-                left = .binaryOp(.modulo, left, right)
+                left = .binaryOperation(.modulo, left, right)
             } else {
                 return left
             }
@@ -167,7 +167,7 @@ struct SPICEExpressionTokenParser {
 
         if consume(.caret) {
             let exponent = try parsePowerExpression()
-            return .binaryOp(.power, base, exponent)
+            return .binaryOperation(.power, base, exponent)
         }
 
         return base
@@ -175,13 +175,13 @@ struct SPICEExpressionTokenParser {
 
     private mutating func parseUnaryExpression() throws -> ParsedExpression {
         if consume(.minus) {
-            return .unaryOp(.negate, try parseUnaryExpression())
+            return .unaryOperation(.negate, try parseUnaryExpression())
         }
         if consume(.plus) {
-            return .unaryOp(.plus, try parseUnaryExpression())
+            return .unaryOperation(.plus, try parseUnaryExpression())
         }
         if consume(.exclamation) || consumeWordOperator("not") || consumeDotOperator("not") {
-            return .unaryOp(.not, try parseUnaryExpression())
+            return .unaryOperation(.not, try parseUnaryExpression())
         }
         return try parsePrimaryExpression()
     }

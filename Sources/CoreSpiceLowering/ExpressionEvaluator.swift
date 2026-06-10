@@ -35,9 +35,9 @@ public struct ExpressionEvaluator: Sendable {
             }
             return value
 
-        case .unaryOp(let op, let inner):
+        case .unaryOperation(let operation, let inner):
             let value = try evaluate(inner)
-            switch op {
+            switch operation {
             case .negate:
                 return -value
             case .not:
@@ -46,10 +46,10 @@ public struct ExpressionEvaluator: Sendable {
                 return value
             }
 
-        case .binaryOp(let op, let lhs, let rhs):
+        case .binaryOperation(let operation, let lhs, let rhs):
             let left = try evaluate(lhs)
             let right = try evaluate(rhs)
-            return try evaluateBinaryOp(op, left, right)
+            return try evaluateBinaryOperation(operation, left, right)
 
         case .functionCall(let name, let arguments):
             let args = try arguments.map { try evaluate($0) }
@@ -84,12 +84,12 @@ public struct ExpressionEvaluator: Sendable {
 
     // MARK: - Private Helpers
 
-    private func evaluateBinaryOp(
-        _ op: BinaryOperator,
+    private func evaluateBinaryOperation(
+        _ operation: BinaryOperator,
         _ left: Double,
         _ right: Double
     ) throws -> Double {
-        switch op {
+        switch operation {
         case .add:
             return left + right
         case .subtract:

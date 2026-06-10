@@ -14,7 +14,7 @@
 
 - **@unchecked Sendable in BoundCapacitor** - Removed unnecessary `@unchecked`.
   - File: `Sources/CoreSpiceDevices/Devices/BoundCapacitor.swift`
-  - Fix: Swift 6.2 allows `final class` with all `Sendable` stored properties to conform to `Sendable` without `@unchecked`.
+  - Fix: Swift 6.3 allows `final class` with all `Sendable` stored properties to conform to `Sendable` without `@unchecked`.
 
 ### 2. Error handling policy violations - FIXED
 
