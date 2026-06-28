@@ -22,7 +22,8 @@ The module implements a layered architecture with:
 | `GridSize.swift` | Value type representing 1D/2D/3D compute grid dimensions |
 | `BackendConfiguration.swift` | Configuration options for backend initialization (buffer size limits, device selection, profiling) |
 | `BackendError.swift` | Typed error enum covering all backend failure modes |
-| `Shaders/PhotonicKernels.metal` | Metal compute shaders implementing MZI (Mach-Zehnder Interferometer) layer transformations |
+| `PhotonicMetalLibrarySource.swift` | Embedded Metal source used to build the default photonic kernel library without a SwiftPM resource bundle |
+| `Shaders/PhotonicKernels.metal` | Reference copy of the Metal compute shaders implementing MZI layer transformations; excluded from the SwiftPM target build |
 
 ## Public API Summary
 
@@ -94,9 +95,14 @@ public static func createIfAvailable() -> MetalBackend?
 
 ## Metal Shaders
 
-### PhotonicKernels.metal
+### PhotonicMetalLibrarySource
 
-Implements two compute kernels for MZI mesh layer transformations:
+`MetalBackend` builds its default `MTLLibrary` from embedded Metal source instead
+of `Bundle.module` resources. This avoids SwiftPM resource-bundle churn in
+downstream packages while preserving dependency injection for tests that pass a
+custom `MTLLibrary`.
+
+The source implements two compute kernels for MZI mesh layer transformations:
 
 | Kernel | Description |
 |--------|-------------|
@@ -120,7 +126,7 @@ Where each matrix element and state value is complex (stored as `float2`).
 
 ### Complete Features
 - Metal device and command queue initialization
-- Shader library loading (from bundle resources)
+- Shader library loading from embedded Metal source
 - Generic buffer allocation with type safety
 - Buffer pooling with size-class bucketing
 - Kernel loading and pipeline state creation

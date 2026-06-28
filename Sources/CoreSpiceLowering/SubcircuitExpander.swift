@@ -39,19 +39,22 @@ public struct SubcircuitExpander: Sendable {
             return
         }
 
+        try validateExecutableComponent(component, fullName: fullName)
+
         // Map component type to device type name
         let typeName = try mapComponentType(component.type, modelName: component.modelName)
 
         // Evaluate parameters: merge model parameters first, then override with instance parameters
+        let resolver = ParameterExpressionResolver(context: context, randomUniform: randomUniform)
         let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
         var evaluatedParams: [String: ParameterValue] = [:]
 
         // If expandModels is enabled and a model exists, copy model parameters as base
         if configuration.expandModels, let modelName = component.modelName,
            let model = context.model(modelName) {
-            for (name, value) in model.parameters {
-                let evaluated = try evaluator.evaluate(value)
-                evaluatedParams[name] = .real(evaluated)
+            let modelParameters = try resolver.resolveInTemporaryScope(model.parameters)
+            for (name, value) in modelParameters {
+                evaluatedParams[name] = .real(value)
             }
         }
 
@@ -81,8 +84,9 @@ public struct SubcircuitExpander: Sendable {
 
         // Allocate branches for devices that need them (voltage sources, inductors, etc.)
         let branchCount = Self.branchesRequired(for: typeName)
-        for _ in 0..<branchCount {
-            _ = builder.branch()
+        for index in 0..<branchCount {
+            let branchName = branchCount == 1 ? fullName : "\(fullName)#\(index)"
+            _ = builder.branch(name: branchName)
         }
 
         // Add the instance
@@ -126,19 +130,17 @@ public struct SubcircuitExpander: Sendable {
         // Create instance prefix
         let instancePrefix = prefix.isEmpty ? component.name : "\(prefix).\(component.name)"
 
-        // Evaluate instance parameters
-        let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
-        var instanceParams: [String: Double] = [:]
-
-        // Start with subcircuit defaults
-        for (name, value) in subcircuit.parameters {
-            instanceParams[name] = try evaluator.evaluate(value)
-        }
-
-        // Override with instance parameters
+        // Evaluate public parameters. Instance values override defaults before
+        // evaluation, so dependent defaults see the same public-parameter set
+        // the body will see.
+        var publicParameterValues = subcircuit.parameters
         for (name, value) in component.parameters {
-            instanceParams[name] = try evaluator.evaluate(value)
+            publicParameterValues[name] = value
         }
+        let instanceParams = try ParameterExpressionResolver(
+            context: context,
+            randomUniform: randomUniform
+        ).resolveInTemporaryScope(publicParameterValues)
 
         // Create port mapping
         var portMapping: [String: String] = [:]
@@ -205,7 +207,7 @@ public struct SubcircuitExpander: Sendable {
     ) throws {
         var pending = parameters
         var lastFailure: Error?
-        let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
+        let resolver = ParameterExpressionResolver(context: context, randomUniform: randomUniform)
 
         while !pending.isEmpty {
             var progressed = false
@@ -224,8 +226,7 @@ public struct SubcircuitExpander: Sendable {
                 }
 
                 do {
-                    let value = try evaluator.evaluate(expression)
-                    try context.setScopedParameter(name, value: value)
+                    try resolver.resolveIntoCurrentScope([name: .expression(expression)])
                     pending.removeValue(forKey: name)
                     progressed = true
                 } catch {
@@ -260,6 +261,97 @@ public struct SubcircuitExpander: Sendable {
         }
     }
 
+    private func validateExecutableComponent(
+        _ component: ParsedComponent,
+        fullName: String
+    ) throws {
+        if let reason = unsupportedComponentTypeReason(component.type) {
+            throw LoweringError.invalidComponent(name: fullName, reason: reason)
+        }
+
+        guard component.type.requiresModelForNativeExecution else {
+            return
+        }
+        guard let model = try resolvedModel(for: component) else {
+            throw LoweringError.invalidComponent(
+                name: fullName,
+                reason: "Component requires a .model reference for native execution"
+            )
+        }
+        guard component.type.accepts(model: model) else {
+            throw LoweringError.invalidComponent(
+                name: fullName,
+                reason: "Referenced model '\(model.name)' has type \(model.type.rawValue), which does not match component type \(component.type.rawValue)"
+            )
+        }
+        if let reason = unsupportedModelReason(model) {
+            throw LoweringError.invalidComponent(
+                name: fullName,
+                reason: "Referenced model '\(model.name)' is not executable: \(reason)"
+            )
+        }
+    }
+
+    private func resolvedModel(for component: ParsedComponent) throws -> ParsedModel? {
+        guard let modelName = component.modelName else {
+            return nil
+        }
+        guard let model = context.model(modelName) else {
+            throw LoweringError.undefinedModel(name: modelName, location: component.location)
+        }
+        return model
+    }
+
+    private func unsupportedComponentTypeReason(_ type: ComponentType) -> String? {
+        switch type {
+        case .behavioral:
+            return "Behavioral B-source execution is not implemented"
+        case .jfet:
+            return "JFET execution is not implemented"
+        case .mesfet:
+            return "MESFET execution is not implemented"
+        case .transmissionLine:
+            return "Transmission-line execution is not implemented"
+        case .uniformRC:
+            return "Uniform-RC execution is not implemented"
+        case .coupledInductors:
+            return "Mutual-inductor execution is not implemented"
+        case .currentSwitch:
+            return "Current-controlled switch execution is not implemented"
+        default:
+            return nil
+        }
+    }
+
+    private func unsupportedModelReason(_ model: ParsedModel) -> String? {
+        switch model.type {
+        case .diode, .npn, .pnp:
+            return nil
+        case .nmos, .pmos:
+            let level = model.level ?? 1
+            switch level {
+            case 1, 2, 3:
+                return nil
+            case 49:
+                return "BSIM3 MOS level 49 execution is not implemented"
+            case 54:
+                return "BSIM4 MOS level 54 execution is not implemented"
+            default:
+                return "MOS level \(level) execution is not implemented"
+            }
+        case .njf, .pjf:
+            return "JFET model execution is not implemented"
+        case .nmf, .pmf:
+            return "MESFET model execution is not implemented"
+        case .ltra:
+            return "LTRA model execution is not implemented"
+        case .sw:
+            return nil
+        case .csw:
+            return "Current-controlled switch model execution is not implemented"
+        }
+    }
+
     /// Maps a component type to a device type name.
     private func mapComponentType(
         _ type: ComponentType,
@@ -287,23 +379,28 @@ public struct SubcircuitExpander: Sendable {
         case .diode:
             return "diode"
         case .bjt:
-            // Determine NPN or PNP from model
-            if let name = modelName, let model = context.model(name) {
-                return model.type == .npn ? "npn" : "pnp"
+            guard let name = modelName, let model = context.model(name) else {
+                throw LoweringError.invalidComponent(
+                    name: "",
+                    reason: "BJT component requires a .model reference"
+                )
             }
-            return "npn"
+            return model.type == .npn ? "npn" : "pnp"
         case .jfet:
             if let name = modelName, let model = context.model(name) {
                 return model.type == .njf ? "njfet" : "pjfet"
             }
             return "njfet"
         case .mosfet:
-            if let name = modelName, let model = context.model(name) {
-                let prefix = model.type == .nmos ? "nmos" : "pmos"
-                let level = model.level ?? 1
-                return "\(prefix)_l\(level)"
+            guard let name = modelName, let model = context.model(name) else {
+                throw LoweringError.invalidComponent(
+                    name: "",
+                    reason: "MOSFET component requires a .model reference"
+                )
             }
-            return "nmos_l1"
+            let prefix = model.type == .nmos ? "nmos" : "pmos"
+            let level = model.level ?? 1
+            return "\(prefix)_l\(level)"
         case .mesfet:
             return "mesfet"
         case .transmissionLine:
@@ -315,7 +412,7 @@ public struct SubcircuitExpander: Sendable {
         case .behavioral:
             return "behavioral"
         case .switch_:
-            return "switch"
+            return "vswitch"
         case .currentSwitch:
             return "cswitch"
         case .subcircuitInstance:
@@ -323,6 +420,40 @@ public struct SubcircuitExpander: Sendable {
                 name: "",
                 reason: "Subcircuit instances should be expanded, not mapped"
             )
+        }
+    }
+}
+
+private extension ComponentType {
+    var requiresModelForNativeExecution: Bool {
+        switch self {
+        case .diode, .bjt, .mosfet, .switch_:
+            return true
+        default:
+            return false
+        }
+    }
+
+    func accepts(model: ParsedModel) -> Bool {
+        switch self {
+        case .diode:
+            return model.type == .diode
+        case .bjt:
+            return model.type == .npn || model.type == .pnp
+        case .mosfet:
+            return model.type == .nmos || model.type == .pmos
+        case .jfet:
+            return model.type == .njf || model.type == .pjf
+        case .mesfet:
+            return model.type == .nmf || model.type == .pmf
+        case .switch_:
+            return model.type == .sw
+        case .currentSwitch:
+            return model.type == .csw
+        case .transmissionLine:
+            return model.type == .ltra
+        default:
+            return true
         }
     }
 }

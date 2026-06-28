@@ -1,5 +1,6 @@
 import CoreSpiceParsedIR
 import CoreSpiceParser
+import Foundation
 
 /// A parser for SPICE netlist files.
 ///
@@ -348,8 +349,8 @@ private struct SPICEParserImpl {
                 }
             }
 
-            // For transistors, parse model name
-            if type == .mosfet || type == .bjt || type == .jfet || type == .diode {
+            // For model-backed devices, parse model name
+            if type == .mosfet || type == .bjt || type == .jfet || type == .diode || type == .switch_ {
                 if case .identifier(let model) = currentToken {
                     modelName = model
                     advance()
@@ -386,17 +387,11 @@ private struct SPICEParserImpl {
                     try parseSourceSine(into: &params)
                 } else {
                     // Positional value (like resistance value for R, or gain for E)
-                    if let v = parseNumberFromIdentifier(paramName) {
-                        if type == .resistor && params["r"] == nil {
-                            params["r"] = .numeric(v)
-                        } else if type == .vcvs && params["e"] == nil {
-                            params["e"] = .numeric(v)
-                        } else if type == .vccs && params["g"] == nil {
-                            params["g"] = .numeric(v)
-                        } else if type == .cccs && params["f"] == nil {
-                            params["f"] = .numeric(v)
-                        } else if type == .ccvs && params["h"] == nil {
-                            params["h"] = .numeric(v)
+                    if let key = positionalKey(for: type, existing: params) {
+                        if let value = parseNumberFromIdentifier(paramName) {
+                            params[key] = .numeric(value)
+                        } else {
+                            params[key] = .expression(.identifier(paramName))
                         }
                     }
                 }
@@ -414,6 +409,12 @@ private struct SPICEParserImpl {
                 // Signed positional value, e.g. a negative source DC value (V1 n1 n2 -2).
                 if let value = try parseSignedNumber(), let key = positionalKey(for: type, existing: params) {
                     params[key] = .numeric(value)
+                }
+            } else if case .leftBrace = currentToken {
+                if let key = positionalKey(for: type, existing: params) {
+                    params[key] = try parseExpressionValue()
+                } else {
+                    _ = try parseExpressionValue()
                 }
             } else {
                 advance()
@@ -875,7 +876,10 @@ private struct SPICEParserImpl {
 
             do {
                 let content = try await fileResolver.resolveInclude(path: path, relativeTo: fileName)
-                try await parseIncludedContent(content, fileName: path)
+                try await parseIncludedContent(
+                    content,
+                    fileName: resolvedChildPath(path, relativeTo: fileName)
+                )
             } catch {
                 diagnostics.append(.error(
                     "Failed to include '\(path)': \(error)",
@@ -966,7 +970,10 @@ private struct SPICEParserImpl {
                     section: section,
                     relativeTo: fileName
                 )
-                try await parseIncludedContent(content, fileName: path)
+                try await parseIncludedContent(
+                    content,
+                    fileName: resolvedChildPath(path, relativeTo: fileName)
+                )
             } catch {
                 diagnostics.append(.error(
                     "Failed to include library '\(path)' section '\(section ?? "default")': \(error)",
@@ -974,6 +981,16 @@ private struct SPICEParserImpl {
                 ))
             }
         }
+    }
+
+    private func resolvedChildPath(_ path: String, relativeTo base: String?) -> String {
+        guard !path.hasPrefix("/"), let base else {
+            return path
+        }
+        return URL(fileURLWithPath: base)
+            .deletingLastPathComponent()
+            .appendingPathComponent(path)
+            .path
     }
 
     private mutating func parseTransientAnalysis(location: SourceLocation?) throws {
@@ -2028,6 +2045,16 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseOutputVariable() throws -> OutputVariable {
+        if case .leftBrace = currentToken {
+            advance()
+            let expression = try parseExpression()
+            guard case .rightBrace = currentToken else {
+                throw ParserDiagnostic.error("Expected '}' after output expression", at: currentLocation)
+            }
+            advance()
+            return .expression(expression)
+        }
+
         guard case .identifier(let name) = currentToken else {
             throw ParserDiagnostic.error("Expected variable name", at: currentLocation)
         }

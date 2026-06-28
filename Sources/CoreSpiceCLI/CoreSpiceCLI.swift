@@ -31,6 +31,13 @@ struct CLI {
     private let args: [String] = Array(CommandLine.arguments.dropFirst())
 
     mutating func run() async throws {
+        if let actionDomainIndex = args.firstIndex(where: { $0 == "--action-domain" || $0 == "action-domain" }) {
+            let remainingArguments = Array(args.dropFirst(actionDomainIndex + 1))
+            let command = try CoreSpiceActionDomainCommand(arguments: remainingArguments)
+            try command.run()
+            return
+        }
+
         if args.contains("-h") || args.contains("--help") {
             printHelp()
             return
@@ -298,6 +305,7 @@ struct CLI {
     private func printHelp() {
         print("""
 Usage:
+  corespice --action-domain [--json]
   corespice -b <deck.cir> [--tran tstep tstop | --ac dec|lin points start stop | --dc source start stop step] [-r out.raw] [--csv out.csv] [--psf out.psf] [--coverage-json report.json]
   corespice            # interactive shell
 

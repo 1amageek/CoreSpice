@@ -56,14 +56,43 @@ struct SPICEIOEndToEndTests {
         #expect(try fileSize(at: csvURL) > 0)
         #expect(try fileSize(at: rawURL) > 0)
         let rawData = try Data(contentsOf: rawURL)
+        let outVariable = "V(out)"
         #expect(rawData.containsASCII("Title: Public API E2E"))
         #expect(rawData.containsASCII("No. Points: 1"))
-        #expect(rawData.containsASCII("V(\(outNode.id))"))
+        #expect(rawData.containsASCII(outVariable))
 
         let csv = try String(contentsOf: csvURL, encoding: .utf8)
-        #expect(csv.contains("V(\(outNode.id))"))
+        #expect(csv.contains(outVariable))
         #expect(csv.split(separator: "\n").count == 2)
-        #expect(approximately(try exportedValue(named: "V(\(outNode.id))", inCSV: csv), 2.5, tolerance: 1e-9))
+        #expect(approximately(try exportedValue(named: outVariable, inCSV: csv), 2.5, tolerance: 1e-9))
+    }
+
+    @Test("Public API executes a voltage-controlled switch deck")
+    func publicAPIExecutesVoltageControlledSwitchDeck() async throws {
+        let source = """
+        public api e2e switch
+        VDD vdd 0 dc 5
+        VCTRL ctrl 0 dc 5
+        S1 vdd out ctrl 0 swmod
+        RLOAD out 0 1k
+        .model swmod sw ron=10 roff=1e9 vt=2 vh=0.1
+        .op
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let outNode = try node(fromInstance: "s1", terminal: 1, in: circuit.ir)
+
+        let result = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        let expected = 5.0 * 1000.0 / 1010.0
+        #expect(approximately(result.voltage(at: outNode), expected, tolerance: 1.0e-3))
     }
 
     @Test("SPICE serialization round trip preserves executable subcircuit semantics")

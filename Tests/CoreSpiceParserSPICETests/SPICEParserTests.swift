@@ -109,6 +109,27 @@ struct SPICEParserTests {
     }
 
     @Test
+    func parsePositionalParameterExpression() async throws {
+        let source = """
+        Positional Expression Test
+        .param rval=1k
+        R1 node1 node2 {rval}
+        R2 node2 0 rval
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        let r1 = try #require(netlist.components.first { $0.name == "r1" })
+        let r2 = try #require(netlist.components.first { $0.name == "r2" })
+        #expect(r1.parameters["r"] == .expression(.identifier("rval")))
+        #expect(r2.parameters["r"] == .expression(.identifier("rval")))
+    }
+
+    @Test
     func parseMOSFET() async {
         let source = """
         MOSFET Test
@@ -125,6 +146,28 @@ struct SPICEParserTests {
         #expect(component?.type == .mosfet)
         #expect(component?.nodes.count == 4)
         #expect(component?.modelName == "nch")
+    }
+
+    @Test
+    func parseVoltageControlledSwitchModel() async throws {
+        let source = """
+        Switch Test
+        S1 in out ctrl 0 swmod
+        .model swmod sw ron=10 roff=1e9 vt=2 vh=0.1
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        let component = try #require(netlist.components.first)
+        #expect(component.type == .switch_)
+        #expect(component.nodes.count == 4)
+        #expect(component.modelName == "swmod")
+        let model = try #require(netlist.models.first)
+        #expect(model.type == .sw)
     }
 
     @Test
@@ -896,6 +939,63 @@ struct SPICEParserTests {
     }
 
     @Test
+    func localLibrarySectionResolvesNestedIncludeRelativeToLibraryFile() async throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("corespice-nested-lib-\(UUID().uuidString)")
+        let modelDirectory = root.appendingPathComponent("models")
+        try FileManager.default.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+        defer {
+            do {
+                try FileManager.default.removeItem(at: root)
+            } catch {
+                Issue.record("Failed to remove temporary library directory: \(error)")
+            }
+        }
+
+        try """
+        .param nested_scale=3
+        .model dincluded d
+        """.write(to: modelDirectory.appendingPathComponent("common.inc"), atomically: true, encoding: .utf8)
+        try """
+        .lib tt
+        .param corner_scale=1
+        .endl tt
+        .lib ss
+        .include "common.inc"
+        .param corner_scale={nested_scale * 2}
+        .endl ss
+        """.write(to: modelDirectory.appendingPathComponent("corners.lib"), atomically: true, encoding: .utf8)
+
+        let source = """
+        Nested Library Test
+        .lib "models/corners.lib" ss
+        .end
+        """
+        var configuration = ParserConfiguration.default
+        configuration.resolveIncludes = true
+
+        let parser = SPICEParser()
+        let result = await parser.parse(
+            source: source,
+            fileName: root.appendingPathComponent("top.sp").path,
+            configuration: configuration,
+            fileResolver: LocalFileResolver(searchPaths: [root.path])
+        )
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        #expect(netlist.models.map(\.name) == ["dincluded"])
+        #expect(netlist.parameters["nested_scale"] != nil)
+        #expect(netlist.parameters["corner_scale"] != nil)
+        #expect(netlist.controls.contains { control in
+            if case .include(let path, _) = control {
+                return path == "common.inc"
+            }
+            return false
+        })
+    }
+
+    @Test
     func canParseDetection() {
         let parser = SPICEParser()
 
@@ -1015,6 +1115,51 @@ struct SPICESerializerTests {
         }
         #expect(keyword == "unsupported_token")
         #expect(arguments.contains("arg"))
+    }
+
+    @Test
+    func parseExpressionMeasurementsAsExecutableIntent() async throws {
+        let source = """
+        Expression Measure Test
+        .meas tran avg_diff avg {V(out)-V(in)} from={1+1} to=4
+        .meas tran cross when V(out)=2.5
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+        let netlist = try result.get()
+
+        #expect(netlist.controls.count == 2)
+
+        guard case .measure(let average)? = netlist.controls.first else {
+            Issue.record("Expected first measure control.")
+            return
+        }
+        guard case .average(let variable, let from, let to) = average.measureType else {
+            Issue.record("Expected average expression measure, got \(average.measureType).")
+            return
+        }
+        guard case .expression(let expression) = variable else {
+            Issue.record("Expected output expression, got \(variable).")
+            return
+        }
+        #expect(expression.description.lowercased().contains("v(out)"))
+        guard case .expression = from else {
+            Issue.record("Expected expression from range.")
+            return
+        }
+        #expect(to == .numeric(4))
+
+        guard case .measure(let crossing)? = netlist.controls.dropFirst().first else {
+            Issue.record("Expected second measure control.")
+            return
+        }
+        guard case .when(let condition, nil) = crossing.measureType else {
+            Issue.record("Expected WHEN measure, got \(crossing.measureType).")
+            return
+        }
+        #expect(condition.description.contains("=="))
     }
 }
 

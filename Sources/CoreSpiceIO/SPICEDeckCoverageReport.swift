@@ -64,14 +64,23 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         var items: [SPICEDeckCoverageItem] = []
         items.reserveCapacity(
             netlist.analyses.count
+                + netlist.components.count
+                + netlist.models.count
                 + netlist.parameterDefinitions.count
                 + netlist.parameters.count
                 + netlist.controls.count
                 + netlist.preprocessingEvents.count
         )
 
+        let topLevelModels = modelLookup(netlist.models)
         for analysis in netlist.analyses {
             items.append(coverageItem(for: analysis))
+        }
+        for component in netlist.components {
+            items.append(componentCoverageItem(component, scope: nil, models: topLevelModels))
+        }
+        for model in netlist.models {
+            items.append(modelCoverageItem(model, scope: nil))
         }
         if netlist.parameterDefinitions.isEmpty {
             for (name, expression) in netlist.parameters.sorted(by: { $0.key < $1.key }) {
@@ -93,6 +102,8 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             }
         }
         appendSubcircuitParameterCoverage(netlist.subcircuits, into: &items)
+        appendSubcircuitModelCoverage(netlist.subcircuits, parentModels: topLevelModels, into: &items)
+        appendSubcircuitComponentCoverage(netlist.subcircuits, parentModels: topLevelModels, into: &items)
         for control in orderedControls(netlist.controls) {
             items.append(coverageItem(for: control, netlist: netlist))
         }
@@ -294,6 +305,53 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         }
     }
 
+    private static func componentCoverageItem(
+        _ component: ParsedComponent,
+        scope: String?,
+        models: [String: ParsedModel]
+    ) -> SPICEDeckCoverageItem {
+        let itemName = scope.map { "\($0)/component:\(component.name)" } ?? "component:\(component.name)"
+        if let blockedReason = blockedComponentReason(component, models: models) {
+            return SPICEDeckCoverageItem(
+                kind: .component,
+                name: itemName,
+                status: .blocked,
+                message: blockedReason,
+                location: component.location
+            )
+        }
+        return SPICEDeckCoverageItem(
+            kind: .component,
+            name: itemName,
+            status: .supported,
+            message: "Component is mapped into the executable device lowering path",
+            location: component.location
+        )
+    }
+
+    private static func modelCoverageItem(
+        _ model: ParsedModel,
+        scope: String?
+    ) -> SPICEDeckCoverageItem {
+        let itemName = scope.map { "\($0)/model:\(model.name)" } ?? "model:\(model.name)"
+        if let blockedReason = blockedModelReason(model) {
+            return SPICEDeckCoverageItem(
+                kind: .model,
+                name: itemName,
+                status: .blocked,
+                message: blockedReason,
+                location: model.location
+            )
+        }
+        return SPICEDeckCoverageItem(
+            kind: .model,
+            name: itemName,
+            status: .supported,
+            message: "Model maps to a native CoreSpice executable device family",
+            location: model.location
+        )
+    }
+
     private static func parameterCoverageItem(
         name: String,
         expression: ParsedExpression,
@@ -318,6 +376,36 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             appendBodyParameterCoverage(
                 subcircuit.body,
                 scope: "subckt:\(subcircuit.name)",
+                into: &items
+            )
+        }
+    }
+
+    private static func appendSubcircuitComponentCoverage(
+        _ subcircuits: [ParsedSubcircuit],
+        parentModels: [String: ParsedModel],
+        into items: inout [SPICEDeckCoverageItem]
+    ) {
+        for subcircuit in subcircuits {
+            appendBodyComponentCoverage(
+                subcircuit.body,
+                scope: "subckt:\(subcircuit.name)",
+                parentModels: parentModels,
+                into: &items
+            )
+        }
+    }
+
+    private static func appendSubcircuitModelCoverage(
+        _ subcircuits: [ParsedSubcircuit],
+        parentModels: [String: ParsedModel],
+        into items: inout [SPICEDeckCoverageItem]
+    ) {
+        for subcircuit in subcircuits {
+            appendBodyModelCoverage(
+                subcircuit.body,
+                scope: "subckt:\(subcircuit.name)",
+                parentModels: parentModels,
                 into: &items
             )
         }
@@ -354,6 +442,135 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
                 scope: "\(scope)/subckt:\(nested.name)",
                 into: &items
             )
+        }
+    }
+
+    private static func appendBodyComponentCoverage(
+        _ body: ParsedNetlistBody,
+        scope: String,
+        parentModels: [String: ParsedModel],
+        into items: inout [SPICEDeckCoverageItem]
+    ) {
+        let scopedModels = mergedModelLookup(parentModels, body.models)
+        for component in body.components {
+            items.append(componentCoverageItem(component, scope: scope, models: scopedModels))
+        }
+
+        for nested in body.subcircuits {
+            appendBodyComponentCoverage(
+                nested.body,
+                scope: "\(scope)/subckt:\(nested.name)",
+                parentModels: scopedModels,
+                into: &items
+            )
+        }
+    }
+
+    private static func appendBodyModelCoverage(
+        _ body: ParsedNetlistBody,
+        scope: String,
+        parentModels: [String: ParsedModel],
+        into items: inout [SPICEDeckCoverageItem]
+    ) {
+        let scopedModels = mergedModelLookup(parentModels, body.models)
+        for model in body.models {
+            items.append(modelCoverageItem(model, scope: scope))
+        }
+
+        for nested in body.subcircuits {
+            appendBodyModelCoverage(
+                nested.body,
+                scope: "\(scope)/subckt:\(nested.name)",
+                parentModels: scopedModels,
+                into: &items
+            )
+        }
+    }
+
+    private static func modelLookup(_ models: [ParsedModel]) -> [String: ParsedModel] {
+        Dictionary(uniqueKeysWithValues: models.map { ($0.name.lowercased(), $0) })
+    }
+
+    private static func mergedModelLookup(
+        _ parentModels: [String: ParsedModel],
+        _ localModels: [ParsedModel]
+    ) -> [String: ParsedModel] {
+        parentModels.merging(modelLookup(localModels)) { _, local in local }
+    }
+
+    private static func blockedComponentReason(
+        _ component: ParsedComponent,
+        models: [String: ParsedModel]
+    ) -> String? {
+        if let reason = unsupportedComponentTypeReason(component.type) {
+            return reason
+        }
+
+        guard component.type.requiresModelForNativeExecution else {
+            return nil
+        }
+        guard let modelName = component.modelName else {
+            return "Component requires a .model reference for native execution"
+        }
+        guard let model = models[modelName.lowercased()] else {
+            return "Referenced model '\(modelName)' is not defined in the visible model scope"
+        }
+        guard component.type.accepts(model: model) else {
+            return "Referenced model '\(model.name)' has type \(model.type.rawValue), which does not match component type \(component.type.rawValue)"
+        }
+        if let reason = blockedModelReason(model) {
+            return "Referenced model '\(model.name)' is not executable: \(reason)"
+        }
+        return nil
+    }
+
+    private static func unsupportedComponentTypeReason(_ type: ComponentType) -> String? {
+        switch type {
+        case .behavioral:
+            return "Behavioral B-source is parsed and preserved, but nonlinear behavioral source execution is not implemented"
+        case .jfet:
+            return "JFET components are parsed, but native JFET execution is not implemented"
+        case .mesfet:
+            return "MESFET components are parsed, but native MESFET execution is not implemented"
+        case .transmissionLine:
+            return "Transmission-line components are parsed, but native transmission-line execution is not implemented"
+        case .uniformRC:
+            return "Uniform RC components are parsed, but native uniform-RC execution is not implemented"
+        case .coupledInductors:
+            return "Coupled inductor components are parsed, but native mutual-inductor execution is not implemented"
+        case .switch_:
+            return "Voltage-controlled switch components are parsed, but native switch execution is not implemented"
+        case .currentSwitch:
+            return "Current-controlled switch components are parsed, but native switch execution is not implemented"
+        default:
+            return nil
+        }
+    }
+
+    private static func blockedModelReason(_ model: ParsedModel) -> String? {
+        switch model.type {
+        case .diode, .npn, .pnp:
+            return nil
+        case .nmos, .pmos:
+            let level = model.level ?? 1
+            switch level {
+            case 1, 2, 3:
+                return nil
+            case 49:
+                return "BSIM3 MOS level 49 models are parsed, but native BSIM3 execution is not implemented"
+            case 54:
+                return "BSIM4 MOS level 54 models are parsed, but native BSIM4 execution is not implemented"
+            default:
+                return "MOS level \(level) models are parsed, but no native CoreSpice device descriptor exists"
+            }
+        case .njf, .pjf:
+            return "JFET models are parsed, but native JFET execution is not implemented"
+        case .nmf, .pmf:
+            return "MESFET models are parsed, but native MESFET execution is not implemented"
+        case .ltra:
+            return "LTRA transmission-line models are parsed, but native LTRA execution is not implemented"
+        case .sw, .csw:
+            return "Switch models are parsed, but native switch execution is not implemented"
         }
     }
 
@@ -447,7 +664,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
     private static func blockedMeasurementReason(_ type: MeasureType) -> String? {
         switch type {
         case .when:
-            return "Expression-based WHEN measurements are not implemented"
+            return nil
         case .find(let variable, let at):
             return blockedVariableReason(variable) ?? blockedValueReason(at)
         case .average(let variable, let from, let to),
@@ -481,7 +698,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         case .power:
             return "Power output variables are not generated by CoreSpice WaveformData"
         case .expression:
-            return "Expression output variables are not implemented for measurements"
+            return nil
         }
     }
 
@@ -492,7 +709,10 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         case .string:
             return "Measurement numeric field is a string"
         case .expression(let expression):
-            return "Measurement numeric field uses unevaluated expression '\(expression)'"
+            if expression.isConstantMeasurementExpression {
+                return nil
+            }
+            return "Measurement numeric field uses non-constant expression '\(expression)'"
         }
     }
 
@@ -644,5 +864,63 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             message: diagnostic.message,
             location: diagnostic.location
         )
+    }
+}
+
+private extension ParsedExpression {
+    var isConstantMeasurementExpression: Bool {
+        switch self {
+        case .literal:
+            return true
+        case .identifier(let name):
+            return name.lowercased() == "pi"
+        case .unaryOperation(_, let expression):
+            return expression.isConstantMeasurementExpression
+        case .binaryOperation(_, let lhs, let rhs):
+            return lhs.isConstantMeasurementExpression && rhs.isConstantMeasurementExpression
+        case .functionCall(let name, let arguments):
+            return !Self.measurementVariableFunctions.contains(name.lowercased())
+                && arguments.allSatisfy(\.isConstantMeasurementExpression)
+        case .conditional(let condition, let then, let `else`):
+            return condition.isConstantMeasurementExpression
+                && then.isConstantMeasurementExpression
+                && `else`.isConstantMeasurementExpression
+        }
+    }
+
+    private static let measurementVariableFunctions: Set<String> = ["v", "i"]
+}
+
+private extension ComponentType {
+    var requiresModelForNativeExecution: Bool {
+        switch self {
+        case .diode, .bjt, .mosfet:
+            return true
+        default:
+            return false
+        }
+    }
+
+    func accepts(model: ParsedModel) -> Bool {
+        switch self {
+        case .diode:
+            return model.type == .diode
+        case .bjt:
+            return model.type == .npn || model.type == .pnp
+        case .mosfet:
+            return model.type == .nmos || model.type == .pmos
+        case .jfet:
+            return model.type == .njf || model.type == .pjf
+        case .mesfet:
+            return model.type == .nmf || model.type == .pmf
+        case .switch_:
+            return model.type == .sw
+        case .currentSwitch:
+            return model.type == .csw
+        case .transmissionLine:
+            return model.type == .ltra
+        default:
+            return true
+        }
     }
 }

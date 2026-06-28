@@ -31,6 +31,7 @@ public struct DeviceRegistry: Sendable {
         registry.register(VCCSDescriptor())
         registry.register(CCVSDescriptor())
         registry.register(CCCSDescriptor())
+        registry.register(VoltageControlledSwitchDescriptor())
         registry.register(NMOSL1Descriptor())
         registry.register(PMOSL1Descriptor())
         registry.register(NMOSL2Descriptor())

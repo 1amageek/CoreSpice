@@ -163,6 +163,10 @@ public enum Waveform: Sendable {
 | `vccs` | Voltage-controlled current source | pos_out, neg_out, pos_ctrl, neg_ctrl | g |
 | `ccvs` | Current-controlled voltage source | pos_out, neg_out, pos_sense, neg_sense | h |
 | `cccs` | Current-controlled current source | pos_out, neg_out, pos_sense, neg_sense | f |
+| `vswitch` | Voltage-controlled switch | pos, neg, control_pos, control_neg | ron, roff, vt, vh |
+| `diode` | PN junction diode | anode, cathode | model parameters have defaults |
+| `npn` | NPN bipolar transistor | collector, base, emitter, substrate | model parameters have defaults |
+| `pnp` | PNP bipolar transistor | collector, base, emitter, substrate | model parameters have defaults |
 | `nmos_l1` | N-channel MOSFET Level 1 | drain, gate, source, bulk | w, l (all have defaults) |
 | `pmos_l1` | P-channel MOSFET Level 1 | drain, gate, source, bulk | w, l (all have defaults) |
 | `nmos_l2` | N-channel MOSFET Level 2 | drain, gate, source, bulk | w, l (all have defaults) |
@@ -184,19 +188,23 @@ public enum Waveform: Sendable {
 - [x] MOSFET source-drain reversal handling (symmetric operation)
 - [x] MOSFET Level 2/3 models (mobility degradation, DIBL, velocity saturation)
 - [x] All four controlled source types (VCVS, VCCS, CCVS, CCCS)
+- [x] Diode DC/AC/transient stamping with junction capacitance and noise hooks
+- [x] BJT DC/AC/transient stamping with junction capacitance and noise hooks
+- [x] Voltage-controlled switch execution from SPICE `S` elements and `.model SW` parameters
 - [x] Device registry with dynamic registration
 
 ### Incomplete/Missing Features
 
-- [ ] **Diode model**: No PN junction diode implementation
-- [ ] **BJT (Bipolar Junction Transistor)**: Not implemented
 - [ ] **BSIM models**: No advanced MOSFET models
-- [ ] **Parasitic capacitances**: MOSFETs lack Cgs, Cgd, Cds
-- [ ] **Temperature modeling**: All devices assume nominal temperature
-- [ ] **Noise analysis**: No noise models for any device
+- [ ] **JFET/MESFET execution**: Parsed components are not lowered to executable native devices
+- [ ] **Current-controlled switch execution**: `W`/CSW models still fail during lowering with typed diagnostics
+- [ ] **Transmission lines**: Not implemented
+- [ ] **Behavioral source execution**: B-source expressions are not executable native devices
+- [ ] **Advanced parasitic capacitances**: MOSFET capacitance coverage remains limited compared with foundry-grade models
+- [ ] **Temperature modeling**: Device behavior still assumes nominal temperature in most execution paths
+- [ ] **Noise analysis breadth**: Existing noise hooks do not yet amount to full simulator-level noise analysis
 - [ ] **Parameter expressions**: Waveform parameters not exposed through instance parameters
 - [ ] **Mutual inductance**: No coupled inductor support
-- [ ] **Transmission lines**: Not implemented
 
 ## Code Review Notes
 

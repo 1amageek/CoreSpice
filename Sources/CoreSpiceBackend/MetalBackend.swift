@@ -34,7 +34,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
             self.library = lib
         } else {
             do {
-                self.library = try dev.makeDefaultLibrary(bundle: Bundle.module)
+                self.library = try MetalBackend.makeDefaultLibrary(device: dev)
             } catch {
                 throw BackendError.shaderCompilationFailed(
                     "Failed to load shader library: \(error.localizedDescription)"
@@ -69,7 +69,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
             self.library = lib
         } else {
             do {
-                self.library = try matchedDevice.makeDefaultLibrary(bundle: Bundle.module)
+                self.library = try MetalBackend.makeDefaultLibrary(device: matchedDevice)
             } catch {
                 throw BackendError.shaderCompilationFailed(
                     "Failed to load shader library: \(error.localizedDescription)"
@@ -80,6 +80,10 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         self.pool = BufferPool(device: matchedDevice)
         self.maxBufferSize = Mutex(256 * 1024 * 1024)
         self.profilingEnabled = Mutex(false)
+    }
+
+    private static func makeDefaultLibrary(device: MTLDevice) throws -> MTLLibrary {
+        try device.makeLibrary(source: PhotonicMetalLibrarySource.source, options: nil)
     }
 
     public static func createIfAvailable() -> MetalBackend? {

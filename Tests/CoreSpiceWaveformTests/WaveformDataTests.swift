@@ -318,6 +318,46 @@ struct WaveformDataTests {
     }
 
     @Test
+    func transientConversionPreservesSemanticVariableNames() {
+        let vdd = Node(id: 1)
+        let out = Node(id: 2)
+        let sourceBranch = Branch(id: 0)
+        let trace = SolutionTrace(
+            variableCount: 3,
+            rowMajorValues: [
+                1.8, 0.0, -0.001,
+                1.8, 0.9, -0.0005
+            ]
+        )
+        let result = TransientResult(
+            timePoints: [0.0, 1.0e-9],
+            solutionTrace: trace,
+            variableMap: [
+                .nodeVoltage(vdd): 0,
+                .nodeVoltage(out): 1,
+                .branchCurrent(sourceBranch): 2
+            ],
+            timeSteps: 1,
+            rejectedSteps: 0
+        )
+        let topology = CircuitTopology(ir: CircuitIR(
+            nodes: [.ground, vdd, out],
+            branches: [sourceBranch],
+            instances: [],
+            nodeNames: [.ground: "0", vdd: "vdd", out: "out"],
+            branchNames: [sourceBranch: "VDD"]
+        ))
+
+        let waveform = WaveformData.from(
+            transientResult: result,
+            topology: topology,
+            title: "Converted"
+        )
+
+        #expect(waveform.variables.map(\.name) == ["V(vdd)", "V(out)", "I(VDD)"])
+    }
+
+    @Test
     func transientConversionUsesPrecomputedVariableLayout() {
         let node = Node(id: 1)
         let trace = SolutionTrace(

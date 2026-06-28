@@ -248,6 +248,73 @@ struct NetlistLoweringTests {
     }
 
     @Test
+    func lowerResolvesOutOfOrderParameterDependencies() throws {
+        let netlist = ParsedNetlist(
+            components: [
+                ParsedComponent(
+                    name: "R1",
+                    type: .resistor,
+                    nodes: ["in", "out"],
+                    parameters: ["r": .expression(.identifier("rload"))]
+                )
+            ],
+            parameters: [
+                "rload": .binaryOperation(.multiply, .identifier("runit"), .literal(4)),
+                "runit": .literal(500)
+            ]
+        )
+
+        let circuit = try NetlistLowering().lower(netlist)
+
+        if case .real(let r) = circuit.instances[0].parameters["r"] {
+            #expect(r == 2000.0)
+        } else {
+            Issue.record("Expected lowered resistor parameter.")
+        }
+    }
+
+    @Test
+    func lowerVoltageControlledSwitchWithModelParameters() throws {
+        let netlist = ParsedNetlist(
+            components: [
+                ParsedComponent(
+                    name: "S1",
+                    type: .switch_,
+                    nodes: ["in", "out", "ctrl", "0"],
+                    modelName: "swmod"
+                )
+            ],
+            models: [
+                ParsedModel(
+                    name: "swmod",
+                    type: .sw,
+                    parameters: [
+                        "ron": .numeric(10),
+                        "roff": .numeric(1.0e9),
+                        "vt": .numeric(2),
+                        "vh": .numeric(0.1),
+                    ]
+                )
+            ]
+        )
+
+        let circuit = try NetlistLowering().lower(netlist)
+
+        let instance = try #require(circuit.instances.first)
+        #expect(instance.typeName == "vswitch")
+        if case .real(let onResistance) = instance.parameters["ron"] {
+            #expect(onResistance == 10)
+        } else {
+            Issue.record("Expected lowered switch on resistance.")
+        }
+        if case .real(let threshold) = instance.parameters["vt"] {
+            #expect(threshold == 2)
+        } else {
+            Issue.record("Expected lowered switch threshold.")
+        }
+    }
+
+    @Test
     func lowerWithUserDefinedFunctionParameter() throws {
         let netlist = ParsedNetlist(
             components: [
@@ -412,6 +479,41 @@ struct SubcircuitExpansionTests {
     }
 
     @Test
+    func subcircuitDefaultParametersCanDependOnOverriddenPublicParameters() throws {
+        let resistor = ParsedComponent(
+            name: "R1",
+            type: .resistor,
+            nodes: ["p", "n"],
+            parameters: ["r": .expression(.identifier("bottom"))]
+        )
+        let subcircuit = ParsedSubcircuit(
+            name: "load",
+            ports: ["p", "n"],
+            parameters: [
+                "top": .numeric(1000),
+                "bottom": .expression(.binaryOperation(.multiply, .identifier("top"), .literal(2)))
+            ],
+            body: ParsedNetlistBody(components: [resistor])
+        )
+        let instance = ParsedComponent(
+            name: "X1",
+            type: .subcircuitInstance,
+            nodes: ["a", "0"],
+            modelName: "load",
+            parameters: ["top": .numeric(1500)]
+        )
+        let netlist = ParsedNetlist(components: [instance], subcircuits: [subcircuit])
+
+        let circuit = try NetlistLowering().lower(netlist)
+
+        if case .real(let r) = circuit.instances[0].parameters["r"] {
+            #expect(r == 3000.0)
+        } else {
+            Issue.record("Expected lowered resistor parameter.")
+        }
+    }
+
+    @Test
     func subcircuitBodyParametersAreScopedAndLowered() throws {
         let resistor = ParsedComponent(
             name: "R1",
@@ -498,6 +600,109 @@ struct SubcircuitExpansionTests {
             }
             #expect(name == "ambiguous_res")
             #expect(reason.contains("conflicts with a public subcircuit parameter"))
+        }
+    }
+
+    @Test
+    func behavioralSourceLoweringFailsLoudly() throws {
+        let behavioral = ParsedComponent(
+            name: "Bgain",
+            type: .behavioral,
+            nodes: ["out", "0"],
+            parameters: [
+                "v": .expression(.functionCall(name: "V", arguments: [.identifier("in")]))
+            ]
+        )
+        let netlist = ParsedNetlist(components: [behavioral])
+
+        do {
+            _ = try NetlistLowering().lower(netlist)
+            Issue.record("Expected behavioral source lowering to fail.")
+        } catch let error as LoweringError {
+            guard case .invalidComponent(let name, let reason) = error else {
+                Issue.record("Unexpected lowering error: \(error)")
+                return
+            }
+            #expect(name == "Bgain")
+            #expect(reason.contains("Behavioral B-source"))
+        }
+    }
+
+    @Test
+    func unsupportedCompactModelFailsBeforeAnalysisBinding() throws {
+        let mosfet = ParsedComponent(
+            name: "M1",
+            type: .mosfet,
+            nodes: ["d", "g", "s", "b"],
+            modelName: "bsim",
+            parameters: [
+                "w": .numeric(1e-6),
+                "l": .numeric(1e-6)
+            ]
+        )
+        let netlist = ParsedNetlist(
+            components: [mosfet],
+            models: [ParsedModel(name: "bsim", type: .nmos, level: 49)]
+        )
+
+        do {
+            _ = try NetlistLowering().lower(netlist)
+            Issue.record("Expected BSIM model lowering to fail.")
+        } catch let error as LoweringError {
+            guard case .invalidComponent(let name, let reason) = error else {
+                Issue.record("Unexpected lowering error: \(error)")
+                return
+            }
+            #expect(name == "M1")
+            #expect(reason.contains("level 49"))
+        }
+    }
+
+    @Test
+    func missingReferencedModelFailsBeforeAnalysisBinding() throws {
+        let diode = ParsedComponent(
+            name: "D1",
+            type: .diode,
+            nodes: ["a", "0"],
+            modelName: "missing"
+        )
+        let netlist = ParsedNetlist(components: [diode])
+
+        do {
+            _ = try NetlistLowering().lower(netlist)
+            Issue.record("Expected missing model lowering to fail.")
+        } catch let error as LoweringError {
+            guard case .undefinedModel(let name, _) = error else {
+                Issue.record("Unexpected lowering error: \(error)")
+                return
+            }
+            #expect(name == "missing")
+        }
+    }
+
+    @Test
+    func modelDependentComponentWithoutModelFailsBeforeAnalysisBinding() throws {
+        let mosfet = ParsedComponent(
+            name: "M1",
+            type: .mosfet,
+            nodes: ["d", "g", "s", "b"],
+            parameters: [
+                "w": .numeric(1e-6),
+                "l": .numeric(1e-6)
+            ]
+        )
+        let netlist = ParsedNetlist(components: [mosfet])
+
+        do {
+            _ = try NetlistLowering().lower(netlist)
+            Issue.record("Expected missing model reference to fail.")
+        } catch let error as LoweringError {
+            guard case .invalidComponent(let name, let reason) = error else {
+                Issue.record("Unexpected lowering error: \(error)")
+                return
+            }
+            #expect(name == "M1")
+            #expect(reason.contains(".model reference"))
         }
     }
 

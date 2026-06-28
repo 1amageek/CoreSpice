@@ -64,11 +64,59 @@ def run_corespice(corespice, deck, workdir):
 
 
 def cs_col(header, vname):
-    """Column index of a value (e.g. 'V(3)' or 'V(3)_real') in the CoreSpice CSV."""
+    """Column index of a value in the CoreSpice CSV.
+
+    Current artifacts prefer stable SPICE-facing names such as V(out) and I(v1).
+    Older gate checks may still ask for legacy numeric names such as V(3) or
+    I(0). Resolve those by column order so the trust gate validates simulator
+    behavior instead of depending on an internal node-number presentation.
+    """
     for i, c in enumerate(header):
         if c.split(" ")[0] == vname:
             return i
+    legacy = legacy_cs_col(header, vname)
+    if legacy is not None:
+        return legacy
     raise KeyError(f"{vname} not in {header}")
+
+
+def legacy_cs_col(header, vname):
+    suffix = ""
+    base = vname
+    for candidate in ("_real", "_imag"):
+        if vname.endswith(candidate):
+            suffix = candidate
+            base = vname[:-len(candidate)]
+            break
+
+    if len(base) < 4 or base[1] != "(" or not base.endswith(")"):
+        return None
+    prefix = base[0]
+    if prefix not in ("V", "I"):
+        return None
+
+    raw_index = base[2:-1]
+    if not raw_index.isdigit():
+        return None
+    requested = int(raw_index)
+    position = requested - 1 if prefix == "V" else requested
+    if position < 0:
+        return None
+
+    matches = []
+    for index, column in enumerate(header):
+        name = column.split(" ")[0]
+        if not name.startswith(f"{prefix}("):
+            continue
+        if suffix:
+            if name.endswith(suffix):
+                matches.append(index)
+        elif not name.endswith("_real") and not name.endswith("_imag"):
+            matches.append(index)
+
+    if position < len(matches):
+        return matches[position]
+    return None
 
 
 def run_ngspice(ngspice, deck, control, vectors, workdir):

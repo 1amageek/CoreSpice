@@ -52,11 +52,16 @@ This slice adds:
 | `.probe` parse | Implemented and preserved. |
 | `.save V(...) I(...)` preservation | Improved to keep call-like variable text. |
 | `.include` / `.lib` evidence | Preserved even when includes are resolved inline. |
+| `.lib` nested include corpus | Implemented with local filesystem regression for `.include` inside a named `.lib` section, resolved relative to the library file. |
 | `.endl` | Recognized to avoid false unsupported-directive failures. |
 | `.ic V(node)=value` and `.nodeset V(node)=value` | Implemented and preserved as control evidence. |
 | Public parse overload with resolver | Implemented through `SPICEIO.parse(... configuration:fileResolver:)`. |
 | `.options` execution bridge | Implemented through `SPICEAnalysisOptions`, mapping supported tolerances and transient options into analysis configuration with warnings for unapplied options. |
 | `.measure` execution bridge | Implemented through `SPICEMeasureEvaluator`, producing structured post-analysis measurement results from `WaveformData`. |
+| `.measure` expression support | Implemented for braced output expressions, expression-based `WHEN` crossings, constant expression range fields, and target-expression interpolation. |
+| Behavioral source intent | Implemented as parsed/preserved B-source component intent with coverage-blocked execution and explicit lowering failure. |
+| Model execution coverage | Implemented in `SPICEDeckCoverageReport` for top-level and subcircuit-local `.model` cards. Diode, BJT, and MOS L1-L3 models are classified as executable; BSIM3/BSIM4, JFET, MESFET, LTRA, and switch models are blocked with explicit reasons. |
+| Model-dependent lowering validation | Implemented before analysis binding. Missing model references, mismatched model families, unsupported compact-model levels, behavioral sources, switches, transmission lines, JFET/MESFET, uniform RC, and coupled inductors fail with typed lowering errors instead of falling through to device binding. |
 | CLI execution intent wiring | Implemented: parsed options configure OP/DC/AC/tran runs and parsed measurements are evaluated after analysis. |
 | Deck coverage artifact | Implemented through `SPICEDeckCoverageReport` and CLI `--coverage-json`, classifying parsed items as preserved/applied/supported/warning/blocked. |
 | Conditional deck syntax | Implemented through a line-preserving `.if/.elseif/.else/.endif` preprocessor. Inactive branches are blanked before token parsing, invalid syntax in inactive branches cannot leak into parser diagnostics, invalid active conditions fail closed, and branch-selection evidence is recorded in `ParsedNetlist.controls` for coverage artifacts. |
@@ -65,7 +70,6 @@ This slice adds:
 
 | Gap | Required behavior |
 |---|---|
-| `.lib` nested parser corpus | Add local filesystem tests for nested `.include` inside named `.lib` sections. |
-| `.measure` expression support | Add expression-based `WHEN` and expression output variables, or keep failing with typed unsupported-measure errors. |
-| behavioral source parse | Parse B-source and nonlinear E/G expressions into a separate unsupported/executable path. |
-| model coverage report | Extend deck coverage with compact-model execution coverage once M3 model support is implemented. |
+| behavioral source execution | Execute B-source and nonlinear E/G expressions, or keep blocked coverage / lowering diagnostics as the explicit unsupported path. |
+| compact model execution | Implement BSIM3/BSIM4 or an OSDI/plugin path for foundry MOS decks. Until then, coverage and lowering must keep rejecting these models before simulation. |
+| unsupported device execution | Implement or keep explicitly blocked JFET, MESFET, LTRA, switch, uniform-RC, and coupled-inductor execution paths. |

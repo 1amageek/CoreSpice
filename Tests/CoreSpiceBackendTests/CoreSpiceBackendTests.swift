@@ -1,4 +1,5 @@
 import Testing
+@preconcurrency import Metal
 @testable import CoreSpiceBackend
 
 @Suite("CoreSpiceBackend Tests")
@@ -26,9 +27,27 @@ struct CoreSpiceBackendTests {
         let err2 = BackendError.kernelNotFound("testKernel")
         let err3 = BackendError.bufferAllocationFailed(size: 1024, label: "test")
 
-        // Just verify these are valid Error types
-        #expect(err1 is BackendError)
-        #expect(err2 is BackendError)
-        #expect(err3 is BackendError)
+        guard case .metalNotAvailable = err1 else {
+            Issue.record("Expected metalNotAvailable error.")
+            return
+        }
+        guard case .kernelNotFound("testKernel") = err2 else {
+            Issue.record("Expected kernelNotFound error.")
+            return
+        }
+        guard case .bufferAllocationFailed(size: 1024, label: "test") = err3 else {
+            Issue.record("Expected bufferAllocationFailed error.")
+            return
+        }
+    }
+
+    @Test func metalBackendLoadsDefaultPhotonicKernelsWhenAvailable() throws {
+        guard MTLCreateSystemDefaultDevice() != nil else {
+            return
+        }
+
+        let backend = try MetalBackend()
+        _ = try backend.loadKernel(named: "applyLayer512_even")
+        _ = try backend.loadKernel(named: "applyLayer512_odd")
     }
 }

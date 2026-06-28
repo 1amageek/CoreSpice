@@ -45,6 +45,25 @@ struct CoreSpiceIRTests {
         #expect(ir.instances.count == 1)
         #expect(ir.instances[0].name == "R1")
         #expect(ir.instances[0].typeName == "resistor")
+        #expect(ir.name(for: n1) == "1")
+        #expect(ir.name(for: n2) == "2")
+        #expect(ir.name(for: .ground) == "0")
+    }
+
+    @Test func netlistBuildsCircuitIRWithBranchNames() throws {
+        var netlist = Netlist()
+        let branch = netlist.branch(name: "VDD")
+        try netlist.addInstance(
+            name: "VDD",
+            typeName: "vsource",
+            nodes: ["vdd", "0"],
+            parameters: ["v": .real(1.8)]
+        )
+
+        let ir = try netlist.build()
+
+        #expect(ir.name(for: branch) == "VDD")
+        #expect(ir.branches == [branch])
     }
 
     @Test func netlistRejectsDuplicateNames() throws {

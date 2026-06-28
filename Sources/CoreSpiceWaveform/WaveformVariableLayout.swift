@@ -9,14 +9,17 @@ public struct WaveformVariableLayout: Sendable {
     public let variables: [VariableDescriptor]
 
     public init(variableMap: [MNAVariable: Int], topology: CircuitTopology) {
-        self.variables = Self.buildVariableDescriptors(from: variableMap)
+        self.variables = Self.buildVariableDescriptors(from: variableMap, topology: topology)
     }
 
-    private static func buildVariableDescriptors(from variableMap: [MNAVariable: Int]) -> [VariableDescriptor] {
+    private static func buildVariableDescriptors(
+        from variableMap: [MNAVariable: Int],
+        topology: CircuitTopology
+    ) -> [VariableDescriptor] {
         var variables: [VariableDescriptor?] = Array(repeating: nil, count: variableMap.count)
         for (mnaVariable, solverIndex) in variableMap {
             precondition(solverIndex >= 0 && solverIndex < variables.count, "MNA variable index out of range")
-            variables[solverIndex] = descriptor(for: mnaVariable, index: solverIndex)
+            variables[solverIndex] = descriptor(for: mnaVariable, topology: topology, index: solverIndex)
         }
         return variables.map { descriptor in
             guard let descriptor else {
@@ -26,18 +29,22 @@ public struct WaveformVariableLayout: Sendable {
         }
     }
 
-    private static func descriptor(for variable: MNAVariable, index: Int) -> VariableDescriptor {
+    private static func descriptor(
+        for variable: MNAVariable,
+        topology: CircuitTopology,
+        index: Int
+    ) -> VariableDescriptor {
         switch variable {
         case .nodeVoltage(let node):
             return VariableDescriptor(
-                name: "V(\(node.id))",
+                name: "V(\(topology.name(for: node) ?? String(node.id)))",
                 unit: .volt,
                 type: .voltage,
                 index: index
             )
         case .branchCurrent(let branch):
             return VariableDescriptor(
-                name: "I(\(branch.id))",
+                name: "I(\(topology.name(for: branch) ?? String(branch.id)))",
                 unit: .ampere,
                 type: .current,
                 index: index

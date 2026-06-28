@@ -9,6 +9,8 @@ public struct CircuitIR: Sendable {
     public let branches: [Branch]
     public let instances: [Instance]
     public let groundNode: Node
+    public let nodeNames: [Node: String]
+    public let branchNames: [Branch: String]
 
     /// Optical nodes in the circuit (empty for purely electrical circuits).
     public let opticalNodes: [OpticalNode]
@@ -21,6 +23,8 @@ public struct CircuitIR: Sendable {
         branches: [Branch],
         instances: [Instance],
         groundNode: Node = .ground,
+        nodeNames: [Node: String] = [:],
+        branchNames: [Branch: String] = [:],
         opticalNodes: [OpticalNode] = [],
         opticalConnections: [OpticalConnection] = []
     ) {
@@ -28,8 +32,18 @@ public struct CircuitIR: Sendable {
         self.branches = branches
         self.instances = instances
         self.groundNode = groundNode
+        self.nodeNames = nodeNames
+        self.branchNames = branchNames
         self.opticalNodes = opticalNodes
         self.opticalConnections = opticalConnections
+    }
+
+    public func name(for node: Node) -> String? {
+        nodeNames[node]
+    }
+
+    public func name(for branch: Branch) -> String? {
+        branchNames[branch]
     }
 }
 
@@ -52,6 +66,10 @@ public struct CircuitTopology: Sendable {
     /// Maps each MNA variable to its row/column index in the system matrix.
     public let variableMap: [MNAVariable: Int]
 
+    public let nodeNames: [Node: String]
+
+    public let branchNames: [Branch: String]
+
     /// Builds topology from a circuit IR.
     ///
     /// Nodes excluding ground receive indices `0 ..< nodeCount`.
@@ -64,6 +82,8 @@ public struct CircuitTopology: Sendable {
         self.nodeCount = nonGroundNodes.count
         self.branchCount = sortedBranches.count
         self.matrixSize = nonGroundNodes.count + sortedBranches.count
+        self.nodeNames = ir.nodeNames
+        self.branchNames = ir.branchNames
 
         var map: [MNAVariable: Int] = [:]
         map.reserveCapacity(matrixSize)
@@ -77,5 +97,13 @@ public struct CircuitTopology: Sendable {
         }
 
         self.variableMap = map
+    }
+
+    public func name(for node: Node) -> String? {
+        nodeNames[node]
+    }
+
+    public func name(for branch: Branch) -> String? {
+        branchNames[branch]
     }
 }

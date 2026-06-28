@@ -211,6 +211,79 @@ struct SPICEExecutionIntentTests {
     }
 
     @Test
+    func evaluatesExpressionMeasurementsAndWhenCrossings() throws {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                title: "expression fixture",
+                analysisType: .transient,
+                pointCount: 5,
+                variableCount: 2
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0, 1, 2, 3, 4],
+            variables: [
+                .voltage(node: "out", index: 0),
+                .voltage(node: "in", index: 1)
+            ],
+            realData: [
+                [0, 0],
+                [1, 0.5],
+                [2, 1.0],
+                [3, 1.5],
+                [4, 2.0]
+            ]
+        )
+
+        let outputExpression = ParsedExpression.binaryOperation(
+            .subtract,
+            .functionCall(name: "V", arguments: [.identifier("out")]),
+            .functionCall(name: "V", arguments: [.identifier("in")])
+        )
+        let crossingCondition = ParsedExpression.binaryOperation(
+            .greaterOrEqual,
+            .functionCall(name: "V", arguments: [.identifier("out")]),
+            .literal(2.5)
+        )
+        let targetCondition = ParsedExpression.binaryOperation(
+            .equal,
+            .functionCall(name: "V", arguments: [.identifier("out")]),
+            .literal(2.0)
+        )
+
+        let measures: [MeasureSpec] = [
+            MeasureSpec(
+                analysisType: .transient,
+                resultName: "avg_diff",
+                measureType: .average(
+                    variable: .expression(outputExpression),
+                    from: .expression(.binaryOperation(.add, .literal(0.5), .literal(0.5))),
+                    to: .numeric(3)
+                )
+            ),
+            MeasureSpec(
+                analysisType: .transient,
+                resultName: "cross_time",
+                measureType: .when(condition: crossingCondition, target: nil)
+            ),
+            MeasureSpec(
+                analysisType: .transient,
+                resultName: "cross_target",
+                measureType: .when(
+                    condition: targetCondition,
+                    target: .functionCall(name: "V", arguments: [.identifier("in")])
+                )
+            )
+        ]
+
+        let results = try SPICEMeasureEvaluator().evaluate(measures: measures, waveform: waveform)
+
+        #expect(results.count == 3)
+        #expect(approximately(result(named: "avg_diff", in: results), 1.0))
+        #expect(approximately(result(named: "cross_time", in: results), 2.5))
+        #expect(approximately(result(named: "cross_target", in: results), 1.0))
+    }
+
+    @Test
     func deckCoverageReportClassifiesExecutionIntent() async throws {
         let source = """
         coverage deck
@@ -220,7 +293,8 @@ struct SPICEExecutionIntentTests {
         .tran 1n 10n
         .save V(out)
         .meas tran vmax max V(out) from=0 to=10n
-        .meas tran unsupported when threshold_crossed
+        .meas tran cross when V(out)=1
+        .meas tran unsupported unknown_measure threshold_crossed
         .end
         """
 
@@ -233,7 +307,7 @@ struct SPICEExecutionIntentTests {
 
         #expect(report.summary.totalItems > 0)
         #expect(report.summary.appliedItems >= 2)
-        #expect(report.summary.supportedItems >= 2)
+        #expect(report.summary.supportedItems >= 3)
         #expect(report.summary.warningItems == 2)
         #expect(report.summary.blockedItems == 2)
         #expect(report.hasBlockedItems)
@@ -308,6 +382,68 @@ struct SPICEExecutionIntentTests {
         #expect(item(named: "param:top_scale", in: report)?.status == .applied)
         #expect(item(named: "subckt:cell/param:local_r", in: report)?.status == .applied)
         #expect(item(named: "param:local_r", in: report) == nil)
+    }
+
+    @Test
+    func deckCoverageBlocksBehavioralSourcesAsUnsupportedIntent() async throws {
+        let source = """
+        behavioral source coverage deck
+        Vin in 0 dc 1
+        Bgain out 0 V={V(in) * 2}
+        .tran 1n 10n
+        .end
+        """
+
+        let parseResult = await SPICEIO.parse(source, fileName: "behavioral-source-coverage.cir")
+        let netlist = try parseResult.get()
+        let report = SPICEDeckCoverageReport.generate(
+            from: netlist,
+            parserDiagnostics: parseResult.diagnostics
+        )
+
+        let behavioral = try #require(netlist.components.first { $0.name == "bgain" })
+        #expect(behavioral.type == .behavioral)
+        #expect(behavioral.parameters["v"] != nil)
+        #expect(item(named: "component:bgain", in: report)?.status == .blocked)
+        #expect(item(named: "component:bgain", in: report)?.message.contains("not implemented") == true)
+        #expect(report.hasBlockedItems)
+    }
+
+    @Test
+    func deckCoverageReportsModelAndDeviceExecutionGaps() async throws {
+        let source = """
+        model coverage deck
+        .model dmod d
+        .model nch nmos level=1
+        .model sky nmos level=49
+        .model swmod sw
+        D1 out 0 dmod
+        M1 out in 0 0 nch w=1u l=1u
+        M2 out in 0 0 sky w=1u l=1u
+        S1 out 0 ctrl 0 swmod
+        J1 out in 0 jmod
+        .op
+        .end
+        """
+
+        let parseResult = await SPICEIO.parse(source, fileName: "model-coverage.cir")
+        let netlist = try parseResult.get()
+        let report = SPICEDeckCoverageReport.generate(
+            from: netlist,
+            parserDiagnostics: parseResult.diagnostics
+        )
+
+        #expect(item(named: "model:dmod", in: report)?.status == .supported)
+        #expect(item(named: "model:nch", in: report)?.status == .supported)
+        #expect(item(named: "model:sky", in: report)?.status == .blocked)
+        #expect(item(named: "model:sky", in: report)?.message.contains("level 49") == true)
+        #expect(item(named: "model:swmod", in: report)?.status == .blocked)
+        #expect(item(named: "component:d1", in: report)?.status == .supported)
+        #expect(item(named: "component:m1", in: report)?.status == .supported)
+        #expect(item(named: "component:m2", in: report)?.status == .blocked)
+        #expect(item(named: "component:s1", in: report)?.status == .blocked)
+        #expect(item(named: "component:j1", in: report)?.status == .blocked)
+        #expect(report.hasBlockedItems)
     }
 }
 

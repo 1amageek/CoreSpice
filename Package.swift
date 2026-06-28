@@ -28,8 +28,7 @@ let package = Package(
 
         // --- Backend ---
         .target(name: "CoreSpiceBackend", dependencies: ["CoreSpiceEvent", "SharedTypes"],
-                exclude: ["README.md"],
-                resources: [.process("Shaders")]),
+                exclude: ["README.md", "Shaders"]),
 
         // --- Analysis ---
         .target(name: "CoreSpiceAnalysis",

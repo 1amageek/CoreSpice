@@ -107,12 +107,11 @@ public struct NetlistLowering: Sendable {
         }
 
         // Evaluate global parameters
-        let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
         if configuration.evaluateExpressions {
-            for (name, expr) in netlist.parameters {
-                let value = try evaluator.evaluate(expr)
-                context.setParameter(name, value: value)
-            }
+            try ParameterExpressionResolver(
+                context: context,
+                randomUniform: randomUniform
+            ).resolveGlobal(netlist.parameters)
         }
 
         // Apply parameter overrides (these take precedence over netlist parameters)

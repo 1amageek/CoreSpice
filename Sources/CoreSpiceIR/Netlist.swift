@@ -9,6 +9,8 @@ public struct Netlist: Sendable {
     private var nextBranchID: Int = 0
     private var nextOpticalNodeID: Int = 1  // 0 is reserved for optical ground
     private var nodes: [String: Node] = ["0": .ground, "gnd": .ground]
+    private var nodeNames: [Node: String] = [.ground: "0"]
+    private var branchNames: [Branch: String] = [:]
     private var opticalNodeMap: [String: OpticalNode] = [:]
     private var instances: [Instance] = []
     private var branches: [Branch] = []
@@ -22,11 +24,15 @@ public struct Netlist: Sendable {
     @discardableResult
     public mutating func node(_ name: String) -> Node {
         if let existing = nodes[name] {
+            if nodeNames[existing] == nil {
+                nodeNames[existing] = name
+            }
             return existing
         }
         let n = Node(id: nextNodeID)
         nextNodeID += 1
         nodes[name] = n
+        nodeNames[n] = name
         return n
     }
 
@@ -45,10 +51,13 @@ public struct Netlist: Sendable {
     }
 
     /// Allocates a new branch variable for the MNA system.
-    public mutating func branch() -> Branch {
+    public mutating func branch(name: String? = nil) -> Branch {
         let b = Branch(id: nextBranchID)
         nextBranchID += 1
         branches.append(b)
+        if let name {
+            branchNames[b] = name
+        }
         return b
     }
 
@@ -191,6 +200,8 @@ public struct Netlist: Sendable {
             nodes: allNodes,
             branches: branches,
             instances: instances,
+            nodeNames: nodeNames,
+            branchNames: branchNames,
             opticalNodes: allOpticalNodes
         )
     }
