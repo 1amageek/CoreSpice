@@ -275,7 +275,7 @@ public struct NewtonRaphsonSolver: Sendable {
                 for i in 0..<n {
                     residualMatrix.addValue(row: i, col: i, value: config.gmin)
                 }
-                residualMatrix.multiply(vector: solution, into: &residualProduct)
+                try residualMatrix.checkedMultiply(vector: solution, into: &residualProduct)
                 for i in 0..<n {
                     let residual = abs(residualProduct[i] - residualRHS[i])
                     let tol = (branchCurrentIndices.contains(i) ? config.vntol : config.abstol)

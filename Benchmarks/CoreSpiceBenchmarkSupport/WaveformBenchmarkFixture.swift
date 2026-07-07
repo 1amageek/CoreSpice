@@ -33,7 +33,7 @@ public enum WaveformBenchmarkFixture {
         )
     }
 
-    public static func transientResult(pointCount: Int = 12_000, variableCount: Int = 12) -> TransientResult {
+    public static func transientResult(pointCount: Int = 12_000, variableCount: Int = 12) throws -> TransientResult {
         var timePoints: [Double] = []
         timePoints.reserveCapacity(pointCount)
         var rowMajorValues: [Double] = []
@@ -48,7 +48,7 @@ public enum WaveformBenchmarkFixture {
 
         return TransientResult(
             timePoints: timePoints,
-            solutionTrace: SolutionTrace(variableCount: variableCount, rowMajorValues: rowMajorValues),
+            solutionTrace: try SolutionTrace(variableCount: variableCount, rowMajorValues: rowMajorValues),
             variableMap: variableMap(count: variableCount),
             timeSteps: max(pointCount - 1, 0),
             rejectedSteps: 0

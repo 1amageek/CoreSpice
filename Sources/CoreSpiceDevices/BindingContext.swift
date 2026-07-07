@@ -10,6 +10,8 @@ public struct BindingContext: Sendable {
     public let variableMap: [MNAVariable: Int]
     public let matrixDimension: Int
     private var nextBranchID: Int
+    private let branchesByName: [String: Branch]
+    private var inductanceByBranch: [Branch: Double]
 
     /// Closure for pre-resolving CSR value indices at bind time.
     ///
@@ -21,11 +23,20 @@ public struct BindingContext: Sendable {
         variableMap: [MNAVariable: Int],
         matrixDimension: Int,
         nextBranchID: Int = 0,
+        branchNames: [Branch: String] = [:],
+        inductanceByBranch: [Branch: Double] = [:],
         stampIndexResolver: (@Sendable (_ row: Int, _ col: Int) -> Int?)? = nil
     ) {
         self.variableMap = variableMap
         self.matrixDimension = matrixDimension
         self.nextBranchID = nextBranchID
+        self.branchesByName = Dictionary(
+            branchNames.map { branch, name in
+                (name.lowercased(), branch)
+            },
+            uniquingKeysWith: { existing, _ in existing }
+        )
+        self.inductanceByBranch = inductanceByBranch
         self.stampIndexResolver = stampIndexResolver
     }
 
@@ -45,6 +56,21 @@ public struct BindingContext: Sendable {
     /// Returns the matrix index for a branch current variable.
     public func branchIndex(_ branch: Branch) -> Int? {
         variableMap[.branchCurrent(branch)]
+    }
+
+    /// Returns a branch variable by its source-level instance name.
+    public func branch(named name: String) -> Branch? {
+        branchesByName[name.lowercased()]
+    }
+
+    /// Records the inductance carried by an inductor branch.
+    public mutating func registerInductance(_ inductance: Double, for branch: Branch) {
+        inductanceByBranch[branch] = inductance
+    }
+
+    /// Returns the inductance carried by an inductor branch.
+    public func inductance(for branch: Branch) -> Double? {
+        inductanceByBranch[branch]
     }
 
     /// Pre-resolves the CSR value index for a matrix position.

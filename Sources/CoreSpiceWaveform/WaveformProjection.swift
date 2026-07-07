@@ -34,15 +34,46 @@ public struct WaveformProjection: Sendable {
         pointIndices: [Int]? = nil,
         variableIndices: [Int]? = nil
     ) {
-        precondition(basePointCount >= 0, "basePointCount must not be negative")
-        precondition(baseVariableCount >= 0, "baseVariableCount must not be negative")
-        if let pointIndices {
-            precondition(pointIndices.allSatisfy { $0 >= 0 && $0 < basePointCount })
-        }
-        if let variableIndices {
-            precondition(variableIndices.allSatisfy { $0 >= 0 && $0 < baseVariableCount })
-        }
+        let safeBasePointCount = max(basePointCount, 0)
+        let safeBaseVariableCount = max(baseVariableCount, 0)
+        let safePointIndices = pointIndices?.filter { $0 >= 0 && $0 < safeBasePointCount }
+        let safeVariableIndices = variableIndices?.filter { $0 >= 0 && $0 < safeBaseVariableCount }
 
+        self.init(
+            uncheckedBasePointCount: safeBasePointCount,
+            baseVariableCount: safeBaseVariableCount,
+            pointIndices: safePointIndices,
+            variableIndices: safeVariableIndices
+        )
+    }
+
+    public init(
+        validatingBasePointCount basePointCount: Int,
+        baseVariableCount: Int,
+        pointIndices: [Int]? = nil,
+        variableIndices: [Int]? = nil
+    ) throws {
+        try Self.validate(
+            basePointCount: basePointCount,
+            baseVariableCount: baseVariableCount,
+            pointIndices: pointIndices,
+            variableIndices: variableIndices
+        )
+
+        self.init(
+            uncheckedBasePointCount: basePointCount,
+            baseVariableCount: baseVariableCount,
+            pointIndices: pointIndices,
+            variableIndices: variableIndices
+        )
+    }
+
+    private init(
+        uncheckedBasePointCount basePointCount: Int,
+        baseVariableCount: Int,
+        pointIndices: [Int]?,
+        variableIndices: [Int]?
+    ) {
         let normalizedPointIndices = Self.identityOrNil(pointIndices, count: basePointCount)
         let normalizedVariableIndices = Self.identityOrNil(variableIndices, count: baseVariableCount)
 
@@ -57,6 +88,32 @@ public struct WaveformProjection: Sendable {
             normalizedVariableIndices,
             baseVariableCount: baseVariableCount
         )
+    }
+
+    private static func validate(
+        basePointCount: Int,
+        baseVariableCount: Int,
+        pointIndices: [Int]?,
+        variableIndices: [Int]?
+    ) throws {
+        guard basePointCount >= 0 else {
+            throw WaveformValidationError.negativePointCount(basePointCount)
+        }
+        guard baseVariableCount >= 0 else {
+            throw WaveformValidationError.negativeVariableCount(baseVariableCount)
+        }
+        if let invalidPoint = pointIndices?.first(where: { $0 < 0 || $0 >= basePointCount }) {
+            throw WaveformValidationError.pointProjectionOutOfRange(
+                index: invalidPoint,
+                pointCount: basePointCount
+            )
+        }
+        if let invalidVariable = variableIndices?.first(where: { $0 < 0 || $0 >= baseVariableCount }) {
+            throw WaveformValidationError.variableProjectionOutOfRange(
+                index: invalidVariable,
+                variableCount: baseVariableCount
+            )
+        }
     }
 
     public func basePointIndex(for point: Int) -> Int? {

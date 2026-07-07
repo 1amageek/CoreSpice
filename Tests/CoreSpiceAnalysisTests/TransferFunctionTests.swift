@@ -55,6 +55,47 @@ struct TransferFunctionTests {
         return (plan, devices, out)
     }
 
+    private func buildDividerWithInputInductor() throws -> (plan: ExecutionPlan, devices: [any BoundDevice], outNode: Node) {
+        var netlist = Netlist()
+        let _ = netlist.node("in")
+        let out = netlist.node("out")
+        let _ = netlist.branch()
+        let _ = netlist.branch()
+
+        try netlist.addInstance(
+            name: "V1", typeName: "vsource", nodes: ["in", "0"],
+            parameters: ["v": .real(5.0)]
+        )
+        try netlist.addInstance(
+            name: "L1", typeName: "inductor", nodes: ["in", "out"],
+            parameters: ["l": .real(1e-3)]
+        )
+        try netlist.addInstance(
+            name: "R1", typeName: "resistor", nodes: ["out", "0"],
+            parameters: ["r": .real(1000)]
+        )
+
+        let ir = try netlist.build()
+        let compiler = StandardCompiler()
+        let plan = try compiler.compile(ir: ir)
+
+        let registry = DeviceRegistry.standard()
+        let structure = plan.matrixStructure
+        var context = BindingContext(
+            variableMap: plan.topology.variableMap,
+            matrixDimension: plan.topology.dimension,
+            stampIndexResolver: { row, col in structure.index(row: row, col: col) }
+        )
+        var devices: [any BoundDevice] = []
+        for instance in ir.instances {
+            guard let desc = registry.descriptor(for: instance.typeName) else { continue }
+            let bound = try desc.bind(instance: instance, context: &context)
+            devices.append(bound)
+        }
+
+        return (plan, devices, out)
+    }
+
     /// Resistive voltage divider: V1(5V) -> R1(1k) -> out -> R2(1k) -> GND
     /// gain = R2 / (R1 + R2) = 0.5
     /// Zin  = R1 + R2 = 2000
@@ -141,6 +182,27 @@ struct TransferFunctionTests {
         let tfAnalysis = TransferFunctionAnalysis(
             outputNode: out,
             inputSourceName: "NONEXISTENT"
+        )
+        let solver = SparseLUSolver()
+        let token = CancellationToken()
+
+        await #expect(throws: AnalysisError.self) {
+            try await tfAnalysis.run(
+                plan: plan,
+                devices: devices,
+                solver: solver,
+                observer: nil,
+                cancellation: token
+            )
+        }
+    }
+
+    @Test func transferFunctionRejectsNonVoltageInputBranch() async throws {
+        let (plan, devices, out) = try buildDividerWithInputInductor()
+
+        let tfAnalysis = TransferFunctionAnalysis(
+            outputNode: out,
+            inputSourceName: "L1"
         )
         let solver = SparseLUSolver()
         let token = CancellationToken()

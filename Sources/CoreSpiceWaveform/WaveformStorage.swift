@@ -59,7 +59,16 @@ public enum WaveformStorage: Sendable {
             guard point >= 0, point < pointCount, variable >= 0, variable < variableCount else {
                 return nil
             }
-            return values[(point * variableCount) + variable]
+            guard let index = Self.rowMajorIndex(
+                point: point,
+                variable: variable,
+                values: values,
+                pointCount: pointCount,
+                variableCount: variableCount
+            ) else {
+                return nil
+            }
+            return values[index]
         case .complex(let data):
             guard point >= 0, point < data.count, variable >= 0, variable < data[point].count else { return nil }
             return data[point][variable].real
@@ -78,7 +87,16 @@ public enum WaveformStorage: Sendable {
             guard point >= 0, point < pointCount, variable >= 0, variable < variableCount else {
                 return nil
             }
-            return (real: values[(point * variableCount) + variable], imag: 0.0)
+            guard let index = Self.rowMajorIndex(
+                point: point,
+                variable: variable,
+                values: values,
+                pointCount: pointCount,
+                variableCount: variableCount
+            ) else {
+                return nil
+            }
+            return (real: values[index], imag: 0.0)
         case .complex(let data):
             guard point >= 0, point < data.count, variable >= 0, variable < data[point].count else { return nil }
             return data[point][variable]
@@ -95,9 +113,16 @@ public enum WaveformStorage: Sendable {
             return try data[point].withUnsafeBufferPointer(body)
         case .realRowMajor(let values, let pointCount, let variableCount):
             guard point >= 0, point < pointCount else { return nil }
+            guard Self.isValidRowMajorStorage(
+                values: values,
+                pointCount: pointCount,
+                variableCount: variableCount
+            ) else {
+                return nil
+            }
             let start = point * variableCount
             return try values.withUnsafeBufferPointer { buffer in
-                guard let base = buffer.baseAddress else {
+                guard variableCount > 0, let base = buffer.baseAddress else {
                     return try body(UnsafeBufferPointer(start: nil, count: 0))
                 }
                 return try body(UnsafeBufferPointer(start: base + start, count: variableCount))
@@ -112,6 +137,13 @@ public enum WaveformStorage: Sendable {
     ) rethrows -> R? {
         switch self {
         case .realRowMajor(let values, let pointCount, let variableCount):
+            guard Self.isValidRowMajorStorage(
+                values: values,
+                pointCount: pointCount,
+                variableCount: variableCount
+            ) else {
+                return nil
+            }
             return try values.withUnsafeBufferPointer { buffer in
                 try body(buffer, pointCount, variableCount)
             }
@@ -138,13 +170,29 @@ public enum WaveformStorage: Sendable {
         case .real(let data):
             let pointCount = data.count
             let variableCount = data.first?.count ?? 0
+            guard Self.isValidNestedRealStorage(data, variableCount: variableCount) else {
+                return nil
+            }
+            guard let valueCount = Self.expectedValueCount(
+                pointCount: pointCount,
+                variableCount: variableCount
+            ) else {
+                return nil
+            }
             var values: [Double] = []
-            values.reserveCapacity(pointCount * variableCount)
+            values.reserveCapacity(valueCount)
             for point in data {
                 values.append(contentsOf: point)
             }
             return (values, pointCount, variableCount)
         case .realRowMajor(let values, let pointCount, let variableCount):
+            guard Self.isValidRowMajorStorage(
+                values: values,
+                pointCount: pointCount,
+                variableCount: variableCount
+            ) else {
+                return nil
+            }
             return (values, pointCount, variableCount)
         case .complex:
             return nil
@@ -156,6 +204,16 @@ public enum WaveformStorage: Sendable {
         case .real(let data):
             return data
         case .realRowMajor(let values, let pointCount, let variableCount):
+            guard Self.isValidRowMajorStorage(
+                values: values,
+                pointCount: pointCount,
+                variableCount: variableCount
+            ) else {
+                return nil
+            }
+            guard variableCount > 0 else {
+                return Array(repeating: [], count: pointCount)
+            }
             return values.withUnsafeBufferPointer { buffer in
                 var rows: [[Double]] = []
                 rows.reserveCapacity(pointCount)
@@ -171,5 +229,57 @@ public enum WaveformStorage: Sendable {
         case .complex:
             return nil
         }
+    }
+
+    private static func isValidNestedRealStorage(_ data: [[Double]], variableCount: Int) -> Bool {
+        guard variableCount >= 0 else {
+            return false
+        }
+        return data.allSatisfy { $0.count == variableCount }
+    }
+
+    private static func expectedValueCount(pointCount: Int, variableCount: Int) -> Int? {
+        guard pointCount >= 0, variableCount >= 0 else {
+            return nil
+        }
+        guard pointCount == 0 || variableCount <= Int.max / pointCount else {
+            return nil
+        }
+        return pointCount * variableCount
+    }
+
+    private static func rowMajorIndex(
+        point: Int,
+        variable: Int,
+        values: [Double],
+        pointCount: Int,
+        variableCount: Int
+    ) -> Int? {
+        guard isValidRowMajorStorage(
+            values: values,
+            pointCount: pointCount,
+            variableCount: variableCount
+        ) else {
+            return nil
+        }
+        let index = (point * variableCount) + variable
+        guard index >= 0, index < values.count else {
+            return nil
+        }
+        return index
+    }
+
+    private static func isValidRowMajorStorage(
+        values: [Double],
+        pointCount: Int,
+        variableCount: Int
+    ) -> Bool {
+        guard pointCount >= 0, variableCount >= 0 else {
+            return false
+        }
+        guard pointCount == 0 || variableCount <= Int.max / pointCount else {
+            return false
+        }
+        return values.count == pointCount * variableCount
     }
 }

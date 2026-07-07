@@ -59,6 +59,21 @@ public struct WaveformDataView: WaveformReadable {
     }
 
     public init(
+        validatingBase base: any WaveformReadable,
+        pointIndices: [Int]? = nil,
+        variableIndices: [Int]? = nil
+    ) throws {
+        try self.init(
+            validatingBase: base,
+            layout: WaveformViewLayout(
+                validatingBase: base,
+                pointIndices: pointIndices,
+                variableIndices: variableIndices
+            )
+        )
+    }
+
+    public init(
         base: any WaveformReadable,
         projection: WaveformProjection
     ) {
@@ -66,12 +81,54 @@ public struct WaveformDataView: WaveformReadable {
     }
 
     public init(
+        validatingBase base: any WaveformReadable,
+        projection: WaveformProjection
+    ) throws {
+        try self.init(
+            validatingBase: base,
+            layout: WaveformViewLayout(validatingBase: base, projection: projection)
+        )
+    }
+
+    public init(
         base: any WaveformReadable,
         layout: WaveformViewLayout
     ) {
-        precondition(layout.projection.basePointCount == base.pointCount, "layout point shape must match base waveform")
-        precondition(layout.projection.baseVariableCount == base.variableCount, "layout variable shape must match base waveform")
+        let resolvedLayout: WaveformViewLayout
+        if layout.projection.basePointCount == base.pointCount,
+           layout.projection.baseVariableCount == base.variableCount {
+            resolvedLayout = layout
+        } else {
+            resolvedLayout = WaveformViewLayout(base: base)
+        }
 
+        self.init(uncheckedBase: base, layout: resolvedLayout)
+    }
+
+    public init(
+        validatingBase base: any WaveformReadable,
+        layout: WaveformViewLayout
+    ) throws {
+        guard layout.projection.basePointCount == base.pointCount else {
+            throw WaveformValidationError.projectionPointShapeMismatch(
+                projectionPointCount: layout.projection.basePointCount,
+                basePointCount: base.pointCount
+            )
+        }
+        guard layout.projection.baseVariableCount == base.variableCount else {
+            throw WaveformValidationError.projectionVariableShapeMismatch(
+                projectionVariableCount: layout.projection.baseVariableCount,
+                baseVariableCount: base.variableCount
+            )
+        }
+
+        self.init(uncheckedBase: base, layout: layout)
+    }
+
+    private init(
+        uncheckedBase base: any WaveformReadable,
+        layout: WaveformViewLayout
+    ) {
         self.base = base
         self.projection = layout.projection
         self.variables = layout.variables
@@ -79,53 +136,52 @@ public struct WaveformDataView: WaveformReadable {
     }
 
     /// Returns a materialized waveform for APIs that explicitly need ownership.
-    public func materialized() -> WaveformData {
+    public func materialized() throws -> WaveformData {
+        try checkedMaterialized()
+    }
+
+    /// Returns a materialized waveform without trapping on unreadable input.
+    public func checkedMaterialized() throws -> WaveformData {
+        let sweepValues = try checkedMaterializedSweepValues()
+
         if isComplex {
             var rows: [[(real: Double, imag: Double)]] = []
             rows.reserveCapacity(pointCount)
             for point in 0..<pointCount {
                 var row: [(real: Double, imag: Double)] = []
                 row.reserveCapacity(variableCount)
-                let completed = forEachComplexValue(at: point) { value in
+                for variable in 0..<variableCount {
+                    guard let value = complexValue(variable: variable, point: point) else {
+                        throw WaveformAccessError.unreadableComplexValue(variable: variable, point: point)
+                    }
                     row.append(value)
                 }
-                precondition(completed, "complex waveform view must be readable")
                 rows.append(row)
             }
             return WaveformData(
                 metadata: metadata,
                 sweepVariable: sweepVariable,
-                sweepValues: materializedSweepValues(),
+                sweepValues: sweepValues,
                 variables: variables,
                 complexData: rows
             )
         }
 
-        if let materialized = materializedFromRealRowMajorStorage() {
-            return materialized
-        }
-
-        let totalCount = pointCount * variableCount
-        let values = Array<Double>(unsafeUninitializedCapacity: totalCount) { output, initializedCount in
-            initializedCount = 0
-            guard let outputBase = output.baseAddress else {
-                precondition(totalCount == 0, "non-empty waveform destination must have a base address")
-                return
-            }
-
-            for point in 0..<pointCount {
-                let completed = forEachRealValue(at: point) { value in
-                    outputBase.advanced(by: initializedCount).initialize(to: value)
-                    initializedCount += 1
+        var values: [Double] = []
+        values.reserveCapacity(pointCount * variableCount)
+        for point in 0..<pointCount {
+            for variable in 0..<variableCount {
+                guard let value = realValue(variable: variable, point: point) else {
+                    throw WaveformAccessError.unreadableRealValue(variable: variable, point: point)
                 }
-                precondition(completed, "real waveform view must be readable")
+                values.append(value)
             }
-            precondition(initializedCount == totalCount, "real waveform view must materialize all values")
         }
-        return WaveformData(
-            metadata: metadata,
+
+        return try WaveformData(
+            validatingMetadata: metadata,
             sweepVariable: sweepVariable,
-            sweepValues: materializedSweepValues(),
+            sweepValues: sweepValues,
             variables: variables,
             realRowMajorData: values,
             pointCount: pointCount,
@@ -177,7 +233,7 @@ public struct WaveformDataView: WaveformReadable {
                 return try body(UnsafeBufferPointer(start: nil, count: 0))
             }
             guard let baseAddress = values.baseAddress else {
-                preconditionFailure("non-empty real point buffer must have a base address")
+                return try body(UnsafeBufferPointer(start: nil, count: 0))
             }
             return try body(
                 UnsafeBufferPointer(
@@ -202,7 +258,7 @@ public struct WaveformDataView: WaveformReadable {
                 return try body(UnsafeBufferPointer(start: nil, count: 0))
             }
             guard let baseAddress = values.baseAddress else {
-                preconditionFailure("non-empty complex point buffer must have a base address")
+                return try body(UnsafeBufferPointer(start: nil, count: 0))
             }
             return try body(
                 UnsafeBufferPointer(
@@ -245,59 +301,16 @@ public struct WaveformDataView: WaveformReadable {
         }
     }
 
-    private func materializedSweepValues() -> [Double] {
-        if let values = materializedSweepValuesFromStorage() {
-            return values
-        }
-
+    private func checkedMaterializedSweepValues() throws -> [Double] {
         var values: [Double] = []
         values.reserveCapacity(pointCount)
         for point in 0..<pointCount {
             guard let value = sweepValue(at: point) else {
-                preconditionFailure("waveform view sweep value must be readable")
+                throw WaveformAccessError.unreadableSweepValue(point: point)
             }
             values.append(value)
         }
         return values
-    }
-
-    private func materializedSweepValuesFromStorage() -> [Double]? {
-        base.withSweepValues { sourceValues in
-            Array<Double>(unsafeUninitializedCapacity: pointCount) { output, initializedCount in
-                initializedCount = pointCount
-                guard pointCount > 0 else { return }
-                guard let sourceBase = sourceValues.baseAddress else {
-                    preconditionFailure("non-empty sweep buffer must have a base address")
-                }
-                guard let outputBase = output.baseAddress else {
-                    preconditionFailure("non-empty sweep destination must have a base address")
-                }
-
-                if let pointPattern = projection.regularPointPattern {
-                    if pointPattern.stride == 1 {
-                        outputBase.initialize(
-                            from: sourceBase.advanced(by: pointPattern.start),
-                            count: pointCount
-                        )
-                        return
-                    }
-
-                    var sourcePoint = pointPattern.start
-                    for point in 0..<pointCount {
-                        outputBase.advanced(by: point).initialize(to: sourceBase[sourcePoint])
-                        sourcePoint += pointPattern.stride
-                    }
-                    return
-                }
-
-                for point in 0..<pointCount {
-                    guard let basePoint = projection.basePointIndex(for: point) else {
-                        preconditionFailure("waveform view point index out of range")
-                    }
-                    outputBase.advanced(by: point).initialize(to: sourceBase[basePoint])
-                }
-            }
-        }
     }
 
     private func basePointIndex(for point: Int) -> Int? {
@@ -306,48 +319,5 @@ public struct WaveformDataView: WaveformReadable {
 
     private func baseVariableIndex(for variable: Int) -> Int? {
         projection.baseVariableIndex(for: variable)
-    }
-
-    private func materializedFromRealRowMajorStorage() -> WaveformData? {
-        withRealRowMajorBuffer { source in
-            let totalCount = pointCount * variableCount
-            let values = Array<Double>(unsafeUninitializedCapacity: totalCount) { output, initializedCount in
-                initializedCount = totalCount
-                fillRealRowMajorBuffer(source, destination: output)
-            }
-
-            return WaveformData(
-                metadata: metadata,
-                sweepVariable: sweepVariable,
-                sweepValues: materializedSweepValues(),
-                variables: variables,
-                realRowMajorData: values,
-                pointCount: pointCount,
-                variableCount: variableCount
-            )
-        }
-    }
-
-    private func fillRealRowMajorBuffer(
-        _ source: RealRowMajorBuffer,
-        destination: UnsafeMutableBufferPointer<Double>
-    ) {
-        guard destination.count > 0 else { return }
-        guard source.variableCount > 0 else { return }
-        guard let sourceBase = source.values.baseAddress else {
-            preconditionFailure("non-empty row-major buffer must have a base address")
-        }
-        guard let outputBase = destination.baseAddress else {
-            preconditionFailure("non-empty destination buffer must have a base address")
-        }
-
-        var outputOffset = 0
-        for point in 0..<source.pointCount {
-            outputBase.advanced(by: outputOffset).initialize(
-                from: sourceBase.advanced(by: source.startOffset + (point * source.rowStride)),
-                count: source.variableCount
-            )
-            outputOffset += source.variableCount
-        }
     }
 }

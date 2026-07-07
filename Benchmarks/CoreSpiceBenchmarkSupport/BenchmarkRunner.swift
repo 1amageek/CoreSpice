@@ -6,8 +6,12 @@ public enum BenchmarkRunner {
         iterationsPerSample: Int,
         operation: () throws -> Double
     ) throws -> BenchmarkResult {
-        precondition(samples > 0, "samples must be positive")
-        precondition(iterationsPerSample > 0, "iterationsPerSample must be positive")
+        guard samples > 0 else {
+            throw BenchmarkError.invalidSampleCount(name: name, count: samples)
+        }
+        guard iterationsPerSample > 0 else {
+            throw BenchmarkError.invalidIterationsPerSample(name: name, count: iterationsPerSample)
+        }
 
         var checksum = 0.0
         for _ in 0..<warmupIterations {

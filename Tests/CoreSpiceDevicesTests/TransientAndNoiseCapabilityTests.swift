@@ -159,7 +159,9 @@ struct TransientAndNoiseCapabilityTests {
             ("nmos_l2", [Node(id: 1), Node(id: 2), .ground, .ground], mosCapacitanceParameters()),
             ("pmos_l2", [Node(id: 1), Node(id: 2), Node(id: 3), Node(id: 3)], mosCapacitanceParameters()),
             ("nmos_l3", [Node(id: 1), Node(id: 2), .ground, .ground], mosCapacitanceParameters()),
-            ("pmos_l3", [Node(id: 1), Node(id: 2), Node(id: 3), Node(id: 3)], mosCapacitanceParameters())
+            ("pmos_l3", [Node(id: 1), Node(id: 2), Node(id: 3), Node(id: 3)], mosCapacitanceParameters()),
+            ("njfet", [Node(id: 1), Node(id: 2), .ground], jfetCapacitanceParameters()),
+            ("pjfet", [Node(id: 1), Node(id: 2), Node(id: 3)], jfetCapacitanceParameters())
         ]
 
         for (typeName, nodes, parameters) in specs {
@@ -256,6 +258,38 @@ struct TransientAndNoiseCapabilityTests {
         }
     }
 
+    @Test("JFET devices expose channel and gate shot noise sources")
+    func jfetDevicesExposeChannelAndGateNoiseSources() throws {
+        let njfetState = SolutionState(
+            variables: [1.0, 0.7],
+            variableMap: [
+                .nodeVoltage(Node(id: 1)): 0,
+                .nodeVoltage(Node(id: 2)): 1
+            ]
+        )
+        let pjfetState = SolutionState(
+            variables: [4.0, 4.3, 5.0],
+            variableMap: [
+                .nodeVoltage(Node(id: 1)): 0,
+                .nodeVoltage(Node(id: 2)): 1,
+                .nodeVoltage(Node(id: 3)): 2
+            ]
+        )
+
+        let specs: [(String, [Node], [String: ParameterValue], SolutionState)] = [
+            ("njfet", [Node(id: 1), Node(id: 2), .ground], jfetNoiseParameters(vto: -2.0), njfetState),
+            ("pjfet", [Node(id: 1), Node(id: 2), Node(id: 3)], jfetNoiseParameters(vto: -2.0), pjfetState)
+        ]
+
+        for (typeName, nodes, parameters, state) in specs {
+            let device = try bindDevice(typeName: typeName, nodes: nodes, parameters: parameters)
+            let noisyDevice = try #require(device as? any NoisyDevice, "\(typeName) must expose JFET noise")
+            let contributions = noisyDevice.noiseContributions(state: state, frequency: 1_000)
+            #expect(contributions.contains { $0.name == "\(typeName.uppercased())_channel_thermal" })
+            #expect(contributions.contains { $0.name.contains("gate") && $0.currentSpectralDensity > 0 })
+        }
+    }
+
     private func bindDevice(
         typeName: String,
         nodes: [Node],
@@ -307,6 +341,13 @@ struct TransientAndNoiseCapabilityTests {
         ]
     }
 
+    private func jfetCapacitanceParameters() -> [String: ParameterValue] {
+        [
+            "cgs": .real(1e-12),
+            "cgd": .real(2e-12)
+        ]
+    }
+
     private func nmosNoiseParameters() -> [String: ParameterValue] {
         [
             "vto": .real(0.7),
@@ -322,6 +363,14 @@ struct TransientAndNoiseCapabilityTests {
             "kp": .real(2e-5),
             "w": .real(10e-6),
             "l": .real(1e-6)
+        ]
+    }
+
+    private func jfetNoiseParameters(vto: Double) -> [String: ParameterValue] {
+        [
+            "vto": .real(vto),
+            "beta": .real(1e-3),
+            "is": .real(1e-12)
         ]
     }
 }

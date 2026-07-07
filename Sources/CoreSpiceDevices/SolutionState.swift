@@ -26,17 +26,42 @@ public struct SolutionState: Sendable {
 
     /// Returns the voltage at the given node.
     ///
-    /// The ground node always returns 0.
+    /// The ground node always returns 0. Use `checkedVoltage(at:)` when a
+    /// missing variable must be reported as a structured failure.
     public func voltage(at node: Node) -> Double {
         if node == .ground { return 0.0 }
         guard let idx = variableMap[.nodeVoltage(node)] else { return 0.0 }
+        guard idx >= 0, idx < variables.count else { return 0.0 }
         return variables[idx]
     }
 
+    /// Returns the voltage at the given node, or throws when the node is not part of the solved state.
+    ///
+    /// The ground node always returns 0.
+    public func checkedVoltage(at node: Node) throws -> Double {
+        if node == .ground { return 0.0 }
+        guard let idx = variableMap[.nodeVoltage(node)] else {
+            throw SolutionStateAccessError.missingNodeVoltage(nodeID: node.id)
+        }
+        return try checkedValue(at: idx)
+    }
+
     /// Returns the current through the given branch.
+    ///
+    /// Use `checkedCurrent(through:)` when a missing branch must be reported
+    /// as a structured failure.
     public func current(through branch: Branch) -> Double {
         guard let idx = variableMap[.branchCurrent(branch)] else { return 0.0 }
+        guard idx >= 0, idx < variables.count else { return 0.0 }
         return variables[idx]
+    }
+
+    /// Returns the current through the given branch, or throws when the branch is not part of the solved state.
+    public func checkedCurrent(through branch: Branch) throws -> Double {
+        guard let idx = variableMap[.branchCurrent(branch)] else {
+            throw SolutionStateAccessError.missingBranchCurrent(branchID: branch.id)
+        }
+        return try checkedValue(at: idx)
     }
 
     /// Returns the voltage at the given node from the previous iteration.
@@ -46,6 +71,7 @@ public struct SolutionState: Sendable {
         guard let prev = previousVariables else { return voltage(at: node) }
         if node == .ground { return 0.0 }
         guard let idx = variableMap[.nodeVoltage(node)] else { return 0.0 }
+        guard idx >= 0, idx < prev.count else { return 0.0 }
         return prev[idx]
     }
 
@@ -55,6 +81,7 @@ public struct SolutionState: Sendable {
     public func previousCurrent(through branch: Branch) -> Double {
         guard let prev = previousVariables else { return current(through: branch) }
         guard let idx = variableMap[.branchCurrent(branch)] else { return 0.0 }
+        guard idx >= 0, idx < prev.count else { return 0.0 }
         return prev[idx]
     }
 
@@ -65,6 +92,7 @@ public struct SolutionState: Sendable {
         guard let tp = twoPreviousVariables else { return previousVoltage(at: node) }
         if node == .ground { return 0.0 }
         guard let idx = variableMap[.nodeVoltage(node)] else { return 0.0 }
+        guard idx >= 0, idx < tp.count else { return 0.0 }
         return tp[idx]
     }
 
@@ -73,6 +101,14 @@ public struct SolutionState: Sendable {
     /// Returns the current solution value at a pre-resolved index.
     public func value(at index: Int) -> Double {
         variables[index]
+    }
+
+    /// Returns the current solution value at a pre-resolved index.
+    public func checkedValue(at index: Int) throws -> Double {
+        guard index >= 0, index < variables.count else {
+            throw SolutionStateAccessError.valueIndexOutOfBounds(index: index, count: variables.count)
+        }
+        return variables[index]
     }
 
     /// Returns the previous solution value at a pre-resolved index.

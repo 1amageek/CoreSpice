@@ -4,6 +4,21 @@ import Darwin
 import Glibc
 #endif
 
+/// A typed sparse matrix operation failure.
+public enum SparseMatrixError: Error, Equatable, Sendable, CustomStringConvertible {
+    case vectorLengthMismatch(expected: Int, actual: Int)
+    case resultLengthMismatch(expected: Int, actual: Int)
+
+    public var description: String {
+        switch self {
+        case .vectorLengthMismatch(let expected, let actual):
+            return "Sparse matrix vector length \(actual) does not match matrix dimension \(expected)."
+        case .resultLengthMismatch(let expected, let actual):
+            return "Sparse matrix result length \(actual) does not match matrix dimension \(expected)."
+        }
+    }
+}
+
 /// A real-valued sparse matrix stored in CSR format.
 ///
 /// Numeric values are stored in a flat array whose layout matches
@@ -76,20 +91,34 @@ public struct SparseMatrix: Sendable {
     ///
     /// - Parameter vector: A vector of length ``dimension``.
     /// - Returns: The result vector of length ``dimension``.
-    public func multiply(vector: [Double]) -> [Double] {
+    public func multiply(vector: [Double]) throws -> [Double] {
+        try checkedMultiply(vector: vector)
+    }
+
+    /// Computes the matrix-vector product `A * vector` with typed validation.
+    public func checkedMultiply(vector: [Double]) throws -> [Double] {
         let n = structure.dimension
         var result = Array(repeating: 0.0, count: n)
-        multiply(vector: vector, into: &result)
+        try checkedMultiply(vector: vector, into: &result)
         return result
     }
 
     /// Computes the matrix-vector product `A * vector` into caller-owned storage.
     ///
     /// This is the zero-allocation variant of ``multiply(vector:)``.
-    public func multiply(vector: [Double], into result: inout [Double]) {
+    public func multiply(vector: [Double], into result: inout [Double]) throws {
+        try checkedMultiply(vector: vector, into: &result)
+    }
+
+    /// Computes the matrix-vector product into caller-owned storage with typed validation.
+    public func checkedMultiply(vector: [Double], into result: inout [Double]) throws {
         let n = structure.dimension
-        precondition(result.count == n, "result length must match matrix dimension")
-        precondition(vector.count == n, "vector length must match matrix dimension")
+        guard result.count == n else {
+            throw SparseMatrixError.resultLengthMismatch(expected: n, actual: result.count)
+        }
+        guard vector.count == n else {
+            throw SparseMatrixError.vectorLengthMismatch(expected: n, actual: vector.count)
+        }
         for row in 0..<n {
             let start = structure.rowPointers[row]
             let end = structure.rowPointers[row + 1]

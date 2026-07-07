@@ -135,7 +135,7 @@ let tran = TransientAnalysis(config: TransientConfig(stopTime: 1e-3))
 let tranResult = try await tran.run(plan: plan, devices: devices, solver: solver,
                                      observer: nil, cancellation: CancellationToken())
 
-let waveform = tranResult.voltageWaveform(at: outputNode)
+let waveform = try tranResult.voltageWaveform(at: outputNode)
 ```
 
 ### Optoelectronic Simulation
@@ -203,6 +203,28 @@ corespice -b circuit.cir -r output.raw --csv output.csv
 corespice -b circuit.cir --tran 1n 100n -r output.raw
 corespice -b circuit.cir --ac dec 10 1 1meg --psf output.psf
 corespice -b circuit.cir --dc V1 0 5 0.1 --csv output.csv
+```
+
+**Structured results for agents** (`--json`): batch runs emit a single JSON
+envelope on stdout — `status: "succeeded"` with analyses, artifact paths,
+measurements, and waveform stats, or `status: "failed"` with a stable error
+`code`/`stage` (exit code 2). See the
+[CoreSpiceCLI README](Sources/CoreSpiceCLI/README.md#structured-run-envelopes---json)
+for the schema and the full failure-code table.
+```bash
+corespice -b circuit.cir --json --csv output.csv
+```
+
+**Post-hoc waveform measurement** (`measure`): evaluates `.measure`-grammar
+specs against a stored waveform CSV without re-simulating. Supported kinds:
+`FIND ... AT=`, `AVG`, `RMS`, `MIN`, `MAX`, `PP`, `INTEG` (with optional
+`FROM=`/`TO=`), `RISE_TIME`, `FALL_TIME`, `TRIG`/`TARG` delay, and `WHEN`.
+Exit codes match the run envelopes (0 success, 1 text-mode failure, 2 `--json`
+failure envelope). See the
+[CoreSpiceCLI README](Sources/CoreSpiceCLI/README.md#post-hoc-waveform-measurement-measure).
+```bash
+corespice -b circuit.cir --csv output.csv
+corespice measure --waveform output.csv --measure "tran vfinal FIND V(out) AT=5u" --json
 ```
 
 **Interactive shell**:

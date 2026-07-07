@@ -24,6 +24,7 @@ import Foundation
 public struct TransientAnalysis: Analysis, Sendable {
 
     public typealias Result = TransientResult
+    private static let maximumReservedTimePoints = 1_000_000
 
     /// Transient-specific configuration (stop time, timestep limits, LTE tolerance).
     public let config: TransientConfig
@@ -73,6 +74,9 @@ public struct TransientAnalysis: Analysis, Sendable {
         )))
 
         do {
+            try config.validate()
+            try validate(convergenceConfig: convergenceConfig)
+
             // Phase 1: Initial solution for t = 0
             let initialSolution: [Double]
             if config.useInitialConditions {
@@ -115,17 +119,17 @@ public struct TransientAnalysis: Analysis, Sendable {
             var currentOpticalState = OpticalState(nodeCount: opticalNodeCount)
 
             // Saved results (pre-allocate estimated capacity)
-            let estimatedSteps = max(
-                Int(config.stopTime / (config.initialTimeStep ?? config.maxTimeStep / 10.0)),
-                64
+            let initialDt = try config.effectiveInitialTimeStep()
+            let estimatedSteps = Self.estimatedPointCapacity(
+                stopTime: config.stopTime,
+                initialTimeStep: initialDt
             )
             var timePoints: [Double] = [0.0]
             timePoints.reserveCapacity(estimatedSteps)
-            var solutionTrace = SolutionTrace(variableCount: dim, estimatedPointCapacity: estimatedSteps)
-            currentBuf.withUnsafeBufferPointer { solutionTrace.append($0) }
+            var solutionTrace = try SolutionTrace(variableCount: dim, estimatedPointCapacity: estimatedSteps)
+            try currentBuf.withUnsafeBufferPointer { try solutionTrace.append($0) }
 
             // Timestep control
-            let initialDt = config.initialTimeStep ?? (config.maxTimeStep / 10.0)
             var dt = initialDt
             var previousDt: Double? = nil
             var method = config.initialMethod
@@ -391,7 +395,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
                         // Save the time point
                         timePoints.append(currentTime)
-                        currentBuf.withUnsafeBufferPointer { solutionTrace.append($0) }
+                        try currentBuf.withUnsafeBufferPointer { try solutionTrace.append($0) }
                         onStepAccepted?(currentTime, currentBuf)
 
                         await observer?.emit(.timeStepCompleted(TimeStepInfo(
@@ -404,7 +408,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
                         // Emit progress
                         let fraction = min(currentTime / config.stopTime, 1.0)
-                        await observer?.emit(.progressUpdate(ProgressInfo(
+                        await observer?.emit(.progressUpdate(try ProgressInfo(
                             id: analysisID,
                             fraction: fraction,
                             message: "Transient: t = \(currentTime) s"
@@ -454,7 +458,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         acceptedSteps += 1
 
                         timePoints.append(currentTime)
-                        currentBuf.withUnsafeBufferPointer { solutionTrace.append($0) }
+                        try currentBuf.withUnsafeBufferPointer { try solutionTrace.append($0) }
                         onStepAccepted?(currentTime, currentBuf)
 
                         await observer?.emit(.timeStepCompleted(TimeStepInfo(
@@ -658,5 +662,47 @@ public struct TransientAnalysis: Analysis, Sendable {
         }
 
         return solution
+    }
+
+    static func estimatedPointCapacity(stopTime: Double, initialTimeStep: Double) -> Int {
+        let rawEstimate = stopTime / initialTimeStep
+        guard rawEstimate.isFinite, rawEstimate > 0 else {
+            return 64
+        }
+        let boundedEstimate = min(rawEstimate.rounded(.up), Double(maximumReservedTimePoints))
+        return max(Int(boundedEstimate), 64)
+    }
+
+    private func validate(convergenceConfig: ConvergenceConfig) throws {
+        try validatePositiveFinite(convergenceConfig.abstol, name: "abstol")
+        try validatePositiveFinite(convergenceConfig.reltol, name: "reltol")
+        try validatePositiveFinite(convergenceConfig.vntol, name: "vntol")
+        try validatePositiveFinite(convergenceConfig.opticalPowerTolerance, name: "opticalPowerTolerance")
+
+        guard convergenceConfig.maxIterations > 0 else {
+            throw AnalysisError.invalidConfiguration(
+                "maxIterations must be greater than zero."
+            )
+        }
+        guard convergenceConfig.gmin >= 0, convergenceConfig.gmin.isFinite else {
+            throw AnalysisError.invalidConfiguration(
+                "gmin must be finite and greater than or equal to zero."
+            )
+        }
+        guard convergenceConfig.minDamping > 0,
+              convergenceConfig.minDamping <= 1,
+              convergenceConfig.minDamping.isFinite else {
+            throw AnalysisError.invalidConfiguration(
+                "minDamping must be finite and in the interval (0, 1]."
+            )
+        }
+    }
+
+    private func validatePositiveFinite(_ value: Double, name: String) throws {
+        guard value > 0, value.isFinite else {
+            throw AnalysisError.invalidConfiguration(
+                "\(name) must be finite and greater than zero."
+            )
+        }
     }
 }

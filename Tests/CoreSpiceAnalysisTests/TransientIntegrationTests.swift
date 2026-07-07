@@ -67,14 +67,14 @@ struct TransientIntegrationTests {
         #expect(result.timePoints.count > 10)
 
         // At t=0 (DC op with v1=0): all zero
-        let v0 = result.voltage(at: out, timeIndex: 0)
+        let v0 = try result.voltage(at: out, timeIndex: 0)
         #expect(abs(v0) < 0.01, "At t=0, V(out) should be ~0V, got \(v0)")
 
         // Shortly after step: V(out) rises (inductor initially blocks current, so
         // V(out) ≈ V_source = 1V, then decays to 0V as current flows)
         // At t = τ = 1µs: V_L ≈ e^-1 ≈ 0.368V
         let tauIdx = timeIndex(in: result, closest: tau)
-        let vTau = result.voltage(at: out, timeIndex: tauIdx)
+        let vTau = try result.voltage(at: out, timeIndex: tauIdx)
         // V(out) is the junction between R and L.
         // V(out) = V_source - I×R = 1 - (V/R)(1-e^(-t/τ))×R = 1 - V(1-e^(-t/τ)) = V×e^(-t/τ)
         let expectedVTau = 1.0 * exp(-1.0)
@@ -83,7 +83,7 @@ struct TransientIntegrationTests {
 
         // At t=5τ=5µs: V(out) ≈ 0V (inductor is short, all V across R)
         let idx5tau = timeIndex(in: result, closest: 5 * tau)
-        let v5tau = result.voltage(at: out, timeIndex: idx5tau)
+        let v5tau = try result.voltage(at: out, timeIndex: idx5tau)
         #expect(abs(v5tau) < 0.05, "At t=5τ, V(out) should be ~0V, got \(v5tau)")
     }
 
@@ -119,7 +119,7 @@ struct TransientIntegrationTests {
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
 
         // Overdamped: no oscillation, monotonic approach to 1V
         let maxVoltage = waveform.map(\.value).max() ?? 0.0
@@ -176,7 +176,7 @@ struct TransientIntegrationTests {
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
 
         // Critical damping: fastest approach without oscillation
         let maxVoltage = waveform.map(\.value).max() ?? 0.0
@@ -222,7 +222,7 @@ struct TransientIntegrationTests {
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
 
         // Underdamped: should have oscillation (overshoot beyond 1V)
         let maxVoltage = waveform.map(\.value).max() ?? 0.0
@@ -274,7 +274,7 @@ struct TransientIntegrationTests {
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
         #expect(waveform.count > 50)
 
         // Measure amplitude in the last period (steady state)
@@ -318,22 +318,22 @@ struct TransientIntegrationTests {
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
         // At t=0: V=0 (v1)
-        let v0 = result.voltage(at: inp, timeIndex: 0)
+        let v0 = try result.voltage(at: inp, timeIndex: 0)
         #expect(abs(v0) < 0.1, "At t=0, V should be ~0V, got \(v0)")
 
         // At t=0.5ms: rising, V ≈ 2.5V
         let idx05 = timeIndex(in: result, closest: 0.5e-3)
-        let v05 = result.voltage(at: inp, timeIndex: idx05)
+        let v05 = try result.voltage(at: inp, timeIndex: idx05)
         #expect(abs(v05 - 2.5) < 0.5, "At t=0.5ms, V should be ~2.5V, got \(v05)")
 
         // At t=1.5ms: V = 5V (pulse high)
         let idx15 = timeIndex(in: result, closest: 1.5e-3)
-        let v15 = result.voltage(at: inp, timeIndex: idx15)
+        let v15 = try result.voltage(at: inp, timeIndex: idx15)
         #expect(abs(v15 - 5.0) < 0.2, "At t=1.5ms, V should be ~5V, got \(v15)")
 
         // At t=2.5ms: falling, V ≈ 2.5V
         let idx25 = timeIndex(in: result, closest: 2.5e-3)
-        let v25 = result.voltage(at: inp, timeIndex: idx25)
+        let v25 = try result.voltage(at: inp, timeIndex: idx25)
         #expect(abs(v25 - 2.5) < 0.5, "At t=2.5ms, V should be ~2.5V, got \(v25)")
     }
 
@@ -375,7 +375,7 @@ struct TransientIntegrationTests {
             netlist, config: config, convergenceConfig: convergence
         )
 
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
         #expect(waveform.count > 50)
 
         var hasPositive = false
@@ -431,7 +431,7 @@ struct TransientIntegrationTests {
             netlist, config: config, convergenceConfig: convergence
         )
 
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
         #expect(waveform.count > 50)
 
         let positiveCount = waveform.filter { $0.value > 0.1 }.count
@@ -478,7 +478,7 @@ struct TransientIntegrationTests {
             convergenceConfig: CircuitFactory.nonlinearConfig
         )
 
-        let waveform = result.voltageWaveform(at: col)
+        let waveform = try result.voltageWaveform(at: col)
         let maxV = waveform.map(\.value).max() ?? 0.0
         let minV = waveform.map(\.value).min() ?? 0.0
         #expect(maxV > 4.0, "OFF state Vce should be ~5V, got \(maxV)")
@@ -522,7 +522,7 @@ struct TransientIntegrationTests {
             convergenceConfig: CircuitFactory.nonlinearConfig
         )
 
-        let waveform = result.voltageWaveform(at: drain)
+        let waveform = try result.voltageWaveform(at: drain)
         let maxV = waveform.map(\.value).max() ?? 0.0
         let minV = waveform.map(\.value).min() ?? 0.0
         #expect(maxV > 4.0, "OFF state Vds should be ~5V, got \(maxV)")
@@ -562,19 +562,19 @@ struct TransientIntegrationTests {
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
         // At t=0: V(out) = 0 (DC op with v1=0)
-        let v0 = result.voltage(at: out, timeIndex: 0)
+        let v0 = try result.voltage(at: out, timeIndex: 0)
         #expect(abs(v0) < 0.01, "At t=0, V(out) should be ~0V, got \(v0)")
 
         // At t=τ=1ms: V(out) ≈ 2(1-e^-1) ≈ 1.264V
         let tauIdx = timeIndex(in: result, closest: tau)
-        let vTau = result.voltage(at: out, timeIndex: tauIdx)
+        let vTau = try result.voltage(at: out, timeIndex: tauIdx)
         let expectedVTau = 2.0 * (1.0 - exp(-1.0))
         #expect(abs(vTau - expectedVTau) < 0.2,
                 "At t=τ, V(out) should be ~\(expectedVTau)V, got \(vTau)")
 
         // At t=5τ=5ms: V(out) ≈ 2V (fully charged)
         let finalIdx = result.timePoints.count - 1
-        let vFinal = result.voltage(at: out, timeIndex: finalIdx)
+        let vFinal = try result.voltage(at: out, timeIndex: finalIdx)
         #expect(abs(vFinal - 2.0) < 0.1,
                 "At t=5τ, V(out) should be ~2V, got \(vFinal)")
     }
@@ -611,20 +611,20 @@ struct TransientIntegrationTests {
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
         // At t=0: all zero (DC op with v1=0)
-        let v0 = result.voltage(at: out, timeIndex: 0)
+        let v0 = try result.voltage(at: out, timeIndex: 0)
         #expect(abs(v0) < 0.01, "At t=0, V(out) should be ~0V, got \(v0)")
 
         // After step: V(out) = V×e^(-t/τ) (inductor voltage decays)
         // At t=τ=100µs: V(out) ≈ 1×e^-1 ≈ 0.368V
         let tauIdx = timeIndex(in: result, closest: tau)
-        let vTau = result.voltage(at: out, timeIndex: tauIdx)
+        let vTau = try result.voltage(at: out, timeIndex: tauIdx)
         let expectedVTau = 1.0 * exp(-1.0)
         #expect(abs(vTau - expectedVTau) < 0.15,
                 "At t=τ, V(out) should be ~\(expectedVTau)V, got \(vTau)")
 
         // At t=5τ=500µs: V(out) ≈ 0V (inductor is short, current steady)
         let finalIdx = result.timePoints.count - 1
-        let vFinal = result.voltage(at: out, timeIndex: finalIdx)
+        let vFinal = try result.voltage(at: out, timeIndex: finalIdx)
         #expect(abs(vFinal) < 0.05,
                 "At t=5τ, V(out) should be ~0V, got \(vFinal)")
     }
@@ -663,11 +663,11 @@ struct TransientIntegrationTests {
 
         // Get voltage near t=5µs (first pulse midpoint, cap should be charged)
         let earlyIdx = timeIndex(in: result, closest: 5e-6)
-        let vEarly = result.voltage(at: out, timeIndex: earlyIdx)
+        let vEarly = try result.voltage(at: out, timeIndex: earlyIdx)
 
         // Get voltage near t=95µs (last pulse midpoint)
         let lateIdx = timeIndex(in: result, closest: 95e-6)
-        let vLate = result.voltage(at: out, timeIndex: lateIdx)
+        let vLate = try result.voltage(at: out, timeIndex: lateIdx)
 
         // They should be close (no drift)
         #expect(abs(vLate - vEarly) < 0.2,
@@ -709,7 +709,7 @@ struct TransientIntegrationTests {
         #expect(result.timePoints.last! >= 400e-9)
 
         // Verify pulse shape: V(in) is the source voltage
-        let waveform = result.voltageWaveform(at: inp)
+        let waveform = try result.voltageWaveform(at: inp)
         let maxV = waveform.map(\.value).max() ?? 0.0
         let minV = waveform.map(\.value).min() ?? 0.0
         #expect(maxV > 4.0, "Pulse should reach ~5V, got \(maxV)")
@@ -746,7 +746,7 @@ struct TransientIntegrationTests {
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
         // Measure amplitude in last period (steady state)
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
         let steadyWaveform = waveform.filter { $0.time >= 4e-3 }
         let maxV = steadyWaveform.map(\.value).max() ?? 0.0
         let minV = steadyWaveform.map(\.value).min() ?? 0.0
@@ -785,18 +785,18 @@ struct TransientIntegrationTests {
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
         #expect(waveform.count > 20)
 
         // During pulse high (e.g., t=0.25ms): V = -I × R = -1V
         let highIdx = timeIndex(in: result, closest: 0.25e-3)
-        let vHigh = result.voltage(at: out, timeIndex: highIdx)
+        let vHigh = try result.voltage(at: out, timeIndex: highIdx)
         #expect(abs(vHigh + 1.0) < 0.15,
                 "During pulse, V should be ~-1V (-I×R), got \(vHigh)")
 
         // During pulse low (e.g., t=0.75ms): V = 0V
         let lowIdx = timeIndex(in: result, closest: 0.75e-3)
-        let vLow = result.voltage(at: out, timeIndex: lowIdx)
+        let vLow = try result.voltage(at: out, timeIndex: lowIdx)
         #expect(abs(vLow) < 0.15,
                 "Between pulses, V should be ~0V, got \(vLow)")
     }
@@ -883,8 +883,8 @@ struct TransientIntegrationTests {
         // Print first 20 time points
         print("=== Waveform ===")
         for i in 0..<min(20, result.timePoints.count) {
-            let vOut = result.voltage(at: out, timeIndex: i)
-            let vIn = result.voltage(at: inNode, timeIndex: i)
+            let vOut = try result.voltage(at: out, timeIndex: i)
+            let vIn = try result.voltage(at: inNode, timeIndex: i)
             print("  t=\(String(format: "%.3e", result.timePoints[i]))s: V(in)=\(String(format: "%.4f", vIn)), V(out)=\(String(format: "%.4f", vOut))")
         }
 
@@ -958,8 +958,8 @@ struct TransientIntegrationTests {
         }
 
         // Helper to find time when output crosses threshold
-        func findCrossingTime(result: TransientResult, node: Node, threshold: Double, rising: Bool) -> Double? {
-            let waveform = result.voltageWaveform(at: node)
+        func findCrossingTime(result: TransientResult, node: Node, threshold: Double, rising: Bool) throws -> Double? {
+            let waveform = try result.voltageWaveform(at: node)
             for i in 1..<waveform.count {
                 let prev = waveform[i - 1].value
                 let curr = waveform[i].value
@@ -999,8 +999,8 @@ struct TransientIntegrationTests {
         // Find 50% crossing times for falling edge (when input rises, output falls for inverter)
         let threshold = 1.65 // 50% of 3.3V
 
-        let tNoCap = findCrossingTime(result: resultNoCap, node: outNode, threshold: threshold, rising: false)
-        let tWithCap = findCrossingTime(result: resultWithCap, node: outNode, threshold: threshold, rising: false)
+        let tNoCap = try findCrossingTime(result: resultNoCap, node: outNode, threshold: threshold, rising: false)
+        let tWithCap = try findCrossingTime(result: resultWithCap, node: outNode, threshold: threshold, rising: false)
 
         // Verify we found crossing times
         if let tNoCap = tNoCap, let tWithCap = tWithCap {
@@ -1017,8 +1017,8 @@ struct TransientIntegrationTests {
         }
 
         // Verify output voltage swing
-        let waveformNoCap = resultNoCap.voltageWaveform(at: outNode)
-        let waveformWithCap = resultWithCap.voltageWaveform(at: outNode)
+        let waveformNoCap = try resultNoCap.voltageWaveform(at: outNode)
+        let waveformWithCap = try resultWithCap.voltageWaveform(at: outNode)
 
         let maxNoCap = waveformNoCap.map(\.value).max() ?? 0
         let maxWithCap = waveformWithCap.map(\.value).max() ?? 0

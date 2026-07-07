@@ -26,7 +26,7 @@ struct DevicePhysicsTests {
         var measuredVoltages: [Double] = []
 
         for vin in sweepValues {
-            let (netlist, anode) = CircuitFactory.diodeCircuit(
+            let (netlist, anode) = try CircuitFactory.diodeCircuit(
                 v: vin, r: R,
                 diodeParams: ["is": .real(Is), "n": .real(n)]
             )
@@ -83,7 +83,7 @@ struct DevicePhysicsTests {
 
             for vce in vceValues {
                 let vcc = vce + ib * bf * rc // Approximate VCC for desired Vce
-                let (netlist, col, _) = CircuitFactory.bjtCommonEmitter(
+                let (netlist, col, _) = try CircuitFactory.bjtCommonEmitter(
                     vcc: vcc, rc: rc, vbb: vbb, rb: rb,
                     bjtParams: ["is": .real(1e-16), "bf": .real(bf)]
                 )
@@ -120,7 +120,7 @@ struct DevicePhysicsTests {
             var idsValues: [Double] = []
 
             for vds in vdsValues {
-                let (netlist, drain) = CircuitFactory.nmosCommonSource(
+                let (netlist, drain) = try CircuitFactory.nmosCommonSource(
                     vdd: vds, rd: 1.0, vgs: vgs, // Very small Rd so Vds ≈ Vdd
                     mosParams: ["vto": .real(vto), "kp": .real(kp),
                                 "w": .real(w), "l": .real(l), "lambda": .real(0.0)]
@@ -166,7 +166,7 @@ struct DevicePhysicsTests {
         var drainVoltages: [Double] = []
 
         for vgate in vgateValues {
-            let (netlist, drain) = CircuitFactory.pmosCommonSource(
+            let (netlist, drain) = try CircuitFactory.pmosCommonSource(
                 vdd: vdd, rd: rd, vgate: vgate,
                 mosParams: ["vto": .real(vtp), "kp": .real(kp),
                             "w": .real(w), "l": .real(l), "lambda": .real(0.0)]
@@ -230,7 +230,7 @@ struct DevicePhysicsTests {
 
         for vce in vceValues {
             let vcc = vce + bf * ib * 2000 // Approximate VCC
-            let (netlist, col, _) = CircuitFactory.bjtCommonEmitter(
+            let (netlist, col, _) = try CircuitFactory.bjtCommonEmitter(
                 vcc: vcc, rc: 2000, vbb: 1.5, rb: rb,
                 bjtParams: ["is": .real(1e-16), "bf": .real(bf), "vaf": .real(vaf)]
             )
@@ -276,7 +276,7 @@ struct DevicePhysicsTests {
         var vsdValues: [Double] = []
 
         for rd in rdValues {
-            let (netlist, drain) = CircuitFactory.pmosCommonSource(
+            let (netlist, drain) = try CircuitFactory.pmosCommonSource(
                 vdd: vdd, rd: rd, vgate: vgate,
                 mosParams: ["vto": .real(vtp), "kp": .real(kp),
                             "w": .real(w), "l": .real(l), "lambda": .real(lambda)]
@@ -324,7 +324,7 @@ struct DevicePhysicsTests {
         var forwardVoltages: [Double] = []
 
         for isVal in isValues {
-            let (netlist, anode) = CircuitFactory.diodeCircuit(
+            let (netlist, anode) = try CircuitFactory.diodeCircuit(
                 v: vin, r: r,
                 diodeParams: ["is": .real(isVal), "n": .real(1.0)]
             )

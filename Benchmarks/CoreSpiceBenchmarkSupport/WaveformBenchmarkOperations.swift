@@ -38,7 +38,7 @@ public enum WaveformBenchmarkOperations {
                 base: base,
                 layout: layout
             )
-            let materialized = view.materialized()
+            let materialized = try view.materialized()
             return Double(materialized.pointCount + materialized.variableCount)
         }
 
@@ -53,7 +53,7 @@ public enum WaveformBenchmarkOperations {
 
     public static func borrowedPointScanComparison() throws -> BenchmarkComparison {
         let waveform = WaveformBenchmarkFixture.waveform()
-        let borrowedReference = sumBorrowedRows(waveform)
+        let borrowedReference = try sumBorrowedRows(waveform)
         let materializedReference = try sumMaterializedRows(waveform)
         guard abs(borrowedReference - materializedReference) < abs(materializedReference) * 1e-12 else {
             throw BenchmarkError.referenceMismatch(
@@ -67,7 +67,7 @@ public enum WaveformBenchmarkOperations {
             "waveform.borrowedPointScan",
             iterationsPerSample: 12
         ) {
-            sumBorrowedRows(waveform)
+            try sumBorrowedRows(waveform)
         }
 
         let materializedScan = try BenchmarkRunner.measure(
@@ -102,9 +102,9 @@ public enum WaveformBenchmarkOperations {
         )
         let layout = WaveformViewLayout(base: base, projection: projection)
         let view = WaveformDataView(base: base, layout: layout)
-        let materialized = view.materialized()
+        let materialized = try view.materialized()
 
-        let borrowedReference = sumProjectedRows(view)
+        let borrowedReference = try sumProjectedRows(view)
         let materializedReference = try sumMaterializedRows(materialized)
         guard abs(borrowedReference - materializedReference) < abs(materializedReference) * 1e-12 else {
             throw BenchmarkError.referenceMismatch(
@@ -118,7 +118,7 @@ public enum WaveformBenchmarkOperations {
             "waveform.projectedBorrowedScan",
             iterationsPerSample: 20
         ) {
-            sumProjectedRows(view)
+            try sumProjectedRows(view)
         }
 
         let materializedScan = try BenchmarkRunner.measure(
@@ -140,7 +140,7 @@ public enum WaveformBenchmarkOperations {
     public static func transientConversionComparison() throws -> BenchmarkComparison {
         let pointCount = 12_000
         let variableCount = 12
-        let result = WaveformBenchmarkFixture.transientResult(
+        let result = try WaveformBenchmarkFixture.transientResult(
             pointCount: pointCount,
             variableCount: variableCount
         )
@@ -154,7 +154,7 @@ public enum WaveformBenchmarkOperations {
             "transient.convertToWaveform",
             iterationsPerSample: 200
         ) {
-            let waveform = WaveformData.from(
+            let waveform = try WaveformData.from(
                 transientResult: result,
                 variableLayout: variableLayout,
                 title: "Benchmark"
@@ -169,7 +169,7 @@ public enum WaveformBenchmarkOperations {
             "transient.convertAndMaterializeRows",
             iterationsPerSample: 4
         ) {
-            let waveform = WaveformData.from(
+            let waveform = try WaveformData.from(
                 transientResult: result,
                 variableLayout: variableLayout,
                 title: "Benchmark"
@@ -180,7 +180,11 @@ public enum WaveformBenchmarkOperations {
             return Double(rows.count + (rows.first?.count ?? 0))
         }
 
-        let waveform = WaveformData.from(transientResult: result, variableLayout: variableLayout, title: "Benchmark")
+        let waveform = try WaveformData.from(
+            transientResult: result,
+            variableLayout: variableLayout,
+            title: "Benchmark"
+        )
         let source = result.solutionTrace.rowMajorValues
         guard let rowMajor = waveform.realRowMajorValues else {
             throw BenchmarkError.missingRowMajorStorage("transient.convertToWaveform")
@@ -203,55 +207,67 @@ public enum WaveformBenchmarkOperations {
         )
     }
 
-    public static func sumBorrowedRows(_ waveform: WaveformData) -> Double {
-        waveform.withRealRowMajorValues { values, _, _ in
+    public static func sumBorrowedRows(_ waveform: WaveformData) throws -> Double {
+        if let sum = waveform.withRealRowMajorValues({ values, _, _ in
             sum(values)
-        } ?? {
-            var sum = 0.0
-            for point in 0..<waveform.pointCount {
-                let completed = waveform.withRealValues(at: point) { values in
-                    for value in values {
-                        sum += value
-                    }
-                    return true
-                } ?? false
-                precondition(completed, "row-major benchmark fixture must expose point buffers")
-            }
+        }) {
             return sum
-        }()
-    }
+        }
 
-    public static func sumBorrowedRows(_ waveform: WaveformDataView) -> Double {
-        waveform.withRealRowMajorBuffer { buffer in
-            sum(buffer)
-        } ?? {
-            var sum = 0.0
-            for point in 0..<waveform.pointCount {
-                let completed = waveform.withRealValues(at: point) { values in
-                    for value in values {
-                        sum += value
-                    }
-                    return true
-                } ?? false
-                precondition(completed, "row-major benchmark fixture must expose point buffers")
-            }
-            return sum
-        }()
-    }
-
-    public static func sumProjectedRows(_ waveform: WaveformDataView) -> Double {
-        waveform.withRealRowMajorBuffer { buffer in
-            sum(buffer)
-        } ?? {
-            var sum = 0.0
-            for point in 0..<waveform.pointCount {
-                let completed = waveform.forEachRealValue(at: point) { value in
+        var sum = 0.0
+        for point in 0..<waveform.pointCount {
+            let completed = waveform.withRealValues(at: point) { values in
+                for value in values {
                     sum += value
                 }
-                precondition(completed, "projected row-major benchmark fixture must expose real values")
+                return true
+            } ?? false
+            guard completed else {
+                throw BenchmarkError.missingPointBuffer("waveform.borrowedPointScan")
             }
+        }
+        return sum
+    }
+
+    public static func sumBorrowedRows(_ waveform: WaveformDataView) throws -> Double {
+        if let sum = waveform.withRealRowMajorBuffer({ buffer in
+            sum(buffer)
+        }) {
             return sum
-        }()
+        }
+
+        var sum = 0.0
+        for point in 0..<waveform.pointCount {
+            let completed = waveform.withRealValues(at: point) { values in
+                for value in values {
+                    sum += value
+                }
+                return true
+            } ?? false
+            guard completed else {
+                throw BenchmarkError.missingPointBuffer("waveform.projectedBorrowedScan")
+            }
+        }
+        return sum
+    }
+
+    public static func sumProjectedRows(_ waveform: WaveformDataView) throws -> Double {
+        if let sum = waveform.withRealRowMajorBuffer({ buffer in
+            sum(buffer)
+        }) {
+            return sum
+        }
+
+        var sum = 0.0
+        for point in 0..<waveform.pointCount {
+            let completed = waveform.forEachRealValue(at: point) { value in
+                sum += value
+            }
+            guard completed else {
+                throw BenchmarkError.missingPointBuffer("waveform.projectedBorrowedScan")
+            }
+        }
+        return sum
     }
 
     public static func sumMaterializedRows(_ waveform: WaveformData) throws -> Double {

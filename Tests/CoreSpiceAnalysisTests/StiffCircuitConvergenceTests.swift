@@ -94,11 +94,11 @@ struct StiffCircuitConvergenceTests {
 
         // Both nodes should be at ~1V (DC operating point with DC source)
         // This test verifies convergence despite stiff time constants
-        let vFast = result.voltage(at: out_fast, timeIndex: result.timePoints.count - 1)
+        let vFast = try result.voltage(at: out_fast, timeIndex: result.timePoints.count - 1)
         #expect(vFast > 0.99, "Fast node should be at ~1V: got \(vFast)")
 
         // Slow node also converges to steady state (DC source → immediate steady state)
-        let vSlow = result.voltage(at: out_slow, timeIndex: result.timePoints.count - 1)
+        let vSlow = try result.voltage(at: out_slow, timeIndex: result.timePoints.count - 1)
         #expect(vSlow > 0.99, "Slow node should be at ~1V (steady state): got \(vSlow)")
 
         // Verify simulation completed with multiple time points (didn't fail)
@@ -169,7 +169,7 @@ struct StiffCircuitConvergenceTests {
 
         // MOSFET is ON (Vgs = 2V > Vth = 0.7V)
         // Drain voltage should be pulled down by the MOSFET
-        let vDrain = result.voltage(at: drain, timeIndex: result.timePoints.count - 1)
+        let vDrain = try result.voltage(at: drain, timeIndex: result.timePoints.count - 1)
 
         // In saturation, roughly: Ids = 0.5 * kp * (Vgs - Vth)^2
         // Ids ≈ 0.5 * 200e-6 * (2 - 0.7)^2 ≈ 0.17 mA
@@ -313,15 +313,15 @@ struct StiffCircuitConvergenceTests {
         )
 
         // Fast node should be fully charged
-        let v1 = result.voltage(at: n1, timeIndex: result.timePoints.count - 1)
+        let v1 = try result.voltage(at: n1, timeIndex: result.timePoints.count - 1)
         #expect(v1 > 0.99, "Fast node should be ~1V: got \(v1)")
 
         // Medium node should be significantly charged
-        let v2 = result.voltage(at: n2, timeIndex: result.timePoints.count - 1)
+        let v2 = try result.voltage(at: n2, timeIndex: result.timePoints.count - 1)
         #expect(v2 > 0.95, "Medium node should be well charged: got \(v2)")
 
         // Slow node should just be starting to charge
-        let v3 = result.voltage(at: n3, timeIndex: result.timePoints.count - 1)
+        let v3 = try result.voltage(at: n3, timeIndex: result.timePoints.count - 1)
         // τ_slow = 10ms, simulation = 1ms → about 10% charged
         #expect(v3 > 0, "Slow node should have started charging: got \(v3)")
         #expect(v3 < v2, "Slow node should be behind medium node: \(v3) < \(v2)")

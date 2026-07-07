@@ -6,18 +6,35 @@ public struct CoreSpiceActionDomainExporter: Sendable {
             domainID: "simulation-analysis",
             ownerPackages: ["CoreSpice"],
             operations: [
+                importSPICEOperation(),
                 loadNetlistOperation(),
+                runAnalysisOperation(),
                 runOperatingPointOperation(),
                 runTransientOperation(),
                 runACOperation(),
                 runDCSweepOperation(),
                 runMonteCarloOperation(),
                 exportWaveformOperation(),
+                exportMetricReportOperation(),
+                summarizeRunOperation(),
                 exportCoverageOperation(),
                 setNetlistParametersOperation(),
                 metricImprovementObjectiveOperation(),
                 convergenceRecoveryObjectiveOperation(),
             ]
+        )
+    }
+
+    private func importSPICEOperation() -> CoreSpiceActionDomainOperation {
+        CoreSpiceActionDomainOperation(
+            operationID: "simulation.import-spice",
+            maturity: "implemented",
+            inputRefs: ["spice-netlist-ref", "optional-model-library-ref"],
+            preconditions: ["spice-netlist-readable", "parser-capability-known"],
+            effects: ["simulation-netlist-produced", "circuit-ir-produced", "parser-diagnostics-produced"],
+            producedArtifacts: ["simulation-netlist", "coverage-report"],
+            verificationGates: ["schema-validation", "parser-diagnostics", "artifact-integrity"],
+            reversible: true
         )
     }
 
@@ -29,7 +46,20 @@ public struct CoreSpiceActionDomainExporter: Sendable {
             preconditions: ["spice-netlist-readable", "parser-capability-known"],
             effects: ["circuit-ir-produced", "analysis-options-resolved"],
             producedArtifacts: ["coverage-report"],
-            verificationGates: ["schema-validation", "parser-diagnostics"],
+            verificationGates: ["schema-validation", "parser-diagnostics", "artifact-integrity"],
+            reversible: true
+        )
+    }
+
+    private func runAnalysisOperation() -> CoreSpiceActionDomainOperation {
+        CoreSpiceActionDomainOperation(
+            operationID: "simulation.run-analysis",
+            maturity: "implemented",
+            inputRefs: ["spice-netlist-ref", "analysis-spec", "analysis-options"],
+            preconditions: ["netlist-loaded", "analysis-spec-supported", "analysis-options-valid"],
+            effects: ["waveform-produced", "measurements-produced", "simulation-summary-produced"],
+            producedArtifacts: ["waveform-raw", "waveform-csv", "waveform-psf", "measurement-report", "simulation-summary"],
+            verificationGates: ["simulation-completed", "measurement-gate", "simulation-summary", "artifact-integrity"],
             reversible: true
         )
     }
@@ -112,6 +142,32 @@ public struct CoreSpiceActionDomainExporter: Sendable {
         )
     }
 
+    private func exportMetricReportOperation() -> CoreSpiceActionDomainOperation {
+        CoreSpiceActionDomainOperation(
+            operationID: "simulation.export-metric-report",
+            maturity: "implemented",
+            inputRefs: ["measurement-report", "specification-ref"],
+            preconditions: ["measurements-readable", "metric-specification-resolved"],
+            effects: ["simulation-metric-report-produced", "metric-verdicts-produced"],
+            producedArtifacts: ["simulation-metric-report"],
+            verificationGates: ["simulation-metric-gate", "schema-validation", "artifact-integrity"],
+            reversible: true
+        )
+    }
+
+    private func summarizeRunOperation() -> CoreSpiceActionDomainOperation {
+        CoreSpiceActionDomainOperation(
+            operationID: "simulation.summarize-run",
+            maturity: "implemented",
+            inputRefs: ["simulation-run-directory"],
+            preconditions: ["simulation-artifacts-readable", "measurement-report-readable"],
+            effects: ["simulation-summary-produced", "review-envelope-produced"],
+            producedArtifacts: ["simulation-summary"],
+            verificationGates: ["simulation-summary", "human-review", "artifact-integrity"],
+            reversible: true
+        )
+    }
+
     private func exportCoverageOperation() -> CoreSpiceActionDomainOperation {
         CoreSpiceActionDomainOperation(
             operationID: "simulation.export-deck-coverage",
@@ -120,7 +176,7 @@ public struct CoreSpiceActionDomainExporter: Sendable {
             preconditions: ["spice-netlist-readable"],
             effects: ["coverage-report-written"],
             producedArtifacts: ["coverage-report"],
-            verificationGates: ["schema-validation"],
+            verificationGates: ["schema-validation", "artifact-integrity"],
             reversible: true
         )
     }
@@ -141,12 +197,12 @@ public struct CoreSpiceActionDomainExporter: Sendable {
     private func metricImprovementObjectiveOperation() -> CoreSpiceActionDomainOperation {
         CoreSpiceActionDomainOperation(
             operationID: "simulation.metric-improvement-objective",
-            maturity: "planned",
+            maturity: "implemented",
             inputRefs: ["measurement-report", "specification-ref", "bounded-parameter-space"],
             preconditions: ["metric-gap-detected", "editable-parameter-space-known"],
-            effects: ["planning-objective-created", "parameter-search-bounded"],
-            producedArtifacts: ["planning-problem"],
-            verificationGates: ["schema-validation", "simulation-metric-gate"],
+            effects: ["planning-objective-created", "parameter-search-bounded", "metric-improvement-artifact-produced"],
+            producedArtifacts: ["planning-problem", "metric-improvement-planning-problem"],
+            verificationGates: ["schema-validation", "simulation-metric-gate", "artifact-integrity"],
             reversible: true
         )
     }
@@ -154,12 +210,12 @@ public struct CoreSpiceActionDomainExporter: Sendable {
     private func convergenceRecoveryObjectiveOperation() -> CoreSpiceActionDomainOperation {
         CoreSpiceActionDomainOperation(
             operationID: "simulation.convergence-recovery-objective",
-            maturity: "planned",
+            maturity: "implemented",
             inputRefs: ["simulation-diagnostic", "spice-netlist-ref", "analysis-options"],
             preconditions: ["nonconvergence-diagnostic-structured", "safe-retry-policy-known"],
-            effects: ["planning-objective-created", "retry-options-bounded"],
-            producedArtifacts: ["planning-problem"],
-            verificationGates: ["schema-validation", "simulation-completed"],
+            effects: ["planning-objective-created", "retry-options-bounded", "convergence-recovery-artifact-produced"],
+            producedArtifacts: ["planning-problem", "convergence-recovery-planning-problem"],
+            verificationGates: ["schema-validation", "simulation-completed", "artifact-integrity"],
             reversible: true
         )
     }

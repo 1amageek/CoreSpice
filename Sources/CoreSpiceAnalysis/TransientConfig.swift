@@ -74,4 +74,78 @@ public struct TransientConfig: Sendable {
         self.gminSteppingThreshold = gminSteppingThreshold
         self.gminStepping = gminStepping
     }
+
+    public func validate() throws {
+        try validatePositiveFinite(stopTime, name: "stopTime")
+        try validatePositiveFinite(maxTimeStep, name: "maxTimeStep")
+        try validatePositiveFinite(minTimeStep, name: "minTimeStep")
+        if let initialTimeStep {
+            try validatePositiveFinite(initialTimeStep, name: "initialTimeStep")
+        }
+        try validatePositiveFinite(lteTolerance, name: "lteTolerance")
+
+        guard minTimeStep <= maxTimeStep else {
+            throw AnalysisError.invalidConfiguration(
+                "minTimeStep must be less than or equal to maxTimeStep."
+            )
+        }
+        guard maxTimeStepReductions >= 0 else {
+            throw AnalysisError.invalidConfiguration(
+                "maxTimeStepReductions must be greater than or equal to zero."
+            )
+        }
+        guard shrinkFactor > 0, shrinkFactor < 1, shrinkFactor.isFinite else {
+            throw AnalysisError.invalidConfiguration(
+                "shrinkFactor must be finite and in the open interval (0, 1)."
+            )
+        }
+        guard gminSteppingThreshold > 0 else {
+            throw AnalysisError.invalidConfiguration(
+                "gminSteppingThreshold must be greater than zero."
+            )
+        }
+
+        try validateGminStepping()
+    }
+
+    public func effectiveInitialTimeStep() throws -> Double {
+        try validate()
+        return max(initialTimeStep ?? (maxTimeStep / 10.0), minTimeStep)
+    }
+
+    private func validatePositiveFinite(_ value: Double, name: String) throws {
+        guard value > 0, value.isFinite else {
+            throw AnalysisError.invalidConfiguration(
+                "\(name) must be finite and greater than zero."
+            )
+        }
+    }
+
+    private func validateGminStepping() throws {
+        guard gminStepping.initialGmin > 0, gminStepping.initialGmin.isFinite else {
+            throw AnalysisError.invalidConfiguration(
+                "gminStepping.initialGmin must be finite and greater than zero."
+            )
+        }
+        guard gminStepping.finalGmin >= 0, gminStepping.finalGmin.isFinite else {
+            throw AnalysisError.invalidConfiguration(
+                "gminStepping.finalGmin must be finite and greater than or equal to zero."
+            )
+        }
+        guard gminStepping.initialGmin >= gminStepping.finalGmin else {
+            throw AnalysisError.invalidConfiguration(
+                "gminStepping.initialGmin must be greater than or equal to finalGmin."
+            )
+        }
+        guard gminStepping.reductionFactor > 1, gminStepping.reductionFactor.isFinite else {
+            throw AnalysisError.invalidConfiguration(
+                "gminStepping.reductionFactor must be finite and greater than one."
+            )
+        }
+        guard gminStepping.maxSteps > 0 else {
+            throw AnalysisError.invalidConfiguration(
+                "gminStepping.maxSteps must be greater than zero."
+            )
+        }
+    }
 }

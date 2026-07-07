@@ -505,6 +505,9 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         if let reason = unsupportedComponentTypeReason(component.type) {
             return reason
         }
+        if let reason = unsupportedComponentParameterReason(component) {
+            return reason
+        }
 
         guard component.type.requiresModelForNativeExecution else {
             return nil
@@ -528,20 +531,25 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         switch type {
         case .behavioral:
             return "Behavioral B-source is parsed and preserved, but nonlinear behavioral source execution is not implemented"
-        case .jfet:
-            return "JFET components are parsed, but native JFET execution is not implemented"
         case .mesfet:
             return "MESFET components are parsed, but native MESFET execution is not implemented"
         case .transmissionLine:
             return "Transmission-line components are parsed, but native transmission-line execution is not implemented"
         case .uniformRC:
             return "Uniform RC components are parsed, but native uniform-RC execution is not implemented"
-        case .coupledInductors:
-            return "Coupled inductor components are parsed, but native mutual-inductor execution is not implemented"
-        case .switch_:
-            return "Voltage-controlled switch components are parsed, but native switch execution is not implemented"
-        case .currentSwitch:
-            return "Current-controlled switch components are parsed, but native switch execution is not implemented"
+        default:
+            return nil
+        }
+    }
+
+    private static func unsupportedComponentParameterReason(_ component: ParsedComponent) -> String? {
+        switch component.type {
+        case .jfet:
+            let supported = Set(["area"])
+            if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {
+                return "JFET instance parameter '\(unsupported)' is parsed, but native execution is not implemented"
+            }
+            return nil
         default:
             return nil
         }
@@ -564,14 +572,25 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
                 return "MOS level \(level) models are parsed, but no native CoreSpice device descriptor exists"
             }
         case .njf, .pjf:
-            return "JFET models are parsed, but native JFET execution is not implemented"
+            return blockedJFETModelParameterReason(model)
         case .nmf, .pmf:
             return "MESFET models are parsed, but native MESFET execution is not implemented"
         case .ltra:
             return "LTRA transmission-line models are parsed, but native LTRA execution is not implemented"
         case .sw, .csw:
-            return "Switch models are parsed, but native switch execution is not implemented"
+            return nil
         }
+    }
+
+    private static func blockedJFETModelParameterReason(_ model: ParsedModel) -> String? {
+        let supported = Set([
+            "vto", "beta", "b", "lambda", "is", "n", "cgs", "cgd", "pb", "m",
+            "fc", "kf", "af", "area", "tnom", "tnom_k", "rd", "rs"
+        ])
+        if let unsupported = model.parameters.keys.first(where: { !supported.contains($0) }) {
+            return "JFET model parameter '\(unsupported)' is parsed, but native execution is not implemented"
+        }
+        return nil
     }
 
     private static func coverageItem(
@@ -860,10 +879,28 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         from diagnostic: ParserDiagnostic
     ) -> SPICEDeckCoverageDiagnostic {
         SPICEDeckCoverageDiagnostic(
+            source: "parser",
             severity: diagnostic.severity.rawValue,
             message: diagnostic.message,
-            location: diagnostic.location
+            location: diagnostic.location,
+            suggestedActions: suggestedActions(for: diagnostic),
+            notes: diagnostic.notes.map(\.message)
         )
+    }
+
+    private static func suggestedActions(for diagnostic: ParserDiagnostic) -> [String] {
+        let fixIts = diagnostic.fixIts.map(\.message)
+        if !fixIts.isEmpty {
+            return fixIts
+        }
+        switch diagnostic.severity {
+        case .error:
+            return ["Inspect the referenced deck line and correct the SPICE syntax before running analysis."]
+        case .warning:
+            return ["Review the referenced deck line and confirm the preserved intent is acceptable for this run."]
+        case .info, .hint:
+            return ["Retain this parser diagnostic with the coverage report for audit context."]
+        }
     }
 }
 
@@ -894,7 +931,7 @@ private extension ParsedExpression {
 private extension ComponentType {
     var requiresModelForNativeExecution: Bool {
         switch self {
-        case .diode, .bjt, .mosfet:
+        case .diode, .bjt, .jfet, .mosfet, .switch_, .currentSwitch:
             return true
         default:
             return false

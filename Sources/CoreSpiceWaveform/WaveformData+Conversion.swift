@@ -88,12 +88,20 @@ extension WaveformData {
         transientResult: TransientResult,
         topology: CircuitTopology,
         title: String? = nil
-    ) -> WaveformData {
+    ) throws -> WaveformData {
+        try checkedFrom(transientResult: transientResult, topology: topology, title: title)
+    }
+
+    public static func checkedFrom(
+        transientResult: TransientResult,
+        topology: CircuitTopology,
+        title: String? = nil
+    ) throws -> WaveformData {
         let variableLayout = WaveformVariableLayout(
             variableMap: transientResult.variableMap,
             topology: topology
         )
-        return from(transientResult: transientResult, variableLayout: variableLayout, title: title)
+        return try checkedFrom(transientResult: transientResult, variableLayout: variableLayout, title: title)
     }
 
     /// Creates waveform data from a transient result with a precomputed variable layout.
@@ -101,12 +109,22 @@ extension WaveformData {
         transientResult: TransientResult,
         variableLayout: WaveformVariableLayout,
         title: String? = nil
-    ) -> WaveformData {
+    ) throws -> WaveformData {
+        try checkedFrom(transientResult: transientResult, variableLayout: variableLayout, title: title)
+    }
+
+    public static func checkedFrom(
+        transientResult: TransientResult,
+        variableLayout: WaveformVariableLayout,
+        title: String? = nil
+    ) throws -> WaveformData {
         let variables = variableLayout.variables
-        precondition(
-            variables.count == transientResult.solutionTrace.variableCount,
-            "variable layout width must match transient solution width"
-        )
+        guard variables.count == transientResult.solutionTrace.variableCount else {
+            throw WaveformValidationError.variableLayoutWidthMismatch(
+                expected: transientResult.solutionTrace.variableCount,
+                actual: variables.count
+            )
+        }
         let metadata = SimulationMetadata(
             title: title,
             analysisType: .transient,
@@ -116,8 +134,8 @@ extension WaveformData {
 
         let sweepVariable = VariableDescriptor.time()
 
-        return WaveformData(
-            metadata: metadata,
+        return try WaveformData(
+            validatingMetadata: metadata,
             sweepVariable: sweepVariable,
             sweepValues: transientResult.timePoints,
             variables: variables,
@@ -150,15 +168,17 @@ extension WaveformData {
             let descriptor: VariableDescriptor
             switch mnaVar {
             case .nodeVoltage(let node):
+                let nodeName = topology.name(for: node) ?? String(node.id)
                 descriptor = VariableDescriptor(
-                    name: "V(\(node.id))",
+                    name: "V(\(nodeName))",
                     unit: .volt,
                     type: .voltage,
                     index: idx
                 )
             case .branchCurrent(let branch):
+                let branchName = topology.name(for: branch) ?? String(branch.id)
                 descriptor = VariableDescriptor(
-                    name: "I(\(branch.id))",
+                    name: "I(\(branchName))",
                     unit: .ampere,
                     type: .current,
                     index: idx
@@ -250,26 +270,38 @@ extension WaveformData {
         sweepResult: SweepResult<TransientResult>,
         topology: CircuitTopology,
         title: String? = nil
-    ) -> ParametricWaveformData {
+    ) throws -> ParametricWaveformData {
+        try checkedParametricFrom(
+            sweepResult: sweepResult,
+            topology: topology,
+            title: title
+        )
+    }
+
+    public static func checkedParametricFrom(
+        sweepResult: SweepResult<TransientResult>,
+        topology: CircuitTopology,
+        title: String? = nil
+    ) throws -> ParametricWaveformData {
         var runs: [ParametricWaveformData.Run] = []
 
         for (index, (value, result)) in zip(sweepResult.values, sweepResult.results).enumerated() {
-            let waveform = WaveformData.from(
+            let waveform = try WaveformData.checkedFrom(
                 transientResult: result,
                 topology: topology,
                 title: "Run \(index + 1)"
             )
 
-            let run = ParametricWaveformData.Run(
-                index: index,
+            let run = try ParametricWaveformData.Run(
+                validatingIndex: index,
                 parameters: [sweepResult.parameterName: value],
                 waveform: waveform
             )
             runs.append(run)
         }
 
-        return ParametricWaveformData(
-            runs: runs,
+        return try ParametricWaveformData(
+            validatingRuns: runs,
             analysisType: .transient,
             title: title ?? "Parametric Transient: \(sweepResult.parameterName)",
             parameterNames: [sweepResult.parameterName]
@@ -331,6 +363,131 @@ extension WaveformData {
                 transferFunctionResult.inputImpedance,
                 transferFunctionResult.outputImpedance,
             ]]
+        )
+    }
+
+    // MARK: - From Noise Result
+
+    /// Creates waveform data from a noise analysis result.
+    ///
+    /// The sweep variable is frequency and the variables are output-referred
+    /// and input-referred spectral densities plus the integrated output noise.
+    public static func from(
+        noiseResult: NoiseResult,
+        title: String? = nil
+    ) -> WaveformData {
+        let variables = [
+            VariableDescriptor(
+                name: "output_noise_density",
+                unit: .dimensionless,
+                type: .noiseDensity,
+                index: 0
+            ),
+            VariableDescriptor(
+                name: "input_referred_noise_density",
+                unit: .dimensionless,
+                type: .noiseDensity,
+                index: 1
+            ),
+            VariableDescriptor(
+                name: "integrated_output_noise",
+                unit: .volt,
+                type: .voltage,
+                index: 2
+            ),
+        ]
+
+        let pointCount = noiseResult.frequencies.count
+        let realData = noiseResult.frequencies.indices.map { index in
+            [
+                noiseResult.outputNoiseDensity.indices.contains(index)
+                    ? noiseResult.outputNoiseDensity[index] : .nan,
+                noiseResult.inputReferredNoiseDensity.indices.contains(index)
+                    ? noiseResult.inputReferredNoiseDensity[index] : .nan,
+                noiseResult.integratedOutputNoise,
+            ]
+        }
+
+        return WaveformData(
+            metadata: SimulationMetadata(
+                title: title,
+                analysisType: .noise,
+                pointCount: pointCount,
+                variableCount: variables.count
+            ),
+            sweepVariable: .frequency(),
+            sweepValues: noiseResult.frequencies,
+            variables: variables,
+            realData: realData
+        )
+    }
+
+    // MARK: - From Pole-Zero Result
+
+    /// Creates waveform data from a pole-zero analysis result.
+    ///
+    /// The sweep variable is the result index. Pole and zero values are stored
+    /// as complex columns; missing pole/zero slots are represented as NaN.
+    public static func from(
+        poleZeroResult: PoleZeroResult,
+        title: String? = nil
+    ) -> WaveformData {
+        let pointCount = max(poleZeroResult.poles.count, poleZeroResult.zeros.count, 1)
+        let variables = [
+            VariableDescriptor(
+                name: "pole",
+                unit: .radian,
+                type: .frequency,
+                index: 0
+            ),
+            VariableDescriptor(
+                name: "zero",
+                unit: .radian,
+                type: .frequency,
+                index: 1
+            ),
+            VariableDescriptor(
+                name: "dc_gain",
+                unit: .dimensionless,
+                type: .magnitude,
+                index: 2
+            ),
+        ]
+
+        let complexData = (0..<pointCount).map { index in
+            [
+                poleZeroResult.poles.indices.contains(index)
+                    ? (
+                        real: poleZeroResult.poles[index].real,
+                        imag: poleZeroResult.poles[index].imag
+                    )
+                    : (real: Double.nan, imag: Double.nan),
+                poleZeroResult.zeros.indices.contains(index)
+                    ? (
+                        real: poleZeroResult.zeros[index].real,
+                        imag: poleZeroResult.zeros[index].imag
+                    )
+                    : (real: Double.nan, imag: Double.nan),
+                (real: index == 0 ? poleZeroResult.dcGain : Double.nan, imag: 0.0),
+            ]
+        }
+
+        return WaveformData(
+            metadata: SimulationMetadata(
+                title: title,
+                analysisType: .poleZero,
+                pointCount: pointCount,
+                variableCount: variables.count
+            ),
+            sweepVariable: VariableDescriptor(
+                name: "index",
+                unit: .dimensionless,
+                type: .parameter,
+                index: 0
+            ),
+            sweepValues: (0..<pointCount).map(Double.init),
+            variables: variables,
+            complexData: complexData
         )
     }
 

@@ -95,6 +95,323 @@ struct SPICEIOEndToEndTests {
         #expect(approximately(result.voltage(at: outNode), expected, tolerance: 1.0e-3))
     }
 
+    @Test("Public API executes a current-controlled switch deck")
+    func publicAPIExecutesCurrentControlledSwitchDeck() async throws {
+        let source = """
+        public api e2e current switch
+        VDD vdd 0 dc 5
+        VCTRL ctrl 0 dc 5
+        RSENSE ctrl sense 1k
+        W1 vdd out sense 0 cswmod
+        RLOAD out 0 1k
+        .model cswmod csw ron=10 roff=1e9 it=1m ih=0
+        .op
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let outNode = try node(fromInstance: "w1", terminal: 1, in: circuit.ir)
+
+        let result = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        let expected = 5.0 * 1000.0 / 1010.0
+        #expect(approximately(result.voltage(at: outNode), expected, tolerance: 1.0e-3))
+    }
+
+    @Test("Public API executes a coupled-inductor AC deck")
+    func publicAPIExecutesCoupledInductorACDeck() async throws {
+        let source = """
+        public api e2e coupled inductor
+        V1 in 0 dc 0 ac 1
+        RSRC in pri 10
+        L1 pri 0 1m
+        L2 out 0 1m
+        RLOAD out 0 1k
+        K1 L1 L2 0.9
+        .ac lin 1 1k 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+
+        let result = try await ACAnalysis(sweep: .linear(start: 1.0e3, stop: 1.0e3, points: 1)).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+        let output = result.voltage(at: outNode, frequencyIndex: 0)
+        #expect(hypot(output.real, output.imag) > 1.0e-6)
+    }
+
+    @Test("Voltage-controlled switch contributes control small-signal gain")
+    func voltageControlledSwitchContributesControlSmallSignalGain() async throws {
+        let source = """
+        voltage switch ac control gain
+        VDD vdd 0 dc 5
+        VCTRL ctrl 0 dc 2 ac 1
+        S1 vdd out ctrl 0 swmod
+        RLOAD out 0 1k
+        .model swmod sw ron=100 roff=900 vt=2 vh=8
+        .ac lin 1 1k 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let outNode = try node(fromInstance: "s1", terminal: 1, in: circuit.ir)
+
+        let result = try await ACAnalysis(sweep: .linear(start: 1.0e3, stop: 1.0e3, points: 1)).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        #expect(approximately(result.voltage(at: outNode, frequencyIndex: 0).real, 0.258546394893831, tolerance: 1.0e-6))
+    }
+
+    @Test("Current-controlled switch contributes control-current small-signal gain")
+    func currentControlledSwitchContributesControlCurrentSmallSignalGain() async throws {
+        let source = """
+        current switch ac control gain
+        VDD vdd 0 dc 5
+        VCTRL ctrl 0 dc 1 ac 1
+        RSENSE ctrl sense 1k
+        W1 vdd out sense 0 cswmod
+        RLOAD out 0 1k
+        .model cswmod csw ron=100 roff=900 it=1m ih=0
+        .ac lin 1 1k 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let outNode = try node(fromInstance: "w1", terminal: 1, in: circuit.ir)
+
+        let result = try await ACAnalysis(sweep: .linear(start: 1.0e3, stop: 1.0e3, points: 1)).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        #expect(approximately(result.voltage(at: outNode, frequencyIndex: 0).real, 258.5463948934515, tolerance: 1.0e-6))
+    }
+
+    @Test("Public API executes NJFET and PJFET operating-point decks")
+    func publicAPIExecutesJFETOperatingPointDecks() async throws {
+        let source = """
+        jfet operating point decks
+        VDD vdd 0 dc 5
+        VG gate 0 dc 0
+        JN vdd gate nout njmod
+        RN nout 0 1k
+        VSUP psup 0 dc 5
+        VPG pgate 0 dc 5
+        JP pout pgate psup pjmod
+        RP pout 0 1k
+        .model njmod njf beta=1m vto=-2 lambda=0
+        .model pjmod pjf beta=1m vto=-2 lambda=0
+        .op
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let nout = try node(fromInstance: "jn", terminal: 2, in: circuit.ir)
+        let pout = try node(fromInstance: "jp", terminal: 0, in: circuit.ir)
+
+        let result = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        #expect(approximately(result.voltage(at: nout), 1.0, tolerance: 1.0e-3))
+        #expect(approximately(result.voltage(at: pout), (5.0 + sqrt(5.0)) / 2.0, tolerance: 1.0e-3))
+    }
+
+    @Test("JFET contributes gate-control small-signal gain")
+    func jfetContributesGateControlSmallSignalGain() async throws {
+        let source = """
+        jfet ac source follower
+        VDD vdd 0 dc 5
+        VG gate 0 dc 0 ac 1
+        J1 vdd gate out njmod
+        RLOAD out 0 1k
+        .model njmod njf beta=1m vto=-2 lambda=0 cgs=1p cgd=0
+        .ac lin 1 1k 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let outNode = try node(fromInstance: "j1", terminal: 2, in: circuit.ir)
+
+        let result = try await ACAnalysis(sweep: .linear(start: 1.0e3, stop: 1.0e3, points: 1)).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        let gain = result.voltage(at: outNode, frequencyIndex: 0).real
+        #expect(gain > 0.3)
+        #expect(gain < 0.8)
+    }
+
+    @Test("Public API executes source-name current-controlled source decks")
+    func publicAPIExecutesSourceNameCurrentControlledSourceDecks() async throws {
+        let source = """
+        source name current controlled sources
+        VCTRL ctrl 0 dc 1
+        RCTRL ctrl 0 1k
+        F1 out 0 VCTRL 2
+        RLOAD out 0 1k
+        H1 hout 0 VCTRL 1000
+        RHLOAD hout 0 1k
+        .op
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let outNode = try node(fromInstance: "f1", terminal: 0, in: circuit.ir)
+        let hOutNode = try node(fromInstance: "h1", terminal: 0, in: circuit.ir)
+
+        let result = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        #expect(approximately(result.voltage(at: outNode), 2.0, tolerance: 1.0e-6))
+        #expect(approximately(result.voltage(at: hOutNode), -1.0, tolerance: 1.0e-6))
+    }
+
+    @Test("Public API resolves forward source-name current references")
+    func publicAPIExecutesForwardSourceNameCurrentReferenceDeck() async throws {
+        let source = """
+        forward source name current reference
+        F1 out 0 VCTRL 2
+        RLOAD out 0 1k
+        VCTRL ctrl 0 dc 1
+        RCTRL ctrl 0 1k
+        .op
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let outNode = try node(fromInstance: "f1", terminal: 0, in: circuit.ir)
+
+        let result = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        #expect(approximately(result.voltage(at: outNode), 2.0, tolerance: 1.0e-6))
+    }
+
+    @Test("Public API resolves subcircuit-local source-name current references")
+    func publicAPIExecutesSubcircuitLocalSourceNameCurrentReferenceDeck() async throws {
+        let source = """
+        subcircuit source name current reference
+        .subckt current_cell out
+        VCTRL ctrl 0 dc 1
+        RCTRL ctrl 0 1k
+        F1 out 0 VCTRL 2
+        .ends current_cell
+        X1 out current_cell
+        RLOAD out 0 1k
+        .op
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let outNode = try node(fromInstance: "x1.f1", terminal: 0, in: circuit.ir)
+
+        let result = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        #expect(approximately(result.voltage(at: outNode), 2.0, tolerance: 1.0e-6))
+    }
+
+    @Test("Public API executes a source-name current-controlled switch deck")
+    func publicAPIExecutesSourceNameCurrentControlledSwitchDeck() async throws {
+        let source = """
+        source name current switch
+        VDD vdd 0 dc 5
+        VCTRL ctrl 0 dc 1
+        RCTRL ctrl 0 1k
+        W1 vdd out VCTRL cswmod
+        RLOAD out 0 1k
+        .model cswmod csw ron=10 roff=1e9 it=-6m ih=0
+        .op
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let outNode = try node(fromInstance: "w1", terminal: 1, in: circuit.ir)
+
+        let result = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        let expected = 5.0 * 1000.0 / 1010.0
+        #expect(approximately(result.voltage(at: outNode), expected, tolerance: 1.0e-3))
+    }
+
+    @Test("Source-name current-controlled switch contributes AC control gain")
+    func sourceNameCurrentControlledSwitchContributesControlCurrentSmallSignalGain() async throws {
+        let source = """
+        source name current switch ac control gain
+        VDD vdd 0 dc 5
+        VCTRL ctrl 0 dc 1 ac 1
+        RCTRL ctrl 0 1k
+        W1 vdd out VCTRL cswmod
+        RLOAD out 0 1k
+        .model cswmod csw ron=100 roff=900 it=-1m ih=0
+        .ac lin 1 1k 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let outNode = try node(fromInstance: "w1", terminal: 1, in: circuit.ir)
+
+        let result = try await ACAnalysis(sweep: .linear(start: 1.0e3, stop: 1.0e3, points: 1)).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        #expect(abs(result.voltage(at: outNode, frequencyIndex: 0).real) > 1.0e-3)
+    }
+
     @Test("SPICE serialization round trip preserves executable subcircuit semantics")
     func spiceSerializationRoundTripPreservesExecutableSubcircuitSemantics() async throws {
         let source = """
@@ -136,6 +453,7 @@ private func compileAndBindElectricalCircuit(_ ir: CircuitIR) throws -> Executab
     var context = BindingContext(
         variableMap: plan.topology.variableMap,
         matrixDimension: plan.topology.dimension,
+        branchNames: plan.ir.branchNames,
         stampIndexResolver: { row, col in
             structure.index(row: row, col: col)
         }

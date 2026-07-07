@@ -76,12 +76,12 @@ struct NumericalRobustnessTests {
 
         // All voltages should be finite
         for i in 0..<result.timePoints.count {
-            let v = result.voltage(at: out, timeIndex: i)
+            let v = try result.voltage(at: out, timeIndex: i)
             #expect(v.isFinite, "Voltage should be finite at t=\(result.timePoints[i])")
         }
 
         // Final voltage should approach input
-        let vFinal = result.voltage(at: out, timeIndex: result.timePoints.count - 1)
+        let vFinal = try result.voltage(at: out, timeIndex: result.timePoints.count - 1)
         #expect(vFinal > 0.99, "Capacitor should charge to ~1V: got \(vFinal)")
     }
 
@@ -341,7 +341,7 @@ struct NumericalRobustnessTests {
         var steadyStateVoltages: [Double] = []
         for (i, t) in result.timePoints.enumerated() {
             if t > 10 * tau {
-                let voltage = result.voltage(at: out, timeIndex: i)
+                let voltage = try result.voltage(at: out, timeIndex: i)
                 steadyStateVoltages.append(voltage)
             }
         }

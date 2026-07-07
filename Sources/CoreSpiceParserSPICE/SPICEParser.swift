@@ -333,6 +333,18 @@ private struct SPICEParserImpl {
                 modelName = subcktName
             }
             nodes = tokens.map { ParsedNodeRef(name: $0, location: loc) }
+        } else if type == .cccs || type == .ccvs {
+            try parseCurrentControlledSourceComponent(
+                type: type,
+                nodes: &nodes,
+                params: &params
+            )
+        } else if type == .currentSwitch {
+            try parseCurrentControlledSwitchComponent(
+                nodes: &nodes,
+                modelName: &modelName,
+                params: &params
+            )
         } else {
             // Parse fixed number of nodes
             for _ in 0..<nodeCount {
@@ -350,7 +362,8 @@ private struct SPICEParserImpl {
             }
 
             // For model-backed devices, parse model name
-            if type == .mosfet || type == .bjt || type == .jfet || type == .diode || type == .switch_ {
+            if type == .mosfet || type == .bjt || type == .jfet || type == .diode ||
+                type == .switch_ || type == .currentSwitch {
                 if case .identifier(let model) = currentToken {
                     modelName = model
                     advance()
@@ -431,6 +444,110 @@ private struct SPICEParserImpl {
         ))
     }
 
+    private mutating func parseCurrentControlledSourceComponent(
+        type: ComponentType,
+        nodes: inout [ParsedNodeRef],
+        params: inout [String: ParsedParameterValue]
+    ) throws {
+        nodes.append(try parseRequiredNodeRef())
+        nodes.append(try parseRequiredNodeRef())
+
+        let controlLocation = currentLocation
+        if case .number = currentToken {
+            nodes.append(try parseRequiredNodeRef())
+            nodes.append(try parseRequiredNodeRef())
+            let gainKey = type == .cccs ? "f" : "h"
+            try parseControlledGainParameter(into: &params, key: gainKey)
+            return
+        }
+        guard case .identifier(let controlName) = currentToken else {
+            throw ParserDiagnostic.error("Expected controlling source or sense node", at: currentLocation)
+        }
+        advance()
+
+        let gainKey = type == .cccs ? "f" : "h"
+        if currentControlledElementUsesExplicitSenseTerminals() {
+            nodes.append(ParsedNodeRef(name: controlName, location: controlLocation))
+            nodes.append(try parseRequiredNodeRef())
+        } else {
+            params["control_source"] = .string(controlName)
+        }
+        try parseControlledGainParameter(into: &params, key: gainKey)
+    }
+
+    private mutating func parseCurrentControlledSwitchComponent(
+        nodes: inout [ParsedNodeRef],
+        modelName: inout String?,
+        params: inout [String: ParsedParameterValue]
+    ) throws {
+        nodes.append(try parseRequiredNodeRef())
+        nodes.append(try parseRequiredNodeRef())
+
+        let controlLocation = currentLocation
+        if case .number = currentToken {
+            nodes.append(try parseRequiredNodeRef())
+            nodes.append(try parseRequiredNodeRef())
+            modelName = try parseRequiredIdentifier(message: "Expected current switch model name")
+            return
+        }
+        guard case .identifier(let controlName) = currentToken else {
+            throw ParserDiagnostic.error("Expected controlling source or sense node", at: currentLocation)
+        }
+        advance()
+
+        if currentControlledElementUsesExplicitSenseTerminals() {
+            nodes.append(ParsedNodeRef(name: controlName, location: controlLocation))
+            nodes.append(try parseRequiredNodeRef())
+        } else {
+            params["control_source"] = .string(controlName)
+        }
+
+        modelName = try parseRequiredIdentifier(message: "Expected current switch model name")
+    }
+
+    private mutating func parseRequiredNodeRef() throws -> ParsedNodeRef {
+        let location = currentLocation
+        if case .identifier(let nodeName) = currentToken {
+            advance()
+            return ParsedNodeRef(name: nodeName, location: location)
+        }
+        if case .number(let n) = currentToken {
+            advance()
+            return ParsedNodeRef(name: String(Int(n)), location: location)
+        }
+        if case .invalidNumericLiteral(let text) = currentToken {
+            throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
+        }
+        if case .invalidNumericSuffix(let suffix) = currentToken {
+            throw ParserDiagnostic.error("Unknown numeric suffix '\(suffix)'", at: currentLocation)
+        }
+        throw ParserDiagnostic.error("Expected node name", at: currentLocation)
+    }
+
+    private mutating func parseRequiredIdentifier(message: String) throws -> String {
+        guard case .identifier(let value) = currentToken else {
+            throw ParserDiagnostic.error(message, at: currentLocation)
+        }
+        advance()
+        return value
+    }
+
+    private mutating func parseControlledGainParameter(
+        into params: inout [String: ParsedParameterValue],
+        key: String
+    ) throws {
+        if case .identifier(let parameterName) = currentToken,
+           parameterName.lowercased() == key,
+           current + 1 < tokens.count,
+           case .equals = tokens[current + 1].token {
+            advance()
+            advance()
+            params[key] = try parseParameterValue()
+            return
+        }
+        params[key] = try parseParameterValue()
+    }
+
     /// Reads an optional leading +/- sign followed by a numeric token and
     /// returns the signed value. The lexer emits a separate `.minus`/`.plus`
     /// token before a number, so source values and positional component values
@@ -479,6 +596,7 @@ private struct SPICEParserImpl {
         case .vccs: return params["g"] == nil ? "g" : nil
         case .cccs: return params["f"] == nil ? "f" : nil
         case .ccvs: return params["h"] == nil ? "h" : nil
+        case .coupledInductors: return params["k"] == nil ? "k" : nil
         default: return nil
         }
     }
@@ -533,6 +651,59 @@ private struct SPICEParserImpl {
             }
             advance()
             return value
+        default:
+            return nil
+        }
+    }
+
+    private mutating func parseAnalysisPointCount(default defaultValue: Int) throws -> Int {
+        if isAtEnd || isNewline {
+            return defaultValue
+        }
+        let location = currentLocation
+        guard let value = try parseNumericTokenIfPresent() else {
+            throw ParserDiagnostic.error("Expected numeric analysis point count", at: currentLocation)
+        }
+        return try parsePositiveInteger(value, label: "analysis point count", at: location)
+    }
+
+    private func parsePositiveInteger(
+        _ value: Double,
+        label: String,
+        at location: SourceLocation?
+    ) throws -> Int {
+        guard value.isFinite,
+              value > 0,
+              value.rounded(.towardZero) == value,
+              value < Double(Int.max) else {
+            throw ParserDiagnostic.error("Expected positive integer \(label)", at: location)
+        }
+        return Int(value)
+    }
+
+    private func parseNonnegativeInteger(
+        _ value: Double,
+        label: String,
+        at location: SourceLocation?
+    ) throws -> Int {
+        guard value.isFinite,
+              value >= 0,
+              value.rounded(.towardZero) == value,
+              value < Double(Int.max) else {
+            throw ParserDiagnostic.error("Expected nonnegative integer \(label)", at: location)
+        }
+        return Int(value)
+    }
+
+    private mutating func parseParameterValueIfPresent() throws -> ParsedParameterValue? {
+        if isAtEnd || isNewline {
+            return nil
+        }
+
+        switch currentToken {
+        case .number, .invalidNumericLiteral, .invalidNumericSuffix,
+             .identifier, .string, .leftBrace, .minus, .plus:
+            return try parseParameterValue()
         default:
             return nil
         }
@@ -998,16 +1169,16 @@ private struct SPICEParserImpl {
         var stepTime: ParsedParameterValue?
         var startTime: ParsedParameterValue?
 
-        if let n = try parseNumericTokenIfPresent() {
-            stepTime = .numeric(n)
+        if let value = try parseParameterValueIfPresent() {
+            stepTime = value
         }
 
-        if let n = try parseNumericTokenIfPresent() {
-            stopTime = .numeric(n)
+        if let value = try parseParameterValueIfPresent() {
+            stopTime = value
         }
 
-        if let n = try parseNumericTokenIfPresent() {
-            startTime = .numeric(n)
+        if let value = try parseParameterValueIfPresent() {
+            startTime = value
         }
 
         analyses.append(.transient(TransientAnalysisSpec(
@@ -1034,19 +1205,17 @@ private struct SPICEParserImpl {
             advance()
         }
 
-        if let n = try parseNumericTokenIfPresent() {
-            points = Int(n)
+        points = try parseAnalysisPointCount(default: points)
+
+        if let value = try parseParameterValueIfPresent() {
+            startFreq = value
         }
 
-        if let n = try parseNumericTokenIfPresent() {
-            startFreq = .numeric(n)
+        if let value = try parseParameterValueIfPresent() {
+            stopFreq = value
         }
 
-        if let n = try parseNumericTokenIfPresent() {
-            stopFreq = .numeric(n)
-        }
-
-        analyses.append(.ac(ACAnalysisSpec(
+        analyses.append(.ac(try ACAnalysisSpec(
             scaleType: scaleType,
             numberOfPoints: points,
             startFrequency: startFreq,
@@ -1065,14 +1234,14 @@ private struct SPICEParserImpl {
         var stop: ParsedParameterValue = .numeric(1)
         var step: ParsedParameterValue = .numeric(0.1)
 
-        if let n = try parseNumericTokenIfPresent() {
-            start = .numeric(n)
+        if let value = try parseParameterValueIfPresent() {
+            start = value
         }
-        if let n = try parseNumericTokenIfPresent() {
-            stop = .numeric(n)
+        if let value = try parseParameterValueIfPresent() {
+            stop = value
         }
-        if let n = try parseNumericTokenIfPresent() {
-            step = .numeric(n)
+        if let value = try parseParameterValueIfPresent() {
+            step = value
         }
 
         analyses.append(.dc(DCAnalysisSpec(
@@ -1136,23 +1305,21 @@ private struct SPICEParserImpl {
 
         // Parse number of points
         var points = 10
-        if let n = try parseNumericTokenIfPresent() {
-            points = Int(n)
-        }
+        points = try parseAnalysisPointCount(default: points)
 
         // Parse start frequency
         var startFreq: ParsedParameterValue = .numeric(1.0)
-        if let n = try parseNumericTokenIfPresent() {
-            startFreq = .numeric(n)
+        if let value = try parseParameterValueIfPresent() {
+            startFreq = value
         }
 
         // Parse stop frequency
         var stopFreq: ParsedParameterValue = .numeric(1e6)
-        if let n = try parseNumericTokenIfPresent() {
-            stopFreq = .numeric(n)
+        if let value = try parseParameterValueIfPresent() {
+            stopFreq = value
         }
 
-        analyses.append(.noise(NoiseAnalysisSpec(
+        analyses.append(.noise(try NoiseAnalysisSpec(
             outputNode: outputNode,
             referenceNode: referenceNode,
             inputSource: inputSource,
@@ -1254,7 +1421,7 @@ private struct SPICEParserImpl {
                 stopFreq = .numeric(n)
             }
 
-            acSpec = ACAnalysisSpec(
+            acSpec = try ACAnalysisSpec(
                 scaleType: scaleType,
                 numberOfPoints: points,
                 startFrequency: startFreq,
@@ -1378,8 +1545,13 @@ private struct SPICEParserImpl {
     private mutating func parseMonteCarloAnalysis(location: SourceLocation?) throws {
         // Parse number of iterations
         var iterations = 100
+        let iterationsLocation = currentLocation
         if let n = try parseNumericTokenIfPresent() {
-            iterations = Int(n)
+            iterations = try parsePositiveInteger(
+                n,
+                label: "Monte Carlo iteration count",
+                at: iterationsLocation
+            )
         }
 
         // Parse inner analysis
@@ -1424,9 +1596,7 @@ private struct SPICEParserImpl {
                 advance()
             }
 
-            if let n = try parseNumericTokenIfPresent() {
-                points = Int(n)
-            }
+            points = try parseAnalysisPointCount(default: points)
 
             if let n = try parseNumericTokenIfPresent() {
                 startFreq = .numeric(n)
@@ -1436,7 +1606,7 @@ private struct SPICEParserImpl {
                 stopFreq = .numeric(n)
             }
 
-            innerAnalysis = .ac(ACAnalysisSpec(
+            innerAnalysis = .ac(try ACAnalysisSpec(
                 scaleType: scaleType,
                 numberOfPoints: points,
                 startFrequency: startFreq,
@@ -1483,9 +1653,14 @@ private struct SPICEParserImpl {
                     if case .equals = currentToken {
                         advance()
                     }
-                    if let n = try parseNumericTokenIfPresent() {
-                        seed = Int(n)
+                    let seedLocation = currentLocation
+                    guard let n = try parseNumericTokenIfPresent() else {
+                        throw ParserDiagnostic.error(
+                            "Expected nonnegative integer Monte Carlo seed",
+                            at: seedLocation
+                        )
                     }
+                    seed = try parseNonnegativeInteger(n, label: "Monte Carlo seed", at: seedLocation)
                 }
             } else {
                 advance()
@@ -1493,7 +1668,7 @@ private struct SPICEParserImpl {
         }
 
         if let inner = innerAnalysis {
-            analyses.append(.monteCarlo(MonteCarloSpec(
+            analyses.append(.monteCarlo(try MonteCarloSpec(
                 analysis: inner,
                 iterations: iterations,
                 seed: seed
@@ -2131,14 +2306,17 @@ private struct SPICEParserImpl {
     }
 
     private var isParameterStart: Bool {
-        if case .identifier(let id) = currentToken {
-            // Check if next is =
-            if current + 1 < tokens.count {
-                if case .equals = tokens[current + 1].token {
-                    return true
-                }
+        isParameterStart(at: current)
+    }
+
+    private func isParameterStart(at index: Int) -> Bool {
+        guard index < tokens.count else {
+            return false
+        }
+        if case .identifier(let id) = tokens[index].token {
+            if index + 1 < tokens.count, case .equals = tokens[index + 1].token {
+                return true
             }
-            // Check for "params:"
             if isParamsKeyword(id) {
                 return true
             }
@@ -2149,6 +2327,69 @@ private struct SPICEParserImpl {
     private func isParamsKeyword(_ id: String) -> Bool {
         let lower = id.lowercased()
         return lower == "params" || lower == "params:"
+    }
+
+    private func remainingPositionalFieldCountBeforeParameterStart() -> Int {
+        var index = current
+        var fieldCount = 0
+        while index < tokens.count {
+            let token = tokens[index].token
+            if isLineEnd(token) || isParameterStart(at: index) {
+                break
+            }
+            fieldCount += 1
+            index = positionalFieldEndIndex(startingAt: index)
+        }
+        return fieldCount
+    }
+
+    private func currentControlledElementUsesExplicitSenseTerminals() -> Bool {
+        let remainingFields = remainingPositionalFieldCountBeforeParameterStart()
+        if remainingFields >= 2 {
+            return true
+        }
+        guard remainingFields == 1 else {
+            return false
+        }
+        let afterCandidateSenseNode = positionalFieldEndIndex(startingAt: current)
+        return isParameterStart(at: afterCandidateSenseNode)
+    }
+
+    private func positionalFieldEndIndex(startingAt start: Int) -> Int {
+        guard start < tokens.count else {
+            return start
+        }
+        switch tokens[start].token {
+        case .leftBrace:
+            var index = start + 1
+            var depth = 1
+            while index < tokens.count, depth > 0 {
+                switch tokens[index].token {
+                case .leftBrace:
+                    depth += 1
+                case .rightBrace:
+                    depth -= 1
+                default:
+                    break
+                }
+                index += 1
+            }
+            return index
+        case .minus, .plus:
+            return min(start + 2, tokens.count)
+        default:
+            return start + 1
+        }
+    }
+
+    private func isLineEnd(_ token: SPICEToken) -> Bool {
+        if case .newline = token {
+            return true
+        }
+        if case .endOfFile = token {
+            return true
+        }
+        return false
     }
 
     private mutating func advance() {

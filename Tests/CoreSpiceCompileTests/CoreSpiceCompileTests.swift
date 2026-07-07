@@ -46,7 +46,7 @@ struct CoreSpiceCompileTests {
         #expect(matrix.value(row: 0, col: 0) == 0.0)
     }
 
-    @Test func sparseMatrixMultiply() {
+    @Test func sparseMatrixMultiply() throws {
         // [2 -1] * [1] = [1]
         // [-1 2]   [1]   [1]
         let structure = SparseStructure.fromTriplets(
@@ -59,9 +59,43 @@ struct CoreSpiceCompileTests {
         matrix.addValue(row: 1, col: 0, value: -1.0)
         matrix.addValue(row: 1, col: 1, value: 2.0)
 
-        let result = matrix.multiply(vector: [1.0, 1.0])
+        let result = try matrix.multiply(vector: [1.0, 1.0])
         #expect(abs(result[0] - 1.0) < 1e-10)
         #expect(abs(result[1] - 1.0) < 1e-10)
+    }
+
+    @Test func sparseMatrixCheckedMultiplyRejectsShapeMismatch() {
+        let structure = SparseStructure.fromTriplets(
+            dimension: 2,
+            entries: [(0, 0), (1, 1)]
+        )
+        let matrix = SparseMatrix(structure: structure)
+
+        #expect(throws: SparseMatrixError.vectorLengthMismatch(expected: 2, actual: 1)) {
+            _ = try matrix.checkedMultiply(vector: [1.0])
+        }
+
+        var result = [0.0]
+        #expect(throws: SparseMatrixError.resultLengthMismatch(expected: 2, actual: 1)) {
+            try matrix.checkedMultiply(vector: [1.0, 2.0], into: &result)
+        }
+    }
+
+    @Test func complexSparseMatrixCheckedMultiplyRejectsShapeMismatch() {
+        let structure = SparseStructure.fromTriplets(
+            dimension: 2,
+            entries: [(0, 0), (1, 1)]
+        )
+        let matrix = ComplexSparseMatrix(structure: structure)
+
+        #expect(throws: SparseMatrixError.vectorLengthMismatch(expected: 2, actual: 1)) {
+            _ = try matrix.checkedMultiply(vector: [ComplexPair.one])
+        }
+
+        var result = [ComplexPair.zero]
+        #expect(throws: SparseMatrixError.resultLengthMismatch(expected: 2, actual: 1)) {
+            try matrix.checkedMultiply(vector: [ComplexPair.one, ComplexPair.one], into: &result)
+        }
     }
 
     @Test func luSolverSimple2x2() throws {
@@ -110,7 +144,7 @@ struct CoreSpiceCompileTests {
         let x = try solver.solve(rhs: [1.0, 2.0, 3.0])
 
         // Verify A*x = b
-        var result = matrix.multiply(vector: x)
+        var result = try matrix.multiply(vector: x)
         #expect(abs(result[0] - 1.0) < 1e-10)
         #expect(abs(result[1] - 2.0) < 1e-10)
         #expect(abs(result[2] - 3.0) < 1e-10)

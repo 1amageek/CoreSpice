@@ -34,7 +34,7 @@ struct LEDTests {
     }
 
     @Test("LED provides correct sensitivities for forward-mode propagation")
-    func sensitivityPropagation() {
+    func sensitivityPropagation() throws {
         let params = LEDModelParameters(
             saturationCurrent: 1e-14,
             emissionCoefficient: 2.0,
@@ -76,8 +76,7 @@ struct LEDTests {
         )
 
         // Should have output signal at the optical output node
-        #expect(result.signals[optOut] != nil)
-        let signal = result.signals[optOut]!
+        let signal = try #require(result.signals[optOut])
         #expect(signal.power > 0, "LED should emit light in forward bias")
 
         // Should have sensitivities for both anode and cathode
@@ -86,19 +85,19 @@ struct LEDTests {
         let anodeSens = result.sensitivities.first(where: { $0.electricalVarIndex == 0 })
         let cathodeSens = result.sensitivities.first(where: { $0.electricalVarIndex == 1 })
 
-        #expect(anodeSens != nil, "Should have anode sensitivity")
-        #expect(cathodeSens != nil, "Should have cathode sensitivity")
+        let requiredAnodeSens = try #require(anodeSens, "Should have anode sensitivity")
+        let requiredCathodeSens = try #require(cathodeSens, "Should have cathode sensitivity")
 
         // dP/dV_anode should be positive (more voltage -> more current -> more light)
-        #expect(anodeSens!.dPdV > 0)
+        #expect(requiredAnodeSens.dPdV > 0)
         // dP/dV_cathode should be negative (opposite sign)
-        #expect(cathodeSens!.dPdV < 0)
+        #expect(requiredCathodeSens.dPdV < 0)
         // Magnitudes should be equal
-        #expect(abs(anodeSens!.dPdV + cathodeSens!.dPdV) < 1e-15)
+        #expect(abs(requiredAnodeSens.dPdV + requiredCathodeSens.dPdV) < 1e-15)
     }
 
     @Test("LED does not emit light in reverse bias")
-    func reversebiasNoEmission() {
+    func reversebiasNoEmission() throws {
         let params = LEDModelParameters()
 
         let anodeNode = Node(id: 1)
@@ -134,7 +133,7 @@ struct LEDTests {
             opticalState: opticalState
         )
 
-        let signal = result.signals[optOut]!
+        let signal = try #require(result.signals[optOut])
         // In deep reverse, current is negative -> max(id, 0) = 0 -> no light
         #expect(signal.power < 1e-20, "LED should not emit in reverse bias")
         #expect(result.sensitivities.isEmpty, "No sensitivities in reverse bias")

@@ -55,7 +55,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
         let startTimestamp = Timestamp()
         let dim = plan.topology.dimension
         let variableMap = plan.topology.variableMap
-        let frequencies = sweep.frequencies()
+        let frequencies = try sweep.frequencies()
 
         await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
@@ -85,6 +85,9 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 throw AnalysisError.invalidConfiguration(
                     "Output node \(outputNode.id) not found in variable map"
                 )
+            }
+            let inputStimulus = try inputSourceName.map {
+                try inputSourceStimulus(named: $0, plan: plan, variableMap: variableMap)
             }
 
             // Collect noisy devices
@@ -125,6 +128,8 @@ public struct NoiseAnalysis: Analysis, Sendable {
             // Pre-allocate buffers for the inner noise solve loop
             var noiseRHS = [ComplexPair](repeating: ComplexPair(), count: dim)
             var noiseSolutionBuf = [ComplexPair](repeating: ComplexPair(), count: dim)
+            var inputRHS = [ComplexPair](repeating: ComplexPair(), count: dim)
+            var inputSolutionBuf = [ComplexPair](repeating: ComplexPair(), count: dim)
 
             for (freqIdx, freq) in frequencies.enumerated() {
                 if cancellation.isCancelled {
@@ -220,12 +225,34 @@ public struct NoiseAnalysis: Analysis, Sendable {
 
                 outputNoiseDensity.append(totalNoisePSD)
 
-                // Input-referred noise (placeholder: divide by 1 if no input source)
-                inputReferredNoiseDensity.append(totalNoisePSD)
+                if let inputStimulus {
+                    for i in 0..<dim { inputRHS[i] = ComplexPair() }
+                    inputStimulus.stamp(into: &inputRHS)
+
+                    do {
+                        try complexSolver.solve(rhs: inputRHS, into: &inputSolutionBuf)
+                    } catch {
+                        throw AnalysisError.internalError(
+                            "Failed to solve noise input transfer function: \(error)"
+                        )
+                    }
+
+                    let gain = inputSolutionBuf[outputIndex]
+                    let gainMagnitudeSquared = gain.real * gain.real + gain.imag * gain.imag
+                    guard gainMagnitudeSquared.isFinite, gainMagnitudeSquared > 1.0e-30 else {
+                        throw AnalysisError.invalidConfiguration(
+                            "Input source '\(inputStimulus.sourceName)' has zero transfer to output node \(outputNode.id)"
+                        )
+                    }
+                    inputReferredNoiseDensity.append(totalNoisePSD / gainMagnitudeSquared)
+                } else {
+                    inputReferredNoiseDensity.append(totalNoisePSD)
+                }
+
 
                 // Progress
                 let fraction = Double(freqIdx + 1) / Double(frequencies.count)
-                await observer?.emit(.progressUpdate(ProgressInfo(
+                await observer?.emit(.progressUpdate(try ProgressInfo(
                     id: analysisID,
                     fraction: fraction,
                     message: "Noise: f = \(freq) Hz"
@@ -286,6 +313,106 @@ public struct NoiseAnalysis: Analysis, Sendable {
     }
 
     // MARK: - Private
+
+    private enum InputSourceStimulus {
+        case voltageSource(name: String, branchIndex: Int)
+        case currentSource(name: String, positiveIndex: Int?, negativeIndex: Int?)
+
+        var sourceName: String {
+            switch self {
+            case .voltageSource(let name, _), .currentSource(let name, _, _):
+                name
+            }
+        }
+
+        func stamp(into rhs: inout [ComplexPair]) {
+            switch self {
+            case .voltageSource(_, let branchIndex):
+                rhs[branchIndex] = ComplexPair(real: 1.0, imag: 0.0)
+            case .currentSource(_, let positiveIndex, let negativeIndex):
+                if let positiveIndex {
+                    rhs[positiveIndex] = ComplexPair(
+                        real: rhs[positiveIndex].real - 1.0,
+                        imag: rhs[positiveIndex].imag
+                    )
+                }
+                if let negativeIndex {
+                    rhs[negativeIndex] = ComplexPair(
+                        real: rhs[negativeIndex].real + 1.0,
+                        imag: rhs[negativeIndex].imag
+                    )
+                }
+            }
+        }
+    }
+
+    private func inputSourceStimulus(
+        named sourceName: String,
+        plan: ExecutionPlan,
+        variableMap: [MNAVariable: Int]
+    ) throws -> InputSourceStimulus {
+        let branchAllocatingTypes: Set<String> = [
+            "vsource", "inductor", "vcvs", "ccvs", "cccs", "ccvs_ref", "cswitch"
+        ]
+        var branchID = 0
+        var matches: [InputSourceStimulus] = []
+
+        for instance in plan.ir.instances {
+            let typeName = instance.typeName.lowercased()
+            if instance.name.caseInsensitiveCompare(sourceName) == .orderedSame {
+                switch typeName {
+                case "vsource":
+                    let branch = Branch(id: branchID)
+                    guard let branchIndex = variableMap[.branchCurrent(branch)] else {
+                        throw AnalysisError.invalidConfiguration(
+                            "Branch for input source '\(sourceName)' not found in variable map"
+                        )
+                    }
+                    matches.append(.voltageSource(name: instance.name, branchIndex: branchIndex))
+                case "isource":
+                    let positiveIndex = variableMap[.nodeVoltage(instance.nodes[0])]
+                    let negativeIndex = variableMap[.nodeVoltage(instance.nodes[1])]
+                    guard positiveIndex != nil || negativeIndex != nil else {
+                        throw AnalysisError.invalidConfiguration(
+                            "Input source '\(sourceName)' is connected only to ground"
+                        )
+                    }
+                    matches.append(.currentSource(
+                        name: instance.name,
+                        positiveIndex: positiveIndex,
+                        negativeIndex: negativeIndex
+                    ))
+                default:
+                    throw AnalysisError.invalidConfiguration(
+                        "Input source '\(sourceName)' resolved to unsupported device type \(instance.typeName); expected independent voltage or current source"
+                    )
+                }
+            }
+
+            if typeName == "ccvs" {
+                branchID += 2
+            } else if branchAllocatingTypes.contains(typeName) {
+                branchID += 1
+            }
+        }
+
+        if matches.count == 1 {
+            return matches[0]
+        }
+        if matches.isEmpty {
+            let available = plan.ir.instances
+                .filter { ["vsource", "isource"].contains($0.typeName.lowercased()) }
+                .map(\.name)
+                .sorted()
+                .joined(separator: ", ")
+            throw AnalysisError.invalidConfiguration(
+                "Input source '\(sourceName)' not found in circuit; available sources: \(available)"
+            )
+        }
+        throw AnalysisError.invalidConfiguration(
+            "Input source '\(sourceName)' matched multiple independent sources"
+        )
+    }
 
     /// Returns noise contributions for a device, using optical state when available.
     ///

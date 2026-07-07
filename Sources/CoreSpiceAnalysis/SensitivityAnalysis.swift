@@ -188,6 +188,7 @@ public struct SensitivityAnalysis: Analysis, Sendable {
         var context = BindingContext(
             variableMap: plan.topology.variableMap,
             matrixDimension: plan.topology.dimension,
+            branchNames: plan.ir.branchNames,
             stampIndexResolver: { row, col in structure.index(row: row, col: col) }
         )
         var devices: [any BoundDevice] = []

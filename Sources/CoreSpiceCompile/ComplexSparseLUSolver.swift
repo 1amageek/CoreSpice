@@ -81,6 +81,8 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
     ///
     /// - Throws: ``CompileError/singularMatrix`` if a zero pivot is encountered.
     public mutating func factorize(matrix: ComplexSparseMatrix) throws {
+        factorized = false
+
         guard matrix.structuralMisses.isEmpty else {
             throw CompileError.incompatibleStructure(
                 "Complex sparse matrix received stamps outside the CSR pattern: \(matrix.structuralMisses)"
@@ -111,7 +113,7 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
             buildPermutedStructureAndMap(from: matrix.structure, permutation: sym.permutation)
 
             // Allocate all workspace arrays
-            allocateWorkspace(n: n, symbolic: sym)
+            try allocateWorkspace(n: n, symbolic: sym)
         }
 
         guard let sym = symbolic, let permStruct = permutedStructure else {
@@ -202,9 +204,12 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
     }
 
     /// Allocates all working arrays for factorization and solve.
-    private mutating func allocateWorkspace(n: Int, symbolic sym: SymbolicAnalysis) {
+    private mutating func allocateWorkspace(n: Int, symbolic sym: SymbolicAnalysis) throws {
+        guard let permStruct = permutedStructure else {
+            throw CompileError.singularMatrix
+        }
         // Permuted values buffer
-        permutedValues = Array(repeating: .zero, count: permutedStructure!.nonZeroCount)
+        permutedValues = Array(repeating: .zero, count: permStruct.nonZeroCount)
 
         // Pivot (shared between dense and sparse paths)
         pivot = Array(repeating: 0, count: n)
@@ -424,7 +429,7 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
             if k > 0 && k % 50 == 0 {
                 let projectedOverflow = totalOverflow * n / k
                 if projectedOverflow > symbolicNNZ / 2 {
-                    try factorizeDense(n: n, permStruct: permutedStructure!)
+                    try factorizeDense(n: n, permStruct: permStruct)
                     return
                 }
             }

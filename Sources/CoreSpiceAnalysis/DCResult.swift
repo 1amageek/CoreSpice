@@ -34,16 +34,47 @@ public struct DCResult: Sendable {
 
     /// Returns the voltage at the given node.
     ///
-    /// The ground node always returns 0.
+    /// The ground node always returns 0. Use `checkedVoltage(at:)` when a
+    /// missing variable must be reported as a structured failure.
     public func voltage(at node: Node) -> Double {
         if node == .ground { return 0.0 }
         guard let idx = variableMap[.nodeVoltage(node)] else { return 0.0 }
+        guard idx >= 0, idx < variables.count else { return 0.0 }
+        return variables[idx]
+    }
+
+    /// Returns the voltage at the given node, or throws when the node is not part of the solved state.
+    ///
+    /// The ground node always returns 0.
+    public func checkedVoltage(at node: Node) throws -> Double {
+        if node == .ground { return 0.0 }
+        guard let idx = variableMap[.nodeVoltage(node)] else {
+            throw SolutionStateAccessError.missingNodeVoltage(nodeID: node.id)
+        }
+        guard idx >= 0, idx < variables.count else {
+            throw SolutionStateAccessError.valueIndexOutOfBounds(index: idx, count: variables.count)
+        }
         return variables[idx]
     }
 
     /// Returns the current through the given branch.
+    ///
+    /// Use `checkedCurrent(through:)` when a missing branch must be reported
+    /// as a structured failure.
     public func current(through branch: Branch) -> Double {
         guard let idx = variableMap[.branchCurrent(branch)] else { return 0.0 }
+        guard idx >= 0, idx < variables.count else { return 0.0 }
+        return variables[idx]
+    }
+
+    /// Returns the current through the given branch, or throws when the branch is not part of the solved state.
+    public func checkedCurrent(through branch: Branch) throws -> Double {
+        guard let idx = variableMap[.branchCurrent(branch)] else {
+            throw SolutionStateAccessError.missingBranchCurrent(branchID: branch.id)
+        }
+        guard idx >= 0, idx < variables.count else {
+            throw SolutionStateAccessError.valueIndexOutOfBounds(index: idx, count: variables.count)
+        }
         return variables[idx]
     }
 }

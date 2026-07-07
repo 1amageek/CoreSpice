@@ -1,5 +1,16 @@
 import CoreSpiceIR
 
+public enum TransientResultError: Error, Equatable, Sendable, CustomStringConvertible {
+    case unknownNode(Node)
+
+    public var description: String {
+        switch self {
+        case .unknownNode(let node):
+            "Transient result does not contain node \(node.id)."
+        }
+    }
+}
+
 /// The result of a transient (time-domain) analysis.
 ///
 /// Contains the full time-domain trajectory of the circuit: a series
@@ -38,32 +49,48 @@ public struct TransientResult: Sendable {
     /// Returns the voltage at the given node for a specific time index.
     ///
     /// Ground always returns 0.
-    public func voltage(at node: Node, timeIndex: Int) -> Double {
+    public func checkedVoltage(at node: Node, timeIndex: Int) throws -> Double {
         if node == .ground { return 0.0 }
-        guard let idx = variableMap[.nodeVoltage(node)] else { return 0.0 }
-        return solutionTrace.value(pointIndex: timeIndex, variableIndex: idx)
+        guard let idx = variableMap[.nodeVoltage(node)] else {
+            throw TransientResultError.unknownNode(node)
+        }
+        return try solutionTrace.value(pointIndex: timeIndex, variableIndex: idx)
     }
 
-    public func value(variableIndex: Int, timeIndex: Int) -> Double {
-        solutionTrace.value(pointIndex: timeIndex, variableIndex: variableIndex)
+    public func voltage(at node: Node, timeIndex: Int) throws -> Double {
+        try checkedVoltage(at: node, timeIndex: timeIndex)
+    }
+
+    public func checkedValue(variableIndex: Int, timeIndex: Int) throws -> Double {
+        try solutionTrace.value(pointIndex: timeIndex, variableIndex: variableIndex)
+    }
+
+    public func value(variableIndex: Int, timeIndex: Int) throws -> Double {
+        try checkedValue(variableIndex: variableIndex, timeIndex: timeIndex)
     }
 
     public func withSolution<R>(
         at timeIndex: Int,
         _ body: (UnsafeBufferPointer<Double>) throws -> R
-    ) rethrows -> R {
+    ) throws -> R {
         try solutionTrace.withPoint(at: timeIndex, body)
     }
 
     /// Returns the full voltage waveform at the given node as time-value pairs.
-    public func voltageWaveform(at node: Node) -> [(time: Double, value: Double)] {
+    public func checkedVoltageWaveform(at node: Node) throws -> [(time: Double, value: Double)] {
         guard node != .ground else {
             return timePoints.map { (time: $0, value: 0.0) }
         }
-        guard let variableIndex = variableMap[.nodeVoltage(node)] else { return [] }
-        let column = solutionTrace.column(variableIndex: variableIndex)
+        guard let variableIndex = variableMap[.nodeVoltage(node)] else {
+            throw TransientResultError.unknownNode(node)
+        }
+        let column = try solutionTrace.column(variableIndex: variableIndex)
         return timePoints.enumerated().map { (idx, t) in
             (time: t, value: column[idx])
         }
+    }
+
+    public func voltageWaveform(at node: Node) throws -> [(time: Double, value: Double)] {
+        try checkedVoltageWaveform(at: node)
     }
 }

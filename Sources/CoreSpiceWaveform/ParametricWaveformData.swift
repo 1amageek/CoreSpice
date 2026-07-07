@@ -28,6 +28,35 @@ public struct ParametricWaveformData: Sendable {
             self.parameters = parameters
             self.waveform = waveform
         }
+
+        public init(
+            validatingIndex index: Int,
+            parameters: [String: Double],
+            waveform: WaveformData
+        ) throws {
+            try Self.validate(index: index, parameters: parameters)
+            self.index = index
+            self.parameters = parameters
+            self.waveform = waveform
+        }
+
+        fileprivate static func validate(index: Int, parameters: [String: Double]) throws {
+            guard index >= 0 else {
+                throw ParametricWaveformValidationError.negativeRunIndex(index)
+            }
+            for (name, value) in parameters {
+                guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw ParametricWaveformValidationError.emptyParameterName
+                }
+                guard value.isFinite else {
+                    throw ParametricWaveformValidationError.nonFiniteParameterValue(
+                        runIndex: index,
+                        name: name,
+                        value: value
+                    )
+                }
+            }
+        }
     }
 
     /// All simulation runs.
@@ -59,15 +88,179 @@ public struct ParametricWaveformData: Sendable {
         self.parameterNames = parameterNames
     }
 
+    public init(
+        validatingRuns runs: [Run],
+        analysisType: AnalysisKind,
+        title: String? = nil,
+        parameterNames: [String]
+    ) throws {
+        try Self.validate(runs: runs, analysisType: analysisType, parameterNames: parameterNames)
+        self.runs = runs
+        self.analysisType = analysisType
+        self.title = title
+        self.parameterNames = parameterNames
+    }
+
+    private static func validate(
+        runs: [Run],
+        analysisType: AnalysisKind,
+        parameterNames: [String]
+    ) throws {
+        guard !runs.isEmpty else {
+            throw ParametricWaveformValidationError.emptyRuns
+        }
+        try validateParameterNames(parameterNames)
+
+        var seenRunIndices: Set<Int> = []
+        for run in runs {
+            try Run.validate(index: run.index, parameters: run.parameters)
+            guard seenRunIndices.insert(run.index).inserted else {
+                throw ParametricWaveformValidationError.duplicateRunIndex(run.index)
+            }
+            try validateParameters(run: run, parameterNames: parameterNames)
+            try validateWaveformShape(run: run)
+            guard run.waveform.metadata.analysisType == analysisType else {
+                throw ParametricWaveformValidationError.analysisTypeMismatch(
+                    runIndex: run.index,
+                    expected: analysisType,
+                    actual: run.waveform.metadata.analysisType
+                )
+            }
+        }
+
+        guard let reference = runs.first?.waveform else {
+            throw ParametricWaveformValidationError.emptyRuns
+        }
+        for run in runs.dropFirst() {
+            try validateComparableWaveform(
+                run: run,
+                reference: reference
+            )
+        }
+    }
+
+    private static func validateWaveformShape(run: Run) throws {
+        guard run.waveform.sweepValues.count == run.waveform.pointCount else {
+            throw ParametricWaveformValidationError.pointCountMismatch(
+                runIndex: run.index,
+                expected: run.waveform.pointCount,
+                actual: run.waveform.sweepValues.count
+            )
+        }
+        guard run.waveform.variables.count == run.waveform.variableCount else {
+            throw ParametricWaveformValidationError.variableCountMismatch(
+                runIndex: run.index,
+                expected: run.waveform.variableCount,
+                actual: run.waveform.variables.count
+            )
+        }
+    }
+
+    private static func validateParameterNames(_ parameterNames: [String]) throws {
+        var seenNames: Set<String> = []
+        for name in parameterNames {
+            guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw ParametricWaveformValidationError.emptyParameterName
+            }
+            guard seenNames.insert(name).inserted else {
+                throw ParametricWaveformValidationError.duplicateParameterName(name)
+            }
+        }
+    }
+
+    private static func validateParameters(run: Run, parameterNames: [String]) throws {
+        let expectedNames = Set(parameterNames)
+        for name in parameterNames where run.parameters[name] == nil {
+            throw ParametricWaveformValidationError.missingParameterName(
+                runIndex: run.index,
+                name: name
+            )
+        }
+        for name in run.parameters.keys where !expectedNames.contains(name) {
+            throw ParametricWaveformValidationError.unexpectedParameterName(
+                runIndex: run.index,
+                name: name
+            )
+        }
+    }
+
+    private static func validateComparableWaveform(run: Run, reference: WaveformData) throws {
+        let waveform = run.waveform
+        guard waveform.sweepVariable == reference.sweepVariable else {
+            throw ParametricWaveformValidationError.sweepVariableMismatch(runIndex: run.index)
+        }
+        guard waveform.isComplex == reference.isComplex else {
+            throw ParametricWaveformValidationError.waveformComplexityMismatch(
+                runIndex: run.index,
+                expected: reference.isComplex,
+                actual: waveform.isComplex
+            )
+        }
+        guard waveform.pointCount == reference.pointCount else {
+            throw ParametricWaveformValidationError.pointCountMismatch(
+                runIndex: run.index,
+                expected: reference.pointCount,
+                actual: waveform.pointCount
+            )
+        }
+        guard waveform.variableCount == reference.variableCount else {
+            throw ParametricWaveformValidationError.variableCountMismatch(
+                runIndex: run.index,
+                expected: reference.variableCount,
+                actual: waveform.variableCount
+            )
+        }
+
+        for point in 0..<reference.pointCount {
+            let expected = reference.sweepValues[point]
+            let actual = waveform.sweepValues[point]
+            guard expected == actual else {
+                throw ParametricWaveformValidationError.sweepValueMismatch(
+                    runIndex: run.index,
+                    point: point,
+                    expected: expected,
+                    actual: actual
+                )
+            }
+        }
+
+        for variable in 0..<reference.variables.count {
+            let expected = reference.variables[variable]
+            let actual = waveform.variables[variable]
+            guard expected == actual else {
+                throw ParametricWaveformValidationError.variableDescriptorMismatch(
+                    runIndex: run.index,
+                    variable: variable,
+                    expected: expected.name,
+                    actual: actual.name
+                )
+            }
+        }
+    }
+
     // MARK: - Statistical Analysis
 
     /// Computes statistics for a variable across all runs at each point.
+    @available(*, deprecated, message: "Use checkedStatistics(forVariable:) to preserve typed validation failures.")
     public func statistics(
         forVariable name: String
     ) -> WaveformStatistics? {
+        do {
+            return try checkedStatistics(forVariable: name)
+        } catch {
+            return nil
+        }
+    }
+
+    /// Computes statistics for a variable across all runs, returning typed failures.
+    public func checkedStatistics(
+        forVariable name: String
+    ) throws -> WaveformStatistics {
+        try Self.validate(runs: runs, analysisType: analysisType, parameterNames: parameterNames)
+
         guard let firstRun = runs.first,
               firstRun.waveform.variableIndex(named: name) != nil else {
-            return nil
+            throw ParametricWaveformValidationError.variableUnavailable(name)
         }
 
         let pointCount = firstRun.waveform.pointCount
@@ -84,11 +277,23 @@ public struct ParametricWaveformData: Sendable {
 
         for run in runs {
             guard let variableIndex = run.waveform.variableIndex(named: name) else {
-                continue
+                throw ParametricWaveformValidationError.variableUnavailable(name)
             }
-            for i in 0..<min(pointCount, run.waveform.pointCount) {
+            for i in 0..<pointCount {
                 guard let v = run.waveform.realValue(variable: variableIndex, point: i) else {
-                    continue
+                    throw ParametricWaveformValidationError.unreadableVariableValue(
+                        runIndex: run.index,
+                        variable: name,
+                        sweepIndex: i
+                    )
+                }
+                guard v.isFinite else {
+                    throw ParametricWaveformValidationError.nonFiniteWaveformValue(
+                        runIndex: run.index,
+                        variable: name,
+                        sweepIndex: i,
+                        value: v
+                    )
                 }
                 allValues[i].append(v)
                 means[i] += v
@@ -149,22 +354,58 @@ public struct ParametricWaveformData: Sendable {
     }
 
     /// Computes statistics for a variable at a specific sweep index.
+    @available(*, deprecated, message: "Use checkedStatistics(forVariable:atSweepIndex:) to preserve typed validation failures.")
     public func statistics(
         forVariable name: String,
         atSweepIndex sweepIndex: Int
     ) -> PointStatistics? {
+        do {
+            return try checkedStatistics(forVariable: name, atSweepIndex: sweepIndex)
+        } catch {
+            return nil
+        }
+    }
+
+    /// Computes statistics for a variable at a sweep index, returning typed failures.
+    public func checkedStatistics(
+        forVariable name: String,
+        atSweepIndex sweepIndex: Int
+    ) throws -> PointStatistics {
+        try Self.validate(runs: runs, analysisType: analysisType, parameterNames: parameterNames)
+        guard let firstRun = runs.first,
+              firstRun.waveform.variableIndex(named: name) != nil else {
+            throw ParametricWaveformValidationError.variableUnavailable(name)
+        }
+        guard sweepIndex >= 0, sweepIndex < firstRun.waveform.pointCount else {
+            throw ParametricWaveformValidationError.sweepIndexOutOfRange(
+                index: sweepIndex,
+                pointCount: firstRun.waveform.pointCount
+            )
+        }
+
         var values: [Double] = []
 
         for run in runs {
-            guard let variableIndex = run.waveform.variableIndex(named: name),
-                  sweepIndex < run.waveform.pointCount,
-                  let value = run.waveform.realValue(variable: variableIndex, point: sweepIndex) else {
-                continue
+            guard let variableIndex = run.waveform.variableIndex(named: name) else {
+                throw ParametricWaveformValidationError.variableUnavailable(name)
+            }
+            guard let value = run.waveform.realValue(variable: variableIndex, point: sweepIndex) else {
+                throw ParametricWaveformValidationError.unreadableVariableValue(
+                    runIndex: run.index,
+                    variable: name,
+                    sweepIndex: sweepIndex
+                )
+            }
+            guard value.isFinite else {
+                throw ParametricWaveformValidationError.nonFiniteWaveformValue(
+                    runIndex: run.index,
+                    variable: name,
+                    sweepIndex: sweepIndex,
+                    value: value
+                )
             }
             values.append(value)
         }
-
-        guard !values.isEmpty else { return nil }
 
         let n = Double(values.count)
         let mean = values.reduce(0, +) / n
@@ -179,8 +420,8 @@ public struct ParametricWaveformData: Sendable {
 
         // Sort for percentiles
         let sorted = values.sorted()
-        let min = sorted.first!
-        let max = sorted.last!
+        let min = sorted[0]
+        let max = sorted[sorted.count - 1]
 
         return PointStatistics(
             mean: mean,
@@ -213,39 +454,99 @@ public struct ParametricWaveformData: Sendable {
     }
 
     /// Returns the run that produced the minimum value of a variable.
+    @available(*, deprecated, message: "Use checkedRunWithMinimum(of:at:) to preserve typed validation failures.")
     public func runWithMinimum(
         of variable: String,
         at sweepIndex: Int = 0
     ) -> Run? {
-        runs.min { a, b in
-            guard let aVariableIndex = a.waveform.variableIndex(named: variable),
-                  let bVariableIndex = b.waveform.variableIndex(named: variable),
-                  sweepIndex < a.waveform.pointCount,
-                  sweepIndex < b.waveform.pointCount,
-                  let aValue = a.waveform.realValue(variable: aVariableIndex, point: sweepIndex),
-                  let bValue = b.waveform.realValue(variable: bVariableIndex, point: sweepIndex) else {
-                return false
-            }
-            return aValue < bValue
+        do {
+            return try checkedRunWithMinimum(of: variable, at: sweepIndex)
+        } catch {
+            return nil
         }
     }
 
+    /// Returns the run that produced the minimum value, returning typed failures.
+    public func checkedRunWithMinimum(
+        of variable: String,
+        at sweepIndex: Int = 0
+    ) throws -> Run {
+        try runWithExtremum(of: variable, at: sweepIndex, prefersCandidate: <)
+    }
+
     /// Returns the run that produced the maximum value of a variable.
+    @available(*, deprecated, message: "Use checkedRunWithMaximum(of:at:) to preserve typed validation failures.")
     public func runWithMaximum(
         of variable: String,
         at sweepIndex: Int = 0
     ) -> Run? {
-        runs.max { a, b in
-            guard let aVariableIndex = a.waveform.variableIndex(named: variable),
-                  let bVariableIndex = b.waveform.variableIndex(named: variable),
-                  sweepIndex < a.waveform.pointCount,
-                  sweepIndex < b.waveform.pointCount,
-                  let aValue = a.waveform.realValue(variable: aVariableIndex, point: sweepIndex),
-                  let bValue = b.waveform.realValue(variable: bVariableIndex, point: sweepIndex) else {
-                return false
-            }
-            return aValue < bValue
+        do {
+            return try checkedRunWithMaximum(of: variable, at: sweepIndex)
+        } catch {
+            return nil
         }
+    }
+
+    /// Returns the run that produced the maximum value, returning typed failures.
+    public func checkedRunWithMaximum(
+        of variable: String,
+        at sweepIndex: Int = 0
+    ) throws -> Run {
+        try runWithExtremum(of: variable, at: sweepIndex, prefersCandidate: >)
+    }
+
+    private func runWithExtremum(
+        of variable: String,
+        at sweepIndex: Int,
+        prefersCandidate: (Double, Double) -> Bool
+    ) throws -> Run {
+        try Self.validate(runs: runs, analysisType: analysisType, parameterNames: parameterNames)
+        guard let firstRun = runs.first,
+              firstRun.waveform.variableIndex(named: variable) != nil else {
+            throw ParametricWaveformValidationError.variableUnavailable(variable)
+        }
+        guard sweepIndex >= 0, sweepIndex < firstRun.waveform.pointCount else {
+            throw ParametricWaveformValidationError.sweepIndexOutOfRange(
+                index: sweepIndex,
+                pointCount: firstRun.waveform.pointCount
+            )
+        }
+
+        var selectedRun: Run?
+        var selectedValue: Double?
+        for run in runs {
+            guard let variableIndex = run.waveform.variableIndex(named: variable),
+                  let value = run.waveform.realValue(variable: variableIndex, point: sweepIndex) else {
+                throw ParametricWaveformValidationError.unreadableVariableValue(
+                    runIndex: run.index,
+                    variable: variable,
+                    sweepIndex: sweepIndex
+                )
+            }
+            guard value.isFinite else {
+                throw ParametricWaveformValidationError.nonFiniteWaveformValue(
+                    runIndex: run.index,
+                    variable: variable,
+                    sweepIndex: sweepIndex,
+                    value: value
+                )
+            }
+
+            if let current = selectedValue {
+                if prefersCandidate(value, current) {
+                    selectedRun = run
+                    selectedValue = value
+                }
+            } else {
+                selectedRun = run
+                selectedValue = value
+            }
+        }
+
+        guard let selectedRun else {
+            throw ParametricWaveformValidationError.emptyRuns
+        }
+        return selectedRun
     }
 }
 

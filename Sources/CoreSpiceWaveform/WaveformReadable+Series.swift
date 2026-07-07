@@ -5,13 +5,21 @@ extension WaveformReadable {
         guard let index = variables.firstIndex(where: { $0.name == name }) else {
             return nil
         }
-        return RealWaveformView(source: self, variableIndex: index)
+        do {
+            return try RealWaveformView(validatingSource: self, variableIndex: index)
+        } catch {
+            return nil
+        }
     }
 
     /// Returns a lazy real-valued series for the visible variable index.
     public func realSeries(at index: Int) -> RealWaveformView? {
         guard index >= 0, index < variableCount else { return nil }
-        return RealWaveformView(source: self, variableIndex: index)
+        do {
+            return try RealWaveformView(validatingSource: self, variableIndex: index)
+        } catch {
+            return nil
+        }
     }
 
     /// Returns a lazy complex-valued series for the named variable.
@@ -19,12 +27,20 @@ extension WaveformReadable {
         guard let index = variables.firstIndex(where: { $0.name == name }) else {
             return nil
         }
-        return ComplexWaveformView(source: self, variableIndex: index)
+        do {
+            return try ComplexWaveformView(validatingSource: self, variableIndex: index)
+        } catch {
+            return nil
+        }
     }
 
     /// Returns a lazy complex-valued series for the visible variable index.
     public func complexSeries(at index: Int) -> ComplexWaveformView? {
         guard index >= 0, index < variableCount else { return nil }
-        return ComplexWaveformView(source: self, variableIndex: index)
+        do {
+            return try ComplexWaveformView(validatingSource: self, variableIndex: index)
+        } catch {
+            return nil
+        }
     }
 }

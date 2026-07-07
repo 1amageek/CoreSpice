@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Synchronization
 @testable import CoreSpiceAnalysis
 @testable import CoreSpiceCompile
 @testable import CoreSpiceDevices
@@ -19,6 +20,17 @@ import Foundation
 /// 8. Token reuse behavior
 @Suite("Cancellation Integration Tests")
 struct CancellationIntegrationTests {
+    final class RecordingObserver: AnalysisObserver, Sendable {
+        private let storage = Mutex<[AnalysisEvent]>([])
+
+        var events: [AnalysisEvent] {
+            storage.withLock { $0 }
+        }
+
+        func onEvent(_ event: AnalysisEvent) {
+            storage.withLock { $0.append(event) }
+        }
+    }
 
     // MARK: - Test 1: DC Analysis Cancellation
 
@@ -31,7 +43,7 @@ struct CancellationIntegrationTests {
     @Test("DC analysis cancellation during Newton-Raphson")
     func dcAnalysisCancellation() async throws {
         // Build a nonlinear circuit (diode) that requires NR iteration
-        let (netlist, _) = CircuitFactory.diodeCircuit(v: 5.0, r: 1000.0)
+        let (netlist, _) = try CircuitFactory.diodeCircuit(v: 5.0, r: 1000.0)
         let (plan, devices) = try CircuitFactory.compile(netlist)
 
         let analysis = DCAnalysis()
@@ -67,7 +79,7 @@ struct CancellationIntegrationTests {
     @Test("Transient analysis cancellation")
     func transientAnalysisCancellation() async throws {
         // Build an RC circuit for transient analysis
-        let (netlist, _) = CircuitFactory.rcLowpass(r: 1000.0, c: 1e-6)
+        let (netlist, _) = try CircuitFactory.rcLowpass(r: 1000.0, c: 1e-6)
         let (plan, devices) = try CircuitFactory.compile(netlist)
 
         // Configuration for transient simulation
@@ -102,7 +114,7 @@ struct CancellationIntegrationTests {
     /// incorrectly trigger when the token is not cancelled.
     @Test("DC analysis completes normally without cancellation")
     func dcAnalysisCompletesNormally() async throws {
-        let (netlist, mid) = CircuitFactory.resistiveDivider(v: 10.0, r1: 1000.0, r2: 1000.0)
+        let (netlist, mid) = try CircuitFactory.resistiveDivider(v: 10.0, r1: 1000.0, r2: 1000.0)
         let (plan, devices) = try CircuitFactory.compile(netlist)
 
         let analysis = DCAnalysis()
@@ -124,7 +136,7 @@ struct CancellationIntegrationTests {
     /// Verifies transient analysis completes when not cancelled.
     @Test("Transient analysis completes normally without cancellation")
     func transientAnalysisCompletesNormally() async throws {
-        let (netlist, out) = CircuitFactory.rcLowpass(r: 1000.0, c: 1e-9)
+        let (netlist, out) = try CircuitFactory.rcLowpass(r: 1000.0, c: 1e-9)
         let (plan, devices) = try CircuitFactory.compile(netlist)
 
         // Short simulation
@@ -140,10 +152,14 @@ struct CancellationIntegrationTests {
 
         // Verify result has multiple timepoints
         #expect(result.timePoints.count > 1, "Should have multiple timepoints")
-        #expect(result.timePoints.last! >= 10e-6 * 0.99, "Should reach stop time")
+        guard let lastTime = result.timePoints.last else {
+            Issue.record("Expected at least one transient timepoint")
+            return
+        }
+        #expect(lastTime >= 10e-6 * 0.99, "Should reach stop time")
 
         // Check capacitor voltage rises
-        let lastVoltage = result.voltage(at: out, timeIndex: result.timePoints.count - 1)
+        let lastVoltage = try result.voltage(at: out, timeIndex: result.timePoints.count - 1)
         #expect(lastVoltage > 0.5, "Capacitor should charge significantly in 10τ")
     }
 
@@ -154,7 +170,7 @@ struct CancellationIntegrationTests {
     /// This tests the check at the very beginning of the analysis.
     @Test("Pre-cancelled token causes immediate termination")
     func preCancelledToken() async throws {
-        let (netlist, _) = CircuitFactory.resistiveDivider(v: 10.0, r1: 1000.0, r2: 1000.0)
+        let (netlist, _) = try CircuitFactory.resistiveDivider(v: 10.0, r1: 1000.0, r2: 1000.0)
         let (plan, devices) = try CircuitFactory.compile(netlist)
 
         let analysis = DCAnalysis()
@@ -185,7 +201,7 @@ struct CancellationIntegrationTests {
     /// Verifies that AC analysis can be cancelled.
     @Test("AC analysis cancellation")
     func acAnalysisCancellation() async throws {
-        let (netlist, _) = CircuitFactory.rcLowpass(r: 1000.0, c: 1e-6)
+        let (netlist, _) = try CircuitFactory.rcLowpass(r: 1000.0, c: 1e-6)
         let (plan, devices) = try CircuitFactory.compile(netlist)
 
         // AC sweep configuration
@@ -193,6 +209,8 @@ struct CancellationIntegrationTests {
         let analysis = ACAnalysis(sweep: sweep)
         let solver = SparseLUSolver()
         let token = CancellationToken()
+        let observer = RecordingObserver()
+        let dispatcher = EventDispatcher(observers: [observer])
 
         // Pre-cancel for deterministic test
         token.cancel()
@@ -200,7 +218,7 @@ struct CancellationIntegrationTests {
         do {
             _ = try await analysis.run(
                 plan: plan, devices: devices, solver: solver,
-                observer: nil, cancellation: token
+                observer: dispatcher, cancellation: token
             )
             Issue.record("Expected AnalysisError.cancelled to be thrown")
         } catch let error as AnalysisError {
@@ -210,6 +228,15 @@ struct CancellationIntegrationTests {
             }
             // Success
         }
+
+        let acFinishedEvents = observer.events.compactMap { event -> AnalysisFinishedInfo? in
+            guard case .analysisFinished(let info) = event, info.type == .ac else {
+                return nil
+            }
+            return info
+        }
+        #expect(acFinishedEvents.count == 1, "AC cancellation must emit exactly one terminal AC event")
+        #expect(acFinishedEvents.first?.status == .cancelled)
     }
 
     // MARK: - Test 7: Cross-Task Cancellation
@@ -258,7 +285,7 @@ struct CancellationIntegrationTests {
     @Test("Complex MOSFET circuit cancellation")
     func complexMosfetCircuitCancellation() async throws {
         // Build NMOS common source circuit
-        let (netlist, _) = CircuitFactory.nmosCommonSource(
+        let (netlist, _) = try CircuitFactory.nmosCommonSource(
             vdd: 5.0, rd: 1000.0, vgs: 2.0,
             mosParams: ["vto": .real(1.0), "kp": .real(1e-3)]
         )
@@ -295,7 +322,7 @@ struct CancellationIntegrationTests {
     @Test("Cancellation during convergence aid phases")
     func cancellationDuringGminStepping() async throws {
         // Build a circuit that may need convergence aids
-        let (netlist, _) = CircuitFactory.diodeCircuit(
+        let (netlist, _) = try CircuitFactory.diodeCircuit(
             v: 0.7,  // Near turn-on voltage
             r: 100.0,
             diodeParams: ["is": .real(1e-14)]

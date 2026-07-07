@@ -16,7 +16,7 @@ struct CoreSpiceAnalysisTests {
         var netlist = Netlist()
         let _ = netlist.node("1")
         let _ = netlist.node("2")
-        let branch = netlist.branch()
+        let _ = netlist.branch()
 
         try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["1", "0"],
                                 parameters: ["v": .real(5.0)])
@@ -70,44 +70,72 @@ struct CoreSpiceAnalysisTests {
         #expect(!notConverged)
     }
 
-    @Test func frequencySweepDecade() {
-        let sweep = FrequencySweep.decade(start: 1.0, stop: 1000.0, pointsPerDecade: 10)
-        let freqs = sweep.frequencies()
-        #expect(freqs.count > 0)
-        #expect(abs(freqs.first! - 1.0) < 1e-10)
-        // Last frequency should be close to 1000
-        #expect(freqs.last! >= 999.0)
+    @Test func dcResultCheckedAccessRejectsMissingVariables() throws {
+        let knownNode = Node(id: 1)
+        let knownBranch = Branch(id: 1)
+        let result = DCResult(
+            variables: [2.5, 0.01],
+            variableMap: [
+                .nodeVoltage(knownNode): 0,
+                .branchCurrent(knownBranch): 1
+            ],
+            iterations: 3
+        )
+
+        #expect(try result.checkedVoltage(at: knownNode) == 2.5)
+        #expect(try result.checkedCurrent(through: knownBranch) == 0.01)
+        #expect(throws: SolutionStateAccessError.missingNodeVoltage(nodeID: 9)) {
+            _ = try result.checkedVoltage(at: Node(id: 9))
+        }
+        #expect(throws: SolutionStateAccessError.missingBranchCurrent(branchID: 9)) {
+            _ = try result.checkedCurrent(through: Branch(id: 9))
+        }
     }
 
-    @Test func frequencySweepLinear() {
+    @Test func frequencySweepDecade() throws {
+        let sweep = FrequencySweep.decade(start: 1.0, stop: 1000.0, pointsPerDecade: 10)
+        let freqs = try sweep.frequencies()
+        #expect(freqs.count > 0)
+        let first = try #require(freqs.first)
+        let last = try #require(freqs.last)
+        #expect(abs(first - 1.0) < 1e-10)
+        // Last frequency should be close to 1000
+        #expect(last >= 999.0)
+    }
+
+    @Test func frequencySweepLinear() throws {
         let sweep = FrequencySweep.linear(start: 100, stop: 200, points: 11)
-        let freqs = sweep.frequencies()
+        let freqs = try sweep.frequencies()
         #expect(freqs.count == 11)
         #expect(abs(freqs[0] - 100.0) < 1e-10)
         #expect(abs(freqs[10] - 200.0) < 1e-10)
         #expect(abs(freqs[5] - 150.0) < 1e-10)
     }
 
-    @Test func frequencySweepSingle() {
+    @Test func frequencySweepSingle() throws {
         let sweep = FrequencySweep.single(1000.0)
-        let freqs = sweep.frequencies()
+        let freqs = try sweep.frequencies()
         #expect(freqs.count == 1)
         #expect(freqs[0] == 1000.0)
     }
 
-    @Test func gminSteppingValues() {
+    @Test func gminSteppingValues() throws {
         let gmin = GminStepping()
         let values = gmin.gminValues()
         #expect(values.count > 0)
-        #expect(values.first! > values.last!)
+        let first = try #require(values.first)
+        let last = try #require(values.last)
+        #expect(first > last)
     }
 
-    @Test func sourceSteppingFactors() {
+    @Test func sourceSteppingFactors() throws {
         let ss = SourceStepping(steps: 10)
         let factors = ss.sourceFactors()
         #expect(factors.count == 10)
-        #expect(abs(factors.last! - 1.0) < 1e-10)
-        #expect(abs(factors.first! - 0.1) < 1e-10)
+        let first = try #require(factors.first)
+        let last = try #require(factors.last)
+        #expect(abs(last - 1.0) < 1e-10)
+        #expect(abs(first - 0.1) < 1e-10)
     }
 
     @Test func lteEstimatorBasic() {
@@ -173,7 +201,7 @@ struct CoreSpiceAnalysisTests {
         let (plan, devices) = try buildResistiveDivider()
 
         let dcAnalysis = DCAnalysis()
-        var solver = SparseLUSolver()
+        let solver = SparseLUSolver()
         let token = CancellationToken()
 
         let result = try await dcAnalysis.run(
@@ -205,7 +233,7 @@ struct CoreSpiceAnalysisTests {
         var netlist = Netlist()
         let _ = netlist.node("1")
         let _ = netlist.node("2")
-        let branch = netlist.branch()
+        let _ = netlist.branch()
 
         try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["1", "0"],
                                 parameters: ["v": .real(1.0)])
@@ -231,7 +259,7 @@ struct CoreSpiceAnalysisTests {
         }
 
         let dcAnalysis = DCAnalysis()
-        var solver = SparseLUSolver()
+        let solver = SparseLUSolver()
         let token = CancellationToken()
 
         let result = try await dcAnalysis.run(
@@ -309,7 +337,7 @@ struct CoreSpiceAnalysisTests {
     /// Verifies transient simulation produces time points and stable solution
     @Test func transientAnalysisRCCircuit() async throws {
         var netlist = Netlist()
-        let n1 = netlist.node("n1")
+        let _ = netlist.node("n1")
         let n2 = netlist.node("n2")
         let _ = netlist.branch()
 
@@ -357,10 +385,11 @@ struct CoreSpiceAnalysisTests {
         // Verify we have time points
         #expect(result.timePoints.count > 5, "Should have multiple time points")
         #expect(result.timePoints.first == 0.0, "Should start at t=0")
-        #expect(result.timePoints.last! >= 0.9e-3, "Should reach near stop time")
+        let finalTime = try #require(result.timePoints.last)
+        #expect(finalTime >= 0.9e-3, "Should reach near stop time")
 
         // Verify solution is stable (n2 voltage should be 1V at DC equilibrium)
-        let finalVoltage = result.voltage(at: n2, timeIndex: result.timePoints.count - 1)
+        let finalVoltage = try result.voltage(at: n2, timeIndex: result.timePoints.count - 1)
         #expect(abs(finalVoltage - 1.0) < 0.1, "Final voltage should be ≈1V, got \(finalVoltage)")
 
         // Verify time is monotonically increasing
@@ -374,7 +403,7 @@ struct CoreSpiceAnalysisTests {
     /// Verifies transient simulation handles breakpoints at PULSE edges
     @Test func transientAnalysisPulseRC() async throws {
         var netlist = Netlist()
-        let n1 = netlist.node("n1")
+        let _ = netlist.node("n1")
         let n2 = netlist.node("n2")
         let _ = netlist.branch()
 
@@ -426,7 +455,8 @@ struct CoreSpiceAnalysisTests {
         // Verify we have time points
         #expect(result.timePoints.count > 10, Comment(rawValue: "Should have many time points, got \(result.timePoints.count)"))
         #expect(result.timePoints.first == 0.0, "Should start at t=0")
-        #expect(result.timePoints.last! >= 49e-6, Comment(rawValue: "Should reach near stop time, got \(result.timePoints.last!)"))
+        let finalTime = try #require(result.timePoints.last)
+        #expect(finalTime >= 49e-6, Comment(rawValue: "Should reach near stop time, got \(finalTime)"))
 
         // Verify time is monotonically increasing
         for i in 1..<result.timePoints.count {
@@ -435,7 +465,7 @@ struct CoreSpiceAnalysisTests {
 
         // After the pulse rises (t > 1.1µs, well into pulse high), n2 should charge toward 5V
         if let midIdx = result.timePoints.firstIndex(where: { $0 > 5e-6 }) {
-            let v2mid = result.voltage(at: n2, timeIndex: midIdx)
+            let v2mid = try result.voltage(at: n2, timeIndex: midIdx)
             #expect(v2mid > 2.0, Comment(rawValue: "V(n2) should be charging during pulse high, got \(v2mid)"))
         }
     }
@@ -446,7 +476,7 @@ struct CoreSpiceAnalysisTests {
         // Use the same setup pattern as the working buildResistiveDivider helper
         var netlist = Netlist()
         // Explicitly create all nodes first (matching buildResistiveDivider pattern)
-        let n1 = netlist.node("n1")
+        let _ = netlist.node("n1")
         let n2 = netlist.node("n2")
         let n3 = netlist.node("n3")
         let _ = netlist.branch()  // Allocate a branch for voltage source (matching helper pattern)

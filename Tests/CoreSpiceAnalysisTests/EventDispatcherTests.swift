@@ -81,7 +81,7 @@ struct EventDispatcherTests {
     // MARK: - Event Ordering Tests
 
     @Test("Events are processed in emission order within single task")
-    func eventOrdering() async {
+    func eventOrdering() async throws {
         let observer = RecordingObserver()
         let dispatcher = EventDispatcher(observers: [observer])
         let id = AnalysisID()
@@ -96,7 +96,7 @@ struct EventDispatcherTests {
         )))
 
         for i in 0..<5 {
-            await dispatcher.emit(.progressUpdate(ProgressInfo(
+            await dispatcher.emit(.progressUpdate(try ProgressInfo(
                 id: id,
                 fraction: Double(i) / 5.0,
                 message: "Step \(i)"
@@ -135,6 +135,22 @@ struct EventDispatcherTests {
             // OK
         } else {
             Issue.record("Last event should be analysisFinished")
+        }
+    }
+
+    @Test("ProgressInfo rejects fractions outside 0...1")
+    func progressInfoRejectsOutOfRangeFraction() {
+        let id = AnalysisID()
+
+        #expect(throws: ProgressInfo.ValidationError.fractionOutOfRange(1.2)) {
+            _ = try ProgressInfo(id: id, fraction: 1.2, message: "invalid")
+        }
+    }
+
+    @Test("BufferingObserver rejects non-positive capacity")
+    func bufferingObserverRejectsNonPositiveCapacity() {
+        #expect(throws: BufferingObserver.ValidationError.nonPositiveCapacity(0)) {
+            _ = try BufferingObserver(capacity: 0)
         }
     }
 

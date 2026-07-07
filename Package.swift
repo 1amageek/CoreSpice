@@ -101,14 +101,15 @@ let package = Package(
                                "CoreSpiceExporterRAW", "CoreSpiceExporterCSV",
                                "CoreSpiceExporterPSF"]),
 
-        // CLI executable
-        .executableTarget(
-            name: "CoreSpiceCLI",
+        // CLI core and executable entry
+        .target(
+            name: "CoreSpiceCLICore",
             dependencies: [
                 "CoreSpice",
                 "CoreSpiceIO",
                 "CoreSpiceAnalysis",
                 "CoreSpiceDevices",
+                "CoreSpiceOptoelectronics",
                 "CoreSpiceCompile",
                 "CoreSpiceExporter",
                 "CoreSpiceExporterRAW",
@@ -118,6 +119,11 @@ let package = Package(
             ],
             path: "Sources/CoreSpiceCLI",
             exclude: ["README.md"]
+        ),
+        .executableTarget(
+            name: "CoreSpiceCLI",
+            dependencies: ["CoreSpiceCLICore"],
+            path: "Sources/CoreSpiceCLIEntry"
         ),
 
         // ==========================================================================
@@ -147,7 +153,10 @@ let package = Package(
 
         // I/O Tests
         .testTarget(name: "CoreSpiceParsedIRTests", dependencies: ["CoreSpiceParsedIR"]),
-        .testTarget(name: "CoreSpiceWaveformTests", dependencies: ["CoreSpiceWaveform", "CoreSpiceAnalysis"]),
+        .testTarget(
+            name: "CoreSpiceWaveformTests",
+            dependencies: ["CoreSpiceWaveform", "CoreSpiceAnalysis", "CoreSpiceCompile"]
+        ),
         .testTarget(name: "CoreSpiceParserSPICETests", dependencies: ["CoreSpiceParserSPICE"]),
         .testTarget(name: "CoreSpiceIOTests", dependencies: ["CoreSpiceIO", "CoreSpiceCompile", "CoreSpiceEvent"]),
         .testTarget(name: "CoreSpiceLoweringTests", dependencies: ["CoreSpiceLowering", "CoreSpiceIR"]),
@@ -155,7 +164,7 @@ let package = Package(
         .testTarget(
             name: "CoreSpiceCLITests",
             dependencies: [
-                "CoreSpiceCLI"
+                "CoreSpiceCLICore"
             ],
             path: "Tests/CoreSpiceCLITests"
         ),

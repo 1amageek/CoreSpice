@@ -106,7 +106,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 outputNodeIndex: outputNodeIndex
             )
 
-            await observer?.emit(.progressUpdate(ProgressInfo(
+            await observer?.emit(.progressUpdate(try ProgressInfo(
                 id: analysisID,
                 fraction: 0.3,
                 message: "Computing poles"
@@ -126,7 +126,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 ComplexPair(real: -lambda.real, imag: -lambda.imag)
             }
 
-            await observer?.emit(.progressUpdate(ProgressInfo(
+            await observer?.emit(.progressUpdate(try ProgressInfo(
                 id: analysisID,
                 fraction: 0.7,
                 message: "Computing zeros"
@@ -281,7 +281,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
         let variableMap = plan.topology.variableMap
 
         let branchAllocatingTypes: Set<String> = [
-            "vsource", "inductor", "vcvs", "ccvs", "cccs"
+            "vsource", "inductor", "vcvs", "ccvs", "cccs", "ccvs_ref", "cswitch"
         ]
 
         var branchID = 0

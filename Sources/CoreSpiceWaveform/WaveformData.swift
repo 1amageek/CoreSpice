@@ -51,6 +51,28 @@ public struct WaveformData: Sendable {
         self.storage = .real(realData)
     }
 
+    public init(
+        validatingMetadata metadata: SimulationMetadata,
+        sweepVariable: VariableDescriptor,
+        sweepValues: [Double],
+        variables: [VariableDescriptor],
+        realData: [[Double]]
+    ) throws {
+        try Self.validateSampleDataShape(
+            metadata: metadata,
+            sweepValues: sweepValues,
+            variables: variables,
+            pointCount: realData.count,
+            isComplex: false,
+            rowWidth: { realData[$0].count }
+        )
+        self.metadata = metadata
+        self.sweepVariable = sweepVariable
+        self.sweepValues = sweepValues
+        self.variables = variables
+        self.storage = .real(realData)
+    }
+
     /// Creates a real-valued waveform backed by row-major storage.
     ///
     /// `realRowMajorData[(point * variableCount) + variable]` stores the value
@@ -66,12 +88,54 @@ public struct WaveformData: Sendable {
         pointCount: Int,
         variableCount: Int
     ) {
-        precondition(sweepValues.count == pointCount, "sweep value count must match point count")
-        precondition(variables.count == variableCount, "variable descriptor count must match variable count")
-        precondition(
-            realRowMajorData.count == pointCount * variableCount,
-            "row-major data count must equal pointCount * variableCount"
+        self.init(
+            uncheckedMetadata: metadata,
+            sweepVariable: sweepVariable,
+            sweepValues: sweepValues,
+            variables: variables,
+            realRowMajorData: realRowMajorData,
+            pointCount: pointCount,
+            variableCount: variableCount
         )
+    }
+
+    public init(
+        validatingMetadata metadata: SimulationMetadata,
+        sweepVariable: VariableDescriptor,
+        sweepValues: [Double],
+        variables: [VariableDescriptor],
+        realRowMajorData: [Double],
+        pointCount: Int,
+        variableCount: Int
+    ) throws {
+        try Self.validateRowMajorShape(
+            metadata: metadata,
+            sweepValues: sweepValues,
+            variables: variables,
+            values: realRowMajorData,
+            pointCount: pointCount,
+            variableCount: variableCount
+        )
+        self.init(
+            uncheckedMetadata: metadata,
+            sweepVariable: sweepVariable,
+            sweepValues: sweepValues,
+            variables: variables,
+            realRowMajorData: realRowMajorData,
+            pointCount: pointCount,
+            variableCount: variableCount
+        )
+    }
+
+    private init(
+        uncheckedMetadata metadata: SimulationMetadata,
+        sweepVariable: VariableDescriptor,
+        sweepValues: [Double],
+        variables: [VariableDescriptor],
+        realRowMajorData: [Double],
+        pointCount: Int,
+        variableCount: Int
+    ) {
         self.metadata = metadata
         self.sweepVariable = sweepVariable
         self.sweepValues = sweepValues
@@ -91,6 +155,28 @@ public struct WaveformData: Sendable {
         variables: [VariableDescriptor],
         complexData: [[(real: Double, imag: Double)]]
     ) {
+        self.metadata = metadata
+        self.sweepVariable = sweepVariable
+        self.sweepValues = sweepValues
+        self.variables = variables
+        self.storage = .complex(complexData)
+    }
+
+    public init(
+        validatingMetadata metadata: SimulationMetadata,
+        sweepVariable: VariableDescriptor,
+        sweepValues: [Double],
+        variables: [VariableDescriptor],
+        complexData: [[(real: Double, imag: Double)]]
+    ) throws {
+        try Self.validateSampleDataShape(
+            metadata: metadata,
+            sweepValues: sweepValues,
+            variables: variables,
+            pointCount: complexData.count,
+            isComplex: true,
+            rowWidth: { complexData[$0].count }
+        )
         self.metadata = metadata
         self.sweepVariable = sweepVariable
         self.sweepValues = sweepValues
@@ -254,6 +340,125 @@ public struct WaveformData: Sendable {
             return data
         }
     }
+
+    private static func validateRowMajorShape(
+        metadata: SimulationMetadata,
+        sweepValues: [Double],
+        variables: [VariableDescriptor],
+        values: [Double],
+        pointCount: Int,
+        variableCount: Int
+    ) throws {
+        guard pointCount >= 0 else {
+            throw WaveformValidationError.negativePointCount(pointCount)
+        }
+        guard variableCount >= 0 else {
+            throw WaveformValidationError.negativeVariableCount(variableCount)
+        }
+        try validateMetadata(
+            metadata,
+            pointCount: pointCount,
+            variableCount: variableCount,
+            isComplex: false
+        )
+        guard let expectedValueCount = expectedValueCount(
+            pointCount: pointCount,
+            variableCount: variableCount
+        ) else {
+            throw WaveformValidationError.rowMajorValueCountOverflow(
+                pointCount: pointCount,
+                variableCount: variableCount,
+                actual: values.count
+            )
+        }
+        guard sweepValues.count == pointCount else {
+            throw WaveformValidationError.rowMajorSweepCountMismatch(
+                expected: pointCount,
+                actual: sweepValues.count
+            )
+        }
+        guard variables.count == variableCount else {
+            throw WaveformValidationError.rowMajorVariableCountMismatch(
+                expected: variableCount,
+                actual: variables.count
+            )
+        }
+        guard values.count == expectedValueCount else {
+            throw WaveformValidationError.rowMajorValueCountMismatch(
+                expected: expectedValueCount,
+                actual: values.count
+            )
+        }
+    }
+
+    private static func validateSampleDataShape(
+        metadata: SimulationMetadata,
+        sweepValues: [Double],
+        variables: [VariableDescriptor],
+        pointCount: Int,
+        isComplex: Bool,
+        rowWidth: (Int) -> Int
+    ) throws {
+        try validateMetadata(
+            metadata,
+            pointCount: pointCount,
+            variableCount: variables.count,
+            isComplex: isComplex
+        )
+        guard sweepValues.count == pointCount else {
+            throw WaveformValidationError.sampleDataSweepCountMismatch(
+                expected: pointCount,
+                actual: sweepValues.count
+            )
+        }
+        for point in 0..<pointCount {
+            let width = rowWidth(point)
+            guard width == variables.count else {
+                throw WaveformValidationError.sampleDataVariableCountMismatch(
+                    point: point,
+                    expected: variables.count,
+                    actual: width
+                )
+            }
+        }
+    }
+
+    private static func validateMetadata(
+        _ metadata: SimulationMetadata,
+        pointCount: Int,
+        variableCount: Int,
+        isComplex: Bool
+    ) throws {
+        guard metadata.pointCount == pointCount else {
+            throw WaveformValidationError.metadataPointCountMismatch(
+                expected: pointCount,
+                actual: metadata.pointCount
+            )
+        }
+        guard metadata.variableCount == variableCount else {
+            throw WaveformValidationError.metadataVariableCountMismatch(
+                expected: variableCount,
+                actual: metadata.variableCount
+            )
+        }
+        guard metadata.isComplex == isComplex else {
+            throw WaveformValidationError.metadataComplexityMismatch(
+                expected: isComplex,
+                actual: metadata.isComplex
+            )
+        }
+    }
+
+    private static func expectedValueCount(pointCount: Int, variableCount: Int) -> Int? {
+        guard pointCount >= 0, variableCount >= 0 else {
+            return nil
+        }
+        guard pointCount == 0 || variableCount <= Int.max / pointCount else {
+            return nil
+        }
+        return pointCount * variableCount
+    }
+
 }
 
 // MARK: - Waveform Types

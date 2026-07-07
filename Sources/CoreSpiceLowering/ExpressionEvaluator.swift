@@ -136,126 +136,187 @@ public struct ExpressionEvaluator: Sendable {
     private func evaluateFunction(_ name: String, _ args: [Double]) throws -> Double {
         let lowered = name.lowercased()
 
-        switch lowered {
-        // Trigonometric
+        if let value = try evaluateTrigonometricFunction(lowered, originalName: name, arguments: args) {
+            return value
+        }
+        if let value = try evaluateExponentialFunction(lowered, originalName: name, arguments: args) {
+            return value
+        }
+        if let value = try evaluateNumericUtilityFunction(lowered, originalName: name, arguments: args) {
+            return value
+        }
+        if let value = try evaluateSpiceSpecificFunction(lowered, originalName: name, arguments: args) {
+            return value
+        }
+        if let value = try evaluateRandomFunction(lowered, originalName: name, arguments: args) {
+            return value
+        }
+        if let function = context.function(lowered) {
+            return try evaluateUserFunction(function, arguments: args)
+        }
+        throw LoweringError.expressionEvaluationFailed(
+            expression: name,
+            reason: "Unknown function: \(name)"
+        )
+    }
+
+    private func evaluateTrigonometricFunction(
+        _ name: String,
+        originalName: String,
+        arguments: [Double]
+    ) throws -> Double? {
+        switch name {
         case "sin":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return sin(args[0])
+            return sin(try unaryArgument(originalName, arguments))
         case "cos":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return cos(args[0])
+            return cos(try unaryArgument(originalName, arguments))
         case "tan":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return tan(args[0])
+            return tan(try unaryArgument(originalName, arguments))
         case "asin":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return asin(args[0])
+            return asin(try unaryArgument(originalName, arguments))
         case "acos":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return acos(args[0])
+            return acos(try unaryArgument(originalName, arguments))
         case "atan":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return atan(args[0])
+            return atan(try unaryArgument(originalName, arguments))
         case "atan2":
-            guard args.count == 2 else { throw argCountError(name, expected: 2, got: args.count) }
-            return atan2(args[0], args[1])
+            let (y, x) = try binaryArguments(originalName, arguments)
+            return atan2(y, x)
         case "sinh":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return sinh(args[0])
+            return sinh(try unaryArgument(originalName, arguments))
         case "cosh":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return cosh(args[0])
+            return cosh(try unaryArgument(originalName, arguments))
         case "tanh":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return tanh(args[0])
-
-        // Exponential / Logarithmic
-        case "exp":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return exp(args[0])
-        case "log", "ln":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return log(args[0])
-        case "log10":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return log10(args[0])
-        case "sqrt":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return sqrt(args[0])
-        case "pow":
-            guard args.count == 2 else { throw argCountError(name, expected: 2, got: args.count) }
-            return pow(args[0], args[1])
-
-        // Absolute / Sign
-        case "abs":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return abs(args[0])
-        case "sgn", "sign":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return args[0] > 0 ? 1 : (args[0] < 0 ? -1 : 0)
-
-        // Rounding
-        case "floor":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return floor(args[0])
-        case "ceil":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return ceil(args[0])
-        case "round", "nint":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return round(args[0])
-        case "int":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return Double(Int(args[0]))
-
-        // Min / Max
-        case "min":
-            guard args.count >= 2 else { throw argCountError(name, expected: 2, got: args.count) }
-            return args.min() ?? 0
-        case "max":
-            guard args.count >= 2 else { throw argCountError(name, expected: 2, got: args.count) }
-            return args.max() ?? 0
-
-        // Conditional
-        case "if":
-            guard args.count == 3 else { throw argCountError(name, expected: 3, got: args.count) }
-            return args[0] != 0 ? args[1] : args[2]
-
-        // Limit
-        case "limit":
-            guard args.count == 3 else { throw argCountError(name, expected: 3, got: args.count) }
-            return Swift.min(Swift.max(args[0], args[1]), args[2])
-
-        // SPICE-specific
-        case "pwr", "pwrs":
-            guard args.count == 2 else { throw argCountError(name, expected: 2, got: args.count) }
-            return pow(abs(args[0]), args[1])
-
-        case "db":
-            guard args.count == 1 else { throw argCountError(name, expected: 1, got: args.count) }
-            return 20 * log10(abs(args[0]))
-
-        // Random (deterministic seed for reproducibility in SPICE)
-        case "rand", "random":
-            return randomUniform()
-
-        case "gauss", "agauss":
-            guard args.count >= 2 else { throw argCountError(name, expected: 2, got: args.count) }
-            // Simple Box-Muller for Gaussian
-            let u1 = randomUniform()
-            let u2 = randomUniform()
-            let z = sqrt(-2 * log(u1)) * cos(2 * .pi * u2)
-            return args[0] + args[1] * z
-
+            return tanh(try unaryArgument(originalName, arguments))
         default:
-            if let function = context.function(lowered) {
-                return try evaluateUserFunction(function, arguments: args)
+            return nil
+        }
+    }
+
+    private func evaluateExponentialFunction(
+        _ name: String,
+        originalName: String,
+        arguments: [Double]
+    ) throws -> Double? {
+        switch name {
+        case "exp":
+            return exp(try unaryArgument(originalName, arguments))
+        case "log", "ln":
+            return log(try unaryArgument(originalName, arguments))
+        case "log10":
+            return log10(try unaryArgument(originalName, arguments))
+        case "sqrt":
+            return sqrt(try unaryArgument(originalName, arguments))
+        case "pow":
+            let (base, exponent) = try binaryArguments(originalName, arguments)
+            return pow(base, exponent)
+        default:
+            return nil
+        }
+    }
+
+    private func evaluateNumericUtilityFunction(
+        _ name: String,
+        originalName: String,
+        arguments: [Double]
+    ) throws -> Double? {
+        switch name {
+        case "abs":
+            return abs(try unaryArgument(originalName, arguments))
+        case "sgn", "sign":
+            let value = try unaryArgument(originalName, arguments)
+            return value > 0 ? 1 : (value < 0 ? -1 : 0)
+        case "floor":
+            return floor(try unaryArgument(originalName, arguments))
+        case "ceil":
+            return ceil(try unaryArgument(originalName, arguments))
+        case "round", "nint":
+            return round(try unaryArgument(originalName, arguments))
+        case "int":
+            return Double(Int(try unaryArgument(originalName, arguments)))
+        case "min":
+            return try variadicArguments(originalName, arguments, minimumCount: 2).min()
+        case "max":
+            return try variadicArguments(originalName, arguments, minimumCount: 2).max()
+        case "if":
+            let (condition, trueValue, falseValue) = try ternaryArguments(originalName, arguments)
+            return condition != 0 ? trueValue : falseValue
+        case "limit":
+            let (value, lower, upper) = try ternaryArguments(originalName, arguments)
+            return Swift.min(Swift.max(value, lower), upper)
+        default:
+            return nil
+        }
+    }
+
+    private func evaluateSpiceSpecificFunction(
+        _ name: String,
+        originalName: String,
+        arguments: [Double]
+    ) throws -> Double? {
+        switch name {
+        case "pwr", "pwrs":
+            let (base, exponent) = try binaryArguments(originalName, arguments)
+            return pow(abs(base), exponent)
+        case "db":
+            return 20 * log10(abs(try unaryArgument(originalName, arguments)))
+        default:
+            return nil
+        }
+    }
+
+    private func evaluateRandomFunction(
+        _ name: String,
+        originalName: String,
+        arguments: [Double]
+    ) throws -> Double? {
+        switch name {
+        case "rand", "random":
+            try requireArgumentCount(originalName, arguments, expected: 0)
+            return randomUniform()
+        case "gauss":
+            return try evaluateGaussian(originalName, arguments: arguments, relativeVariation: true)
+        case "agauss":
+            return try evaluateGaussian(originalName, arguments: arguments, relativeVariation: false)
+        default:
+            return nil
+        }
+    }
+
+    private func evaluateGaussian(
+        _ function: String,
+        arguments: [Double],
+        relativeVariation: Bool
+    ) throws -> Double {
+        let z = try gaussianUnitSample(function)
+        switch arguments.count {
+        case 2:
+            return arguments[0] + arguments[1] * z
+        case 3:
+            let sigma = arguments[2]
+            guard sigma > 0 else {
+                throw LoweringError.expressionEvaluationFailed(
+                    expression: function,
+                    reason: "Gaussian sigma divisor must be positive"
+                )
             }
+            let spread = relativeVariation ? arguments[0] * arguments[1] : arguments[1]
+            return arguments[0] + spread / sigma * z
+        default:
+            throw argCountError(function, expected: "2 or 3", got: arguments.count)
+        }
+    }
+
+    private func gaussianUnitSample(_ function: String) throws -> Double {
+        let u1 = randomUniform()
+        let u2 = randomUniform()
+        guard u1.isFinite, u2.isFinite, u1 >= 0, u1 < 1, u2 >= 0, u2 < 1 else {
             throw LoweringError.expressionEvaluationFailed(
-                expression: name,
-                reason: "Unknown function: \(name)"
+                expression: function,
+                reason: "Random source returned a value outside [0, 1)"
             )
         }
+        let positiveU1 = Swift.max(u1, Double.leastNonzeroMagnitude)
+        return sqrt(-2 * log(positiveU1)) * cos(2 * .pi * u2)
     }
 
     private func evaluateUserFunction(_ function: UserFunctionDefinition, arguments: [Double]) throws -> Double {
@@ -279,7 +340,43 @@ public struct ExpressionEvaluator: Sendable {
         }
     }
 
+    private func unaryArgument(_ function: String, _ arguments: [Double]) throws -> Double {
+        try requireArgumentCount(function, arguments, expected: 1)
+        return arguments[0]
+    }
+
+    private func binaryArguments(_ function: String, _ arguments: [Double]) throws -> (Double, Double) {
+        try requireArgumentCount(function, arguments, expected: 2)
+        return (arguments[0], arguments[1])
+    }
+
+    private func ternaryArguments(_ function: String, _ arguments: [Double]) throws -> (Double, Double, Double) {
+        try requireArgumentCount(function, arguments, expected: 3)
+        return (arguments[0], arguments[1], arguments[2])
+    }
+
+    private func variadicArguments(
+        _ function: String,
+        _ arguments: [Double],
+        minimumCount: Int
+    ) throws -> [Double] {
+        guard arguments.count >= minimumCount else {
+            throw argCountError(function, expected: minimumCount, got: arguments.count)
+        }
+        return arguments
+    }
+
+    private func requireArgumentCount(_ function: String, _ arguments: [Double], expected: Int) throws {
+        guard arguments.count == expected else {
+            throw argCountError(function, expected: expected, got: arguments.count)
+        }
+    }
+
     private func argCountError(_ function: String, expected: Int, got: Int) -> LoweringError {
+        argCountError(function, expected: "\(expected)", got: got)
+    }
+
+    private func argCountError(_ function: String, expected: String, got: Int) -> LoweringError {
         LoweringError.expressionEvaluationFailed(
             expression: function,
             reason: "Expected \(expected) arguments, got \(got)"

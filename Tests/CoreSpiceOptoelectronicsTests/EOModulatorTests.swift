@@ -63,7 +63,7 @@ struct EOModulatorTests {
     }
 
     @Test("MZM at quadrature point transmits 50% of input power")
-    func quadraturePoint() {
+    func quadraturePoint() throws {
         let vpi = 3.5
         let params = EOModulatorModelParameters(vPi: vpi, insertionLoss: 1.0, biasPhase: 0)
         let (mod, optIn, optOut) = makeModulator(params: params)
@@ -75,7 +75,7 @@ struct EOModulatorTests {
             electricalState: state, opticalState: opticalState
         )
 
-        let outputPower = result.signals[optOut]!.power
+        let outputPower = try #require(result.signals[optOut]).power
         let expectedPower = 1e-3 * 0.5  // IL=1.0, cos^2(pi/4) = 0.5
 
         #expect(abs(outputPower - expectedPower) < 1e-9,
@@ -83,7 +83,7 @@ struct EOModulatorTests {
     }
 
     @Test("MZM at null point blocks light")
-    func nullPoint() {
+    func nullPoint() throws {
         let vpi = 3.5
         let params = EOModulatorModelParameters(vPi: vpi, insertionLoss: 0.95, biasPhase: 0)
         let (mod, optIn, optOut) = makeModulator(params: params)
@@ -95,12 +95,12 @@ struct EOModulatorTests {
             electricalState: state, opticalState: opticalState
         )
 
-        let outputPower = result.signals[optOut]!.power
+        let outputPower = try #require(result.signals[optOut]).power
         #expect(outputPower < 1e-15, "At null point (V = Vpi), output should be ~zero")
     }
 
     @Test("MZM at peak point transmits maximum power")
-    func peakPoint() {
+    func peakPoint() throws {
         let params = EOModulatorModelParameters(vPi: 3.5, insertionLoss: 0.95, biasPhase: 0)
         let (mod, optIn, optOut) = makeModulator(params: params)
 
@@ -111,7 +111,7 @@ struct EOModulatorTests {
             electricalState: state, opticalState: opticalState
         )
 
-        let outputPower = result.signals[optOut]!.power
+        let outputPower = try #require(result.signals[optOut]).power
         let expectedPower = 1e-3 * 0.95
 
         #expect(abs(outputPower - expectedPower) < 1e-9,
@@ -161,9 +161,9 @@ struct EOModulatorTests {
     }
 
     @Test("MZM propagates upstream sensitivities through modulator")
-    func upstreamSensitivityPropagation() {
+    func upstreamSensitivityPropagation() throws {
         let params = EOModulatorModelParameters(vPi: 3.5, insertionLoss: 0.95, biasPhase: 0)
-        let (mod, optIn, optOut) = makeModulator(params: params)
+        let (mod, optIn, _) = makeModulator(params: params)
 
         var opticalState = opticalStateWithInput(power: 1e-3, optIn: optIn)
         // Upstream sensitivity: dP_in/dV_laser_anode = 0.5
@@ -177,14 +177,16 @@ struct EOModulatorTests {
         )
 
         // Upstream propagation: dP_out/dV_10 = T_power * dP_in/dV_10 = 0.95 * 0.5 = 0.475
-        let upstreamSens = result.sensitivities.first(where: { $0.electricalVarIndex == 10 })
-        #expect(upstreamSens != nil, "Should propagate upstream sensitivity")
-        #expect(abs(upstreamSens!.dPdV - 0.475) < 1e-9,
+        let upstreamSens = try #require(
+            result.sensitivities.first(where: { $0.electricalVarIndex == 10 }),
+            "Should propagate upstream sensitivity"
+        )
+        #expect(abs(upstreamSens.dPdV - 0.475) < 1e-9,
                 "Propagated sensitivity should be T * dP_in/dV")
     }
 
     @Test("MZM signal port has correct polarity")
-    func signalPortPolarity() {
+    func signalPortPolarity() throws {
         let vpi = 3.5
         let params = EOModulatorModelParameters(vPi: vpi, insertionLoss: 1.0, biasPhase: 0)
         let (mod, optIn, _) = makeModulator(params: params)
@@ -196,12 +198,15 @@ struct EOModulatorTests {
             electricalState: state, opticalState: opticalState
         )
 
-        let sigPosSens = result.sensitivities.first(where: { $0.electricalVarIndex == 0 })
-        let sigNegSens = result.sensitivities.first(where: { $0.electricalVarIndex == 1 })
+        let sigPosSens = try #require(
+            result.sensitivities.first(where: { $0.electricalVarIndex == 0 })
+        )
+        let sigNegSens = try #require(
+            result.sensitivities.first(where: { $0.electricalVarIndex == 1 })
+        )
 
-        #expect(sigPosSens != nil && sigNegSens != nil)
         // Opposite polarity
-        #expect(abs(sigPosSens!.dPdV + sigNegSens!.dPdV) < 1e-15,
+        #expect(abs(sigPosSens.dPdV + sigNegSens.dPdV) < 1e-15,
                 "Signal port sensitivities should have opposite signs")
     }
 
@@ -224,7 +229,7 @@ struct EOModulatorTests {
     }
 
     @Test("MZM with no optical input produces no output")
-    func noOpticalInput() {
+    func noOpticalInput() throws {
         let params = EOModulatorModelParameters()
         let (mod, _, optOut) = makeModulator(params: params)
 
@@ -234,12 +239,12 @@ struct EOModulatorTests {
             electricalState: state, opticalState: opticalState
         )
 
-        let outputPower = result.signals[optOut]!.power
+        let outputPower = try #require(result.signals[optOut]).power
         #expect(outputPower == 0, "No input light should produce no output")
     }
 
     @Test("MZM bias phase offset shifts transfer function")
-    func biasPhaseOffset() {
+    func biasPhaseOffset() throws {
         let vpi = 3.5
         // With bias phase = pi/2, the peak shifts to V = -Vpi/2
         let params = EOModulatorModelParameters(
@@ -255,7 +260,7 @@ struct EOModulatorTests {
             electricalState: state, opticalState: opticalState
         )
 
-        let outputPower = result.signals[optOut]!.power
+        let outputPower = try #require(result.signals[optOut]).power
         #expect(outputPower < 1e-15, "With phi_0=pi/2, V=0 should be at null point")
     }
 }

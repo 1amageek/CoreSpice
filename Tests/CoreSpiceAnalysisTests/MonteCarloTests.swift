@@ -58,9 +58,38 @@ struct MonteCarloTests {
 
         // Results should not all be identical (randomness is working)
         let voltages = result.results.map { $0.voltage(at: out) }
-        let minV = voltages.min()!
-        let maxV = voltages.max()!
+        let minV = try #require(voltages.min())
+        let maxV = try #require(voltages.max())
         #expect(maxV - minV > 0.001)
+    }
+
+    @Test func rejectZeroIterations() async throws {
+        let (plan, devices) = try buildDivider()
+        let mc = MonteCarloAnalysis<DCAnalysis>(
+            iterations: 0,
+            variations: [],
+            analysisFactory: { DCAnalysis() },
+            seed: 1
+        )
+
+        do {
+            _ = try await mc.run(
+                plan: plan,
+                devices: devices,
+                solver: SparseLUSolver(),
+                observer: nil,
+                cancellation: CancellationToken()
+            )
+            Issue.record("Expected invalid configuration for zero Monte Carlo iterations.")
+        } catch let error as AnalysisError {
+            guard case .invalidConfiguration(let message) = error,
+                  message.contains("iterations") else {
+                Issue.record("Expected invalid Monte Carlo iteration configuration, got \(error).")
+                return
+            }
+        } catch {
+            Issue.record("Expected AnalysisError.invalidConfiguration, got \(error).")
+        }
     }
 
     /// Uniform variation on R2.
@@ -150,7 +179,8 @@ struct MonteCarloTests {
             let p1 = result1.parameterValues[i]
             let p2 = result2.parameterValues[i]
             for (key, value) in p1 {
-                #expect(abs(value - p2[key]!) < 1e-15)
+                let otherValue = try #require(p2[key])
+                #expect(abs(value - otherValue) < 1e-15)
             }
         }
     }

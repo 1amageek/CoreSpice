@@ -109,6 +109,10 @@ public struct SPICESerializer: NetlistSerializer {
         _ component: ParsedComponent,
         _ options: SerializerOptions
     ) -> String {
+        if let sourceReferenced = serializeSourceReferencedComponent(component, options) {
+            return sourceReferenced
+        }
+
         var parts: [String] = [component.name]
 
         // Nodes
@@ -125,6 +129,63 @@ public struct SPICESerializer: NetlistSerializer {
         }
 
         return parts.joined(separator: " ")
+    }
+
+    private func serializeSourceReferencedComponent(
+        _ component: ParsedComponent,
+        _ options: SerializerOptions
+    ) -> String? {
+        guard let controlSource = sourceReferenceName(for: component) else {
+            return nil
+        }
+
+        var parts: [String] = [component.name]
+        parts.append(contentsOf: component.nodes.map { $0.name })
+        parts.append(controlSource)
+
+        var excludedParameters: Set<String> = ["control_source"]
+
+        switch component.type {
+        case .cccs:
+            guard let gain = component.parameters["f"] else {
+                return nil
+            }
+            parts.append(serializeValue(gain, options))
+            excludedParameters.insert("f")
+        case .ccvs:
+            guard let transresistance = component.parameters["h"] else {
+                return nil
+            }
+            parts.append(serializeValue(transresistance, options))
+            excludedParameters.insert("h")
+        case .currentSwitch:
+            guard let model = component.modelName else {
+                return nil
+            }
+            parts.append(model)
+        default:
+            return nil
+        }
+
+        for (name, value) in sortedIfNeeded(component.parameters, options) where !excludedParameters.contains(name) {
+            parts.append("\(name)=\(serializeValue(value, options))")
+        }
+
+        return parts.joined(separator: " ")
+    }
+
+    private func sourceReferenceName(for component: ParsedComponent) -> String? {
+        guard let value = component.parameters["control_source"] else {
+            return nil
+        }
+        switch value {
+        case .string(let source):
+            return source
+        case .expression(.identifier(let source)):
+            return source
+        default:
+            return nil
+        }
     }
 
     private func serializeModel(

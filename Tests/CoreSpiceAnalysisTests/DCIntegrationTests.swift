@@ -18,7 +18,7 @@ struct DCIntegrationTests {
         var voltages: [Double] = []
 
         for vin in sweepValues {
-            let (netlist, anode) = CircuitFactory.diodeCircuit(v: vin, r: 1000)
+            let (netlist, anode) = try CircuitFactory.diodeCircuit(v: vin, r: 1000)
             let result = try await CircuitFactory.runDC(netlist)
             voltages.append(result.voltage(at: anode))
         }
@@ -47,7 +47,7 @@ struct DCIntegrationTests {
         // In reverse: cathode(0V) > anode → reverse biased
         // Diode breakdown at Bv=5V means |Vak|=5V → V(anode) ≈ -5V
         // If breakdown is not implemented, V(anode) ≈ -10V (nearly all voltage drops across diode)
-        let (netlist, anode) = CircuitFactory.diodeCircuit(
+        let (netlist, anode) = try CircuitFactory.diodeCircuit(
             v: -10.0, r: 1000,
             diodeParams: ["bv": .real(5.0), "ibv": .real(1e-3)]
         )
@@ -65,7 +65,7 @@ struct DCIntegrationTests {
     @Test("A6: BJT common emitter bias",
           .timeLimit(.minutes(1)))
     func bjtCommonEmitterBias() async throws {
-        let (netlist, col, _) = CircuitFactory.bjtCommonEmitter(
+        let (netlist, col, _) = try CircuitFactory.bjtCommonEmitter(
             vcc: 12.0, rc: 2000, vbb: 1.5, rb: 100_000,
             bjtParams: ["is": .real(1e-16), "bf": .real(100)]
         )
@@ -148,7 +148,7 @@ struct DCIntegrationTests {
     @Test("A9: NMOS common source DC bias",
           .timeLimit(.minutes(1)))
     func nmosCommonSourceBias() async throws {
-        let (netlist, drain) = CircuitFactory.nmosCommonSource(
+        let (netlist, drain) = try CircuitFactory.nmosCommonSource(
             vdd: 5.0, rd: 1000, vgs: 2.0,
             mosParams: ["vto": .real(0.7), "kp": .real(110e-6), "w": .real(10e-6), "l": .real(1e-6)]
         )
@@ -162,7 +162,7 @@ struct DCIntegrationTests {
 
     @Test("A10: PMOS common source DC bias")
     func pmosCommonSourceBias() async throws {
-        let (netlist, drain) = CircuitFactory.pmosCommonSource(
+        let (netlist, drain) = try CircuitFactory.pmosCommonSource(
             vdd: 5.0, rd: 1000, vgate: 3.0,
             mosParams: ["vto": .real(-0.7), "kp": .real(50e-6), "w": .real(20e-6), "l": .real(1e-6)]
         )
@@ -176,7 +176,7 @@ struct DCIntegrationTests {
 
     @Test("A11: MOSFET linear region operation")
     func mosfetLinearRegion() async throws {
-        let (netlist, drain) = CircuitFactory.nmosCommonSource(
+        let (netlist, drain) = try CircuitFactory.nmosCommonSource(
             vdd: 0.5, rd: 100, vgs: 3.0,
             mosParams: ["vto": .real(0.7), "kp": .real(110e-6), "w": .real(10e-6), "l": .real(1e-6)]
         )
@@ -192,7 +192,7 @@ struct DCIntegrationTests {
 
     @Test("A12: VCVS voltage amplifier")
     func vcvsAmplifier() async throws {
-        let (netlist, out) = CircuitFactory.vcvsCircuit(vin: 1.0, r1: 1000, gain: 10.0, rload: 1000)
+        let (netlist, out) = try CircuitFactory.vcvsCircuit(vin: 1.0, r1: 1000, gain: 10.0, rload: 1000)
         let result = try await CircuitFactory.runDC(netlist)
         let vOut = result.voltage(at: out)
         #expect(abs(vOut - 10.0) < 0.01,
@@ -206,7 +206,7 @@ struct DCIntegrationTests {
         // VCCS convention: current flows from pos_out to neg_out externally
         // With pos_out=out, neg_out=GND: current leaves out node
         // So Vout = -(g × Vctrl × Rload)
-        let (netlist, out) = CircuitFactory.vccsCircuit(vin: 1.0, r1: 1000, g: 1e-3, rload: 1000)
+        let (netlist, out) = try CircuitFactory.vccsCircuit(vin: 1.0, r1: 1000, g: 1e-3, rload: 1000)
         let result = try await CircuitFactory.runDC(netlist)
         let vOut = result.voltage(at: out)
         // Expect negative voltage due to VCCS current direction convention
@@ -252,7 +252,7 @@ struct DCIntegrationTests {
 
     @Test("A15: CCCS current mirror")
     func cccsCurrentMirror() async throws {
-        let (netlist, out) = CircuitFactory.cccsCircuit(vin: 5.0, rSense: 1000, f: 2.0, rload: 1000)
+        let (netlist, out) = try CircuitFactory.cccsCircuit(vin: 5.0, rSense: 1000, f: 2.0, rload: 1000)
         let result = try await CircuitFactory.runDC(netlist)
         let vOut = result.voltage(at: out)
         #expect(abs(vOut) > 0.1, "CCCS should produce measurable output voltage, got \(vOut)")

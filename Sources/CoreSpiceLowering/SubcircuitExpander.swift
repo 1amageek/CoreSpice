@@ -41,8 +41,14 @@ public struct SubcircuitExpander: Sendable {
 
         try validateExecutableComponent(component, fullName: fullName)
 
+        let usesControlSourceReference = component.parameters["control_source"] != nil
+
         // Map component type to device type name
-        let typeName = try mapComponentType(component.type, modelName: component.modelName)
+        let typeName = try mapComponentType(
+            component.type,
+            modelName: component.modelName,
+            usesControlSourceReference: usesControlSourceReference
+        )
 
         // Evaluate parameters: merge model parameters first, then override with instance parameters
         let resolver = ParameterExpressionResolver(context: context, randomUniform: randomUniform)
@@ -60,8 +66,28 @@ public struct SubcircuitExpander: Sendable {
 
         // Instance parameters override model parameters
         for (name, value) in component.parameters {
+            if name == "control_source" {
+                evaluatedParams[name] = try lowerControlSourceParameter(
+                    value,
+                    fullName: fullName,
+                    prefix: prefix
+                )
+                continue
+            }
             let evaluated = try evaluator.evaluate(value)
             evaluatedParams[name] = .real(evaluated)
+        }
+
+        if component.type == .coupledInductors {
+            try addMutualInductanceInstance(
+                fullName: fullName,
+                component: component,
+                prefix: prefix,
+                mapNames: mapNodes,
+                parameters: evaluatedParams,
+                into: &builder
+            )
+            return
         }
 
         // Map nodes. When the caller has already resolved node names (subcircuit
@@ -82,6 +108,17 @@ public struct SubcircuitExpander: Sendable {
             nodeNames = component.nodes.map { $0.name }
         }
 
+        if component.type == .jfet {
+            try addJFETInstances(
+                fullName: fullName,
+                typeName: typeName,
+                nodeNames: nodeNames,
+                parameters: evaluatedParams,
+                into: &builder
+            )
+            return
+        }
+
         // Allocate branches for devices that need them (voltage sources, inductors, etc.)
         let branchCount = Self.branchesRequired(for: typeName)
         for index in 0..<branchCount {
@@ -96,6 +133,125 @@ public struct SubcircuitExpander: Sendable {
             nodes: nodeNames,
             parameters: evaluatedParams
         )
+    }
+
+    private func addJFETInstances(
+        fullName: String,
+        typeName: String,
+        nodeNames: [String],
+        parameters: [String: ParameterValue],
+        into builder: inout Netlist
+    ) throws {
+        guard nodeNames.count == 3 else {
+            throw LoweringError.invalidComponent(
+                name: fullName,
+                reason: "JFET component requires drain, gate, and source nodes"
+            )
+        }
+
+        let drainResistance = try realParameter(named: "rd", in: parameters, componentName: fullName) ?? 0.0
+        let sourceResistance = try realParameter(named: "rs", in: parameters, componentName: fullName) ?? 0.0
+        guard drainResistance >= 0 else {
+            throw LoweringError.invalidComponent(name: fullName, reason: "JFET rd must be non-negative")
+        }
+        guard sourceResistance >= 0 else {
+            throw LoweringError.invalidComponent(name: fullName, reason: "JFET rs must be non-negative")
+        }
+
+        var coreParameters = parameters
+        coreParameters.removeValue(forKey: "rd")
+        coreParameters.removeValue(forKey: "rs")
+
+        var coreDrain = nodeNames[0]
+        let gate = nodeNames[1]
+        var coreSource = nodeNames[2]
+
+        if drainResistance > 0 {
+            coreDrain = "\(fullName)#drain"
+            try builder.addInstance(
+                name: "\(fullName).rd",
+                typeName: "resistor",
+                nodes: [nodeNames[0], coreDrain],
+                parameters: ["r": .real(drainResistance)]
+            )
+        }
+
+        if sourceResistance > 0 {
+            coreSource = "\(fullName)#source"
+            try builder.addInstance(
+                name: "\(fullName).rs",
+                typeName: "resistor",
+                nodes: [nodeNames[2], coreSource],
+                parameters: ["r": .real(sourceResistance)]
+            )
+        }
+
+        try builder.addInstance(
+            name: fullName,
+            typeName: typeName,
+            nodes: [coreDrain, gate, coreSource],
+            parameters: coreParameters
+        )
+    }
+
+    private func addMutualInductanceInstance(
+        fullName: String,
+        component: ParsedComponent,
+        prefix: String,
+        mapNames: Bool,
+        parameters: [String: ParameterValue],
+        into builder: inout Netlist
+    ) throws {
+        guard component.nodes.count == 2 else {
+            throw LoweringError.invalidComponent(
+                name: fullName,
+                reason: "Mutual-inductor component requires two inductor references"
+            )
+        }
+
+        guard parameters["k"] != nil else {
+            throw LoweringError.invalidComponent(
+                name: fullName,
+                reason: "Mutual-inductor component requires a coupling coefficient"
+            )
+        }
+
+        var mutualParameters = parameters
+        mutualParameters["inductor_a"] = .string(
+            lowerBranchReferenceName(component.nodes[0].name, prefix: prefix, mapNames: mapNames)
+        )
+        mutualParameters["inductor_b"] = .string(
+            lowerBranchReferenceName(component.nodes[1].name, prefix: prefix, mapNames: mapNames)
+        )
+
+        try builder.addInstance(
+            name: fullName,
+            typeName: "mutual",
+            nodes: [],
+            parameters: mutualParameters
+        )
+    }
+
+    private func lowerBranchReferenceName(_ name: String, prefix: String, mapNames: Bool) -> String {
+        if !mapNames || prefix.isEmpty || name.contains(".") {
+            return name
+        }
+        return "\(prefix).\(name)"
+    }
+
+    private func realParameter(
+        named name: String,
+        in parameters: [String: ParameterValue],
+        componentName: String
+    ) throws -> Double? {
+        guard let value = parameters[name] else { return nil }
+        guard case .real(let real) = value else {
+            throw LoweringError.invalidComponent(
+                name: componentName,
+                reason: "Parameter '\(name)' must be real"
+            )
+        }
+        return real
     }
 
     /// Expands a subcircuit instance.
@@ -168,7 +324,7 @@ public struct SubcircuitExpander: Sendable {
                 subcircuitName: subcircuit.name,
                 protectedNames: publicParameterNames
             )
-            for bodyComponent in subcircuit.body.components {
+            for bodyComponent in sortedForExecutableDependencies(subcircuit.body.components) {
                 // Map component nodes through port mapping or to internal nodes
                 var mappedComponent = bodyComponent
                 let mappedNodes = bodyComponent.nodes.map { node -> ParsedNodeRef in
@@ -198,6 +354,12 @@ public struct SubcircuitExpander: Sendable {
                 try expandComponent(mappedComponent, into: &builder, prefix: instancePrefix, mapNodes: false)
             }
         }
+    }
+
+    private func sortedForExecutableDependencies(_ components: [ParsedComponent]) -> [ParsedComponent] {
+        let deferred = components.filter { $0.type == .coupledInductors }
+        guard !deferred.isEmpty else { return components }
+        return components.filter { $0.type != .coupledInductors } + deferred
     }
 
     private func applyBodyParameters(
@@ -257,8 +419,37 @@ public struct SubcircuitExpander: Sendable {
         case "vcvs":      return 1  // Voltage-controlled voltage source
         case "cccs":      return 1  // Current-controlled current source (sensing branch)
         case "ccvs":      return 2  // Current-controlled voltage source (sensing + output)
+        case "ccvs_ref":  return 1  // Current-controlled voltage source output branch
+        case "cswitch":   return 1  // Current-controlled switch sensing branch
         default:          return 0
         }
+    }
+
+    private func lowerControlSourceParameter(
+        _ value: ParsedParameterValue,
+        fullName: String,
+        prefix: String
+    ) throws -> ParameterValue {
+        let sourceName: String
+        switch value {
+        case .string(let text):
+            sourceName = text
+        case .expression(.identifier(let text)):
+            sourceName = text
+        default:
+            throw LoweringError.invalidComponent(
+                name: fullName,
+                reason: "Current-controlled source reference must be a source name"
+            )
+        }
+
+        let resolvedName: String
+        if prefix.isEmpty || sourceName.contains(".") {
+            resolvedName = sourceName
+        } else {
+            resolvedName = "\(prefix).\(sourceName)"
+        }
+        return .string(resolvedName)
     }
 
     private func validateExecutableComponent(
@@ -266,6 +457,9 @@ public struct SubcircuitExpander: Sendable {
         fullName: String
     ) throws {
         if let reason = unsupportedComponentTypeReason(component.type) {
+            throw LoweringError.invalidComponent(name: fullName, reason: reason)
+        }
+        if let reason = unsupportedComponentParameterReason(component) {
             throw LoweringError.invalidComponent(name: fullName, reason: reason)
         }
 
@@ -306,18 +500,25 @@ public struct SubcircuitExpander: Sendable {
         switch type {
         case .behavioral:
             return "Behavioral B-source execution is not implemented"
-        case .jfet:
-            return "JFET execution is not implemented"
         case .mesfet:
             return "MESFET execution is not implemented"
         case .transmissionLine:
             return "Transmission-line execution is not implemented"
         case .uniformRC:
             return "Uniform-RC execution is not implemented"
-        case .coupledInductors:
-            return "Mutual-inductor execution is not implemented"
-        case .currentSwitch:
-            return "Current-controlled switch execution is not implemented"
+        default:
+            return nil
+        }
+    }
+
+    private func unsupportedComponentParameterReason(_ component: ParsedComponent) -> String? {
+        switch component.type {
+        case .jfet:
+            let supported = Set(["area"])
+            if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {
+                return "JFET instance parameter '\(unsupported)' execution is not implemented"
+            }
+            return nil
         default:
             return nil
         }
@@ -340,22 +541,32 @@ public struct SubcircuitExpander: Sendable {
                 return "MOS level \(level) execution is not implemented"
             }
         case .njf, .pjf:
-            return "JFET model execution is not implemented"
+            return unsupportedJFETModelParameterReason(model)
         case .nmf, .pmf:
             return "MESFET model execution is not implemented"
         case .ltra:
             return "LTRA model execution is not implemented"
-        case .sw:
+        case .sw, .csw:
             return nil
-        case .csw:
-            return "Current-controlled switch model execution is not implemented"
         }
+    }
+
+    private func unsupportedJFETModelParameterReason(_ model: ParsedModel) -> String? {
+        let supported = Set([
+            "vto", "beta", "b", "lambda", "is", "n", "cgs", "cgd", "pb", "m",
+            "fc", "kf", "af", "area", "tnom", "tnom_k", "rd", "rs"
+        ])
+        if let unsupported = model.parameters.keys.first(where: { !supported.contains($0) }) {
+            return "JFET model parameter '\(unsupported)' execution is not implemented"
+        }
+        return nil
     }
 
     /// Maps a component type to a device type name.
     private func mapComponentType(
         _ type: ComponentType,
-        modelName: String?
+        modelName: String?,
+        usesControlSourceReference: Bool
     ) throws -> String {
         switch type {
         case .resistor:
@@ -373,8 +584,14 @@ public struct SubcircuitExpander: Sendable {
         case .vccs:
             return "vccs"
         case .cccs:
+            if usesControlSourceReference {
+                return "cccs_ref"
+            }
             return "cccs"
         case .ccvs:
+            if usesControlSourceReference {
+                return "ccvs_ref"
+            }
             return "ccvs"
         case .diode:
             return "diode"
@@ -387,10 +604,13 @@ public struct SubcircuitExpander: Sendable {
             }
             return model.type == .npn ? "npn" : "pnp"
         case .jfet:
-            if let name = modelName, let model = context.model(name) {
-                return model.type == .njf ? "njfet" : "pjfet"
+            guard let name = modelName, let model = context.model(name) else {
+                throw LoweringError.invalidComponent(
+                    name: "",
+                    reason: "JFET component requires a .model reference"
+                )
             }
-            return "njfet"
+            return model.type == .njf ? "njfet" : "pjfet"
         case .mosfet:
             guard let name = modelName, let model = context.model(name) else {
                 throw LoweringError.invalidComponent(
@@ -414,6 +634,9 @@ public struct SubcircuitExpander: Sendable {
         case .switch_:
             return "vswitch"
         case .currentSwitch:
+            if usesControlSourceReference {
+                return "cswitch_ref"
+            }
             return "cswitch"
         case .subcircuitInstance:
             throw LoweringError.invalidComponent(
@@ -427,7 +650,7 @@ public struct SubcircuitExpander: Sendable {
 private extension ComponentType {
     var requiresModelForNativeExecution: Bool {
         switch self {
-        case .diode, .bjt, .mosfet, .switch_:
+        case .diode, .bjt, .jfet, .mosfet, .switch_, .currentSwitch:
             return true
         default:
             return false

@@ -298,7 +298,7 @@ struct ReactiveDeviceCompanionModelTests {
         // V(mid) at t=0 is V1 (1V), decays to 0
 
         // Check that mid voltage at the end is near 0 (steady state)
-        let vFinal = result.voltage(at: mid, timeIndex: result.timePoints.count - 1)
+        let vFinal = try result.voltage(at: mid, timeIndex: result.timePoints.count - 1)
         #expect(abs(vFinal) < 0.01, "Final V(mid) should be near 0, got \(vFinal)")
     }
 }

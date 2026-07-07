@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CoreSpiceLowering
 @testable import CoreSpiceParsedIR
@@ -90,6 +91,63 @@ struct ExpressionEvaluatorTests {
     }
 
     @Test
+    func randomFunctionsRejectIgnoredArguments() throws {
+        let context = LoweringContext()
+        let evaluator = ExpressionEvaluator(context: context, randomUniform: { 0.5 })
+
+        let randWithArgument = ParsedExpression.functionCall(name: "rand", arguments: [.literal(1)])
+        #expect(
+            loweringFailureReason(for: randWithArgument, evaluator: evaluator)
+                == "Expected 0 arguments, got 1"
+        )
+
+        let gaussWithExtraArguments = ParsedExpression.functionCall(
+            name: "gauss",
+            arguments: [.literal(1), .literal(0.1), .literal(3), .literal(4)]
+        )
+        #expect(
+            loweringFailureReason(for: gaussWithExtraArguments, evaluator: evaluator)
+                == "Expected 2 or 3 arguments, got 4"
+        )
+    }
+
+    @Test
+    func gaussianFunctionsEvaluateThreeArgumentVariation() throws {
+        let context = LoweringContext()
+        let uniform = exp(-0.5)
+        let unitGaussian = sqrt(-2 * log(uniform)) * cos(2 * Double.pi * uniform)
+        let evaluator = ExpressionEvaluator(context: context, randomUniform: { uniform })
+
+        let relative = ParsedExpression.functionCall(
+            name: "gauss",
+            arguments: [.literal(100), .literal(0.06), .literal(3)]
+        )
+        let absolute = ParsedExpression.functionCall(
+            name: "agauss",
+            arguments: [.literal(1e-9), .literal(1e-10), .literal(2)]
+        )
+        let evaluatedRelative = try evaluator.evaluate(relative)
+        let evaluatedAbsolute = try evaluator.evaluate(absolute)
+        let expectedRelative = 100 + 100 * 0.06 / 3 * unitGaussian
+        let expectedAbsolute = 1e-9 + 1e-10 / 2 * unitGaussian
+
+        #expect(abs(evaluatedRelative - expectedRelative) < 1e-12)
+        #expect(abs(evaluatedAbsolute - expectedAbsolute) < 1e-21)
+    }
+
+    @Test
+    func gaussianFunctionsRejectInvalidRandomSource() throws {
+        let context = LoweringContext()
+        let evaluator = ExpressionEvaluator(context: context, randomUniform: { -0.1 })
+        let expression = ParsedExpression.functionCall(name: "agauss", arguments: [.literal(1), .literal(0.1)])
+
+        #expect(
+            loweringFailureReason(for: expression, evaluator: evaluator)
+                == "Random source returned a value outside [0, 1)"
+        )
+    }
+
+    @Test
     func evaluateUserDefinedFunction() throws {
         let context = LoweringContext()
         context.registerFunction(
@@ -136,6 +194,26 @@ struct ExpressionEvaluatorTests {
             else: .literal(20)
         )
         #expect(try evaluator.evaluate(falseCond) == 20.0)
+    }
+
+    private func loweringFailureReason(
+        for expression: ParsedExpression,
+        evaluator: ExpressionEvaluator
+    ) -> String {
+        do {
+            _ = try evaluator.evaluate(expression)
+            Issue.record("Expected expression evaluation to fail.")
+            return ""
+        } catch let error as LoweringError {
+            guard case .expressionEvaluationFailed(_, let reason) = error else {
+                Issue.record("Unexpected lowering error: \(error)")
+                return ""
+            }
+            return reason
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+            return ""
+        }
     }
 }
 
@@ -315,6 +393,267 @@ struct NetlistLoweringTests {
     }
 
     @Test
+    func lowerCurrentControlledSwitchWithModelParameters() throws {
+        let netlist = ParsedNetlist(
+            components: [
+                ParsedComponent(
+                    name: "W1",
+                    type: .currentSwitch,
+                    nodes: ["in", "out", "sense", "0"],
+                    modelName: "cswmod"
+                )
+            ],
+            models: [
+                ParsedModel(
+                    name: "cswmod",
+                    type: .csw,
+                    parameters: [
+                        "ron": .numeric(10),
+                        "roff": .numeric(1.0e9),
+                        "it": .numeric(1.0e-3),
+                        "ih": .numeric(1.0e-4),
+                    ]
+                )
+            ]
+        )
+
+        let circuit = try NetlistLowering().lower(netlist)
+
+        let instance = try #require(circuit.instances.first)
+        #expect(instance.typeName == "cswitch")
+        #expect(circuit.branches.count == 1)
+        if case .real(let onResistance) = instance.parameters["ron"] {
+            #expect(onResistance == 10)
+        } else {
+            Issue.record("Expected lowered current switch on resistance.")
+        }
+        if case .real(let thresholdCurrent) = instance.parameters["it"] {
+            #expect(thresholdCurrent == 1.0e-3)
+        } else {
+            Issue.record("Expected lowered current switch threshold.")
+        }
+    }
+
+    @Test
+    func lowerJFETWithModelParameters() throws {
+        let netlist = ParsedNetlist(
+            components: [
+                ParsedComponent(
+                    name: "J1",
+                    type: .jfet,
+                    nodes: ["drain", "gate", "source"],
+                    modelName: "jmod"
+                )
+            ],
+            models: [
+                ParsedModel(
+                    name: "jmod",
+                    type: .njf,
+                    parameters: [
+                        "beta": .numeric(1.0e-3),
+                        "vto": .numeric(-2.0),
+                        "lambda": .numeric(0.02),
+                        "cgs": .numeric(1.0e-12),
+                        "cgd": .numeric(2.0e-12),
+                        "area": .numeric(2.0),
+                    ]
+                )
+            ]
+        )
+
+        let circuit = try NetlistLowering().lower(netlist)
+        let instance = try #require(circuit.instances.first)
+        #expect(instance.typeName == "njfet")
+        if case .real(let beta) = instance.parameters["beta"] {
+            #expect(beta == 1.0e-3)
+        } else {
+            Issue.record("Expected lowered JFET beta.")
+        }
+        if case .real(let cgd) = instance.parameters["cgd"] {
+            #expect(cgd == 2.0e-12)
+        } else {
+            Issue.record("Expected lowered JFET gate-drain capacitance.")
+        }
+        if case .real(let area) = instance.parameters["area"] {
+            #expect(area == 2.0)
+        } else {
+            Issue.record("Expected lowered JFET area multiplier.")
+        }
+    }
+
+    @Test
+    func lowerJFETSeriesResistancesIntoExplicitResistors() throws {
+        let netlist = ParsedNetlist(
+            components: [
+                ParsedComponent(
+                    name: "J1",
+                    type: .jfet,
+                    nodes: ["drain", "gate", "source"],
+                    modelName: "jmod"
+                )
+            ],
+            models: [
+                ParsedModel(
+                    name: "jmod",
+                    type: .njf,
+                    parameters: [
+                        "beta": .numeric(1.0e-3),
+                        "vto": .numeric(-2.0),
+                        "rd": .numeric(100),
+                        "rs": .numeric(200),
+                    ]
+                )
+            ]
+        )
+
+        let circuit = try NetlistLowering().lower(netlist)
+        let instances = Dictionary(uniqueKeysWithValues: circuit.instances.map { ($0.name, $0) })
+
+        #expect(instances["J1"]?.typeName == "njfet")
+        #expect(instances["J1.rd"]?.typeName == "resistor")
+        #expect(instances["J1.rs"]?.typeName == "resistor")
+        #expect(instances["J1"]?.parameters["rd"] == nil)
+        #expect(instances["J1"]?.parameters["rs"] == nil)
+        if case .real(let rd) = instances["J1.rd"]?.parameters["r"] {
+            #expect(rd == 100)
+        } else {
+            Issue.record("Expected lowered JFET drain resistance.")
+        }
+        if case .real(let rs) = instances["J1.rs"]?.parameters["r"] {
+            #expect(rs == 200)
+        } else {
+            Issue.record("Expected lowered JFET source resistance.")
+        }
+    }
+
+    @Test
+    func lowerSourceReferencedCurrentControlledElements() throws {
+        let netlist = ParsedNetlist(
+            components: [
+                ParsedComponent(
+                    name: "VCTRL",
+                    type: .voltageSource,
+                    nodes: ["ctrl", "0"],
+                    parameters: ["v": .numeric(1)]
+                ),
+                ParsedComponent(
+                    name: "F1",
+                    type: .cccs,
+                    nodes: ["out", "0"],
+                    parameters: [
+                        "control_source": .string("VCTRL"),
+                        "f": .numeric(2),
+                    ]
+                ),
+                ParsedComponent(
+                    name: "H1",
+                    type: .ccvs,
+                    nodes: ["hout", "0"],
+                    parameters: [
+                        "control_source": .string("VCTRL"),
+                        "h": .numeric(1000),
+                    ]
+                ),
+                ParsedComponent(
+                    name: "W1",
+                    type: .currentSwitch,
+                    nodes: ["vdd", "swout"],
+                    modelName: "cswmod",
+                    parameters: [
+                        "control_source": .string("VCTRL")
+                    ]
+                ),
+            ],
+            models: [
+                ParsedModel(
+                    name: "cswmod",
+                    type: .csw,
+                    parameters: [
+                        "ron": .numeric(10),
+                        "roff": .numeric(1.0e9),
+                        "it": .numeric(1.0e-3),
+                        "ih": .numeric(1.0e-4),
+                    ]
+                )
+            ]
+        )
+
+        let circuit = try NetlistLowering().lower(netlist)
+        let instancesByName = Dictionary(uniqueKeysWithValues: circuit.instances.map { ($0.name, $0) })
+
+        #expect(instancesByName["F1"]?.typeName == "cccs_ref")
+        #expect(instancesByName["H1"]?.typeName == "ccvs_ref")
+        #expect(instancesByName["W1"]?.typeName == "cswitch_ref")
+        #expect(circuit.branches.count == 2)
+
+        if case .string(let controlSource) = instancesByName["F1"]?.parameters["control_source"] {
+            #expect(controlSource == "VCTRL")
+        } else {
+            Issue.record("Expected F1 control source reference.")
+        }
+
+        if case .string(let controlSource) = instancesByName["W1"]?.parameters["control_source"] {
+            #expect(controlSource == "VCTRL")
+        } else {
+            Issue.record("Expected W1 control source reference.")
+        }
+    }
+
+    @Test
+    func lowerCoupledInductorsAsBranchReferencesAfterInductors() throws {
+        let netlist = ParsedNetlist(
+            components: [
+                ParsedComponent(
+                    name: "K1",
+                    type: .coupledInductors,
+                    nodes: ["L1", "L2"],
+                    parameters: ["k": .numeric(0.5)]
+                ),
+                ParsedComponent(
+                    name: "L1",
+                    type: .inductor,
+                    nodes: ["in", "0"],
+                    parameters: ["l": .numeric(4.0e-6)]
+                ),
+                ParsedComponent(
+                    name: "L2",
+                    type: .inductor,
+                    nodes: ["out", "0"],
+                    parameters: ["l": .numeric(9.0e-6)]
+                ),
+            ]
+        )
+
+        let circuit = try NetlistLowering().lower(netlist)
+        let instancesByName = Dictionary(uniqueKeysWithValues: circuit.instances.map { ($0.name, $0) })
+
+        #expect(circuit.instances.map(\.name) == ["L1", "L2", "K1"])
+        #expect(circuit.branches.count == 2)
+        #expect(Set(circuit.branchNames.values) == ["L1", "L2"])
+        #expect(!circuit.nodeNames.values.contains("L1"))
+        #expect(!circuit.nodeNames.values.contains("L2"))
+
+        let coupling = try #require(instancesByName["K1"])
+        #expect(coupling.typeName == "mutual")
+        #expect(coupling.nodes.isEmpty)
+        if case .real(let coefficient) = coupling.parameters["k"] {
+            #expect(coefficient == 0.5)
+        } else {
+            Issue.record("Expected lowered mutual coupling coefficient.")
+        }
+        if case .string(let inductorA) = coupling.parameters["inductor_a"] {
+            #expect(inductorA == "L1")
+        } else {
+            Issue.record("Expected first inductor branch reference.")
+        }
+        if case .string(let inductorB) = coupling.parameters["inductor_b"] {
+            #expect(inductorB == "L2")
+        } else {
+            Issue.record("Expected second inductor branch reference.")
+        }
+    }
+
+    @Test
     func lowerWithUserDefinedFunctionParameter() throws {
         let netlist = ParsedNetlist(
             components: [
@@ -475,6 +814,92 @@ struct SubcircuitExpansionTests {
         #expect(circuit.instances.count == 1)
         if case .real(let r) = circuit.instances[0].parameters["r"] {
             #expect(r == 5000.0)
+        }
+    }
+
+    @Test
+    func undefinedSubcircuitFailureProvidesAgentDiagnostic() throws {
+        let location = SourceLocation(file: "agent.cir", line: 4, column: 1)
+        let instance = ParsedComponent(
+            name: "X1",
+            type: .subcircuitInstance,
+            nodes: ["a", "0"],
+            modelName: "missing_cell",
+            location: location
+        )
+        let netlist = ParsedNetlist(components: [instance])
+
+        do {
+            _ = try NetlistLowering().lower(netlist)
+            Issue.record("Expected missing subcircuit lowering to fail.")
+        } catch let error as LoweringError {
+            let diagnostic = error.diagnostic
+            #expect(diagnostic.code == "lowering.undefined_subcircuit")
+            #expect(diagnostic.location == location)
+            #expect(diagnostic.details["subcircuit"] == "missing_cell")
+            #expect(diagnostic.suggestedActions.contains("define-subcircuit"))
+            _ = try JSONEncoder().encode(diagnostic)
+        }
+    }
+
+    @Test
+    func subcircuitPortMismatchDiagnosticPreservesExpectedAndActualCounts() throws {
+        let subcircuit = ParsedSubcircuit(
+            name: "load",
+            ports: ["p", "n", "bulk"],
+            body: ParsedNetlistBody(components: [
+                ParsedComponent(
+                    name: "R1",
+                    type: .resistor,
+                    nodes: ["p", "n"],
+                    parameters: ["r": .numeric(1000)]
+                )
+            ])
+        )
+        let instance = ParsedComponent(
+            name: "X1",
+            type: .subcircuitInstance,
+            nodes: ["a", "0"],
+            modelName: "load"
+        )
+        let netlist = ParsedNetlist(components: [instance], subcircuits: [subcircuit])
+
+        do {
+            _ = try NetlistLowering().lower(netlist)
+            Issue.record("Expected port-count mismatch to fail.")
+        } catch let error as LoweringError {
+            let diagnostic = error.diagnostic
+            #expect(diagnostic.code == "lowering.subcircuit_port_count_mismatch")
+            #expect(diagnostic.subject == "load")
+            #expect(diagnostic.details["expected"] == "3")
+            #expect(diagnostic.details["got"] == "2")
+            #expect(diagnostic.suggestedActions.contains("inspect-subcircuit-port-list"))
+        }
+    }
+
+    @Test
+    func invalidComponentDiagnosticSuggestsModelRepair() throws {
+        let mosfet = ParsedComponent(
+            name: "M1",
+            type: .mosfet,
+            nodes: ["d", "g", "s", "b"],
+            parameters: [
+                "w": .numeric(1e-6),
+                "l": .numeric(1e-6)
+            ]
+        )
+        let netlist = ParsedNetlist(components: [mosfet])
+
+        do {
+            _ = try NetlistLowering().lower(netlist)
+            Issue.record("Expected missing model reference to fail.")
+        } catch let error as LoweringError {
+            let diagnostic = error.diagnostic
+            #expect(diagnostic.code == "lowering.invalid_component")
+            #expect(diagnostic.subject == "M1")
+            #expect(diagnostic.details["component"] == "M1")
+            #expect(diagnostic.details["reason"]?.contains(".model reference") == true)
+            #expect(diagnostic.suggestedActions.contains("add-model-reference"))
         }
     }
 

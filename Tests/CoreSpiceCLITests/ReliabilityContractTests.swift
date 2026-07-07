@@ -79,8 +79,11 @@ struct ReliabilityContractTests {
 
         let expected: Set<String> = [
             "resistor", "capacitor", "inductor", "vsource", "isource",
-            "vcvs", "vccs", "ccvs", "cccs",
+            "mutual",
+            "vcvs", "vccs", "ccvs", "cccs", "ccvs_ref", "cccs_ref",
+            "vswitch", "cswitch", "cswitch_ref",
             "diode", "npn", "pnp",
+            "njfet", "pjfet",
             "nmos_l1", "pmos_l1", "nmos_l2", "pmos_l2", "nmos_l3", "pmos_l3",
             "optoelectronic"
         ]

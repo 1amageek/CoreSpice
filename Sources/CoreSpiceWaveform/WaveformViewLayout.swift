@@ -24,12 +24,63 @@ public struct WaveformViewLayout: Sendable {
     }
 
     public init(
+        validatingBase base: any WaveformReadable,
+        pointIndices: [Int]? = nil,
+        variableIndices: [Int]? = nil
+    ) throws {
+        try self.init(
+            validatingBase: base,
+            projection: WaveformProjection(
+                validatingBasePointCount: base.pointCount,
+                baseVariableCount: base.variableCount,
+                pointIndices: pointIndices,
+                variableIndices: variableIndices
+            )
+        )
+    }
+
+    public init(
         base: any WaveformReadable,
         projection: WaveformProjection
     ) {
-        precondition(projection.basePointCount == base.pointCount, "projection point shape must match base waveform")
-        precondition(projection.baseVariableCount == base.variableCount, "projection variable shape must match base waveform")
+        let resolvedProjection: WaveformProjection
+        if projection.basePointCount == base.pointCount,
+           projection.baseVariableCount == base.variableCount {
+            resolvedProjection = projection
+        } else {
+            resolvedProjection = WaveformProjection(
+                basePointCount: base.pointCount,
+                baseVariableCount: base.variableCount
+            )
+        }
 
+        self.init(uncheckedBase: base, projection: resolvedProjection)
+    }
+
+    public init(
+        validatingBase base: any WaveformReadable,
+        projection: WaveformProjection
+    ) throws {
+        guard projection.basePointCount == base.pointCount else {
+            throw WaveformValidationError.projectionPointShapeMismatch(
+                projectionPointCount: projection.basePointCount,
+                basePointCount: base.pointCount
+            )
+        }
+        guard projection.baseVariableCount == base.variableCount else {
+            throw WaveformValidationError.projectionVariableShapeMismatch(
+                projectionVariableCount: projection.baseVariableCount,
+                baseVariableCount: base.variableCount
+            )
+        }
+
+        self.init(uncheckedBase: base, projection: projection)
+    }
+
+    private init(
+        uncheckedBase base: any WaveformReadable,
+        projection: WaveformProjection
+    ) {
         let sourceVariables: [VariableDescriptor]
         if let variableIndices = projection.variableIndices {
             sourceVariables = variableIndices.map { base.variables[$0] }

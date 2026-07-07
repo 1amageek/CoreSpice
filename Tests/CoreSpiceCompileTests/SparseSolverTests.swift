@@ -151,7 +151,7 @@ struct SparseSolverTests {
         let x = try solver.solve(rhs: [1.0, 2.0, 3.0])
 
         // Verify A*x = b
-        let result = matrix.multiply(vector: x)
+        let result = try matrix.multiply(vector: x)
         #expect(abs(result[0] - 1.0) < 1e-9)
         #expect(abs(result[1] - 2.0) < 1e-9)
         #expect(abs(result[2] - 3.0) < 1e-9)
@@ -176,7 +176,7 @@ struct SparseSolverTests {
         try solver.factorize(matrix: matrix)
         let x = try solver.solve(rhs: [1.0, 2.0, 3.0])
 
-        let result = matrix.multiply(vector: x)
+        let result = try matrix.multiply(vector: x)
         #expect(abs(result[0] - 1.0) < 1e-9)
         #expect(abs(result[1] - 2.0) < 1e-9)
         #expect(abs(result[2] - 3.0) < 1e-9)
@@ -213,6 +213,63 @@ struct SparseSolverTests {
         var solver = SparseLUSolver()
         #expect(throws: CompileError.self) {
             try solver.factorize(matrix: matrix)
+        }
+    }
+
+    @Test func realFactorizeFailureInvalidatesPreviousSolution() throws {
+        var solver = SparseLUSolver(useAMDOrdering: false)
+        try solver.factorize(matrix: Self.denseRealMatrix())
+
+        let structure = SparseStructure.fromTriplets(
+            dimension: 2,
+            entries: [(0, 0), (1, 1)]
+        )
+        var invalidMatrix = SparseMatrix(structure: structure)
+        invalidMatrix.addValue(row: 0, col: 1, value: 1.0)
+
+        #expect(throws: CompileError.self) {
+            try solver.factorize(matrix: invalidMatrix)
+        }
+        #expect(throws: CompileError.self) {
+            _ = try solver.solve(rhs: [1.0, 1.0])
+        }
+
+        var result = [0.0, 0.0]
+        #expect(throws: CompileError.self) {
+            try solver.solve(rhs: [1.0, 1.0], into: &result)
+        }
+    }
+
+    @Test func complexFactorizeFailureInvalidatesPreviousSolution() throws {
+        var solver = ComplexSparseLUSolver(useAMDOrdering: false)
+        try solver.factorize(matrix: Self.denseComplexMatrix())
+
+        let structure = SparseStructure.fromTriplets(
+            dimension: 2,
+            entries: [(0, 0), (1, 1)]
+        )
+        var invalidMatrix = ComplexSparseMatrix(structure: structure)
+        invalidMatrix.addValue(row: 0, col: 1, value: ComplexPair(real: 1.0, imag: 0.0))
+
+        #expect(throws: CompileError.self) {
+            try solver.factorize(matrix: invalidMatrix)
+        }
+        #expect(throws: CompileError.self) {
+            _ = try solver.solve(rhs: [
+                ComplexPair(real: 1.0, imag: 0.0),
+                ComplexPair(real: 1.0, imag: 0.0),
+            ])
+        }
+
+        var result = [ComplexPair.zero, ComplexPair.zero]
+        #expect(throws: CompileError.self) {
+            try solver.solve(
+                rhs: [
+                    ComplexPair(real: 1.0, imag: 0.0),
+                    ComplexPair(real: 1.0, imag: 0.0),
+                ],
+                into: &result
+            )
         }
     }
 
@@ -256,7 +313,7 @@ struct SparseSolverTests {
         let x = try solver.solve(rhs: rhs)
 
         // Verify A*x = b
-        let result = matrix.multiply(vector: x)
+        let result = try matrix.multiply(vector: x)
         #expect(abs(result[0].real - 1.0) < 1e-9)
         #expect(abs(result[0].imag) < 1e-9)
         #expect(abs(result[1].real - 1.0) < 1e-9)
@@ -365,7 +422,7 @@ struct SparseSolverTests {
         let x = try solver.solve(rhs: rhs)
 
         // Verify solution
-        let result = matrix.multiply(vector: x)
+        let result = try matrix.multiply(vector: x)
         for i in 0..<n {
             #expect(abs(result[i] - rhs[i]) < 1e-8)
         }
@@ -472,7 +529,7 @@ struct SparseSolverTests {
         let x = try solver.solve(rhs: rhs)
 
         // Verify A*x = b
-        let result = matrix.multiply(vector: x)
+        let result = try matrix.multiply(vector: x)
         for i in 0..<n {
             #expect(abs(result[i] - rhs[i]) < 1e-6, "Mismatch at row \(i): expected \(rhs[i]), got \(result[i])")
         }
@@ -515,7 +572,7 @@ struct SparseSolverTests {
         try solver.factorize(matrix: matrix)
         let x = try solver.solve(rhs: rhs)
 
-        let result = matrix.multiply(vector: x)
+        let result = try matrix.multiply(vector: x)
         for i in 0..<n {
             #expect(abs(result[i] - rhs[i]) < 1e-8, "Mismatch at row \(i)")
         }
@@ -557,7 +614,7 @@ struct SparseSolverTests {
         try solver.factorize(matrix: matrix)
         let x = try solver.solve(rhs: rhs)
 
-        let result = matrix.multiply(vector: x)
+        let result = try matrix.multiply(vector: x)
         for i in 0..<n {
             let error = (result[i] - rhs[i]).magnitude
             #expect(error < 1e-5, "Mismatch at row \(i): error = \(error)")
@@ -607,7 +664,7 @@ struct SparseSolverTests {
         try solver.factorize(matrix: matrix)
         let x = try solver.solve(rhs: rhs)
 
-        let result = matrix.multiply(vector: x)
+        let result = try matrix.multiply(vector: x)
         for i in 0..<n {
             #expect(abs(result[i] - rhs[i]) < 1e-9, "Mismatch at row \(i)")
         }

@@ -155,6 +155,14 @@ public struct SPICEMeasureEvaluator: Sendable {
             )
         }
 
+        guard value.isFinite else {
+            throw SPICEMeasurementError.nonFiniteResult(
+                name: measure.resultName,
+                value: value.description,
+                reason: "measurement expressions must produce finite numeric results"
+            )
+        }
+
         return SPICEMeasurementResult(
             analysisType: measure.analysisType,
             name: measure.resultName,

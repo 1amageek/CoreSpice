@@ -29,7 +29,7 @@ struct SensitivityIntegrationTests {
         // V1 -> R1 -> mid -> R2 -> GND. V(mid) = V1*R2/(R1+R2).
         // dV/dR2 = V1*R1/(R1+R2)^2; dV/dR1 = -V1*R2/(R1+R2)^2; dV/dV1 = R2/(R1+R2).
         let v1 = 10.0, r1 = 1000.0, r2 = 1000.0
-        let (netlist, mid) = CircuitFactory.resistiveDivider(v: v1, r1: r1, r2: r2)
+        let (netlist, mid) = try CircuitFactory.resistiveDivider(v: v1, r1: r1, r2: r2)
         let result = try await runSensitivity(netlist: netlist, outputNode: mid)
 
         let sum = r1 + r2
@@ -60,7 +60,7 @@ struct SensitivityIntegrationTests {
         // Sensitivity of V(anode) to R
         // As R increases, more voltage drops across R → V(anode) decreases
         // So dV(anode)/dR should be negative
-        let (netlist, anode) = CircuitFactory.diodeCircuit(v: 5.0, r: 1000)
+        let (netlist, anode) = try CircuitFactory.diodeCircuit(v: 5.0, r: 1000)
         let result = try await runSensitivity(netlist: netlist, outputNode: anode)
 
         // Baseline: V(anode) should be forward voltage ~0.6-0.7V
@@ -89,7 +89,7 @@ struct SensitivityIntegrationTests {
     @Test("F3: BJT common emitter sensitivity",
           .timeLimit(.minutes(1)))
     func bjtCircuitSensitivity() async throws {
-        let (netlist, col, _) = CircuitFactory.bjtCommonEmitter(
+        let (netlist, col, _) = try CircuitFactory.bjtCommonEmitter(
             vcc: 12.0, rc: 2000, vbb: 1.5, rb: 100_000,
             bjtParams: ["is": .real(1e-16), "bf": .real(100)]
         )
@@ -108,7 +108,7 @@ struct SensitivityIntegrationTests {
     @Test("F5: PMOS common source sensitivity")
     func pmosCircuitSensitivity() async throws {
         // PMOS circuit (converges unlike NMOS)
-        let (netlist, drain) = CircuitFactory.pmosCommonSource(
+        let (netlist, drain) = try CircuitFactory.pmosCommonSource(
             vdd: 5.0, rd: 1000, vgate: 3.0,
             mosParams: ["vto": .real(-0.7), "kp": .real(50e-6),
                         "w": .real(20e-6), "l": .real(1e-6)]

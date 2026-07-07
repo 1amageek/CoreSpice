@@ -95,7 +95,7 @@ public struct FourierAnalysis: Analysis, Sendable {
                 // Extract time-value pairs for the last period
                 let waveform = Self.extractLastPeriod(
                     timePoints: transientResult.timePoints,
-                    values: transientResult.solutionTrace.column(variableIndex: varIndex),
+                    values: try transientResult.solutionTrace.column(variableIndex: varIndex),
                     period: period
                 )
 

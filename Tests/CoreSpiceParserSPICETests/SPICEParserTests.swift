@@ -149,6 +149,33 @@ struct SPICEParserTests {
     }
 
     @Test
+    func parseJFETComponentsAndModels() async throws {
+        let source = """
+        JFET parse deck
+        JN drain gate source njmod area=2
+        JP pout pgate psource pjmod
+        .model njmod njf beta=1m vto=-2 lambda=0.01 cgs=1p cgd=2p
+        .model pjmod pjf beta=2m vto=-2
+        .op
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+        let netlist = try result.get()
+
+        let njfet = try #require(netlist.components.first { $0.name == "jn" })
+        let pjfet = try #require(netlist.components.first { $0.name == "jp" })
+        #expect(njfet.type == .jfet)
+        #expect(njfet.nodes.map(\.name) == ["drain", "gate", "source"])
+        #expect(njfet.modelName == "njmod")
+        #expect(njfet.parameters["area"] != nil)
+        #expect(pjfet.modelName == "pjmod")
+        #expect(netlist.models.first { $0.name == "njmod" }?.type == .njf)
+        #expect(netlist.models.first { $0.name == "pjmod" }?.type == .pjf)
+    }
+
+    @Test
     func parseVoltageControlledSwitchModel() async throws {
         let source = """
         Switch Test
@@ -168,6 +195,97 @@ struct SPICEParserTests {
         #expect(component.modelName == "swmod")
         let model = try #require(netlist.models.first)
         #expect(model.type == .sw)
+    }
+
+    @Test
+    func parseCurrentControlledSourceReferences() async throws {
+        let source = """
+        Source Reference Test
+        VCTRL ctrl 0 dc 1
+        F1 out 0 VCTRL 2
+        H1 hout 0 VCTRL 1k
+        W1 vdd swout VCTRL cswmod
+        .model cswmod csw ron=10 roff=1e9 it=1m ih=0.1m
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        let f1 = try #require(netlist.components.first { $0.name == "f1" })
+        let h1 = try #require(netlist.components.first { $0.name == "h1" })
+        let w1 = try #require(netlist.components.first { $0.name == "w1" })
+
+        #expect(f1.type == .cccs)
+        #expect(f1.nodes.map(\.name) == ["out", "0"])
+        #expect(f1.parameters["control_source"] == .string("vctrl"))
+        #expect(f1.parameters["f"] == .numeric(2))
+
+        #expect(h1.type == .ccvs)
+        #expect(h1.nodes.map(\.name) == ["hout", "0"])
+        #expect(h1.parameters["control_source"] == .string("vctrl"))
+        #expect(h1.parameters["h"] == .numeric(1000))
+
+        #expect(w1.type == .currentSwitch)
+        #expect(w1.nodes.map(\.name) == ["vdd", "swout"])
+        #expect(w1.parameters["control_source"] == .string("vctrl"))
+        #expect(w1.modelName == "cswmod")
+    }
+
+    @Test
+    func parseCoupledInductorReferenceAndCoefficient() async throws {
+        let source = """
+        Coupled Inductor Test
+        L1 in 0 4u
+        L2 out 0 9u
+        K1 L1 L2 0.5
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        let coupling = try #require(netlist.components.first { $0.name == "k1" })
+        #expect(coupling.type == .coupledInductors)
+        #expect(coupling.nodes.map(\.name) == ["l1", "l2"])
+        #expect(coupling.parameters["k"] == .numeric(0.5))
+    }
+
+    @Test
+    func parseExplicitCurrentControlledElementsWithNamedParametersAndNumericSenseNodes() async throws {
+        let source = """
+        Explicit Sense Test
+        F1 out 0 sense 0 f=2
+        H1 hout 0 0 sense h=1k
+        W1 vdd swout 0 sense cswmod
+        .model cswmod csw ron=10 roff=1e9 it=1m ih=0.1m
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        let f1 = try #require(netlist.components.first { $0.name == "f1" })
+        let h1 = try #require(netlist.components.first { $0.name == "h1" })
+        let w1 = try #require(netlist.components.first { $0.name == "w1" })
+
+        #expect(f1.nodes.map(\.name) == ["out", "0", "sense", "0"])
+        #expect(f1.parameters["control_source"] == nil)
+        #expect(f1.parameters["f"] == .numeric(2))
+
+        #expect(h1.nodes.map(\.name) == ["hout", "0", "0", "sense"])
+        #expect(h1.parameters["control_source"] == nil)
+        #expect(h1.parameters["h"] == .numeric(1000))
+
+        #expect(w1.nodes.map(\.name) == ["vdd", "swout", "0", "sense"])
+        #expect(w1.parameters["control_source"] == nil)
+        #expect(w1.modelName == "cswmod")
     }
 
     @Test
@@ -213,6 +331,88 @@ struct SPICEParserTests {
     }
 
     @Test
+    func parseTransientAnalysisPreservesParameterValues() async {
+        let source = """
+        Transient Parameter Test
+        .param tstop=100n tstep={tstop/100}
+        .tran {tstep} {tstop}
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        if case .transient(let spec) = result.netlist?.analyses.first {
+            guard case .expression = spec.stepTime else {
+                Issue.record("Expected transient step time expression, got \(String(describing: spec.stepTime))")
+                return
+            }
+            guard case .expression = spec.stopTime else {
+                Issue.record("Expected transient stop time expression, got \(spec.stopTime)")
+                return
+            }
+        } else {
+            Issue.record("Expected transient analysis")
+        }
+    }
+
+    @Test
+    func parseSweepAnalysesPreserveParameterValues() async {
+        let source = """
+        Sweep Parameter Test
+        .param fstart=1 fstop=1meg vstop=1.8
+        .ac dec 10 {fstart} {fstop}
+        .dc V1 0 {vstop} 0.1
+        .noise V(out) V1 dec 10 {fstart} {fstop}
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        #expect(result.netlist?.analyses.count == 3)
+
+        if case .ac(let spec) = result.netlist?.analyses.first {
+            guard case .expression = spec.startFrequency else {
+                Issue.record("Expected AC start frequency expression, got \(spec.startFrequency)")
+                return
+            }
+            guard case .expression = spec.stopFrequency else {
+                Issue.record("Expected AC stop frequency expression, got \(spec.stopFrequency)")
+                return
+            }
+        } else {
+            Issue.record("Expected AC analysis")
+        }
+
+        if result.netlist?.analyses.count ?? 0 > 1,
+           case .dc(let spec) = result.netlist?.analyses[1] {
+            guard case .expression = spec.stopValue else {
+                Issue.record("Expected DC stop value expression, got \(spec.stopValue)")
+                return
+            }
+        } else {
+            Issue.record("Expected DC analysis")
+        }
+
+        if result.netlist?.analyses.count ?? 0 > 2,
+           case .noise(let spec) = result.netlist?.analyses[2] {
+            guard case .expression = spec.startFrequency else {
+                Issue.record("Expected noise start frequency expression, got \(spec.startFrequency)")
+                return
+            }
+            guard case .expression = spec.stopFrequency else {
+                Issue.record("Expected noise stop frequency expression, got \(spec.stopFrequency)")
+                return
+            }
+        } else {
+            Issue.record("Expected noise analysis")
+        }
+    }
+
+    @Test
     func parseACAnalysis() async {
         let source = """
         AC Test
@@ -231,7 +431,41 @@ struct SPICEParserTests {
     }
 
     @Test
-    func rejectUnsupportedDirective() async {
+    func rejectZeroACAnalysisPointCount() async {
+        let source = """
+        AC Point Count Test
+        .ac dec 0 1 1g
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message.contains("Expected positive integer analysis point count")
+        })
+    }
+
+    @Test
+    func rejectFractionalACAnalysisPointCount() async {
+        let source = """
+        AC Point Count Test
+        .ac dec 1.5 1 1g
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message.contains("Expected positive integer analysis point count")
+        })
+    }
+
+    @Test
+    func rejectUnsupportedDirective() async throws {
         let source = """
         Unsupported Directive Test
         .unknown_control foo bar
@@ -247,6 +481,11 @@ struct SPICEParserTests {
         #expect(result.errors.contains { diagnostic in
             diagnostic.message == "Unsupported SPICE directive: .unknown_control"
         })
+        #expect(throws: ParserDiagnostic.self) {
+            _ = try result.get()
+        }
+        let partialNetlist = try result.getAllowingErrors()
+        #expect(partialNetlist.components.map(\.name) == ["r1"])
     }
 
     @Test
@@ -1094,6 +1333,52 @@ struct SPICESerializerTests {
     }
 
     @Test
+    func serializeCurrentControlledSourceReferencesAsStandardSpice() async throws {
+        let source = """
+        Serialize Source Reference Test
+        VCTRL ctrl 0 dc 1
+        F1 out 0 VCTRL 2
+        H1 hout 0 VCTRL 1k
+        W1 vdd swout VCTRL cswmod
+        .model cswmod csw ron=10 roff=1e9 it=1m ih=0.1m
+        .end
+        """
+
+        let parser = SPICEParser()
+        let netlist = try await parser.parse(source: source).get()
+
+        let output = SPICESerializer().serialize(netlist)
+
+        #expect(output.contains("f1 out 0 vctrl 2"))
+        #expect(output.contains("h1 hout 0 vctrl 1.0k"))
+        #expect(output.contains("w1 vdd swout vctrl cswmod"))
+        #expect(!output.contains("control_source="))
+    }
+
+    @Test
+    func explicitCurrentControlledSourceRoundTripKeepsSenseTerminals() async throws {
+        let source = """
+        Serialize Explicit Sense Test
+        F1 out 0 sense 0 f=2
+        H1 hout 0 0 sense h=1k
+        .end
+        """
+
+        let parser = SPICEParser()
+        let original = try await parser.parse(source: source).get()
+        let output = SPICESerializer().serialize(original)
+        let roundTripped = try await parser.parse(source: output).get()
+
+        let f1 = try #require(roundTripped.components.first { $0.name == "f1" })
+        let h1 = try #require(roundTripped.components.first { $0.name == "h1" })
+
+        #expect(f1.nodes.map(\.name) == ["out", "0", "sense", "0"])
+        #expect(f1.parameters["control_source"] == nil)
+        #expect(h1.nodes.map(\.name) == ["hout", "0", "0", "sense"])
+        #expect(h1.parameters["control_source"] == nil)
+    }
+
+    @Test
     func parseUnsupportedMeasureAsBlockedIntent() async throws {
         let source = """
         Unsupported Measure Test
@@ -1186,6 +1471,23 @@ struct AdvancedAnalysisParserTests {
             #expect(spec.scaleType == .decade)
             #expect(spec.numberOfPoints == 10)
         }
+    }
+
+    @Test
+    func rejectZeroNoiseAnalysisPointCount() async {
+        let source = """
+        Noise Point Count Test
+        .noise V(out) Vin dec 0 1 1meg
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message.contains("Expected positive integer analysis point count")
+        })
     }
 
     @Test
@@ -1293,6 +1595,23 @@ struct AdvancedAnalysisParserTests {
     }
 
     @Test
+    func rejectZeroMonteCarloIterationCount() async {
+        let source = """
+        MC Iteration Count Test
+        .mc 0 dc Vin 0 5 0.1
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message.contains("Expected positive integer Monte Carlo iteration count")
+        })
+    }
+
+    @Test
     func parseMeasureCommand() async {
         let source = """
         Measure Test
@@ -1341,5 +1660,56 @@ struct AdvancedAnalysisParserTests {
             return
         }
         #expect(value == 0)
+    }
+}
+
+@Suite
+struct ParsedAnalysisValidationTests {
+
+    @Test
+    func acSpecRejectsZeroPointCount() {
+        #expect(throws: ParsedAnalysisValidationError.invalidAnalysisPointCount(0)) {
+            _ = try ACAnalysisSpec(
+                scaleType: .decade,
+                numberOfPoints: 0,
+                startFrequency: .numeric(1.0),
+                stopFrequency: .numeric(1.0e6)
+            )
+        }
+    }
+
+    @Test
+    func noiseSpecRejectsZeroPointCount() {
+        #expect(throws: ParsedAnalysisValidationError.invalidAnalysisPointCount(0)) {
+            _ = try NoiseAnalysisSpec(
+                outputNode: "out",
+                inputSource: "vin",
+                scaleType: .decade,
+                numberOfPoints: 0,
+                startFrequency: .numeric(1.0),
+                stopFrequency: .numeric(1.0e6)
+            )
+        }
+    }
+
+    @Test
+    func monteCarloSpecRejectsZeroIterations() {
+        #expect(throws: ParsedAnalysisValidationError.invalidMonteCarloIterationCount(0)) {
+            _ = try MonteCarloSpec(
+                analysis: .op,
+                iterations: 0
+            )
+        }
+    }
+
+    @Test
+    func monteCarloSpecRejectsNegativeSeed() {
+        #expect(throws: ParsedAnalysisValidationError.invalidMonteCarloSeed(-1)) {
+            _ = try MonteCarloSpec(
+                analysis: .op,
+                iterations: 1,
+                seed: -1
+            )
+        }
     }
 }

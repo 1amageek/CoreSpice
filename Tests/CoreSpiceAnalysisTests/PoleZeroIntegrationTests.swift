@@ -31,7 +31,7 @@ struct PoleZeroIntegrationTests {
     func singleRCPoleExact() async throws {
         // V1 -> R(1k) -> out -> C(1u) -> GND. H = 1/(1+sRC), single pole at -1/(RC).
         let r = 1000.0, c = 1e-6
-        let (netlist, out) = CircuitFactory.rcLowpass(r: r, c: c)
+        let (netlist, out) = try CircuitFactory.rcLowpass(r: r, c: c)
         let result = try await runPoleZero(netlist: netlist, outputNode: out)
         #expect(result.poles.count == 1, "single RC should have 1 pole, got \(result.poles.count)")
         let p = result.poles[0]

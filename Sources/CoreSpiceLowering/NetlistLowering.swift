@@ -128,11 +128,17 @@ public struct NetlistLowering: Sendable {
             configuration: configuration,
             randomUniform: randomUniform
         )
-        for component in netlist.components {
+        for component in sortedForExecutableDependencies(netlist.components) {
             try expander.expandComponent(component, into: &builder, prefix: "")
         }
 
         return try builder.build()
+    }
+
+    private func sortedForExecutableDependencies(_ components: [ParsedComponent]) -> [ParsedComponent] {
+        let deferred = components.filter { $0.type == .coupledInductors }
+        guard !deferred.isEmpty else { return components }
+        return components.filter { $0.type != .coupledInductors } + deferred
     }
 }
 

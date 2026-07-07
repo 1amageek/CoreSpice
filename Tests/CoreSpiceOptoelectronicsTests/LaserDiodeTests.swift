@@ -41,7 +41,7 @@ struct LaserDiodeTests {
     }
 
     @Test("Laser emits above threshold with correct slope efficiency")
-    func aboveThresholdEmission() {
+    func aboveThresholdEmission() throws {
         let params = LaserDiodeModelParameters(
             saturationCurrent: 1e-14,
             thresholdCurrent: 20e-3,
@@ -57,16 +57,18 @@ struct LaserDiodeTests {
             electricalState: state, opticalState: opticalState
         )
 
-        let signal = result.signals[optOut]!
+        let signal = try #require(result.signals[optOut])
         #expect(signal.power > 0, "Laser should emit above threshold")
 
         #expect(!result.sensitivities.isEmpty, "Should have sensitivities above threshold")
-        let anodeSens = result.sensitivities.first(where: { $0.electricalVarIndex == 0 })
-        #expect(anodeSens != nil && anodeSens!.dPdV > 0, "dP/dV_anode should be positive")
+        let anodeSens = try #require(
+            result.sensitivities.first(where: { $0.electricalVarIndex == 0 })
+        )
+        #expect(anodeSens.dPdV > 0, "dP/dV_anode should be positive")
     }
 
     @Test("Laser has near-zero emission below threshold")
-    func belowThresholdEmission() {
+    func belowThresholdEmission() throws {
         let params = LaserDiodeModelParameters(
             saturationCurrent: 1e-14,
             thresholdCurrent: 20e-3,
@@ -82,12 +84,12 @@ struct LaserDiodeTests {
             electricalState: state, opticalState: opticalState
         )
 
-        let signal = result.signals[optOut]!
+        let signal = try #require(result.signals[optOut])
         #expect(signal.power < 1e-6, "Power below threshold should be very small")
     }
 
     @Test("Laser provides noise sources including shot noise and RIN")
-    func noiseSources() {
+    func noiseSources() throws {
         let params = LaserDiodeModelParameters(
             saturationCurrent: 1e-14,
             thresholdCurrent: 20e-3,
@@ -104,13 +106,11 @@ struct LaserDiodeTests {
 
         #expect(noise.count == 2, "Should have shot noise and RIN noise sources")
 
-        let shotNoise = noise.first(where: { $0.name.contains("shot") })
-        let rinNoise = noise.first(where: { $0.name.contains("rin") })
+        let shotNoise = try #require(noise.first(where: { $0.name.contains("shot") }))
+        let rinNoise = try #require(noise.first(where: { $0.name.contains("rin") }))
 
-        #expect(shotNoise != nil, "Should have shot noise")
-        #expect(rinNoise != nil, "Should have RIN noise")
-        #expect(shotNoise!.currentSpectralDensity > 0, "Shot noise should be positive")
-        #expect(rinNoise!.currentSpectralDensity > 0, "RIN noise should be positive")
+        #expect(shotNoise.currentSpectralDensity > 0, "Shot noise should be positive")
+        #expect(rinNoise.currentSpectralDensity > 0, "RIN noise should be positive")
     }
 
     @Test("Laser RIN parameter converts correctly from dB")
@@ -140,13 +140,13 @@ struct LaserDiodeTests {
     }
 
     @Test("Laser sensitivity sign: anode positive, cathode negative")
-    func sensitivityPolarity() {
+    func sensitivityPolarity() throws {
         let params = LaserDiodeModelParameters(
             saturationCurrent: 1e-14,
             thresholdCurrent: 20e-3,
             slopeEfficiency: 0.3
         )
-        let (laser, anode, cathode, optOut) = makeLaser(params: params)
+        let (laser, anode, cathode, _) = makeLaser(params: params)
 
         let state = makeState(anodeV: 1.25, cathodeV: 0.0, anode: anode, cathode: cathode)
         let opticalState = OpticalState(nodeCount: 2)
@@ -154,12 +154,12 @@ struct LaserDiodeTests {
             electricalState: state, opticalState: opticalState
         )
 
-        let anodeSens = result.sensitivities.first(where: { $0.electricalVarIndex == 0 })
-        let cathodeSens = result.sensitivities.first(where: { $0.electricalVarIndex == 1 })
+        let anodeSens = try #require(result.sensitivities.first(where: { $0.electricalVarIndex == 0 }))
+        let cathodeSens = try #require(result.sensitivities.first(where: { $0.electricalVarIndex == 1 }))
 
-        #expect(anodeSens != nil && anodeSens!.dPdV > 0)
-        #expect(cathodeSens != nil && cathodeSens!.dPdV < 0)
+        #expect(anodeSens.dPdV > 0)
+        #expect(cathodeSens.dPdV < 0)
         // Magnitudes should be equal (dI/dV_anode = -dI/dV_cathode)
-        #expect(abs(anodeSens!.dPdV + cathodeSens!.dPdV) < 1e-15)
+        #expect(abs(anodeSens.dPdV + cathodeSens.dPdV) < 1e-15)
     }
 }

@@ -43,7 +43,7 @@ public struct ACAnalysis: Analysis, Sendable {
         let startTimestamp = Timestamp()
         let dim = plan.topology.dimension
         let variableMap = plan.topology.variableMap
-        let frequencies = sweep.frequencies()
+        let frequencies = try sweep.frequencies()
 
         await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
@@ -53,174 +53,171 @@ public struct ACAnalysis: Analysis, Sendable {
             deviceCount: devices.count
         )))
 
-        // Phase 1: DC operating point (includes optical steady state)
-        let dcAnalysis = DCAnalysis(config: dcConfig)
-        let dcResult = try await dcAnalysis.run(
-            plan: plan,
-            devices: devices,
-            solver: solver,
-            observer: observer,
-            cancellation: cancellation
-        )
-        let dcState = SolutionState(
-            variables: dcResult.variables,
-            variableMap: variableMap
-        )
-        let dcOpticalState = dcResult.opticalState ?? OpticalState()
-
-        // Phase 2: AC frequency sweep
-        var complexSolver = ComplexSparseLUSolver()
-        var solutions: [[ComplexPair]] = []
-        solutions.reserveCapacity(frequencies.count)
-
-        var matrix = ComplexSparseMatrix(structure: plan.matrixStructure)
-        var rhs = [ComplexPair](repeating: ComplexPair(), count: dim)
-        var solutionBuf = [ComplexPair](repeating: ComplexPair(), count: dim)
-
-        for (idx, freq) in frequencies.enumerated() {
-            if cancellation.isCancelled {
-                throw AnalysisError.cancelled
-            }
-
-            let omega = 2.0 * .pi * freq
-
-            await observer?.emit(.sweepPointStarted(SweepPointInfo(
-                id: analysisID,
-                index: idx,
-                total: frequencies.count,
-                value: freq,
-                parameterName: "frequency"
-            )))
-
-            // Clear the complex system
-            matrix.clear()
-            for i in 0..<dim {
-                rhs[i] = ComplexPair()
-            }
-
-            // Stamp AC model: (G + j*omega*C) * V = I_s
-            var stamper = ComplexMatrixStamper(
-                variableMap: variableMap,
-                stampMatrix: { row, col, re, im in
-                    matrix.addValue(row: row, col: col, value: ComplexPair(real: re, imag: im))
-                },
-                stampRHS: { row, re, im in
-                    rhs[row] = ComplexPair(
-                        real: rhs[row].real + re,
-                        imag: rhs[row].imag + im
-                    )
-                }
+        do {
+            // Phase 1: DC operating point (includes optical steady state)
+            let dcAnalysis = DCAnalysis(config: dcConfig)
+            let dcResult = try await dcAnalysis.run(
+                plan: plan,
+                devices: devices,
+                solver: solver,
+                observer: observer,
+                cancellation: cancellation
             )
+            let dcState = SolutionState(
+                variables: dcResult.variables,
+                variableMap: variableMap
+            )
+            let dcOpticalState = dcResult.opticalState ?? OpticalState()
 
-            for device in devices {
-                if let optoDevice = device as? OptoelectronicDevice {
-                    optoDevice.stampAC(into: &stamper, state: dcState, opticalState: dcOpticalState, omega: omega)
-                } else {
-                    device.stampAC(into: &stamper, state: dcState, omega: omega)
+            // Phase 2: AC frequency sweep
+            var complexSolver = ComplexSparseLUSolver()
+            var solutions: [[ComplexPair]] = []
+            solutions.reserveCapacity(frequencies.count)
+
+            var matrix = ComplexSparseMatrix(structure: plan.matrixStructure)
+            var rhs = [ComplexPair](repeating: ComplexPair(), count: dim)
+            var solutionBuf = [ComplexPair](repeating: ComplexPair(), count: dim)
+
+            for (idx, freq) in frequencies.enumerated() {
+                if cancellation.isCancelled {
+                    throw AnalysisError.cancelled
                 }
-            }
 
-            // Add Gmin to diagonal for numerical grounding
-            for i in 0..<dim {
-                matrix.addValue(row: i, col: i, value: ComplexPair(real: dcConfig.gmin, imag: 0))
-            }
+                let omega = 2.0 * .pi * freq
 
-            // Solve the complex linear system
-            do {
-                try complexSolver.factorize(matrix: matrix)
-            } catch {
-                let message = "AC factorization failed at frequency \(freq) Hz: \(error)"
-                await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+                await observer?.emit(.sweepPointStarted(SweepPointInfo(
                     id: analysisID,
-                    type: .ac,
-                    status: .failed,
-                    timestamp: Timestamp(),
-                    wallTime: Timestamp().elapsed(since: startTimestamp),
-                    failure: AnalysisFailureInfo(error: error)
+                    index: idx,
+                    total: frequencies.count,
+                    value: freq,
+                    parameterName: "frequency"
                 )))
-                if case CompileError.singularMatrix = error {
-                    throw AnalysisError.singularMatrix
+
+                // Clear the complex system
+                matrix.clear()
+                for i in 0..<dim {
+                    rhs[i] = ComplexPair()
                 }
-                throw AnalysisError.internalError(message)
-            }
 
-            do {
-                try complexSolver.solve(rhs: rhs, into: &solutionBuf)
-            } catch {
-                let message = "Complex solve failed at frequency \(freq) Hz: \(error)"
-                await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
-                    id: analysisID,
-                    type: .ac,
-                    status: .failed,
-                    timestamp: Timestamp(),
-                    wallTime: Timestamp().elapsed(since: startTimestamp),
-                    failure: AnalysisFailureInfo(reason: "complexSolveFailed", message: message)
-                )))
-                throw AnalysisError.internalError(message)
-            }
+                // Stamp AC model: (G + j*omega*C) * V = I_s
+                var stamper = ComplexMatrixStamper(
+                    variableMap: variableMap,
+                    stampMatrix: { row, col, re, im in
+                        matrix.addValue(row: row, col: col, value: ComplexPair(real: re, imag: im))
+                    },
+                    stampRHS: { row, re, im in
+                        rhs[row] = ComplexPair(
+                            real: rhs[row].real + re,
+                            imag: rhs[row].imag + im
+                        )
+                    }
+                )
 
-            var nonFiniteDiagnostic: DiagnosticCode?
-            for val in solutionBuf {
-                if val.real.isNaN || val.real.isInfinite ||
-                   val.imag.isNaN || val.imag.isInfinite {
-                    nonFiniteDiagnostic = (val.real.isNaN || val.imag.isNaN)
-                        ? .nanDetected
-                        : .infDetected
-                    break
+                for device in devices {
+                    if let optoDevice = device as? OptoelectronicDevice {
+                        optoDevice.stampAC(into: &stamper, state: dcState, opticalState: dcOpticalState, omega: omega)
+                    } else {
+                        device.stampAC(into: &stamper, state: dcState, omega: omega)
+                    }
                 }
-            }
 
-            if let code = nonFiniteDiagnostic {
-                let message = "Non-finite AC solution detected at frequency \(freq) Hz"
-                await observer?.emit(.warning(DiagnosticInfo(
-                    id: analysisID,
-                    code: code,
-                    message: message,
-                    timestamp: Timestamp()
-                )))
+                // Add Gmin to diagonal for numerical grounding
+                for i in 0..<dim {
+                    matrix.addValue(row: i, col: i, value: ComplexPair(real: dcConfig.gmin, imag: 0))
+                }
+
+                // Solve the complex linear system
+                do {
+                    try complexSolver.factorize(matrix: matrix)
+                } catch {
+                    let message = "AC factorization failed at frequency \(freq) Hz: \(error)"
+                    if case CompileError.singularMatrix = error {
+                        throw AnalysisError.singularMatrix
+                    }
+                    throw AnalysisError.internalError(message)
+                }
+
+                do {
+                    try complexSolver.solve(rhs: rhs, into: &solutionBuf)
+                } catch {
+                    let message = "Complex solve failed at frequency \(freq) Hz: \(error)"
+                    throw AnalysisError.internalError(message)
+                }
+
+                var nonFiniteDiagnostic: DiagnosticCode?
+                for val in solutionBuf {
+                    if val.real.isNaN || val.real.isInfinite ||
+                       val.imag.isNaN || val.imag.isInfinite {
+                        nonFiniteDiagnostic = (val.real.isNaN || val.imag.isNaN)
+                            ? .nanDetected
+                            : .infDetected
+                        break
+                    }
+                }
+
+                if let code = nonFiniteDiagnostic {
+                    let message = "Non-finite AC solution detected at frequency \(freq) Hz"
+                    await observer?.emit(.warning(DiagnosticInfo(
+                        id: analysisID,
+                        code: code,
+                        message: message,
+                        timestamp: Timestamp()
+                    )))
+                    await observer?.emit(.sweepPointFinished(SweepPointResultInfo(
+                        id: analysisID,
+                        index: idx,
+                        value: freq,
+                        parameterName: "frequency",
+                        converged: false,
+                        iterations: 1
+                    )))
+                    throw AnalysisError.internalError(message)
+                }
+
+                solutions.append(solutionBuf)
+
                 await observer?.emit(.sweepPointFinished(SweepPointResultInfo(
                     id: analysisID,
                     index: idx,
                     value: freq,
                     parameterName: "frequency",
-                    converged: false,
+                    converged: true,
                     iterations: 1
                 )))
-                await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
-                    id: analysisID,
-                    type: .ac,
-                    status: .failed,
-                    timestamp: Timestamp(),
-                    wallTime: Timestamp().elapsed(since: startTimestamp),
-                    failure: AnalysisFailureInfo(reason: code.rawValue, message: message)
-                )))
-                throw AnalysisError.internalError(message)
             }
 
-            solutions.append(solutionBuf)
-
-            await observer?.emit(.sweepPointFinished(SweepPointResultInfo(
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
-                index: idx,
-                value: freq,
-                parameterName: "frequency",
-                converged: true,
-                iterations: 1
+                type: .ac,
+                status: .completed,
+                timestamp: Timestamp(),
+                wallTime: Timestamp().elapsed(since: startTimestamp)
             )))
+
+            return ACResult(
+                frequencies: frequencies,
+                solutions: solutions,
+                variableMap: variableMap
+            )
+        } catch {
+            let status: AnalysisStatus
+            if let analysisError = error as? AnalysisError,
+               case .cancelled = analysisError {
+                status = .cancelled
+            } else {
+                status = .failed
+            }
+
+            await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
+                id: analysisID,
+                type: .ac,
+                status: status,
+                timestamp: Timestamp(),
+                wallTime: Timestamp().elapsed(since: startTimestamp),
+                failure: status.failureInfo(for: error)
+            )))
+
+            throw error
         }
-
-        await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
-            id: analysisID,
-            type: .ac,
-            status: .completed,
-            timestamp: Timestamp(),
-            wallTime: Timestamp().elapsed(since: startTimestamp)
-        )))
-
-        return ACResult(
-            frequencies: frequencies,
-            solutions: solutions,
-            variableMap: variableMap
-        )
     }
 }

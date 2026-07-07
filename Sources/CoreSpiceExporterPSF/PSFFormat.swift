@@ -11,6 +11,38 @@ import Foundation
 /// 5. Value sections containing actual data
 public enum PSFFormat {
 
+    public enum ValidationError: Error, Equatable, Sendable, CustomStringConvertible {
+        case invalidSectionType(UInt32)
+        case invalidPropertyID(UInt32)
+        case invalidPropertyType(UInt32)
+        case propertyTypeValueMismatch(type: UInt32, value: PropertyValue)
+        case invalidPropertyReal
+        case emptyTraceName
+        case invalidTraceDataType(UInt32)
+        case invalidTraceElementCount(Int)
+
+        public var description: String {
+            switch self {
+            case .invalidSectionType(let type):
+                return "Invalid PSF section type: \(type)"
+            case .invalidPropertyID(let id):
+                return "Invalid PSF property ID: \(id)"
+            case .invalidPropertyType(let type):
+                return "Invalid PSF property type: \(type)"
+            case .propertyTypeValueMismatch(let type, _):
+                return "PSF property type \(type) does not match its value."
+            case .invalidPropertyReal:
+                return "PSF real property value must be finite."
+            case .emptyTraceName:
+                return "PSF trace name must not be empty."
+            case .invalidTraceDataType(let type):
+                return "Invalid PSF trace data type: \(type)"
+            case .invalidTraceElementCount(let elementCount):
+                return "PSF trace element count must be positive, got \(elementCount)."
+            }
+        }
+    }
+
     // MARK: - Magic Numbers
 
     /// Magic number for standard PSF files.
@@ -83,7 +115,10 @@ public enum PSFFormat {
         /// Section data size in bytes.
         public let size: UInt32
 
-        public init(type: UInt32, size: UInt32) {
+        public init(type: UInt32, size: UInt32) throws {
+            guard PSFFormat.isKnownSectionType(type) else {
+                throw ValidationError.invalidSectionType(type)
+            }
             self.type = type
             self.size = size
         }
@@ -100,7 +135,19 @@ public enum PSFFormat {
         /// Property value.
         public let value: PropertyValue
 
-        public init(id: UInt32, type: UInt32, value: PropertyValue) {
+        public init(id: UInt32, type: UInt32, value: PropertyValue) throws {
+            guard PSFFormat.isKnownPropertyID(id) else {
+                throw ValidationError.invalidPropertyID(id)
+            }
+            guard PSFFormat.isKnownPropertyType(type) else {
+                throw ValidationError.invalidPropertyType(type)
+            }
+            guard PSFFormat.propertyValue(value, matches: type) else {
+                throw ValidationError.propertyTypeValueMismatch(type: type, value: value)
+            }
+            if case .real(let realValue) = value, !realValue.isFinite {
+                throw ValidationError.invalidPropertyReal
+            }
             self.id = id
             self.type = type
             self.value = value
@@ -108,7 +155,7 @@ public enum PSFFormat {
     }
 
     /// Property value variants.
-    public enum PropertyValue: Sendable {
+    public enum PropertyValue: Equatable, Sendable {
         case string(String)
         case int32(Int32)
         case real(Double)
@@ -125,10 +172,64 @@ public enum PSFFormat {
         /// Number of elements (1 for scalar).
         public let elementCount: Int
 
-        public init(name: String, dataType: UInt32, elementCount: Int = 1) {
+        public init(name: String, dataType: UInt32, elementCount: Int = 1) throws {
+            guard !name.isEmpty else {
+                throw ValidationError.emptyTraceName
+            }
+            guard PSFFormat.isTraceDataType(dataType) else {
+                throw ValidationError.invalidTraceDataType(dataType)
+            }
+            guard elementCount > 0 else {
+                throw ValidationError.invalidTraceElementCount(elementCount)
+            }
             self.name = name
             self.dataType = dataType
             self.elementCount = elementCount
+        }
+    }
+
+    private static func isKnownSectionType(_ type: UInt32) -> Bool {
+        switch type {
+        case headerSection, typeSection, sweepSection, traceSection, valueSection, endSection:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func isKnownPropertyID(_ id: UInt32) -> Bool {
+        switch id {
+        case propVersion, propTitle, propDate, propOrigin, propAnalysisType:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func isKnownPropertyType(_ type: UInt32) -> Bool {
+        switch type {
+        case typeString, typeInt, typeReal:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func isTraceDataType(_ type: UInt32) -> Bool {
+        switch type {
+        case typeReal, typeComplex:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func propertyValue(_ value: PropertyValue, matches type: UInt32) -> Bool {
+        switch (type, value) {
+        case (typeString, .string), (typeInt, .int32), (typeReal, .real):
+            return true
+        default:
+            return false
         }
     }
 }

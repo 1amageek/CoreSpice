@@ -114,9 +114,32 @@ public struct ComplexSparseMatrix: Sendable {
     ///
     /// - Parameter vector: A complex vector of length ``dimension``.
     /// - Returns: The result vector of length ``dimension``.
-    public func multiply(vector: [ComplexPair]) -> [ComplexPair] {
+    public func multiply(vector: [ComplexPair]) throws -> [ComplexPair] {
+        try checkedMultiply(vector: vector)
+    }
+
+    /// Computes the matrix-vector product `A * vector` with typed validation.
+    public func checkedMultiply(vector: [ComplexPair]) throws -> [ComplexPair] {
         let n = structure.dimension
         var result = Array(repeating: ComplexPair.zero, count: n)
+        try checkedMultiply(vector: vector, into: &result)
+        return result
+    }
+
+    /// Computes the matrix-vector product `A * vector` into caller-owned storage.
+    public func multiply(vector: [ComplexPair], into result: inout [ComplexPair]) throws {
+        try checkedMultiply(vector: vector, into: &result)
+    }
+
+    /// Computes the matrix-vector product into caller-owned storage with typed validation.
+    public func checkedMultiply(vector: [ComplexPair], into result: inout [ComplexPair]) throws {
+        let n = structure.dimension
+        guard result.count == n else {
+            throw SparseMatrixError.resultLengthMismatch(expected: n, actual: result.count)
+        }
+        guard vector.count == n else {
+            throw SparseMatrixError.vectorLengthMismatch(expected: n, actual: vector.count)
+        }
         for row in 0..<n {
             let start = structure.rowPointers[row]
             let end = structure.rowPointers[row + 1]
@@ -126,7 +149,6 @@ public struct ComplexSparseMatrix: Sendable {
             }
             result[row] = sum
         }
-        return result
     }
 
     /// Returns a new matrix with rows and columns permuted.

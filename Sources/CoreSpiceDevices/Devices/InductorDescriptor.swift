@@ -47,6 +47,7 @@ public struct InductorDescriptor: DeviceDescriptor, Sendable {
         }
 
         let branch = context.allocateBranch()
+        context.registerInductance(inductance, for: branch)
 
         let posNode = instance.nodes[0]
         let negNode = instance.nodes[1]

@@ -47,6 +47,39 @@ struct SPICEExecutionIntentTests {
     }
 
     @Test
+    func transientConfigRejectsInvalidDirectTransientOptions() throws {
+        let invalidCases: [(expectedName: String, transient: SPICETransientOptions)] = [
+            ("minTimeStep", SPICETransientOptions(minTimeStep: 2e-9)),
+            ("lteTolerance", SPICETransientOptions(lteTolerance: Double.nan)),
+            ("maxTimeStepReductions", SPICETransientOptions(maxTimeStepReductions: -1)),
+            ("shrinkFactor", SPICETransientOptions(shrinkFactor: 1.0)),
+            ("gminSteppingThreshold", SPICETransientOptions(gminSteppingThreshold: 0))
+        ]
+
+        for invalidCase in invalidCases {
+            let options = SPICEAnalysisOptions(transient: invalidCase.transient)
+
+            do {
+                _ = try options.transientConfig(
+                    stopTime: 10e-9,
+                    stepTime: nil,
+                    startTime: nil,
+                    maxStep: 1e-9,
+                    useInitialConditions: false
+                )
+                Issue.record("expected \(invalidCase.expectedName) to fail loudly")
+            } catch let error as SPICEAnalysisOptionError {
+                guard case .invalidAnalysisValue(let name, _, let reason) = error else {
+                    Issue.record("unexpected option error: \(error)")
+                    return
+                }
+                #expect(name == invalidCase.expectedName)
+                #expect(!reason.isEmpty)
+            }
+        }
+    }
+
+    @Test
     func rejectsUnsupportedPersistentTransientOrderOption() async throws {
         let source = """
         unsupported option deck
@@ -284,6 +317,47 @@ struct SPICEExecutionIntentTests {
     }
 
     @Test
+    func rejectsNonFiniteMeasurementResults() throws {
+        let waveform = WaveformData(
+            metadata: SimulationMetadata(
+                title: "non-finite measure fixture",
+                analysisType: .transient,
+                pointCount: 1,
+                variableCount: 1
+            ),
+            sweepVariable: .time(),
+            sweepValues: [0],
+            variables: [
+                .voltage(node: "out", index: 0)
+            ],
+            realData: [
+                [1.0]
+            ]
+        )
+        let measure = MeasureSpec(
+            analysisType: .transient,
+            resultName: "bad_sqrt",
+            measureType: .find(
+                variable: .expression(.functionCall(name: "sqrt", arguments: [.literal(-1)])),
+                at: .numeric(0)
+            )
+        )
+
+        do {
+            _ = try SPICEMeasureEvaluator().evaluate(measures: [measure], waveform: waveform)
+            Issue.record("expected non-finite measurement result to fail loudly")
+        } catch let error as SPICEMeasurementError {
+            guard case .nonFiniteResult(let name, let value, let reason) = error else {
+                Issue.record("unexpected measurement error: \(error)")
+                return
+            }
+            #expect(name == "bad_sqrt")
+            #expect(!value.isEmpty)
+            #expect(reason.contains("finite"))
+        }
+    }
+
+    @Test
     func deckCoverageReportClassifiesExecutionIntent() async throws {
         let source = """
         coverage deck
@@ -324,6 +398,84 @@ struct SPICEExecutionIntentTests {
         let decoded = try JSONDecoder().decode(SPICEDeckCoverageReport.self, from: encoded)
         #expect(decoded.summary == report.summary)
         #expect(decoded.items == report.items)
+    }
+
+    @Test
+    func deckCoverageParserDiagnosticsAreStructuredForAgentRepair() async throws {
+        let source = """
+        unsupported directive coverage
+        .unknown_control foo bar
+        R1 in out 1k
+        .end
+        """
+
+        let parseResult = await SPICEIO.parse(source, fileName: "unsupported-coverage.cir")
+        let report = SPICEDeckCoverageReport.generate(from: parseResult)
+
+        #expect(report.hasBlockedItems)
+        #expect(report.summary.parserErrors == 1)
+        let diagnostic = try #require(report.diagnostics.first)
+        #expect(diagnostic.source == "parser")
+        #expect(diagnostic.code == "parser-error-unsupported-spice-directive-unknown-control")
+        #expect(diagnostic.severity == "error")
+        #expect(diagnostic.message == "Unsupported SPICE directive: .unknown_control")
+        #expect(diagnostic.location?.file == "unsupported-coverage.cir")
+        #expect(!diagnostic.suggestedActions.isEmpty)
+    }
+
+    @Test
+    func deckCoverageDiagnosticDecodesLegacyJSON() throws {
+        let data = try #require(
+            """
+            {
+              "severity": "warning",
+              "message": "Legacy parser warning"
+            }
+            """.data(using: .utf8)
+        )
+
+        let diagnostic = try JSONDecoder().decode(SPICEDeckCoverageDiagnostic.self, from: data)
+
+        #expect(diagnostic.source == "parser")
+        #expect(diagnostic.code == "parser-warning-legacy-parser-warning")
+        #expect(diagnostic.severity == "warning")
+        #expect(diagnostic.message == "Legacy parser warning")
+        #expect(diagnostic.location == nil)
+        #expect(diagnostic.suggestedActions == [])
+        #expect(diagnostic.notes == [])
+    }
+
+    @Test
+    func deckCoverageDiagnosticNormalizesDefaultCodeTokens() {
+        let diagnostic = SPICEDeckCoverageDiagnostic(
+            source: "Parser Boundary",
+            severity: "Hard Error",
+            message: "Unsupported @ gate!"
+        )
+
+        #expect(diagnostic.code == "parser-boundary-hard-error-unsupported-gate")
+    }
+
+    @Test
+    func deckCoverageSupportsCoupledInductorExecutionIntent() async throws {
+        let source = """
+        coupled inductor coverage deck
+        L1 in 0 1m
+        L2 out 0 1m
+        K1 L1 L2 0.9
+        .ac lin 1 1k 1k
+        .end
+        """
+
+        let parseResult = await SPICEIO.parse(source, fileName: "coupled-inductor-coverage.cir")
+        let netlist = try parseResult.get()
+        let report = SPICEDeckCoverageReport.generate(
+            from: netlist,
+            parserDiagnostics: parseResult.diagnostics
+        )
+
+        #expect(item(named: "component:k1", in: report)?.status == .supported)
+        #expect(!report.hasBlockedItems)
     }
 
     @Test
@@ -417,10 +569,13 @@ struct SPICEExecutionIntentTests {
         .model nch nmos level=1
         .model sky nmos level=49
         .model swmod sw
+        .model cswmod csw
+        .model jmod njf beta=1m vto=-2 lambda=0.01
         D1 out 0 dmod
         M1 out in 0 0 nch w=1u l=1u
         M2 out in 0 0 sky w=1u l=1u
         S1 out 0 ctrl 0 swmod
+        W1 out 0 sense 0 cswmod
         J1 out in 0 jmod
         .op
         .end
@@ -437,11 +592,36 @@ struct SPICEExecutionIntentTests {
         #expect(item(named: "model:nch", in: report)?.status == .supported)
         #expect(item(named: "model:sky", in: report)?.status == .blocked)
         #expect(item(named: "model:sky", in: report)?.message.contains("level 49") == true)
-        #expect(item(named: "model:swmod", in: report)?.status == .blocked)
+        #expect(item(named: "model:swmod", in: report)?.status == .supported)
+        #expect(item(named: "model:cswmod", in: report)?.status == .supported)
+        #expect(item(named: "model:jmod", in: report)?.status == .supported)
         #expect(item(named: "component:d1", in: report)?.status == .supported)
         #expect(item(named: "component:m1", in: report)?.status == .supported)
         #expect(item(named: "component:m2", in: report)?.status == .blocked)
-        #expect(item(named: "component:s1", in: report)?.status == .blocked)
+        #expect(item(named: "component:s1", in: report)?.status == .supported)
+        #expect(item(named: "component:w1", in: report)?.status == .supported)
+        #expect(item(named: "component:j1", in: report)?.status == .supported)
+        #expect(report.hasBlockedItems)
+    }
+
+    @Test
+    func deckCoverageBlocksUnsupportedJFETParameters() async throws {
+        let source = """
+        unsupported jfet parameter coverage
+        J1 out in 0 jmod
+        .model jmod njf beta=1m vto=-2 unknown_jfet_param=1
+        .op
+        .end
+        """
+
+        let parseResult = await SPICEIO.parse(source, fileName: "jfet-coverage.cir")
+        let netlist = try parseResult.get()
+        let report = SPICEDeckCoverageReport.generate(
+            from: netlist,
+            parserDiagnostics: parseResult.diagnostics
+        )
+
+        #expect(item(named: "model:jmod", in: report)?.status == .blocked)
         #expect(item(named: "component:j1", in: report)?.status == .blocked)
         #expect(report.hasBlockedItems)
     }

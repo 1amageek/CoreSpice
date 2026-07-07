@@ -22,7 +22,7 @@ struct ACIntegrationTests {
 
     @Test("B1: RC lowpass filter frequency response")
     func rcLowpassFilter() async throws {
-        let (netlist, out) = CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
+        let (netlist, out) = try CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
         // fc = 1/(2π × 1kΩ × 1µF) ≈ 159.15 Hz
         let fc = 1.0 / (2.0 * .pi * 1000 * 1e-6)
 
@@ -57,7 +57,7 @@ struct ACIntegrationTests {
 
     @Test("B2: RC highpass filter frequency response")
     func rcHighpassFilter() async throws {
-        let (netlist, out) = CircuitFactory.rcHighpass(r: 1000, c: 1e-6)
+        let (netlist, out) = try CircuitFactory.rcHighpass(r: 1000, c: 1e-6)
         // fc = 1/(2π × 1kΩ × 1µF) ≈ 159.15 Hz
         let fc = 1.0 / (2.0 * .pi * 1000 * 1e-6)
 
@@ -88,7 +88,7 @@ struct ACIntegrationTests {
         // R=10Ω, L=1mH, C=1µF
         // f0 = 1/(2π√(LC)) ≈ 5033 Hz, Q = (1/R)√(L/C) ≈ 3.16
         // Output = voltage across C
-        let (netlist, out) = CircuitFactory.rlcSeries(r: 10, l: 1e-3, c: 1e-6)
+        let (netlist, out) = try CircuitFactory.rlcSeries(r: 10, l: 1e-3, c: 1e-6)
         let f0 = 1.0 / (2.0 * .pi * sqrt(1e-3 * 1e-6))
 
         let sweep = FrequencySweep.decade(start: 100, stop: 100_000, pointsPerDecade: 30)
@@ -207,7 +207,7 @@ struct ACIntegrationTests {
 
     @Test("B6: RC lowpass phase response")
     func rcLowpassPhase() async throws {
-        let (netlist, out) = CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
+        let (netlist, out) = try CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
         let fc = 1.0 / (2.0 * .pi * 1000 * 1e-6)
 
         let sweep = FrequencySweep.decade(start: 1.0, stop: 1e6, pointsPerDecade: 20)
@@ -393,9 +393,9 @@ struct ACIntegrationTests {
 
     @Test("B11: Sweep type comparison")
     func sweepTypeComparison() async throws {
-        let (netlist1, out1) = CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
-        let (netlist2, out2) = CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
-        let (netlist3, out3) = CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
+        let (netlist1, out1) = try CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
+        let (netlist2, out2) = try CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
+        let (netlist3, out3) = try CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
 
         let fc = 1.0 / (2.0 * .pi * 1000 * 1e-6)
 
@@ -433,7 +433,7 @@ struct ACIntegrationTests {
     func rlHighpassFilter() async throws {
         // V1(AC=1) → L(0.1H) → out → R(1kΩ) → GND
         // fc = R/(2πL) = 1000/(2π×0.1) ≈ 1591 Hz
-        let (netlist, out) = CircuitFactory.rlHighpass(r: 1000, l: 0.1)
+        let (netlist, out) = try CircuitFactory.rlHighpass(r: 1000, l: 0.1)
         let fc = 1000.0 / (2.0 * .pi * 0.1)
 
         let sweep = FrequencySweep.decade(start: 10, stop: 1e6, pointsPerDecade: 20)
@@ -463,7 +463,7 @@ struct ACIntegrationTests {
     func rcLowpassOctaveSweep() async throws {
         // Same RC lowpass as B1 but using octave sweep
         // fc = 1/(2π × 1kΩ × 1µF) ≈ 159.15 Hz
-        let (netlist, out) = CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
+        let (netlist, out) = try CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
         let fc = 1.0 / (2.0 * .pi * 1000 * 1e-6)
 
         // Octave sweep: 10 Hz to 100 kHz, 10 points per octave
@@ -510,8 +510,8 @@ struct ACIntegrationTests {
     func octaveVsDecadeSweepConsistency() async throws {
         // Use the same circuit with both sweep types
         // Results at common frequencies should match
-        let (netlist1, out1) = CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
-        let (netlist2, out2) = CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
+        let (netlist1, out1) = try CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
+        let (netlist2, out2) = try CircuitFactory.rcLowpass(r: 1000, c: 1e-6)
 
         let fc = 1.0 / (2.0 * .pi * 1000 * 1e-6)
 

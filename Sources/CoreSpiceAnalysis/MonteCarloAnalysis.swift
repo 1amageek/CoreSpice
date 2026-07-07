@@ -70,6 +70,10 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
         )))
 
         do {
+            guard iterations > 0 else {
+                throw AnalysisError.invalidConfiguration("Monte Carlo iterations must be positive")
+            }
+
             let registry = DeviceRegistry.standard()
             var rng: any RandomNumberGenerator = seed.map {
                 SeededRandomNumberGenerator(seed: $0) as any RandomNumberGenerator
@@ -116,7 +120,7 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
 
                 // Emit progress
                 let fraction = Double(iteration + 1) / Double(iterations)
-                await observer?.emit(.progressUpdate(ProgressInfo(
+                await observer?.emit(.progressUpdate(try ProgressInfo(
                     id: analysisID,
                     fraction: fraction,
                     message: "Monte Carlo: iteration \(iteration + 1)/\(iterations)"
@@ -171,6 +175,7 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
         var context = BindingContext(
             variableMap: plan.topology.variableMap,
             matrixDimension: plan.topology.dimension,
+            branchNames: plan.ir.branchNames,
             stampIndexResolver: { row, col in structure.index(row: row, col: col) }
         )
         var devices: [any BoundDevice] = []

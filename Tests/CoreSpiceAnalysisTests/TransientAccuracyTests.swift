@@ -130,7 +130,7 @@ struct TransientAccuracyTests {
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
         let Td = 2.0 * .pi / omegaD
         let peaks = findPeaks(in: waveform, minSeparation: Td * 0.5)
 
@@ -185,7 +185,7 @@ struct TransientAccuracyTests {
             maxTimeStep: 10e-6
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
 
         // Check at multiple time constants with tight tolerances
         let checkPoints: [(multiplier: Double, tolerance: Double)] = [
@@ -255,9 +255,9 @@ struct TransientAccuracyTests {
         let (result_h2, outNode_h2) = try await runWithStep(h / 2.0)
         let (result_h4, outNode_h4) = try await runWithStep(h / 4.0)
 
-        let wf_h  = result_h.voltageWaveform(at: outNode_h)
-        let wf_h2 = result_h2.voltageWaveform(at: outNode_h2)
-        let wf_h4 = result_h4.voltageWaveform(at: outNode_h4)
+        let wf_h  = try result_h.voltageWaveform(at: outNode_h)
+        let wf_h2 = try result_h2.voltageWaveform(at: outNode_h2)
+        let wf_h4 = try result_h4.voltageWaveform(at: outNode_h4)
 
         let v_h  = interpolatedValue(in: wf_h, at: tStar)
         let v_h2 = interpolatedValue(in: wf_h2, at: tStar)
@@ -329,7 +329,7 @@ struct TransientAccuracyTests {
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
 
         // Use minSeparation = Td/2 to avoid spurious peaks from numerical
         // noise when adaptive timestep produces many points near a peak.
@@ -398,7 +398,7 @@ struct TransientAccuracyTests {
             maxTimeStep: 1e-6
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
 
         // Check at multiple time constants
         let checkPoints: [(multiplier: Double, tolerance: Double)] = [
@@ -451,7 +451,7 @@ struct TransientAccuracyTests {
         let result = try await CircuitFactory.runTransient(netlist, config: config)
 
         // Measure amplitude in last period (steady state)
-        let waveform = result.voltageWaveform(at: out)
+        let waveform = try result.voltageWaveform(at: out)
         let steadyWaveform = waveform.filter { $0.time >= 4e-3 }
 
         let maxV = steadyWaveform.map(\.value).max() ?? 0.0

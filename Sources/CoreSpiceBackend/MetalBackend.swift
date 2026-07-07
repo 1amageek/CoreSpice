@@ -203,19 +203,19 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
     }
 
     public func prepare(configuration: BackendConfiguration) throws {
+        if let preferredDevice = configuration.preferredDevice,
+           preferredDevice != device.name {
+            throw BackendError.preferredDeviceMismatch(
+                requested: preferredDevice,
+                active: device.name
+            )
+        }
+
         // Apply max buffer size configuration
         maxBufferSize.withLock { $0 = configuration.maxBufferSize }
 
         // Apply profiling configuration
         profilingEnabled.withLock { $0 = configuration.enableProfiling }
-
-        // Note: Device selection must be done at init time, not in prepare.
-        // If a preferred device is specified but doesn't match the current device,
-        // the caller should create a new MetalBackend with the preferred device.
-        if let preferredDevice = configuration.preferredDevice,
-           preferredDevice != device.name {
-            // Log a warning but don't throw - the device was already selected at init
-        }
     }
 
     public func reset() {

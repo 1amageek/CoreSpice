@@ -16,6 +16,37 @@ private final class StampCollector: Sendable {
     }
     var matrixEntries: [(Int, Int, Double)] { _matrix.withLock { $0 } }
     var rhsEntries: [(Int, Double)] { _rhs.withLock { $0 } }
+
+    func matrixSum(row: Int, col: Int) -> Double {
+        matrixEntries.filter { $0.0 == row && $0.1 == col }.map { $0.2 }.reduce(0, +)
+    }
+
+    func rhsSum(row: Int) -> Double {
+        rhsEntries.filter { $0.0 == row }.map { $0.1 }.reduce(0, +)
+    }
+}
+
+private final class ComplexStampCollector: Sendable {
+    private let _matrix = Mutex<[(Int, Int, Double, Double)]>([])
+    private let _rhs = Mutex<[(Int, Double, Double)]>([])
+
+    func addMatrix(_ r: Int, _ c: Int, _ real: Double, _ imag: Double) {
+        _matrix.withLock { $0.append((r, c, real, imag)) }
+    }
+
+    func addRHS(_ r: Int, _ real: Double, _ imag: Double) {
+        _rhs.withLock { $0.append((r, real, imag)) }
+    }
+
+    func matrixSum(row: Int, col: Int) -> (real: Double, imag: Double) {
+        _matrix.withLock { values in
+            values
+                .filter { $0.0 == row && $0.1 == col }
+                .reduce((real: 0.0, imag: 0.0)) { partial, entry in
+                    (partial.real + entry.2, partial.imag + entry.3)
+                }
+        }
+    }
 }
 
 @Suite("CoreSpiceDevices Tests")
@@ -26,6 +57,7 @@ struct CoreSpiceDevicesTests {
         #expect(registry.descriptor(for: "resistor") != nil)
         #expect(registry.descriptor(for: "capacitor") != nil)
         #expect(registry.descriptor(for: "inductor") != nil)
+        #expect(registry.descriptor(for: "mutual") != nil)
         #expect(registry.descriptor(for: "vsource") != nil)
         #expect(registry.descriptor(for: "isource") != nil)
         #expect(registry.descriptor(for: "unknown_device") == nil)
@@ -33,7 +65,7 @@ struct CoreSpiceDevicesTests {
 
     @Test func resistorBinding() throws {
         let registry = DeviceRegistry.standard()
-        let desc = registry.descriptor(for: "resistor")!
+        let desc = try #require(registry.descriptor(for: "resistor"))
 
         let n1 = Node(id: 1)
         let n2 = Node(id: 2)
@@ -82,6 +114,118 @@ struct CoreSpiceDevicesTests {
     @Test func convergenceResultConverged() {
         let result = ConvergenceResult.converged
         #expect(result.isConverged)
+    }
+
+    @Test func solutionStateCheckedAccessRejectsMissingVariables() throws {
+        let knownNode = Node(id: 1)
+        let missingNode = Node(id: 2)
+        let knownBranch = Branch(id: 1)
+        let missingBranch = Branch(id: 2)
+        let state = SolutionState(
+            variables: [1.25, -0.01],
+            variableMap: [
+                .nodeVoltage(knownNode): 0,
+                .branchCurrent(knownBranch): 1
+            ]
+        )
+
+        #expect(try state.checkedVoltage(at: knownNode) == 1.25)
+        #expect(try state.checkedCurrent(through: knownBranch) == -0.01)
+        #expect(throws: SolutionStateAccessError.missingNodeVoltage(nodeID: missingNode.id)) {
+            _ = try state.checkedVoltage(at: missingNode)
+        }
+        #expect(throws: SolutionStateAccessError.missingBranchCurrent(branchID: missingBranch.id)) {
+            _ = try state.checkedCurrent(through: missingBranch)
+        }
+    }
+
+    @Test func mutualInductanceStampsACAndTransientBranchCoupling() throws {
+        let positiveA = Node(id: 1)
+        let positiveB = Node(id: 2)
+        let branchA = Branch(id: 0)
+        let branchB = Branch(id: 1)
+        let variableMap: [MNAVariable: Int] = [
+            .nodeVoltage(positiveA): 0,
+            .nodeVoltage(positiveB): 1,
+            .branchCurrent(branchA): 2,
+            .branchCurrent(branchB): 3,
+        ]
+        var context = BindingContext(
+            variableMap: variableMap,
+            matrixDimension: 4,
+            branchNames: [
+                branchA: "L1",
+                branchB: "L2",
+            ]
+        )
+
+        let l1 = Instance(
+            name: "L1",
+            typeName: "inductor",
+            nodes: [positiveA, .ground],
+            parameters: ["l": .real(4.0e-6)]
+        )
+        let l2 = Instance(
+            name: "L2",
+            typeName: "inductor",
+            nodes: [positiveB, .ground],
+            parameters: ["l": .real(9.0e-6)]
+        )
+        _ = try InductorDescriptor().bind(instance: l1, context: &context)
+        _ = try InductorDescriptor().bind(instance: l2, context: &context)
+
+        let mutual = Instance(
+            name: "K1",
+            typeName: "mutual",
+            nodes: [],
+            parameters: [
+                "k": .real(0.5),
+                "inductor_a": .string("L1"),
+                "inductor_b": .string("L2"),
+            ]
+        )
+        let bound = try MutualInductanceDescriptor().bind(instance: mutual, context: &context)
+        let expectedMutualInductance = 3.0e-6
+        let state = SolutionState(
+            variables: [0.0, 0.0, 0.0, 0.0],
+            previousVariables: [0.0, 0.0, 0.1, 0.2],
+            variableMap: variableMap
+        )
+
+        let complexCollector = ComplexStampCollector()
+        var complexStamper = ComplexMatrixStamper(
+            variableMap: variableMap,
+            stampMatrix: { row, column, real, imag in
+                complexCollector.addMatrix(row, column, real, imag)
+            },
+            stampRHS: { row, real, imag in
+                complexCollector.addRHS(row, real, imag)
+            }
+        )
+
+        bound.stampAC(into: &complexStamper, state: state, omega: 1_000.0)
+
+        let acAB = complexCollector.matrixSum(row: 2, col: 3)
+        let acBA = complexCollector.matrixSum(row: 3, col: 2)
+        #expect(abs(acAB.real) < 1.0e-15)
+        #expect(abs(acBA.real) < 1.0e-15)
+        #expect(abs(acAB.imag + 1_000.0 * expectedMutualInductance) < 1.0e-15)
+        #expect(abs(acBA.imag + 1_000.0 * expectedMutualInductance) < 1.0e-15)
+
+        let collector = StampCollector()
+        var stamper = MatrixStamper(
+            variableMap: variableMap,
+            stampMatrix: { row, column, value in collector.addMatrix(row, column, value) },
+            stampRHS: { row, value in collector.addRHS(row, value) }
+        )
+        let integration = IntegrationState(method: .backwardEuler, timeStep: 1.0, currentTime: 1.0)
+
+        bound.stampTransient(into: &stamper, state: state, integration: integration)
+
+        #expect(abs(collector.matrixSum(row: 2, col: 3) + expectedMutualInductance) < 1.0e-15)
+        #expect(abs(collector.matrixSum(row: 3, col: 2) + expectedMutualInductance) < 1.0e-15)
+        #expect(abs(collector.rhsSum(row: 2) + expectedMutualInductance * 0.2) < 1.0e-15)
+        #expect(abs(collector.rhsSum(row: 3) + expectedMutualInductance * 0.1) < 1.0e-15)
     }
 
     @Test func waveformDC() {

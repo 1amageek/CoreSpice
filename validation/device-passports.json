@@ -47,6 +47,15 @@
       "knownLimitations": ["ideal inductive loops can create singular systems"]
     },
     {
+      "typeName": "mutual",
+      "modelFamily": "linear mutual inductance coupling",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["coupling coefficient magnitude less than or equal to 1", "positive referenced inductances"],
+      "parameterPolicy": "k must be finite with magnitude <= 1; inductor_a and inductor_b must resolve to distinct bound inductor branches",
+      "oracleRequirements": ["analytic transformer ac coupling", "branch-coupled transient companion stamp"],
+      "knownLimitations": ["ideal transformer loops can create singular systems"]
+    },
+    {
       "typeName": "vsource",
       "modelFamily": "ideal independent voltage source",
       "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
@@ -173,6 +182,15 @@
       "knownLimitations": ["depends on branch-current reference binding"]
     },
     {
+      "typeName": "cccs_ref",
+      "modelFamily": "ideal current-controlled current source referencing an existing voltage-source branch",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["linear controlled source"],
+      "parameterPolicy": "gain must be finite and control_source must resolve to a branch-bearing source",
+      "oracleRequirements": ["analytic linear circuit", "SPICE source-name reference deck"],
+      "knownLimitations": ["depends on branch-current reference binding"]
+    },
+    {
       "typeName": "ccvs",
       "modelFamily": "ideal current-controlled voltage source",
       "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
@@ -180,6 +198,60 @@
       "parameterPolicy": "transresistance must be finite and sense source must exist",
       "oracleRequirements": ["analytic linear circuit"],
       "knownLimitations": ["depends on branch-current reference binding"]
+    },
+    {
+      "typeName": "ccvs_ref",
+      "modelFamily": "ideal current-controlled voltage source referencing an existing voltage-source branch",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["linear controlled source"],
+      "parameterPolicy": "transresistance must be finite and control_source must resolve to a branch-bearing source",
+      "oracleRequirements": ["analytic linear circuit", "SPICE source-name reference deck"],
+      "knownLimitations": ["depends on branch-current reference binding"]
+    },
+    {
+      "typeName": "vswitch",
+      "modelFamily": "smooth voltage-controlled switch",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
+      "supportedRegions": ["smooth transition around vt"],
+      "parameterPolicy": "ron must be positive; roff must be greater than ron; vt and vh must be finite",
+      "oracleRequirements": ["threshold dc deck", "small-signal control gain"],
+      "knownLimitations": ["vh is modeled as smooth transition width, not stateful hysteresis"]
+    },
+    {
+      "typeName": "cswitch",
+      "modelFamily": "smooth current-controlled switch with explicit sense terminals",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
+      "supportedRegions": ["smooth transition around it"],
+      "parameterPolicy": "ron must be positive; roff must be greater than ron; it and ih must be finite",
+      "oracleRequirements": ["threshold dc deck", "small-signal control-current gain"],
+      "knownLimitations": ["ih is modeled as smooth transition width, not stateful hysteresis"]
+    },
+    {
+      "typeName": "cswitch_ref",
+      "modelFamily": "smooth current-controlled switch referencing an existing voltage-source branch",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
+      "supportedRegions": ["smooth transition around it"],
+      "parameterPolicy": "ron must be positive; roff must be greater than ron; it and ih must be finite; control_source must resolve to a branch-bearing source",
+      "oracleRequirements": ["threshold dc deck", "SPICE source-name reference deck", "small-signal control-current gain"],
+      "knownLimitations": ["ih is modeled as smooth transition width, not stateful hysteresis"]
+    },
+    {
+      "typeName": "njfet",
+      "modelFamily": "Shichman-Hodges N-channel JFET with gate junction leakage",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "noise", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["cutoff", "linear", "saturation", "source-drain reversal", "terminal series resistance"],
+      "parameterPolicy": "beta, is, n, area, pb, af, and tnom must be positive; lambda, cgs, cgd, rd, rs, and kf must be non-negative; m and fc must be in [0, 1); vto must be finite; unsupported JFET parameters are blocked by coverage",
+      "oracleRequirements": ["analytic dc source follower", "small-signal gate gain", "gate junction leakage", "series-resistance lowering"],
+      "knownLimitations": ["full foundry JFET noise and temperature scaling beyond TNOM thermal voltage are not implemented"]
+    },
+    {
+      "typeName": "pjfet",
+      "modelFamily": "Shichman-Hodges P-channel JFET with gate junction leakage",
+      "supportedAnalyses": ["op", "dc", "ac", "tran", "noise", "tf", "pz", "sens", "mc"],
+      "supportedRegions": ["cutoff", "linear", "saturation", "source-drain reversal", "terminal series resistance"],
+      "parameterPolicy": "beta, is, n, area, pb, af, and tnom must be positive; lambda, cgs, cgd, rd, rs, and kf must be non-negative; m and fc must be in [0, 1); vto must be finite; unsupported JFET parameters are blocked by coverage",
+      "oracleRequirements": ["analytic dc source follower", "small-signal gate gain", "gate junction leakage", "series-resistance lowering"],
+      "knownLimitations": ["full foundry JFET noise and temperature scaling beyond TNOM thermal voltage are not implemented"]
     },
     {
       "typeName": "optoelectronic",

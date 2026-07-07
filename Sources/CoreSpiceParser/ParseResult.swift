@@ -54,6 +54,21 @@ public struct ParseResult: Sendable {
 
     /// Returns the netlist or throws the first error.
     public func get() throws -> ParsedNetlist {
+        if let firstError = errors.first {
+            throw firstError
+        }
+        if let netlist = netlist {
+            return netlist
+        }
+        throw ParserDiagnostic.error("Unknown parse error")
+    }
+
+    /// Returns the partial netlist even when parser error diagnostics exist.
+    ///
+    /// This is only for diagnostic tooling that needs to inspect the recoverable
+    /// parser state. Execution paths should use `get()` so malformed decks fail
+    /// before lowering or simulation.
+    public func getAllowingErrors() throws -> ParsedNetlist {
         if let netlist = netlist {
             return netlist
         }

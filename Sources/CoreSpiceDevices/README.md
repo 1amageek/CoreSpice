@@ -157,13 +157,18 @@ public enum Waveform: Sendable {
 | `resistor` | Linear resistor | pos, neg | r |
 | `capacitor` | Linear capacitor | pos, neg | c |
 | `inductor` | Linear inductor | pos, neg | l |
+| `mutual` | Mutual inductance between two inductor branches | none | k, inductor_a, inductor_b |
 | `vsource` | Independent voltage source | pos, neg | v (optional, default 0) |
 | `isource` | Independent current source | pos, neg | i (optional, default 0) |
 | `vcvs` | Voltage-controlled voltage source | pos_out, neg_out, pos_ctrl, neg_ctrl | e |
 | `vccs` | Voltage-controlled current source | pos_out, neg_out, pos_ctrl, neg_ctrl | g |
 | `ccvs` | Current-controlled voltage source | pos_out, neg_out, pos_sense, neg_sense | h |
 | `cccs` | Current-controlled current source | pos_out, neg_out, pos_sense, neg_sense | f |
+| `ccvs_ref` | Current-controlled voltage source referencing an existing source branch | pos_out, neg_out | h, control_source |
+| `cccs_ref` | Current-controlled current source referencing an existing source branch | pos_out, neg_out | f, control_source |
 | `vswitch` | Voltage-controlled switch | pos, neg, control_pos, control_neg | ron, roff, vt, vh |
+| `cswitch` | Current-controlled switch | pos, neg, sense_pos, sense_neg | ron, roff, it, ih |
+| `cswitch_ref` | Current-controlled switch referencing an existing source branch | pos, neg | ron, roff, it, ih, control_source |
 | `diode` | PN junction diode | anode, cathode | model parameters have defaults |
 | `npn` | NPN bipolar transistor | collector, base, emitter, substrate | model parameters have defaults |
 | `pnp` | PNP bipolar transistor | collector, base, emitter, substrate | model parameters have defaults |
@@ -190,21 +195,24 @@ public enum Waveform: Sendable {
 - [x] All four controlled source types (VCVS, VCCS, CCVS, CCCS)
 - [x] Diode DC/AC/transient stamping with junction capacitance and noise hooks
 - [x] BJT DC/AC/transient stamping with junction capacitance and noise hooks
+- [x] JFET DC/AC/transient stamping for `NJF`/`PJF` models with gate junction leakage, voltage-dependent `CGS`/`CGD`, `RD`/`RS` lowering, and noise hooks
 - [x] Voltage-controlled switch execution from SPICE `S` elements and `.model SW` parameters
+- [x] Current-controlled switch execution from explicit sense-terminal `W` elements and `.model CSW` parameters
+- [x] Source-name current-controlled source/switch execution for standard SPICE `F`/`H`/`W` references to existing voltage-source branches
+- [x] Mutual inductance execution for standard SPICE `K` elements referencing inductor branches
 - [x] Device registry with dynamic registration
 
 ### Incomplete/Missing Features
 
 - [ ] **BSIM models**: No advanced MOSFET models
-- [ ] **JFET/MESFET execution**: Parsed components are not lowered to executable native devices
-- [ ] **Current-controlled switch execution**: `W`/CSW models still fail during lowering with typed diagnostics
+- [ ] **MESFET execution**: Parsed components are not lowered to executable native devices
+- [ ] **Switch hysteresis state**: Voltage-controlled `VH` is currently modeled as a smooth transition width. Current-controlled `IH > 0` is rejected until stateful SPICE hysteresis and initial switch state are modeled.
 - [ ] **Transmission lines**: Not implemented
 - [ ] **Behavioral source execution**: B-source expressions are not executable native devices
 - [ ] **Advanced parasitic capacitances**: MOSFET capacitance coverage remains limited compared with foundry-grade models
 - [ ] **Temperature modeling**: Device behavior still assumes nominal temperature in most execution paths
 - [ ] **Noise analysis breadth**: Existing noise hooks do not yet amount to full simulator-level noise analysis
 - [ ] **Parameter expressions**: Waveform parameters not exposed through instance parameters
-- [ ] **Mutual inductance**: No coupled inductor support
 
 ## Code Review Notes
 

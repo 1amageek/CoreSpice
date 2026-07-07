@@ -36,6 +36,30 @@ public indirect enum ParsedAnalysisCommand: Sendable, Hashable {
 
 // MARK: - Analysis Specifications
 
+/// Validation errors for parsed analysis specifications.
+public enum ParsedAnalysisValidationError: Error, Sendable, Hashable, CustomStringConvertible {
+
+    /// A frequency sweep point count is not positive.
+    case invalidAnalysisPointCount(Int)
+
+    /// A Monte Carlo iteration count is not positive.
+    case invalidMonteCarloIterationCount(Int)
+
+    /// A Monte Carlo seed is negative.
+    case invalidMonteCarloSeed(Int)
+
+    public var description: String {
+        switch self {
+        case .invalidAnalysisPointCount(let count):
+            return "Analysis point count must be positive: \(count)"
+        case .invalidMonteCarloIterationCount(let count):
+            return "Monte Carlo iteration count must be positive: \(count)"
+        case .invalidMonteCarloSeed(let seed):
+            return "Monte Carlo seed must be nonnegative: \(seed)"
+        }
+    }
+}
+
 /// Specification for DC sweep analysis.
 public struct DCAnalysisSpec: Sendable, Hashable {
 
@@ -111,7 +135,10 @@ public struct ACAnalysisSpec: Sendable, Hashable {
         numberOfPoints: Int,
         startFrequency: ParsedParameterValue,
         stopFrequency: ParsedParameterValue
-    ) {
+    ) throws {
+        guard numberOfPoints > 0 else {
+            throw ParsedAnalysisValidationError.invalidAnalysisPointCount(numberOfPoints)
+        }
         self.scaleType = scaleType
         self.numberOfPoints = numberOfPoints
         self.startFrequency = startFrequency
@@ -184,7 +211,10 @@ public struct NoiseAnalysisSpec: Sendable, Hashable {
         numberOfPoints: Int,
         startFrequency: ParsedParameterValue,
         stopFrequency: ParsedParameterValue
-    ) {
+    ) throws {
+        guard numberOfPoints > 0 else {
+            throw ParsedAnalysisValidationError.invalidAnalysisPointCount(numberOfPoints)
+        }
         self.outputNode = outputNode
         self.referenceNode = referenceNode
         self.inputSource = inputSource
@@ -248,7 +278,15 @@ public struct MonteCarloSpec: Sendable, Hashable {
         analysis: ParsedAnalysisCommand,
         iterations: Int,
         seed: Int? = nil
-    ) {
+    ) throws {
+        guard iterations > 0 else {
+            throw ParsedAnalysisValidationError.invalidMonteCarloIterationCount(iterations)
+        }
+        if let seed {
+            guard seed >= 0 else {
+                throw ParsedAnalysisValidationError.invalidMonteCarloSeed(seed)
+            }
+        }
         self.analysis = analysis
         self.iterations = iterations
         self.seed = seed

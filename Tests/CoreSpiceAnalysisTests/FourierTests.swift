@@ -289,9 +289,9 @@ struct FourierTests {
     }
 
     /// Test extractLastPeriod accepts a strided SolutionTrace column view.
-    @Test func extractLastPeriodFromSolutionTraceColumn() {
+    @Test func extractLastPeriodFromSolutionTraceColumn() throws {
         let timePoints = [0.0, 0.5, 1.0, 1.5, 2.0]
-        let trace = SolutionTrace(
+        let trace = try SolutionTrace(
             variableCount: 2,
             rowMajorValues: [
                 10.0, 0.0,
@@ -304,7 +304,7 @@ struct FourierTests {
 
         let result = FourierAnalysis.extractLastPeriod(
             timePoints: timePoints,
-            values: trace.column(variableIndex: 1),
+            values: try trace.column(variableIndex: 1),
             period: 1.0
         )
 

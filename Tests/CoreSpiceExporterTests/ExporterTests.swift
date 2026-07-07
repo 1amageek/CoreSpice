@@ -408,6 +408,74 @@ struct PSFExporterTests {
 }
 
 @Suite
+struct PSFFormatTests {
+
+    @Test
+    func sectionHeaderRejectsUnknownSectionType() {
+        do {
+            _ = try PSFFormat.SectionHeader(type: 99, size: 0)
+            Issue.record("Expected invalidSectionType")
+        } catch let error as PSFFormat.ValidationError {
+            #expect(error == .invalidSectionType(99))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func propertyRejectsMismatchedTypeAndValue() {
+        do {
+            _ = try PSFFormat.Property(
+                id: PSFFormat.propTitle,
+                type: PSFFormat.typeReal,
+                value: .string("title")
+            )
+            Issue.record("Expected propertyTypeValueMismatch")
+        } catch let error as PSFFormat.ValidationError {
+            #expect(error == .propertyTypeValueMismatch(type: PSFFormat.typeReal, value: .string("title")))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func traceDefinitionRejectsInvalidDataType() {
+        do {
+            _ = try PSFFormat.TraceDefinition(name: "V(out)", dataType: PSFFormat.typeString)
+            Issue.record("Expected invalidTraceDataType")
+        } catch let error as PSFFormat.ValidationError {
+            #expect(error == .invalidTraceDataType(PSFFormat.typeString))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func traceDefinitionRejectsInvalidElementCount() {
+        do {
+            _ = try PSFFormat.TraceDefinition(name: "V(out)", dataType: PSFFormat.typeReal, elementCount: 0)
+            Issue.record("Expected invalidTraceElementCount")
+        } catch let error as PSFFormat.ValidationError {
+            #expect(error == .invalidTraceElementCount(0))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func traceDefinitionRejectsEmptyName() {
+        do {
+            _ = try PSFFormat.TraceDefinition(name: "", dataType: PSFFormat.typeReal)
+            Issue.record("Expected emptyTraceName")
+        } catch let error as PSFFormat.ValidationError {
+            #expect(error == .emptyTraceName)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+}
+
+@Suite
 struct ExportConfigurationTests {
 
     @Test

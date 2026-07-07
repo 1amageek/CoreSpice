@@ -197,10 +197,10 @@ public struct TransientResult: Sendable {
     public let timeSteps: Int
     public let rejectedSteps: Int
 
-    public func voltage(at node: Node, timeIndex: Int) -> Double
-    public func value(variableIndex: Int, timeIndex: Int) -> Double
-    public func withSolution<R>(at timeIndex: Int, _ body: (UnsafeBufferPointer<Double>) throws -> R) rethrows -> R
-    public func voltageWaveform(at node: Node) -> [(time: Double, value: Double)]
+    public func voltage(at node: Node, timeIndex: Int) throws -> Double
+    public func value(variableIndex: Int, timeIndex: Int) throws -> Double
+    public func withSolution<R>(at timeIndex: Int, _ body: (UnsafeBufferPointer<Double>) throws -> R) throws -> R
+    public func voltageWaveform(at node: Node) throws -> [(time: Double, value: Double)]
 }
 ```
 

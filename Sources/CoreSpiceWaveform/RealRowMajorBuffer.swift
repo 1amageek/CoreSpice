@@ -25,9 +25,10 @@ public struct RealRowMajorBuffer {
     }
 
     public func value(point: Int, variable: Int) -> Double? {
-        guard point >= 0, point < pointCount else { return nil }
-        guard variable >= 0, variable < variableCount else { return nil }
-        return values[startOffset + (point * rowStride) + variable]
+        guard let index = storageIndex(point: point, variable: variable) else {
+            return nil
+        }
+        return values[index]
     }
 
     public func withRow<R>(
@@ -35,17 +36,42 @@ public struct RealRowMajorBuffer {
         _ body: (UnsafeBufferPointer<Double>) throws -> R
     ) rethrows -> R? {
         guard point >= 0, point < pointCount else { return nil }
+        guard variableCount >= 0 else { return nil }
         guard variableCount > 0 else {
             return try body(UnsafeBufferPointer(start: nil, count: 0))
         }
+        guard let start = storageIndex(point: point, variable: 0) else { return nil }
+        guard variableCount <= Int.max - start, start + variableCount <= values.count else {
+            return nil
+        }
         guard let baseAddress = values.baseAddress else {
-            preconditionFailure("non-empty row-major buffer must have a base address")
+            return try body(UnsafeBufferPointer(start: nil, count: 0))
         }
         return try body(
             UnsafeBufferPointer(
-                start: baseAddress + startOffset + (point * rowStride),
+                start: baseAddress + start,
                 count: variableCount
             )
         )
+    }
+
+    private func storageIndex(point: Int, variable: Int) -> Int? {
+        guard point >= 0, point < pointCount else { return nil }
+        guard variable >= 0, variable < variableCount else { return nil }
+        guard pointCount >= 0, variableCount >= 0, rowStride >= 0, startOffset >= 0 else {
+            return nil
+        }
+        guard point == 0 || rowStride <= (Int.max - startOffset) / point else {
+            return nil
+        }
+        let rowStart = startOffset + (point * rowStride)
+        guard variable <= Int.max - rowStart else {
+            return nil
+        }
+        let index = rowStart + variable
+        guard index >= 0, index < values.count else {
+            return nil
+        }
+        return index
     }
 }

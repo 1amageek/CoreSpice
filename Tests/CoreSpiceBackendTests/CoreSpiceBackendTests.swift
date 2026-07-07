@@ -50,4 +50,17 @@ struct CoreSpiceBackendTests {
         _ = try backend.loadKernel(named: "applyLayer512_even")
         _ = try backend.loadKernel(named: "applyLayer512_odd")
     }
+
+    @Test func metalBackendPrepareRejectsPreferredDeviceMismatch() throws {
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            return
+        }
+
+        let backend = try MetalBackend(device: device)
+        let unavailableDeviceName = "__unavailable_device__\(device.name)"
+
+        #expect(throws: BackendError.self) {
+            try backend.prepare(configuration: BackendConfiguration(preferredDevice: unavailableDeviceName))
+        }
+    }
 }

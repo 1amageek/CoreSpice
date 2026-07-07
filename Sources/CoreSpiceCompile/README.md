@@ -70,7 +70,7 @@ public struct SparseMatrix: Sendable {
     public mutating func clear()
     public mutating func addValue(row: Int, col: Int, value: Double)
     public func value(row: Int, col: Int) -> Double
-    public func multiply(vector: [Double]) -> [Double]
+    public func multiply(vector: [Double]) throws -> [Double]
 }
 
 // Complex number type

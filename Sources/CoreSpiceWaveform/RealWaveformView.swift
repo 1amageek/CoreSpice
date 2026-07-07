@@ -24,7 +24,27 @@ public struct RealWaveformView: RandomAccessCollection, Sendable {
         source: any WaveformReadable,
         variableIndex: Int
     ) {
-        precondition(variableIndex >= 0 && variableIndex < source.variableCount)
+        self.source = source
+        self.variableIndex = variableIndex
+        if variableIndex >= 0, variableIndex < source.variableCount {
+            self.name = source.variables[variableIndex].name
+            self.unit = source.variables[variableIndex].unit
+        } else {
+            self.name = ""
+            self.unit = .dimensionless
+        }
+    }
+
+    public init(
+        validatingSource source: any WaveformReadable,
+        variableIndex: Int
+    ) throws {
+        guard variableIndex >= 0, variableIndex < source.variableCount else {
+            throw WaveformAccessError.variableOutOfRange(
+                variable: variableIndex,
+                variableCount: source.variableCount
+            )
+        }
         self.source = source
         self.variableIndex = variableIndex
         self.name = source.variables[variableIndex].name
@@ -34,7 +54,24 @@ public struct RealWaveformView: RandomAccessCollection, Sendable {
     public subscript(position: Int) -> Double {
         guard position >= startIndex, position < endIndex,
               let value = source.realValue(variable: variableIndex, point: position) else {
-            preconditionFailure("real waveform view index out of range")
+            return .nan
+        }
+        return value
+    }
+
+    /// Returns a value without trapping on invalid or unreadable input.
+    public func checkedValue(at point: Int) throws -> Double {
+        guard variableIndex >= 0, variableIndex < source.variableCount else {
+            throw WaveformAccessError.variableOutOfRange(
+                variable: variableIndex,
+                variableCount: source.variableCount
+            )
+        }
+        guard point >= startIndex, point < endIndex else {
+            throw WaveformAccessError.pointOutOfRange(point: point, pointCount: endIndex)
+        }
+        guard let value = source.realValue(variable: variableIndex, point: point) else {
+            throw WaveformAccessError.unreadableRealValue(variable: variableIndex, point: point)
         }
         return value
     }
@@ -42,7 +79,18 @@ public struct RealWaveformView: RandomAccessCollection, Sendable {
     /// Returns the sweep value at a point.
     public func sweepValue(at point: Int) -> Double {
         guard let value = source.sweepValue(at: point) else {
-            preconditionFailure("real waveform view sweep index out of range")
+            return .nan
+        }
+        return value
+    }
+
+    /// Returns the sweep value without trapping on invalid or unreadable input.
+    public func checkedSweepValue(at point: Int) throws -> Double {
+        guard point >= startIndex, point < endIndex else {
+            throw WaveformAccessError.pointOutOfRange(point: point, pointCount: endIndex)
+        }
+        guard let value = source.sweepValue(at: point) else {
+            throw WaveformAccessError.unreadableSweepValue(point: point)
         }
         return value
     }
@@ -57,6 +105,26 @@ public struct RealWaveformView: RandomAccessCollection, Sendable {
         for index in indices {
             sweepValues.append(sweepValue(at: index))
             values.append(self[index])
+        }
+
+        return RealWaveform(
+            name: name,
+            unit: unit,
+            sweepValues: sweepValues,
+            values: values
+        )
+    }
+
+    /// Materializes the lazy series without trapping on unreadable input.
+    public func checkedMaterialized() throws -> RealWaveform {
+        var sweepValues: [Double] = []
+        var values: [Double] = []
+        sweepValues.reserveCapacity(count)
+        values.reserveCapacity(count)
+
+        for index in indices {
+            sweepValues.append(try checkedSweepValue(at: index))
+            values.append(try checkedValue(at: index))
         }
 
         return RealWaveform(

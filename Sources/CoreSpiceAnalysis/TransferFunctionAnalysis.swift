@@ -217,15 +217,20 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
 
         // Device types that allocate branches during binding
         let branchAllocatingTypes: Set<String> = [
-            "vsource", "inductor", "vcvs", "ccvs", "cccs"
+            "vsource", "inductor", "vcvs", "ccvs", "cccs", "ccvs_ref", "cswitch"
         ]
 
-        // CCVS allocates 2 branches (sense + output); all others allocate 1
+        // CCVS allocates 2 branches (sense + output); all others in this set allocate 1.
         var branchID = 0
         for instance in plan.ir.instances {
             guard branchAllocatingTypes.contains(instance.typeName) else { continue }
 
-            if instance.name == inputSourceName {
+            if instance.name.caseInsensitiveCompare(inputSourceName) == .orderedSame {
+                guard instance.typeName == "vsource" else {
+                    throw AnalysisError.invalidConfiguration(
+                        "Input source '\(inputSourceName)' must be an independent voltage source, got \(instance.typeName)"
+                    )
+                }
                 let branch = Branch(id: branchID)
                 guard let index = variableMap[.branchCurrent(branch)] else {
                     throw AnalysisError.invalidConfiguration(

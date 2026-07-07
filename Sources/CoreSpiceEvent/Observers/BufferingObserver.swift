@@ -1,11 +1,24 @@
+import Foundation
 import Synchronization
 
 public final class BufferingObserver: AnalysisObserver {
+    public enum ValidationError: Error, LocalizedError, Equatable, Sendable {
+        case nonPositiveCapacity(Int)
+
+        public var errorDescription: String? {
+            switch self {
+            case .nonPositiveCapacity(let capacity):
+                return "BufferingObserver capacity must be positive: \(capacity)."
+            }
+        }
+    }
 
     private let state: Mutex<RingBuffer>
 
-    public init(capacity: Int) {
-        precondition(capacity > 0, "BufferingObserver capacity must be positive")
+    public init(capacity: Int) throws {
+        guard capacity > 0 else {
+            throw ValidationError.nonPositiveCapacity(capacity)
+        }
         state = Mutex(RingBuffer(capacity: capacity))
     }
 

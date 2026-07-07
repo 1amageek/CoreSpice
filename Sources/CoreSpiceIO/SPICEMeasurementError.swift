@@ -9,6 +9,7 @@ public enum SPICEMeasurementError: Error, Equatable, LocalizedError {
     case rangeOutsideWaveform(name: String, from: Double, to: Double)
     case invalidRange(name: String, from: Double, to: Double)
     case invalidNumericValue(measure: String, field: String, value: String)
+    case nonFiniteResult(name: String, value: String, reason: String)
     case thresholdNotCrossed(name: String, variable: String, threshold: Double)
     case incompatibleWaveforms(String, String)
     case unsupportedVariable(description: String, reason: String)
@@ -30,6 +31,8 @@ public enum SPICEMeasurementError: Error, Equatable, LocalizedError {
             return "measurement '\(name)' has invalid range [\(from), \(to)]"
         case .invalidNumericValue(let measure, let field, let value):
             return "measurement '\(measure)' field '\(field)' is not numeric: \(value)"
+        case .nonFiniteResult(let name, let value, let reason):
+            return "measurement '\(name)' produced non-finite result '\(value)': \(reason)"
         case .thresholdNotCrossed(let name, let variable, let threshold):
             return "measurement '\(name)' did not find threshold \(threshold) on \(variable)"
         case .incompatibleWaveforms(let lhs, let rhs):

@@ -125,24 +125,92 @@ public struct SPICEAnalysisOptions: Sendable {
             )
         }
 
-        return TransientConfig(
+        let selectedMinTimeStep = transient.minTimeStep ?? 1e-18
+        guard selectedMinTimeStep > 0, selectedMinTimeStep.isFinite else {
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "minTimeStep",
+                value: selectedMinTimeStep.description,
+                reason: "minimum transient time step must be positive and finite"
+            )
+        }
+        guard selectedMinTimeStep <= selectedMaxStep else {
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "minTimeStep",
+                value: selectedMinTimeStep.description,
+                reason: "minimum transient time step must be less than or equal to maximum transient time step"
+            )
+        }
+
+        let selectedLTETolerance = transient.lteTolerance ?? 1.0
+        guard selectedLTETolerance > 0, selectedLTETolerance.isFinite else {
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "lteTolerance",
+                value: selectedLTETolerance.description,
+                reason: "transient LTE tolerance must be positive and finite"
+            )
+        }
+
+        let selectedMaxTimeStepReductions = transient.maxTimeStepReductions ?? 30
+        guard selectedMaxTimeStepReductions >= 0 else {
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "maxTimeStepReductions",
+                value: selectedMaxTimeStepReductions.description,
+                reason: "maximum transient time step reductions must be non-negative"
+            )
+        }
+
+        let selectedShrinkFactor = transient.shrinkFactor ?? 0.5
+        guard selectedShrinkFactor > 0, selectedShrinkFactor < 1.0, selectedShrinkFactor.isFinite else {
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "shrinkFactor",
+                value: selectedShrinkFactor.description,
+                reason: "transient shrink factor must be finite and in the range (0, 1)"
+            )
+        }
+
+        let selectedGminSteppingThreshold = transient.gminSteppingThreshold ?? 5
+        guard selectedGminSteppingThreshold > 0 else {
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "gminSteppingThreshold",
+                value: selectedGminSteppingThreshold.description,
+                reason: "GMIN stepping threshold must be positive"
+            )
+        }
+
+        let selectedGminStepping = transient.gminStepping ?? GminStepping(
+            initialGmin: 1e-3,
+            finalGmin: 1e-12,
+            reductionFactor: 10.0,
+            maxSteps: 5
+        )
+        try Self.validateGminStepping(selectedGminStepping)
+
+        let config = TransientConfig(
             stopTime: stopTime,
             maxTimeStep: selectedMaxStep,
             initialTimeStep: selectedInitialStep,
-            minTimeStep: transient.minTimeStep ?? 1e-18,
+            minTimeStep: selectedMinTimeStep,
             initialMethod: transient.initialMethod ?? .backwardEuler,
-            lteTolerance: transient.lteTolerance ?? 1.0,
-            maxTimeStepReductions: transient.maxTimeStepReductions ?? 30,
-            shrinkFactor: transient.shrinkFactor ?? 0.5,
+            lteTolerance: selectedLTETolerance,
+            maxTimeStepReductions: selectedMaxTimeStepReductions,
+            shrinkFactor: selectedShrinkFactor,
             useInitialConditions: useInitialConditions,
-            gminSteppingThreshold: transient.gminSteppingThreshold ?? 5,
-            gminStepping: transient.gminStepping ?? GminStepping(
-                initialGmin: 1e-3,
-                finalGmin: 1e-12,
-                reductionFactor: 10.0,
-                maxSteps: 5
-            )
+            gminSteppingThreshold: selectedGminSteppingThreshold,
+            gminStepping: selectedGminStepping
         )
+        do {
+            try config.validate()
+        } catch let error as AnalysisError {
+            guard case .invalidConfiguration(let message) = error else {
+                throw error
+            }
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "transientConfig",
+                value: "invalid",
+                reason: message
+            )
+        }
+        return config
     }
 
     private static func applyOption(
@@ -261,7 +329,7 @@ public struct SPICEAnalysisOptions: Sendable {
         }
     }
 
-    private static func makeEvaluationContext(from netlist: ParsedNetlist) throws -> LoweringContext {
+    public static func makeEvaluationContext(from netlist: ParsedNetlist) throws -> LoweringContext {
         let context = LoweringContext()
 
         for control in netlist.controls {
@@ -390,6 +458,44 @@ public struct SPICEAnalysisOptions: Sendable {
                 name: optionName,
                 value: value.description,
                 reason: "value must be finite"
+            )
+        }
+    }
+
+    private static func validateGminStepping(_ gminStepping: GminStepping) throws {
+        guard gminStepping.initialGmin > 0, gminStepping.initialGmin.isFinite else {
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "gminStepping.initialGmin",
+                value: gminStepping.initialGmin.description,
+                reason: "initial transient GMIN must be positive and finite"
+            )
+        }
+        guard gminStepping.finalGmin >= 0, gminStepping.finalGmin.isFinite else {
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "gminStepping.finalGmin",
+                value: gminStepping.finalGmin.description,
+                reason: "final transient GMIN must be non-negative and finite"
+            )
+        }
+        guard gminStepping.initialGmin >= gminStepping.finalGmin else {
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "gminStepping.initialGmin",
+                value: gminStepping.initialGmin.description,
+                reason: "initial transient GMIN must be greater than or equal to final transient GMIN"
+            )
+        }
+        guard gminStepping.reductionFactor > 1, gminStepping.reductionFactor.isFinite else {
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "gminStepping.reductionFactor",
+                value: gminStepping.reductionFactor.description,
+                reason: "transient GMIN reduction factor must be finite and greater than one"
+            )
+        }
+        guard gminStepping.maxSteps > 0 else {
+            throw SPICEAnalysisOptionError.invalidAnalysisValue(
+                name: "gminStepping.maxSteps",
+                value: gminStepping.maxSteps.description,
+                reason: "transient GMIN max steps must be positive"
             )
         }
     }

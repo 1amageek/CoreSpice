@@ -43,7 +43,7 @@ struct NoiseIntegrationTests {
         // V1 → R(1kΩ) → out → C(1µF) → GND
         // Integrated noise = √(kT/C) ≈ 64.2µV at 300K
         // The RC filter limits noise bandwidth: total noise = √(kT/C)
-        let (netlist, out) = CircuitFactory.rcLowpass(v: 1.0, ac: 1.0, r: 1000, c: 1e-6)
+        let (netlist, out) = try CircuitFactory.rcLowpass(v: 1.0, ac: 1.0, r: 1000, c: 1e-6)
 
         let result = try await runNoise(
             netlist: netlist,
@@ -130,7 +130,7 @@ struct NoiseIntegrationTests {
     func whiteNoiseFrequencyIndependence() async throws {
         // V1 → R1(1kΩ) → out → R2(1kΩ) → GND
         // Pure resistive network → noise PSD should be constant across frequency
-        let (netlist, out) = CircuitFactory.resistiveDivider(v: 1.0, r1: 1000, r2: 1000)
+        let (netlist, out) = try CircuitFactory.resistiveDivider(v: 1.0, r1: 1000, r2: 1000)
 
         let result = try await runNoise(
             netlist: netlist,
@@ -166,7 +166,7 @@ struct NoiseIntegrationTests {
         // Noise PSD ∝ R_parallel, so Circuit B should have 10× more noise
 
         // Circuit A: R = 1kΩ
-        let (netlistA, outA) = CircuitFactory.resistiveDivider(v: 1.0, r1: 1000, r2: 1000)
+        let (netlistA, outA) = try CircuitFactory.resistiveDivider(v: 1.0, r1: 1000, r2: 1000)
         let resultA = try await runNoise(
             netlist: netlistA,
             outputNode: outA,
@@ -174,7 +174,7 @@ struct NoiseIntegrationTests {
         )
 
         // Circuit B: R = 10kΩ
-        let (netlistB, outB) = CircuitFactory.resistiveDivider(v: 1.0, r1: 10000, r2: 10000)
+        let (netlistB, outB) = try CircuitFactory.resistiveDivider(v: 1.0, r1: 10000, r2: 10000)
         let resultB = try await runNoise(
             netlist: netlistB,
             outputNode: outB,
@@ -202,7 +202,7 @@ struct NoiseIntegrationTests {
         // Resistive divider with an ideal (noiseless) source: the output node
         // sees the thermal noise of R1||R2, an exact closed-form result.
         let r1 = 1000.0, r2 = 1000.0
-        let (netlist, out) = CircuitFactory.resistiveDivider(v: 1.0, r1: r1, r2: r2)
+        let (netlist, out) = try CircuitFactory.resistiveDivider(v: 1.0, r1: r1, r2: r2)
         let result = try await runNoise(
             netlist: netlist, outputNode: out,
             sweep: FrequencySweep.single(1000.0)

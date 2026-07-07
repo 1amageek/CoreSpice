@@ -25,6 +25,7 @@ import tempfile
 
 GOLDEN_PATH = os.path.join(os.path.dirname(__file__), "golden.json")
 CORPUS_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "corpus-manifest.json")
+SIMULATOR_TIMEOUT_SECONDS = 30
 
 # Node counts per device type, to map node names to CoreSpice numeric node IDs
 # (assigned in first-appearance order, ground "0" excluded).
@@ -52,8 +53,15 @@ def run_corespice(corespice, deck, workdir):
     out = os.path.join(workdir, "cs.csv")
     with open(cir, "w") as f:
         f.write(deck)
-    r = subprocess.run([corespice, "-b", cir, "--csv", out],
-                       capture_output=True, text=True)
+    try:
+        r = subprocess.run(
+            [corespice, "-b", cir, "--csv", out],
+            capture_output=True,
+            text=True,
+            timeout=SIMULATOR_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError(f"corespice timed out after {SIMULATOR_TIMEOUT_SECONDS}s: {error}") from error
     if r.returncode != 0 or not os.path.exists(out):
         raise RuntimeError(f"corespice failed: {r.stderr.strip() or r.stdout.strip()}")
     with open(out) as f:
@@ -128,7 +136,16 @@ def run_ngspice(ngspice, deck, control, vectors, workdir):
     with open(cir, "w") as f:
         f.write(f"{body}\n.control\n{control}\n{wr}\n.endc\n.end\n")
     out = os.path.join(workdir, "ng.csv")
-    r = subprocess.run([ngspice, "-b", cir], capture_output=True, text=True, cwd=workdir)
+    try:
+        r = subprocess.run(
+            [ngspice, "-b", cir],
+            capture_output=True,
+            text=True,
+            cwd=workdir,
+            timeout=SIMULATOR_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError(f"ngspice timed out after {SIMULATOR_TIMEOUT_SECONDS}s: {error}") from error
     if not os.path.exists(out):
         raise RuntimeError(f"ngspice failed: {r.stderr.strip()[:200]}")
     cols = []

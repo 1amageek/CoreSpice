@@ -178,13 +178,50 @@ struct NoiseTests {
         #expect(result10kOhm.outputNoiseDensity[0] > result1kOhm.outputNoiseDensity[0])
     }
 
+    @Test func inputReferredNoiseUsesInputSourceGain() async throws {
+        let result = try await runNoiseForResistor(
+            resistance: 1000,
+            sweep: .single(1000.0),
+            solver: SparseLUSolver(),
+            token: CancellationToken(),
+            inputSourceName: "V1"
+        )
+
+        let outputNoise = result.outputNoiseDensity[0]
+        let inputReferredNoise = result.inputReferredNoiseDensity[0]
+        #expect(inputReferredNoise > outputNoise)
+        #expect(abs((inputReferredNoise / outputNoise) - 4.0) < 0.1)
+    }
+
+    @Test func inputReferredNoiseRejectsUnknownInputSource() async throws {
+        do {
+            _ = try await runNoiseForResistor(
+                resistance: 1000,
+                sweep: .single(1000.0),
+                solver: SparseLUSolver(),
+                token: CancellationToken(),
+                inputSourceName: "MISSING"
+            )
+            Issue.record("Expected AnalysisError.invalidConfiguration.")
+        } catch let error as AnalysisError {
+            guard case .invalidConfiguration(let message) = error else {
+                Issue.record("Expected AnalysisError.invalidConfiguration, got \(error).")
+                return
+            }
+            #expect(message.contains("Input source 'MISSING' not found in circuit"))
+        } catch {
+            Issue.record("Expected AnalysisError.invalidConfiguration, got \(error).")
+        }
+    }
+
     // MARK: - Helpers
 
     private func runNoiseForResistor(
         resistance: Double,
         sweep: FrequencySweep,
         solver: SparseLUSolver,
-        token: CancellationToken
+        token: CancellationToken,
+        inputSourceName: String? = nil
     ) async throws -> NoiseResult {
         var netlist = Netlist()
         let _ = netlist.node("in")
@@ -220,7 +257,7 @@ struct NoiseTests {
             devices.append(bound)
         }
 
-        let noiseAnalysis = NoiseAnalysis(outputNode: out, sweep: sweep)
+        let noiseAnalysis = NoiseAnalysis(outputNode: out, inputSourceName: inputSourceName, sweep: sweep)
         return try await noiseAnalysis.run(
             plan: plan,
             devices: devices,

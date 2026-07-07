@@ -12,7 +12,7 @@ struct MonteCarloIntegrationTests {
     // MARK: - Helper
 
     private func buildDivider() throws -> (ExecutionPlan, [any BoundDevice]) {
-        let (netlist, _) = CircuitFactory.resistiveDivider(v: 5.0, r1: 1000, r2: 1000)
+        let (netlist, _) = try CircuitFactory.resistiveDivider(v: 5.0, r1: 1000, r2: 1000)
         return try CircuitFactory.compile(netlist)
     }
 
@@ -21,7 +21,7 @@ struct MonteCarloIntegrationTests {
     @Test("G7: Monte Carlo is reproducible for a fixed seed",
           .timeLimit(.minutes(1)))
     func monteCarloDeterministic() async throws {
-        let (netlist, mid) = CircuitFactory.resistiveDivider(v: 5.0, r1: 1000, r2: 1000)
+        let (netlist, mid) = try CircuitFactory.resistiveDivider(v: 5.0, r1: 1000, r2: 1000)
         let variations = [
             ParameterVariation(deviceName: "R1", parameterName: "r",
                                nominalValue: 1000, distribution: .gaussian(sigma: 100)),
@@ -56,7 +56,7 @@ struct MonteCarloIntegrationTests {
     @Test("G4: Monte Carlo on diode circuit",
           .timeLimit(.minutes(1)))
     func diodeCircuitMC() async throws {
-        let (netlist, _) = CircuitFactory.diodeCircuit(v: 5.0, r: 1000)
+        let (netlist, _) = try CircuitFactory.diodeCircuit(v: 5.0, r: 1000)
         let (plan, devices) = try CircuitFactory.compile(netlist)
 
         let variations = [
@@ -157,7 +157,7 @@ struct MonteCarloIntegrationTests {
     @Test("G6: Monte Carlo on BJT with beta variation",
           .timeLimit(.minutes(1)))
     func bjtBetaVariation() async throws {
-        let (netlist, col, _) = CircuitFactory.bjtCommonEmitter(
+        let (netlist, col, _) = try CircuitFactory.bjtCommonEmitter(
             vcc: 12.0, rc: 2000, vbb: 1.5, rb: 100_000,
             bjtParams: ["is": .real(1e-16), "bf": .real(100)]
         )
