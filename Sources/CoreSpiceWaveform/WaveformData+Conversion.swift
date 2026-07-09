@@ -696,30 +696,11 @@ extension WaveformData {
         solutions: [[ComplexPair]],
         topology: CircuitTopology
     ) -> (variables: [VariableDescriptor], data: [[(real: Double, imag: Double)]]) {
-        // Sort variables by their index to maintain consistent ordering
+        let variables = buildVariableDescriptorsFromMNA(
+            variableMap: variableMap,
+            topology: topology
+        )
         let sortedVars = variableMap.sorted { $0.value < $1.value }
-
-        var variables: [VariableDescriptor] = []
-        for (idx, (mnaVar, _)) in sortedVars.enumerated() {
-            let descriptor: VariableDescriptor
-            switch mnaVar {
-            case .nodeVoltage(let node):
-                descriptor = VariableDescriptor(
-                    name: "V(\(node.id))",
-                    unit: .volt,
-                    type: .voltage,
-                    index: idx
-                )
-            case .branchCurrent(let branch):
-                descriptor = VariableDescriptor(
-                    name: "I(\(branch.id))",
-                    unit: .ampere,
-                    type: .current,
-                    index: idx
-                )
-            }
-            variables.append(descriptor)
-        }
 
         // Transpose data to [point][variable] format
         var data: [[(real: Double, imag: Double)]] = []

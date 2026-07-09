@@ -410,6 +410,50 @@ struct WaveformDataTests {
     }
 
     @Test
+    func acConversionPreservesTopologyNodeAndBranchNames() throws {
+        let input = Node(id: 1)
+        let output = Node(id: 2)
+        let sourceBranch = Branch(id: 0)
+        let result = ACResult(
+            frequencies: [1.0, 10.0],
+            solutions: [
+                [
+                    ComplexPair(real: 1.0, imag: 0.0),
+                    ComplexPair(real: 2.0, imag: 1.0),
+                    ComplexPair(real: 0.001, imag: 0.0),
+                ],
+                [
+                    ComplexPair(real: 0.5, imag: 0.0),
+                    ComplexPair(real: 1.0, imag: -1.0),
+                    ComplexPair(real: 0.002, imag: 0.0),
+                ],
+            ],
+            variableMap: [
+                .nodeVoltage(input): 0,
+                .nodeVoltage(output): 1,
+                .branchCurrent(sourceBranch): 2,
+            ]
+        )
+        let topology = CircuitTopology(ir: CircuitIR(
+            nodes: [.ground, input, output],
+            branches: [sourceBranch],
+            instances: [],
+            nodeNames: [.ground: "0", input: "vin", output: "vout"],
+            branchNames: [sourceBranch: "VIN"]
+        ))
+
+        let waveform = WaveformData.from(
+            acResult: result,
+            topology: topology,
+            title: "AC"
+        )
+
+        #expect(waveform.variables.map(\.name) == ["V(vin)", "V(vout)", "I(VIN)"])
+        #expect(waveform.complexValue(variable: 1, point: 1)?.real == 1.0)
+        #expect(waveform.complexValue(variable: 1, point: 1)?.imag == -1.0)
+    }
+
+    @Test
     func checkedTransientConversionRejectsTraceTimePointMismatch() throws {
         let node = Node(id: 1)
         let trace = try SolutionTrace(
