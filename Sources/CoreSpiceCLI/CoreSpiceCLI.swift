@@ -9,6 +9,7 @@ import CoreSpiceExporterCSV
 import CoreSpiceExporterPSF
 import CoreSpiceExporterRAW
 import CoreSpiceIO
+import CoreSpiceIR
 import CoreSpiceLowering
 import CoreSpiceOptoelectronics
 import Foundation
@@ -396,6 +397,8 @@ struct Session {
   private(set) var lastMeasurements: [SPICEMeasurementResult] = []
   private(set) var lastSource: String = ""
   private(set) var parsedNetlist: ParsedNetlist?
+  private(set) var initialNodeVoltages: [Node: Double] = [:]
+  private(set) var nodeSetVoltages: [Node: Double] = [:]
   private var analysisEvaluationContext = LoweringContext()
   private(set) var monteCarloSpec: MonteCarloSpec?
   private(set) var analysisOptions: SPICEAnalysisOptions = .default
@@ -418,6 +421,19 @@ struct Session {
     let ir = try SPICEIO.lower(netlist, configuration: analysisOptions.loweringConfiguration())
     let compiler = StandardCompiler()
     var compiled = try compiler.compile(ir: ir)
+    let evaluator = ExpressionEvaluator(context: analysisEvaluationContext)
+    let resolvedInitialNodeVoltages = try Self.resolveNodeVoltages(
+      netlist.initialConditions,
+      label: "initial condition",
+      plan: compiled,
+      evaluator: evaluator
+    )
+    let resolvedNodeSetVoltages = try Self.resolveNodeVoltages(
+      netlist.nodeSets,
+      label: "nodeset",
+      plan: compiled,
+      evaluator: evaluator
+    )
 
     let bound = try bindDevices(plan: compiled, overrideSource: nil)
 
@@ -429,6 +445,8 @@ struct Session {
     self.lastWaveform = nil
     self.lastParametric = nil
     self.lastMeasurements = []
+    self.initialNodeVoltages = resolvedInitialNodeVoltages
+    self.nodeSetVoltages = resolvedNodeSetVoltages
   }
 
   mutating func run(_ command: AnalysisCommand) async throws -> WaveformData {
@@ -474,7 +492,10 @@ struct Session {
     solver: SparseLUSolver,
     cancellation: CancellationToken
   ) async throws -> WaveformData {
-    let result = try await DCAnalysis(config: analysisOptions.convergence).run(
+    let result = try await DCAnalysis(
+      config: analysisOptions.convergence,
+      nodeInitialGuess: nodeSetVoltages
+    ).run(
       plan: plan,
       devices: devices,
       solver: solver,
@@ -502,7 +523,8 @@ struct Session {
       stepTime: stepTime,
       startTime: nil,
       maxStep: nil,
-      useInitialConditions: false
+      useInitialConditions: false,
+      nodeVoltageGuesses: nodeSetVoltages
     )
     let result = try await TransientAnalysis(
       config: config,
@@ -551,7 +573,10 @@ struct Session {
 
     for value in values {
       let devices = try bindDevices(plan: plan, overrideSource: (source, value))
-      let result = try await DCAnalysis(config: analysisOptions.convergence).run(
+      let result = try await DCAnalysis(
+        config: analysisOptions.convergence,
+        nodeInitialGuess: nodeSetVoltages
+      ).run(
         plan: plan,
         devices: devices,
         solver: solver,
@@ -645,6 +670,8 @@ struct Session {
       devices: devices,
       registry: registry,
       options: analysisOptions,
+      initialNodeVoltages: initialNodeVoltages,
+      nodeSetVoltages: nodeSetVoltages,
       evaluator: ExpressionEvaluator(context: analysisEvaluationContext)
     )
     self.lastWaveform = waveform
@@ -699,6 +726,8 @@ struct Session {
         devices: bound,
         registry: registry,
         options: analysisOptions,
+        initialNodeVoltages: initialNodeVoltages,
+        nodeSetVoltages: nodeSetVoltages,
         evaluator: ExpressionEvaluator(context: analysisEvaluationContext)
       )
       let run = try ParametricWaveformData.Run(
@@ -732,6 +761,8 @@ struct Session {
     devices: [any BoundDevice],
     registry: DeviceRegistry,
     options: SPICEAnalysisOptions,
+    initialNodeVoltages: [Node: Double],
+    nodeSetVoltages: [Node: Double],
     evaluator: ExpressionEvaluator
   ) async throws -> WaveformData {
     let cancellation = CancellationToken()
@@ -743,6 +774,7 @@ struct Session {
         plan: plan,
         devices: devices,
         options: options,
+        nodeSetVoltages: nodeSetVoltages,
         solver: solver,
         cancellation: cancellation
       )
@@ -753,6 +785,8 @@ struct Session {
         plan: plan,
         devices: devices,
         options: options,
+        initialNodeVoltages: initialNodeVoltages,
+        nodeSetVoltages: nodeSetVoltages,
         evaluator: evaluator,
         solver: solver,
         cancellation: cancellation
@@ -775,6 +809,7 @@ struct Session {
         plan: plan,
         registry: registry,
         options: options,
+        nodeSetVoltages: nodeSetVoltages,
         evaluator: evaluator,
         solver: solver,
         cancellation: cancellation
@@ -793,10 +828,14 @@ struct Session {
     plan: ExecutionPlan,
     devices: [any BoundDevice],
     options: SPICEAnalysisOptions,
+    nodeSetVoltages: [Node: Double],
     solver: SparseLUSolver,
     cancellation: CancellationToken
   ) async throws -> WaveformData {
-    let result = try await DCAnalysis(config: options.convergence).run(
+    let result = try await DCAnalysis(
+      config: options.convergence,
+      nodeInitialGuess: nodeSetVoltages
+    ).run(
       plan: plan,
       devices: devices,
       solver: solver,
@@ -812,6 +851,8 @@ struct Session {
     plan: ExecutionPlan,
     devices: [any BoundDevice],
     options: SPICEAnalysisOptions,
+    initialNodeVoltages: [Node: Double],
+    nodeSetVoltages: [Node: Double],
     evaluator: ExpressionEvaluator,
     solver: SparseLUSolver,
     cancellation: CancellationToken
@@ -837,7 +878,9 @@ struct Session {
       stepTime: step,
       startTime: startTime,
       maxStep: maxStep,
-      useInitialConditions: spec.useInitialConditions
+      useInitialConditions: spec.useInitialConditions,
+      initialNodeVoltages: initialNodeVoltages,
+      nodeVoltageGuesses: nodeSetVoltages
     )
     let result = try await TransientAnalysis(
       config: config,
@@ -878,6 +921,7 @@ struct Session {
     plan: ExecutionPlan,
     registry: DeviceRegistry,
     options: SPICEAnalysisOptions,
+    nodeSetVoltages: [Node: Double],
     evaluator: ExpressionEvaluator,
     solver: SparseLUSolver,
     cancellation: CancellationToken
@@ -892,7 +936,10 @@ struct Session {
     for value in values {
       let devices = try bindDevices(
         plan: plan, registry: registry, overrideSource: (spec.source, value))
-      let result = try await DCAnalysis(config: options.convergence).run(
+      let result = try await DCAnalysis(
+        config: options.convergence,
+        nodeInitialGuess: nodeSetVoltages
+      ).run(
         plan: plan,
         devices: devices,
         solver: solver,
@@ -921,6 +968,37 @@ struct Session {
     case .linear:
       return .linear(start: start, stop: stop, points: points)
     }
+  }
+
+  private static func resolveNodeVoltages(
+    _ assignments: [String: ParsedParameterValue],
+    label: String,
+    plan: ExecutionPlan,
+    evaluator: ExpressionEvaluator
+  ) throws -> [Node: Double] {
+    guard !assignments.isEmpty else { return [:] }
+
+    var nodesByName: [String: Node] = [:]
+    nodesByName.reserveCapacity(plan.ir.nodeNames.count + 2)
+    for (node, name) in plan.ir.nodeNames {
+      nodesByName[name.lowercased()] = node
+    }
+    nodesByName["0"] = plan.ir.groundNode
+    nodesByName["gnd"] = plan.ir.groundNode
+
+    var resolved: [Node: Double] = [:]
+    for (nodeName, value) in assignments {
+      let normalizedName = nodeName.lowercased()
+      guard let node = nodesByName[normalizedName] else {
+        throw CLIError.invalidArguments("\(label) references unknown node '\(nodeName)'")
+      }
+      let voltage = try numericValue(value, field: "\(label).\(nodeName)", evaluator: evaluator)
+      if node == plan.ir.groundNode, voltage != 0 {
+        throw CLIError.invalidArguments("\(label) for ground node must be zero")
+      }
+      resolved[node] = voltage
+    }
+    return resolved
   }
 
   private static func numericValue(
@@ -1113,13 +1191,16 @@ func parseSPICENumber(_ string: String) -> Double? {
     }
   }
   if tokens.count == 1, case .number(let value) = tokens[0] {
+    guard value.isFinite else { return nil }
     return value
   }
   if tokens.count == 2 {
     switch (tokens[0], tokens[1]) {
     case (.plus, .number(let value)), (.continuation, .number(let value)):
+      guard value.isFinite else { return nil }
       return value
     case (.minus, .number(let value)):
+      guard value.isFinite else { return nil }
       return -value
     default:
       return nil

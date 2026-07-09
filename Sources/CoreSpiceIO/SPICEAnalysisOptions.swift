@@ -1,5 +1,6 @@
 import CoreSpiceAnalysis
 import CoreSpiceDevices
+import CoreSpiceIR
 import CoreSpiceLowering
 import CoreSpiceParsedIR
 import Foundation
@@ -82,7 +83,9 @@ public struct SPICEAnalysisOptions: Sendable {
         stepTime: Double?,
         startTime: Double?,
         maxStep: Double?,
-        useInitialConditions: Bool
+        useInitialConditions: Bool,
+        initialNodeVoltages: [Node: Double] = [:],
+        nodeVoltageGuesses: [Node: Double] = [:]
     ) throws -> TransientConfig {
         guard stopTime > 0, stopTime.isFinite else {
             throw SPICEAnalysisOptionError.invalidAnalysisValue(
@@ -195,6 +198,8 @@ public struct SPICEAnalysisOptions: Sendable {
             maxTimeStepReductions: selectedMaxTimeStepReductions,
             shrinkFactor: selectedShrinkFactor,
             useInitialConditions: useInitialConditions,
+            initialNodeVoltages: initialNodeVoltages,
+            nodeVoltageGuesses: nodeVoltageGuesses,
             gminSteppingThreshold: selectedGminSteppingThreshold,
             gminStepping: selectedGminStepping
         )

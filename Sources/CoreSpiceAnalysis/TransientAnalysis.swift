@@ -81,14 +81,19 @@ public struct TransientAnalysis: Analysis, Sendable {
             let initialSolution: [Double]
             if config.useInitialConditions {
                 // UIC mode: skip DC, build initial solution from device ICs
-                initialSolution = Self.buildUICInitialSolution(
+                initialSolution = try Self.buildUICInitialSolution(
                     devices: devices,
+                    plan: plan,
                     variableMap: variableMap,
-                    dimension: dim
+                    dimension: dim,
+                    nodeVoltages: config.initialNodeVoltages
                 )
             } else {
                 // Standard mode: DC operating point
-                let dcAnalysis = DCAnalysis(config: convergenceConfig)
+                let dcAnalysis = DCAnalysis(
+                    config: convergenceConfig,
+                    nodeInitialGuess: config.nodeVoltageGuesses
+                )
                 let dcResult = try await dcAnalysis.run(
                     plan: plan,
                     devices: devices,
@@ -631,9 +636,11 @@ public struct TransientAnalysis: Analysis, Sendable {
     /// voltage or current to the corresponding matrix indices.
     private static func buildUICInitialSolution(
         devices: [any BoundDevice],
+        plan: ExecutionPlan,
         variableMap: [MNAVariable: Int],
-        dimension: Int
-    ) -> [Double] {
+        dimension: Int,
+        nodeVoltages: [Node: Double]
+    ) throws -> [Double] {
         var solution = [Double](repeating: 0.0, count: dimension)
 
         for device in devices {
@@ -659,6 +666,28 @@ public struct TransientAnalysis: Analysis, Sendable {
                     solution[branchIdx] = cicDevice.initialCurrent
                 }
             }
+        }
+
+        for (node, voltage) in nodeVoltages {
+            guard voltage.isFinite else {
+                throw AnalysisError.invalidConfiguration(
+                    "initialNodeVoltages for node \(node.id) must be finite."
+                )
+            }
+            if node == plan.ir.groundNode {
+                guard voltage == 0 else {
+                    throw AnalysisError.invalidConfiguration(
+                        "ground node initial voltage must be zero."
+                    )
+                }
+                continue
+            }
+            guard let nodeIdx = variableMap[.nodeVoltage(node)] else {
+                throw AnalysisError.invalidConfiguration(
+                    "initialNodeVoltages references node \(node.id), which is not in the execution plan."
+                )
+            }
+            solution[nodeIdx] = voltage
         }
 
         return solution

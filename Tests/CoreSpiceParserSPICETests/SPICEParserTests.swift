@@ -32,6 +32,19 @@ struct SPICELexerTests {
     }
 
     @Test
+    func overflowNumericLiteralIsInvalidToken() {
+        let source = "1e309"
+        var lexer = SPICELexer(source: source)
+        let tokens = lexer.tokenize()
+
+        if case .invalidNumericLiteral(let literal) = tokens[0].token {
+            #expect(literal == "1e309")
+        } else {
+            Issue.record("Expected overflow literal to be rejected, got \(tokens[0].token)")
+        }
+    }
+
+    @Test
     func directiveTokenization() {
         let source = ".model nch nmos level=1"
         var lexer = SPICELexer(source: source)
@@ -1045,6 +1058,71 @@ struct SPICEParserTests {
         } else {
             Issue.record("Expected V(mid) nodeset.")
         }
+    }
+
+    @Test
+    func fractionalNumericInitialConditionNodeFails() async {
+        let source = """
+        Fractional IC Node Test
+        V1 1 0 dc 1
+        R1 1 0 1k
+        .ic V(1.5)=0.1
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message.contains("Numeric node names must be non-negative integers")
+        })
+    }
+
+    @Test
+    func fractionalNumericOutputNodeFails() async {
+        let source = """
+        Fractional Output Node Test
+        V1 1 0 dc 1
+        R1 1 0 1k
+        .print dc V(1.5)
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(!result.isSuccess)
+        #expect(result.errors.contains { diagnostic in
+            diagnostic.message.contains("Numeric node names must be non-negative integers")
+        })
+    }
+
+    @Test
+    func parseTransientUICAndMaximumStep() async throws {
+        let source = """
+        UIC Transient Test
+        V1 in 0 dc 1
+        R1 in out 1k
+        C1 out 0 1p
+        .tran 1n 10n 0 2n uic
+        .end
+        """
+
+        let parser = SPICEParser()
+        let result = await parser.parse(source: source)
+
+        #expect(result.isSuccess)
+        let netlist = try result.get()
+        guard case .transient(let spec)? = netlist.analyses.first else {
+            Issue.record("Expected transient analysis.")
+            return
+        }
+        #expect(spec.useInitialConditions)
+        #expect(spec.stepTime == .numeric(1e-9))
+        #expect(spec.stopTime == .numeric(10e-9))
+        #expect(spec.startTime == .numeric(0))
+        #expect(spec.maxStep == .numeric(2e-9))
     }
 
     @Test

@@ -42,6 +42,7 @@ struct AnalysisSetupTests {
     #expect(parseSPICENumber("") == nil)
     #expect(parseSPICENumber("1qq") == nil)
     #expect(parseSPICENumber("1 2") == nil)
+    #expect(parseSPICENumber("1e309") == nil)
   }
 
   // MARK: CLI argument contracts
@@ -121,6 +122,58 @@ struct AnalysisSetupTests {
       return
     }
     #expect(approxEqual(stepValue, 20e-12))
+  }
+
+  @Test
+  func transientUICAppliesNodeInitialConditionToInitialSample() async throws {
+    let deck = """
+      uic initial condition deck
+      V1 in 0 dc 1.0
+      R1 in out 1k
+      C1 out 0 1p
+      .ic V(out)=0.42
+      .tran 1n 1n uic
+      .end
+      """
+    var session = Session()
+    try await session.loadNetlist(source: deck, fileName: "uic.cir")
+
+    let analysis = try #require(session.firstRunnableAnalysis)
+    guard case .transient(let spec) = analysis else {
+      Issue.record("expected transient analysis, got \(analysis)")
+      return
+    }
+    #expect(spec.useInitialConditions)
+
+    let waveform = try await session.runParsed(analysis)
+    let outIndex = try #require(waveform.variables.firstIndex { $0.name == "V(out)" })
+    let initialOut = try #require(waveform.realValue(variable: outIndex, point: 0))
+    #expect(approxEqual(initialOut, 0.42, rel: 1e-9))
+  }
+
+  @Test
+  func initialConditionRejectsUnknownNodeAtLoadTime() async throws {
+    let deck = """
+      bad initial condition node deck
+      V1 in 0 dc 1.0
+      R1 in 0 1k
+      .ic V(missing)=0.42
+      .tran 1n 1n uic
+      .end
+      """
+    var session = Session()
+    do {
+      try await session.loadNetlist(source: deck, fileName: "missing-ic.cir")
+      Issue.record("expected unknown .ic node to fail during load")
+    } catch let error as CLIError {
+      guard case .invalidArguments(let message) = error else {
+        Issue.record("expected invalidArguments, got \(error)")
+        return
+      }
+      #expect(message.contains("unknown node"))
+    } catch {
+      Issue.record("unexpected error: \(error)")
+    }
   }
 
   @Test

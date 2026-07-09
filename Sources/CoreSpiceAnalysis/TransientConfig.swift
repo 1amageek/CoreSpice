@@ -1,4 +1,5 @@
 import CoreSpiceDevices
+import CoreSpiceIR
 
 /// Configuration parameters for transient (time-domain) analysis.
 ///
@@ -37,6 +38,12 @@ public struct TransientConfig: Sendable {
     /// initial conditions (`.ic` / UIC) to build the starting solution.
     public var useInitialConditions: Bool
 
+    /// Node voltages applied to the t=0 solution when UIC mode is enabled.
+    public var initialNodeVoltages: [Node: Double]
+
+    /// Node voltage guesses supplied to the DC operating point solve.
+    public var nodeVoltageGuesses: [Node: Double]
+
     /// Number of consecutive timestep reductions before attempting GMIN stepping.
     /// Set to `Int.max` to disable GMIN stepping in transient.
     public var gminSteppingThreshold: Int
@@ -54,6 +61,8 @@ public struct TransientConfig: Sendable {
         maxTimeStepReductions: Int = 30,
         shrinkFactor: Double = 0.5,
         useInitialConditions: Bool = false,
+        initialNodeVoltages: [Node: Double] = [:],
+        nodeVoltageGuesses: [Node: Double] = [:],
         gminSteppingThreshold: Int = 5,
         gminStepping: GminStepping = GminStepping(
             initialGmin: 1e-3,
@@ -71,6 +80,8 @@ public struct TransientConfig: Sendable {
         self.maxTimeStepReductions = maxTimeStepReductions
         self.shrinkFactor = shrinkFactor
         self.useInitialConditions = useInitialConditions
+        self.initialNodeVoltages = initialNodeVoltages
+        self.nodeVoltageGuesses = nodeVoltageGuesses
         self.gminSteppingThreshold = gminSteppingThreshold
         self.gminStepping = gminStepping
     }
@@ -104,6 +115,8 @@ public struct TransientConfig: Sendable {
                 "gminSteppingThreshold must be greater than zero."
             )
         }
+        try validateFiniteNodeVoltages(initialNodeVoltages, name: "initialNodeVoltages")
+        try validateFiniteNodeVoltages(nodeVoltageGuesses, name: "nodeVoltageGuesses")
 
         try validateGminStepping()
     }
@@ -118,6 +131,16 @@ public struct TransientConfig: Sendable {
             throw AnalysisError.invalidConfiguration(
                 "\(name) must be finite and greater than zero."
             )
+        }
+    }
+
+    private func validateFiniteNodeVoltages(_ values: [Node: Double], name: String) throws {
+        for (node, value) in values {
+            guard value.isFinite else {
+                throw AnalysisError.invalidConfiguration(
+                    "\(name)[node \(node.id)] must be finite."
+                )
+            }
         }
     }
 

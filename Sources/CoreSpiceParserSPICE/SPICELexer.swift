@@ -250,10 +250,13 @@ public struct SPICELexer: Sendable {
         guard let scale = suffix.scale else {
             return SPICEToken.Located(token: .invalidNumericSuffix(suffix.text), location: startLocation)
         }
-        guard let parsedValue = Double(numberStr) else {
+        guard let parsedValue = Double(numberStr), parsedValue.isFinite else {
             return SPICEToken.Located(token: .invalidNumericLiteral(numberStr), location: startLocation)
         }
         let value = parsedValue * scale
+        guard value.isFinite else {
+            return SPICEToken.Located(token: .invalidNumericLiteral(numberStr + suffix.text), location: startLocation)
+        }
 
         return SPICEToken.Located(token: .number(value), location: startLocation)
     }

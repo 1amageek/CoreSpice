@@ -616,7 +616,7 @@ private struct SPICEParserImpl {
             }
         }
 
-        guard let base = Double(numStr) else { return nil }
+        guard let base = Double(numStr), base.isFinite else { return nil }
 
         let scale: Double
         switch suffixStr.lowercased() {
@@ -633,7 +633,9 @@ private struct SPICEParserImpl {
         default: scale = 1.0
         }
 
-        return base * scale
+        let value = base * scale
+        guard value.isFinite else { return nil }
+        return value
     }
 
     private mutating func parseNumericTokenIfPresent() throws -> Double? {
@@ -1168,25 +1170,52 @@ private struct SPICEParserImpl {
         var stopTime: ParsedParameterValue = .numeric(1e-6)
         var stepTime: ParsedParameterValue?
         var startTime: ParsedParameterValue?
+        var maxStep: ParsedParameterValue?
+        var useInitialConditions = false
 
-        if let value = try parseParameterValueIfPresent() {
+        if !isCurrentTransientUICToken, let value = try parseParameterValueIfPresent() {
             stepTime = value
         }
 
-        if let value = try parseParameterValueIfPresent() {
+        if !isCurrentTransientUICToken, let value = try parseParameterValueIfPresent() {
             stopTime = value
         }
 
-        if let value = try parseParameterValueIfPresent() {
+        if !isCurrentTransientUICToken, let value = try parseParameterValueIfPresent() {
             startTime = value
+        }
+
+        while !isAtEnd && !isNewline {
+            if case .identifier(let id) = currentToken, id.lowercased() == "uic" {
+                useInitialConditions = true
+                advance()
+                continue
+            }
+            if maxStep == nil, let value = try parseParameterValueIfPresent() {
+                maxStep = value
+                continue
+            }
+            throw ParserDiagnostic.error(
+                "Unsupported transient analysis token: \(tokenEvidenceText(currentToken))",
+                at: currentLocation
+            )
         }
 
         analyses.append(.transient(TransientAnalysisSpec(
             stopTime: stopTime,
             stepTime: stepTime,
-            startTime: startTime
+            startTime: startTime,
+            maxStep: maxStep,
+            useInitialConditions: useInitialConditions
         )))
         skipToEndOfLine()
+    }
+
+    private var isCurrentTransientUICToken: Bool {
+        if case .identifier(let id) = currentToken {
+            return id.lowercased() == "uic"
+        }
+        return false
     }
 
     private mutating func parseACAnalysis(location: SourceLocation?) throws {
@@ -2043,7 +2072,7 @@ private struct SPICEParserImpl {
                 node = parsedNode
                 advance()
             } else if case .number(let numericNode) = currentToken {
-                node = String(Int(numericNode))
+                node = try parseNumericNodeName(numericNode)
                 advance()
             } else if case .invalidNumericLiteral(let text) = currentToken {
                 throw ParserDiagnostic.error("Invalid numeric literal '\(text)'", at: currentLocation)
@@ -2117,13 +2146,8 @@ private struct SPICEParserImpl {
 
         var variables: [OutputVariable] = []
         while !isAtEnd && !isNewline {
-            do {
-                let v = try parseOutputVariable()
-                variables.append(v)
-            } catch {
-                // Skip unrecognized tokens in output variable list
-                advance()
-            }
+            let v = try parseOutputVariable()
+            variables.append(v)
         }
 
         controls.append(.print(PrintSpec(
@@ -2149,13 +2173,8 @@ private struct SPICEParserImpl {
 
         var variables: [OutputVariable] = []
         while !isAtEnd && !isNewline {
-            do {
-                let v = try parseOutputVariable()
-                variables.append(v)
-            } catch {
-                // Skip unrecognized tokens in output variable list
-                advance()
-            }
+            let v = try parseOutputVariable()
+            variables.append(v)
         }
 
         controls.append(.plot(PlotSpec(
@@ -2166,19 +2185,19 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseSave(location: SourceLocation?) throws {
-        let variables = parseOutputVariableTexts()
+        let variables = try parseOutputVariableTexts()
         controls.append(.save(variables: variables, location: location))
     }
 
     private mutating func parseProbe(location: SourceLocation?) throws {
-        let variables = parseOutputVariableTexts()
+        let variables = try parseOutputVariableTexts()
         controls.append(.probe(variables: variables, location: location))
     }
 
-    private mutating func parseOutputVariableTexts() -> [String] {
+    private mutating func parseOutputVariableTexts() throws -> [String] {
         var variables: [String] = []
         while !isAtEnd && !isNewline {
-            if let variable = parseOutputVariableText() {
+            if let variable = try parseOutputVariableText() {
                 variables.append(variable)
             } else {
                 advance()
@@ -2187,7 +2206,7 @@ private struct SPICEParserImpl {
         return variables
     }
 
-    private mutating func parseOutputVariableText() -> String? {
+    private mutating func parseOutputVariableText() throws -> String? {
         guard case .identifier(let name) = currentToken else { return nil }
         advance()
 
@@ -2205,7 +2224,7 @@ private struct SPICEParserImpl {
                     parts.append(value)
                     advance()
                 } else if case .number(let numericValue) = currentToken {
-                    parts.append(String(Int(numericValue)))
+                    parts.append(try parseNumericNodeName(numericValue))
                     advance()
                 } else if case .comma = currentToken {
                     advance()
@@ -2240,13 +2259,13 @@ private struct SPICEParserImpl {
         if lower == "v" {
             if case .leftParen = currentToken {
                 advance()
-                guard let node = parseOutputNodeName() else {
+                guard let node = try parseOutputNodeName() else {
                     throw ParserDiagnostic.error("Expected node name", at: currentLocation)
                 }
                 var refNode: String?
                 if case .comma = currentToken {
                     advance()
-                    if let ref = parseOutputNodeName() {
+                    if let ref = try parseOutputNodeName() {
                         refNode = ref
                     }
                 }
@@ -2273,16 +2292,29 @@ private struct SPICEParserImpl {
         return .voltage(node: name, reference: nil)
     }
 
-    private mutating func parseOutputNodeName() -> String? {
+    private mutating func parseOutputNodeName() throws -> String? {
         if case .identifier(let node) = currentToken {
             advance()
             return node
         }
         if case .number(let numericNode) = currentToken {
+            let node = try parseNumericNodeName(numericNode)
             advance()
-            return String(Int(numericNode))
+            return node
         }
         return nil
+    }
+
+    private func parseNumericNodeName(_ numericNode: Double) throws -> String {
+        guard numericNode.isFinite,
+              numericNode >= 0,
+              numericNode.rounded(.towardZero) == numericNode else {
+            throw ParserDiagnostic.error(
+                "Numeric node names must be non-negative integers.",
+                at: currentLocation
+            )
+        }
+        return String(Int(numericNode))
     }
 
     // MARK: - Helper Methods

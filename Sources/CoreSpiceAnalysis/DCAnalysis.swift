@@ -23,14 +23,19 @@ public struct DCAnalysis: Analysis, Sendable {
     /// Source stepping parameters for convergence assistance.
     public let sourceStepping: SourceStepping
 
+    /// Node voltage guesses used as the Newton starting point.
+    public let nodeInitialGuess: [Node: Double]
+
     public init(
         config: ConvergenceConfig = ConvergenceConfig(),
         gminStepping: GminStepping = GminStepping(),
-        sourceStepping: SourceStepping = SourceStepping()
+        sourceStepping: SourceStepping = SourceStepping(),
+        nodeInitialGuess: [Node: Double] = [:]
     ) {
         self.config = config
         self.gminStepping = gminStepping
         self.sourceStepping = sourceStepping
+        self.nodeInitialGuess = nodeInitialGuess
     }
 
     public func run(
@@ -59,11 +64,16 @@ public struct DCAnalysis: Analysis, Sendable {
             var mutableSolver = solver
 
             // Phase 1: Direct Newton-Raphson
+            let initialGuess = try buildInitialGuess(
+                plan: plan,
+                variableMap: variableMap,
+                dimension: dim
+            )
             let result: DCResult
             do {
                 result = try await solveNR(
                     config: config,
-                    initialGuess: [Double](repeating: 0, count: dim),
+                    initialGuess: initialGuess,
                     plan: plan,
                     devices: devices,
                     solver: &mutableSolver,
@@ -80,6 +90,7 @@ public struct DCAnalysis: Analysis, Sendable {
                     let stepped = try await solveWithGminStepping(
                         plan: plan,
                         devices: devices,
+                        initialGuess: initialGuess,
                         solver: &mutableSolver,
                         variableMap: variableMap,
                         observer: observer,
@@ -92,6 +103,7 @@ public struct DCAnalysis: Analysis, Sendable {
                     result = try await solveWithSourceStepping(
                         plan: plan,
                         devices: devices,
+                        initialGuess: initialGuess,
                         solver: &mutableSolver,
                         variableMap: variableMap,
                         observer: observer,
@@ -203,14 +215,14 @@ public struct DCAnalysis: Analysis, Sendable {
     private func solveWithGminStepping(
         plan: ExecutionPlan,
         devices: [any BoundDevice],
+        initialGuess: [Double],
         solver: inout any LinearSolver,
         variableMap: [MNAVariable: Int],
         observer: EventDispatcher?,
         analysisID: AnalysisID,
         cancellation: CancellationToken
     ) async throws -> DCResult {
-        let dim = plan.topology.dimension
-        var x = [Double](repeating: 0, count: dim)
+        var x = initialGuess
         var totalIterations = 0
 
         for gmin in gminStepping.gminValues() {
@@ -242,6 +254,7 @@ public struct DCAnalysis: Analysis, Sendable {
     private func solveWithSourceStepping(
         plan: ExecutionPlan,
         devices: [any BoundDevice],
+        initialGuess: [Double],
         solver: inout any LinearSolver,
         variableMap: [MNAVariable: Int],
         observer: EventDispatcher?,
@@ -249,7 +262,7 @@ public struct DCAnalysis: Analysis, Sendable {
         cancellation: CancellationToken
     ) async throws -> DCResult {
         let dim = plan.topology.dimension
-        var x = [Double](repeating: 0, count: dim)
+        var x = initialGuess
         var solution = [Double](repeating: 0, count: dim)
         var totalIterations = 0
         var matrix = SparseMatrix(structure: plan.matrixStructure)
@@ -308,5 +321,37 @@ public struct DCAnalysis: Analysis, Sendable {
             iterations: totalIterations,
             opticalState: plan.opticalNetwork != nil ? opticalState : nil
         )
+    }
+
+    private func buildInitialGuess(
+        plan: ExecutionPlan,
+        variableMap: [MNAVariable: Int],
+        dimension: Int
+    ) throws -> [Double] {
+        var guess = [Double](repeating: 0.0, count: dimension)
+
+        for (node, value) in nodeInitialGuess {
+            guard value.isFinite else {
+                throw AnalysisError.invalidConfiguration(
+                    "nodeInitialGuess for node \(node.id) must be finite."
+                )
+            }
+            if node == plan.ir.groundNode {
+                guard value == 0 else {
+                    throw AnalysisError.invalidConfiguration(
+                        "ground node initial guess must be zero."
+                    )
+                }
+                continue
+            }
+            guard let index = variableMap[.nodeVoltage(node)] else {
+                throw AnalysisError.invalidConfiguration(
+                    "nodeInitialGuess references node \(node.id), which is not in the execution plan."
+                )
+            }
+            guess[index] = value
+        }
+
+        return guess
     }
 }
