@@ -42,17 +42,16 @@ public struct SPICEDeckCoverageDiagnostic: Sendable, Hashable, Codable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let source = try container.decodeIfPresent(String.self, forKey: .source) ?? "parser"
+        let source = try container.decode(String.self, forKey: .source)
         let severity = try container.decode(String.self, forKey: .severity)
         let message = try container.decode(String.self, forKey: .message)
         self.source = source
-        self.code = try container.decodeIfPresent(String.self, forKey: .code)
-            ?? Self.defaultCode(source: source, severity: severity, message: message)
+        self.code = try container.decode(String.self, forKey: .code)
         self.severity = severity
         self.message = message
         self.location = try container.decodeIfPresent(SourceLocation.self, forKey: .location)
-        self.suggestedActions = try container.decodeIfPresent([String].self, forKey: .suggestedActions) ?? []
-        self.notes = try container.decodeIfPresent([String].self, forKey: .notes) ?? []
+        self.suggestedActions = try container.decode([String].self, forKey: .suggestedActions)
+        self.notes = try container.decode([String].self, forKey: .notes)
     }
 
     private static func defaultCode(source: String, severity: String, message: String) -> String {

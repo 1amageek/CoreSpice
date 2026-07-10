@@ -154,7 +154,7 @@ public struct SymbolicAnalysis: Sendable {
         lRowPointers.append(lOffset)
         uRowPointers.append(uOffset)
 
-        // Build combined L+U structure for backward compatibility
+        // Build the combined L+U structure consumed by the numeric solve.
         var combinedEntries: [(row: Int, col: Int)] = []
         combinedEntries.reserveCapacity(totalLNNZ + totalUNNZ)
 

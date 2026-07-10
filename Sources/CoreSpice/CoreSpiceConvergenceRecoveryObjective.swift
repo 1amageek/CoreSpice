@@ -62,7 +62,7 @@ public struct CoreSpiceConvergenceDiagnostic: Codable, Sendable, Hashable {
         iteration = try container.decodeIfPresent(Int.self, forKey: .iteration)
         residualNorm = try container.decodeIfPresent(Double.self, forKey: .residualNorm)
         time = try container.decodeIfPresent(Double.self, forKey: .time)
-        suggestedActions = try container.decodeIfPresent([String].self, forKey: .suggestedActions) ?? []
+        suggestedActions = try container.decode([String].self, forKey: .suggestedActions)
     }
 }
 

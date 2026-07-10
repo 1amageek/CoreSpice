@@ -318,7 +318,7 @@ struct CLI {
       artifacts.append(CoreSpiceCLIRunEnvelope.Artifact(format: "csv", path: csv))
     }
 
-    // For RAW/PSF output, export first run to keep format compatibility.
+    // RAW and PSF represent one plot, so export the first parametric run.
     if let raw = outputs.raw, let first = parametric.runs.first?.waveform {
       _ = try await SPICEIO.exportToRAW(first, path: raw)
       artifacts.append(CoreSpiceCLIRunEnvelope.Artifact(format: "raw", path: raw))

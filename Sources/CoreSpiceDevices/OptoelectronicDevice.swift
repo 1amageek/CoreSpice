@@ -13,8 +13,8 @@ import CoreSpiceIR
 ///
 /// The protocol extends `BoundDevice` and provides default implementations
 /// of the base stamp methods that delegate to the optical-aware versions
-/// with an empty `OpticalState`. This ensures backward compatibility when
-/// devices are used in contexts that don't have optical state.
+/// with an empty `OpticalState`. This defines electrical-only execution for
+/// contexts that intentionally do not provide an optical network.
 public protocol OptoelectronicDevice: BoundDevice {
 
     /// Optical nodes that this device reads from.

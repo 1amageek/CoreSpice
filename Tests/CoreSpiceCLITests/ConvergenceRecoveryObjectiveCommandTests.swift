@@ -241,7 +241,7 @@ struct ConvergenceRecoveryObjectiveCommandTests {
         #expect(diagnostic.suggestedActions == ["reduce-local-timestep"])
     }
 
-    @Test func legacyDiagnosticJSONDecodesWithoutSuggestedActions() throws {
+    @Test func diagnosticJSONRejectsMissingSuggestedActions() throws {
         let json = """
         {
           "severity": "error",
@@ -249,12 +249,12 @@ struct ConvergenceRecoveryObjectiveCommandTests {
           "message": "Newton residual stalled."
         }
         """
-        let diagnostic = try JSONDecoder().decode(
-            CoreSpiceConvergenceDiagnostic.self,
-            from: Data(json.utf8)
-        )
-
-        #expect(diagnostic.suggestedActions.isEmpty)
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(
+                CoreSpiceConvergenceDiagnostic.self,
+                from: Data(json.utf8)
+            )
+        }
     }
 
     @Test func commandRejectsUnknownArgument() throws {

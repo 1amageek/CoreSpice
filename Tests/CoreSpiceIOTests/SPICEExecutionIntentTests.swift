@@ -424,25 +424,19 @@ struct SPICEExecutionIntentTests {
     }
 
     @Test
-    func deckCoverageDiagnosticDecodesLegacyJSON() throws {
+    func deckCoverageDiagnosticRejectsIncompleteJSON() throws {
         let data = try #require(
             """
             {
               "severity": "warning",
-              "message": "Legacy parser warning"
+              "message": "Incomplete parser warning"
             }
             """.data(using: .utf8)
         )
 
-        let diagnostic = try JSONDecoder().decode(SPICEDeckCoverageDiagnostic.self, from: data)
-
-        #expect(diagnostic.source == "parser")
-        #expect(diagnostic.code == "parser-warning-legacy-parser-warning")
-        #expect(diagnostic.severity == "warning")
-        #expect(diagnostic.message == "Legacy parser warning")
-        #expect(diagnostic.location == nil)
-        #expect(diagnostic.suggestedActions == [])
-        #expect(diagnostic.notes == [])
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(SPICEDeckCoverageDiagnostic.self, from: data)
+        }
     }
 
     @Test

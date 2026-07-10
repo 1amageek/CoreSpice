@@ -240,18 +240,6 @@ public struct ParametricWaveformData: Sendable {
 
     // MARK: - Statistical Analysis
 
-    /// Computes statistics for a variable across all runs at each point.
-    @available(*, deprecated, message: "Use checkedStatistics(forVariable:) to preserve typed validation failures.")
-    public func statistics(
-        forVariable name: String
-    ) -> WaveformStatistics? {
-        do {
-            return try checkedStatistics(forVariable: name)
-        } catch {
-            return nil
-        }
-    }
-
     /// Computes statistics for a variable across all runs, returning typed failures.
     public func checkedStatistics(
         forVariable name: String
@@ -353,19 +341,6 @@ public struct ParametricWaveformData: Sendable {
         )
     }
 
-    /// Computes statistics for a variable at a specific sweep index.
-    @available(*, deprecated, message: "Use checkedStatistics(forVariable:atSweepIndex:) to preserve typed validation failures.")
-    public func statistics(
-        forVariable name: String,
-        atSweepIndex sweepIndex: Int
-    ) -> PointStatistics? {
-        do {
-            return try checkedStatistics(forVariable: name, atSweepIndex: sweepIndex)
-        } catch {
-            return nil
-        }
-    }
-
     /// Computes statistics for a variable at a sweep index, returning typed failures.
     public func checkedStatistics(
         forVariable name: String,
@@ -453,38 +428,12 @@ public struct ParametricWaveformData: Sendable {
         return sorted[lower] * (1 - fraction) + sorted[upper] * fraction
     }
 
-    /// Returns the run that produced the minimum value of a variable.
-    @available(*, deprecated, message: "Use checkedRunWithMinimum(of:at:) to preserve typed validation failures.")
-    public func runWithMinimum(
-        of variable: String,
-        at sweepIndex: Int = 0
-    ) -> Run? {
-        do {
-            return try checkedRunWithMinimum(of: variable, at: sweepIndex)
-        } catch {
-            return nil
-        }
-    }
-
     /// Returns the run that produced the minimum value, returning typed failures.
     public func checkedRunWithMinimum(
         of variable: String,
         at sweepIndex: Int = 0
     ) throws -> Run {
         try runWithExtremum(of: variable, at: sweepIndex, prefersCandidate: <)
-    }
-
-    /// Returns the run that produced the maximum value of a variable.
-    @available(*, deprecated, message: "Use checkedRunWithMaximum(of:at:) to preserve typed validation failures.")
-    public func runWithMaximum(
-        of variable: String,
-        at sweepIndex: Int = 0
-    ) -> Run? {
-        do {
-            return try checkedRunWithMaximum(of: variable, at: sweepIndex)
-        } catch {
-            return nil
-        }
     }
 
     /// Returns the run that produced the maximum value, returning typed failures.
