@@ -10,6 +10,9 @@ let package = Package(
         .library(name: "PluginsPhotonic", targets: ["PluginsPhotonic"]),
         .executable(name: "corespice", targets: ["CoreSpiceCLI"]),
     ],
+    dependencies: [
+        .package(path: "../CircuiteFoundation"),
+    ],
     targets: [
         // --- C module: Metal互換型 ---
         .target(name: "SharedTypes", path: "Sources/SharedTypes", exclude: ["README.md"], publicHeadersPath: "include"),
@@ -51,7 +54,8 @@ let package = Package(
         .target(name: "CoreSpice",
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
                                "CoreSpiceAnalysis", "CoreSpiceBackend", "CoreSpiceEvent",
-                               "CoreSpiceOptoelectronics"]),
+                               "CoreSpiceOptoelectronics",
+                               .product(name: "CircuiteFoundation", package: "CircuiteFoundation")]),
 
         // ==========================================================================
         // I/O Architecture Modules

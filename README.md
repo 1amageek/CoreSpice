@@ -2,6 +2,27 @@
 
 A SPICE circuit simulator written in Swift. Supports electrical circuit analysis, optoelectronic device co-simulation, and photonic mesh computation on Metal GPU.
 
+## CircuiteFoundation boundary
+
+CoreSpice owns SPICE parsing, circuit IR, device models, numerical analysis, and
+waveform I/O. Cross-package execution evidence uses
+`CircuiteFoundation`'s artifact and provenance types:
+
+```mermaid
+flowchart LR
+  Request["CoreSpiceSimulationRequest\ninput ArtifactReference"] --> Engine["CoreSpiceSimulationEngine"]
+  Engine --> Result["CoreSpiceSimulationResult"]
+  Result --> Artifacts["ArtifactReference[]"]
+  Result --> Evidence["EvidenceManifest"]
+  Result --> Diagnostics["DesignDiagnostic[]"]
+```
+
+`CoreSpiceSimulationEngineAdapter` is the concrete asynchronous seam for a
+domain executor that composes the existing analysis APIs. Existing analysis
+types remain independent and no simulator algorithm moves into the shared
+Foundation package. `CoreSpiceSimulationResult` is the canonical hand-off for
+artifact integrity, provenance, and structured diagnostics.
+
 **Requirements**: macOS 26+, Swift 6.3
 
 ## Features
