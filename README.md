@@ -25,6 +25,14 @@ artifact integrity, provenance, and structured diagnostics.
 
 **Requirements**: macOS 26+, Swift 6.3
 
+## Xcircuite integration
+
+[`Xcircuite`](https://github.com/1amageek/Xcircuite) is the umbrella runtime
+that invokes CoreSpice through a simulation stage executor and persists
+waveforms, measurements, diagnostics, and evidence in the shared run ledger.
+CoreSpice remains independently usable and owns SPICE parsing, device models,
+numerical analysis, and waveform I/O.
+
 ## Features
 
 ### Analyses
