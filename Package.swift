@@ -1,5 +1,19 @@
 // swift-tools-version: 6.3
 import PackageDescription
+import Foundation
+
+let workspaceRoot = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+
+let circuiteFoundationDependency: Package.Dependency = FileManager.default.fileExists(
+    atPath: workspaceRoot.appendingPathComponent("CircuiteFoundation/Package.swift").path
+)
+    ? .package(path: "../CircuiteFoundation")
+    : .package(
+        url: "https://github.com/1amageek/CircuiteFoundation.git",
+        revision: "2ec6ee13a89ac6885be3c26b41a9ee0ef89948ac"
+    )
 
 let package = Package(
     name: "CoreSpice",
@@ -11,7 +25,7 @@ let package = Package(
         .executable(name: "corespice", targets: ["CoreSpiceCLI"]),
     ],
     dependencies: [
-        .package(path: "../CircuiteFoundation"),
+        circuiteFoundationDependency,
     ],
     targets: [
         // --- C module: Metal-compatible types ---

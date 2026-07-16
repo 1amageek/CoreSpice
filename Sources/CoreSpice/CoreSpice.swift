@@ -1,4 +1,4 @@
-@_exported import CircuiteFoundation
+import CircuiteFoundation
 @_exported import CoreSpiceAnalysis
 @_exported import CoreSpiceBackend
 @_exported import CoreSpiceCompile
