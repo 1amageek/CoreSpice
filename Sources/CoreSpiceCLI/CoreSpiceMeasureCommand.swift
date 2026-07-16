@@ -2,6 +2,7 @@ import CoreSpiceExporterCSV
 import CoreSpiceIO
 import CoreSpiceParsedIR
 import CoreSpiceWaveform
+import CircuiteFoundation
 import Foundation
 
 /// Executes the `corespice measure` subcommand: evaluates `.measure`-grammar
@@ -21,7 +22,7 @@ struct CoreSpiceMeasureCommand: Sendable {
   func run() async throws {
     let summary = try await execute()
     if options.jsonOutput {
-      print(try CoreSpiceCLIRunEnvelope.encodeJSON(summary))
+      print(try CoreSpiceCLIJSON.encode(summary))
     } else {
       for line in Self.textLines(for: summary.measurements) {
         print(line)
@@ -33,10 +34,15 @@ struct CoreSpiceMeasureCommand: Sendable {
   /// summary. Internal so tests can exercise it without capturing process
   /// output. Any failing spec or measurement throws a typed error; nothing
   /// is skipped.
-  func execute() async throws -> CoreSpiceCLIRunEnvelope.MeasureSuccess {
+  func execute() async throws -> CoreSpiceCLIMeasurementRunRecord {
     let waveform = try CSVWaveformReader().read(contentsOfFile: options.waveformPath)
+    let inputArtifact = try CoreSpiceCLIArtifactReferencer().input(
+      path: options.waveformPath,
+      kind: .waveform,
+      format: .csv
+    )
     let evaluator = SPICEMeasureEvaluator()
-    var measurements: [CoreSpiceCLIRunEnvelope.Measurement] = []
+    var measurements: [CoreSpiceCLIMeasurement] = []
     measurements.reserveCapacity(options.specs.count)
 
     for spec in options.specs {
@@ -52,7 +58,7 @@ struct CoreSpiceMeasureCommand: Sendable {
         )
       }
       measurements.append(
-        CoreSpiceCLIRunEnvelope.Measurement(
+        CoreSpiceCLIMeasurement(
           analysis: result.analysisType.rawValue,
           name: result.name,
           value: result.value,
@@ -60,10 +66,15 @@ struct CoreSpiceMeasureCommand: Sendable {
         ))
     }
 
-    return CoreSpiceCLIRunEnvelope.MeasureSuccess(
-      waveformPath: options.waveformPath,
+    return CoreSpiceCLIMeasurementRunRecord(
+      invocation: try ExecutionInvocation.externalProcess(
+        executable: "corespice",
+        arguments: options.invocationArguments,
+        workingDirectory: FileManager.default.currentDirectoryPath
+      ),
+      inputArtifact: inputArtifact,
       measurements: measurements,
-      waveform: CoreSpiceCLIRunEnvelope.WaveformSummary(
+      waveform: CoreSpiceCLIWaveformSummary(
         variables: waveform.variables.map(\.name),
         points: waveform.pointCount
       )
@@ -71,7 +82,7 @@ struct CoreSpiceMeasureCommand: Sendable {
   }
 
   /// Formats text-mode output: one `name=value [unit]` line per measurement.
-  static func textLines(for measurements: [CoreSpiceCLIRunEnvelope.Measurement]) -> [String] {
+  static func textLines(for measurements: [CoreSpiceCLIMeasurement]) -> [String] {
     measurements.map { measurement in
       guard let unit = measurement.unit else {
         return "\(measurement.name)=\(measurement.value)"

@@ -1,3 +1,4 @@
+import CircuiteFoundation
 import Foundation
 import Testing
 
@@ -5,11 +6,11 @@ import Testing
 
 /// Coverage for the `corespice measure` post-hoc waveform measurement verb:
 /// - FIND ... AT and MAX evaluated against an inline waveform CSV
-/// - structured failure envelope for a missing variable
-/// - typed error envelope for a malformed CSV
+/// - structured failure record for a missing variable
+/// - typed error record for a malformed CSV
 /// - text-mode `name=value [unit]` output format
 /// - analysis-domain mismatch is a failure, not a skip
-/// - exit codes follow the run-envelope convention (0 / 2 json / 1 text)
+/// - exit codes follow the JSON record convention (0 / 2 json / 1 text)
 @Suite
 struct MeasureCommandTests {
 
@@ -47,7 +48,7 @@ struct MeasureCommandTests {
   private func executeMeasure(
     waveform: String,
     specs: [String]
-  ) async throws -> CoreSpiceCLIRunEnvelope.MeasureSuccess {
+  ) async throws -> CoreSpiceCLIMeasurementRunRecord {
     var arguments = ["--waveform", waveform]
     for spec in specs {
       arguments += ["--measure", spec]
@@ -59,11 +60,11 @@ struct MeasureCommandTests {
   private func measureFailure(
     waveform: String,
     specs: [String]
-  ) async throws -> CoreSpiceCLIRunEnvelope.Failure {
+  ) async throws -> CoreSpiceCLIFailure {
     do {
       _ = try await executeMeasure(waveform: waveform, specs: specs)
     } catch {
-      return CoreSpiceCLIRunEnvelope.Failure(error: error)
+      return CoreSpiceCLIFailure(error: error)
     }
     throw CLIError.state("expected measure run to fail for specs: \(specs)")
   }
@@ -82,7 +83,15 @@ struct MeasureCommandTests {
     )
 
     #expect(summary.status == "succeeded")
-    #expect(summary.waveformPath == csvPath)
+    #expect(summary.invocation.mode == .externalProcess)
+    #expect(summary.invocation.executable == "corespice")
+    #expect(summary.invocation.arguments.first == "measure")
+    #expect(summary.inputArtifact.locator.role == .input)
+    #expect(summary.inputArtifact.locator.kind == .waveform)
+    #expect(summary.inputArtifact.locator.format == .csv)
+    #expect(summary.inputArtifact.digest.algorithm == .sha256)
+    #expect(summary.inputArtifact.digest.hexadecimalValue.count == 64)
+    #expect(summary.inputArtifact.byteCount == UInt64(Data(rampCSV.utf8).count))
     #expect(summary.waveform.points == 3)
     #expect(summary.waveform.variables == ["V(out)", "I(v1)"])
     let measurement = try #require(summary.measurements.first)
@@ -261,16 +270,16 @@ struct MeasureCommandTests {
   @Test
   func textModeOmitsEmptyUnit() {
     let measurements = [
-      CoreSpiceCLIRunEnvelope.Measurement(
+      CoreSpiceCLIMeasurement(
         analysis: "tran", name: "ratio", value: 2.0, unit: nil)
     ]
     #expect(CoreSpiceMeasureCommand.textLines(for: measurements) == ["ratio=2.0"])
   }
 
-  // MARK: JSON envelope shape
+  // MARK: JSON record shape
 
   @Test
-  func successEnvelopeEncodesStableShape() async throws {
+  func measurementRecordEncodesStableArtifactShape() async throws {
     let directory = try makeTemporaryDirectory()
     defer { removeDirectory(directory) }
     let csvPath = try writeCSV(rampCSV, in: directory)
@@ -280,11 +289,15 @@ struct MeasureCommandTests {
       specs: ["tran vmid FIND V(out) AT=5u"]
     )
     let object = try JSONSerialization.jsonObject(
-      with: Data(CoreSpiceCLIRunEnvelope.encodeJSON(summary).utf8))
+      with: Data(CoreSpiceCLIJSON.encode(summary).utf8))
     let json = try #require(object as? [String: Any])
 
     #expect(json["status"] as? String == "succeeded")
-    #expect(json["waveformPath"] as? String == csvPath)
+    let inputArtifact = try #require(json["inputArtifact"] as? [String: Any])
+    #expect((inputArtifact["byteCount"] as? Int ?? 0) > 0)
+    let digest = try #require(inputArtifact["digest"] as? [String: Any])
+    #expect(digest["algorithm"] as? String == "sha256")
+    #expect((digest["hexadecimalValue"] as? String)?.count == 64)
     let measurements = try #require(json["measurements"] as? [[String: Any]])
     #expect(measurements.count == 1)
     #expect(measurements[0]["name"] as? String == "vmid")
@@ -296,7 +309,7 @@ struct MeasureCommandTests {
   // MARK: Exit codes
 
   @Test
-  func exitCodesFollowRunEnvelopeConvention() async throws {
+  func exitCodesFollowJSONRecordConvention() async throws {
     let directory = try makeTemporaryDirectory()
     defer { removeDirectory(directory) }
     let csvPath = try writeCSV(rampCSV, in: directory)

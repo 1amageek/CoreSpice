@@ -1,4 +1,4 @@
-public struct GpuDispatchResultInfo: Sendable {
+public struct GPUDispatchResultInfo: Sendable {
 
     public let id: AnalysisID
     public let kernelName: String

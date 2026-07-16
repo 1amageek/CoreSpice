@@ -3,169 +3,33 @@ import CoreSpiceExporterCSV
 import CoreSpiceIO
 import Foundation
 
-/// Machine-readable run envelopes emitted by the CLI in `--json` mode.
-///
-/// Every `--json` invocation writes exactly one JSON object to stdout:
-/// a `Success` envelope for a completed batch run, or a `Failure` envelope
-/// describing the typed error that stopped the run. The schemas are stable
-/// so external agents can parse outcomes without scraping prose.
-public enum CoreSpiceCLIRunEnvelope {
+/// Structured failure emitted when a JSON-mode CLI operation cannot complete.
+public struct CoreSpiceCLIFailure: Codable, Sendable, Hashable {
+  public let status: String
+  public let code: String
+  public let message: String
+  public let stage: String?
+  public let suggestedActions: [String]?
 
-  // MARK: - Failure envelope
-
-  /// Structured failure emitted to stdout when a `--json` run throws.
-  public struct Failure: Encodable, Sendable {
-    /// Always `"failed"`.
-    public let status: String
-    /// Stable dotted-kebab identifier derived from the typed error.
-    public let code: String
-    /// Human-readable description of the failure.
-    public let message: String
-    /// Pipeline stage that failed, when derivable
-    /// (`arguments`, `load`, `parse`, `lower`, `compile`, `analysis`,
-    /// `measure`, `export`).
-    public let stage: String?
-    /// Remediation hints, when derivable from the error kind.
-    public let suggestedActions: [String]?
-
-    public init(
-      code: String,
-      message: String,
-      stage: String? = nil,
-      suggestedActions: [String]? = nil
-    ) {
-      self.status = "failed"
-      self.code = code
-      self.message = message
-      self.stage = stage
-      self.suggestedActions = suggestedActions
-    }
-  }
-
-  // MARK: - Success envelope
-
-  /// Structured batch-run summary emitted to stdout when a `--json` batch
-  /// run completes.
-  public struct Success: Encodable, Sendable {
-    /// Always `"succeeded"`.
-    public let status: String
-    /// Identifiers of the analyses that ran (`op`, `tran`, `ac`, `dc`,
-    /// or `mc(<inner>)` for Monte Carlo).
-    public let analyses: [String]
-    /// Output files actually written during the run.
-    public let artifacts: [Artifact]
-    /// Results of `.measure` directives evaluated on the final waveform.
-    public let measurements: [Measurement]
-    /// Basic statistics of the produced waveform, when one was produced.
-    public let waveform: WaveformSummary?
-
-    public init(
-      analyses: [String],
-      artifacts: [Artifact],
-      measurements: [Measurement],
-      waveform: WaveformSummary?
-    ) {
-      self.status = "succeeded"
-      self.analyses = analyses
-      self.artifacts = artifacts
-      self.measurements = measurements
-      self.waveform = waveform
-    }
-  }
-
-  /// Structured summary emitted to stdout when a `measure --json` run
-  /// completes: every requested measurement evaluated on the stored waveform.
-  public struct MeasureSuccess: Encodable, Sendable {
-    /// Always `"succeeded"`.
-    public let status: String
-    /// Path of the waveform CSV the measurements were evaluated on.
-    public let waveformPath: String
-    /// Evaluated measurements, in command-line order.
-    public let measurements: [Measurement]
-    /// Basic statistics of the loaded waveform.
-    public let waveform: WaveformSummary
-
-    public init(
-      waveformPath: String,
-      measurements: [Measurement],
-      waveform: WaveformSummary
-    ) {
-      self.status = "succeeded"
-      self.waveformPath = waveformPath
-      self.measurements = measurements
-      self.waveform = waveform
-    }
-  }
-
-  /// One output file written by a batch run.
-  public struct Artifact: Encodable, Sendable {
-    /// Artifact format identifier (`raw`, `csv`, `psf`, `coverage-json`).
-    public let format: String
-    /// Path the artifact was written to, as given on the command line.
-    public let path: String
-
-    public init(format: String, path: String) {
-      self.format = format
-      self.path = path
-    }
-  }
-
-  /// One evaluated `.measure` result.
-  public struct Measurement: Encodable, Sendable {
-    /// The analysis type the measurement was evaluated for (e.g. `tran`).
-    public let analysis: String
-    /// Measurement name from the `.measure` directive.
-    public let name: String
-    /// Evaluated value.
-    public let value: Double
-    /// Unit string when the evaluator reported one.
-    public let unit: String?
-
-    public init(analysis: String, name: String, value: Double, unit: String?) {
-      self.analysis = analysis
-      self.name = name
-      self.value = value
-      self.unit = unit
-    }
-  }
-
-  /// Basic waveform statistics for a batch run.
-  public struct WaveformSummary: Encodable, Sendable {
-    /// Names of the data variables (excluding the sweep variable).
-    public let variables: [String]
-    /// Number of sweep points in the waveform.
-    public let points: Int
-    /// Number of Monte Carlo runs, present only for parametric results.
-    public let runs: Int?
-
-    public init(variables: [String], points: Int, runs: Int? = nil) {
-      self.variables = variables
-      self.points = points
-      self.runs = runs
-    }
-  }
-
-  // MARK: - Encoding
-
-  /// Encodes an envelope as deterministic JSON (sorted keys) suitable for
-  /// emitting as the single stdout object of a `--json` run.
-  public static func encodeJSON<T: Encodable>(_ envelope: T) throws -> String {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    encoder.nonConformingFloatEncodingStrategy = .convertToString(
-      positiveInfinity: "Infinity",
-      negativeInfinity: "-Infinity",
-      nan: "NaN"
-    )
-    return String(decoding: try encoder.encode(envelope), as: UTF8.self)
+  public init(
+    code: String,
+    message: String,
+    stage: String? = nil,
+    suggestedActions: [String]? = nil
+  ) {
+    self.status = "failed"
+    self.code = code
+    self.message = message
+    self.stage = stage
+    self.suggestedActions = suggestedActions
   }
 }
 
 // MARK: - Failure classification
 
-extension CoreSpiceCLIRunEnvelope.Failure {
+extension CoreSpiceCLIFailure {
 
-  /// Builds a failure envelope from any error thrown by the CLI pipeline,
+  /// Builds a failure record from any error thrown by the CLI pipeline,
   /// deriving a stable code (and stage/actions when possible) from the
   /// typed error.
   init(error: any Error) {

@@ -1,6 +1,6 @@
 # CoreSpice Goal Status
 
-Updated: 2026-07-14
+Updated: 2026-07-16
 
 | Goal | Status | Evidence |
 |---|---|---|
@@ -11,6 +11,7 @@ Updated: 2026-07-14
 | Foundation engine protocol | Complete | `CoreSpiceSimulationEngine`. |
 | Existing simulation domain retained | Complete | SPICE, device, optoelectronic, photonic, analysis, and I/O targets remain unchanged in ownership. |
 | Structured artifact/provenance hand-off | Complete | The execution boundary retains invocation, sanitized environment fingerprint, input/output artifacts, diagnostics, and timestamps. |
+| Reproducible CLI artifact contract | Implemented, verification pending | Batch and measurement JSON records use digest-backed `ArtifactReference` inputs and outputs, include replayable `ExecutionInvocation` data, and identify CoreSpiceCLI as the output producer. |
 | Build after Foundation integration | Verified | The workspace package verifier completed the aggregate Xcode package build. |
 | Regression tests after Foundation integration | Verified | The aggregate Xcode package test passed, including the 31-case numerical regression corpus. |
 | Concrete asynchronous simulation engine | Complete | `DefaultCoreSpiceSimulationEngine` directly conforms to the engine protocol, preserves cancellation, and emits Foundation provenance, artifacts, and diagnostics. |

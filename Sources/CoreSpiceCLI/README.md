@@ -28,7 +28,7 @@ corespice -b <deck.cir> [analysis] [export]
 | `-r` `<file>` | Export to RAW format (ngspice) |
 | `--csv` `<file>` | Export to CSV format |
 | `--psf` `<file>` | Export to PSF format (Cadence) |
-| `--json` | Emit a machine-readable run envelope on stdout (see below) |
+| `--json` | Emit a deterministic machine-readable run record on stdout (see below) |
 | `-h`, `--help` | Show help |
 | `-v`, `--version` | Show version |
 
@@ -69,7 +69,7 @@ corespice measure --waveform <path.csv> --measure "<spec>" [--measure "<spec>" .
 |------|-------------|
 | `--waveform` `<file>` | Waveform CSV to measure (required). Must be in the dialect written by the CoreSpice CSV exporter |
 | `--measure` `"<spec>"` | Measurement spec (repeatable, at least one). `.measure` statement grammar without the leading `.measure` |
-| `--json` | Emit a machine-readable envelope on stdout (see below) |
+| `--json` | Emit a machine-readable measurement record on stdout (see below) |
 
 ### Spec grammar
 
@@ -138,12 +138,30 @@ A measurement that cannot be evaluated (missing variable, sweep point out of
 range, threshold never crossed) fails the whole invocation with a structured
 error naming the measurement and the reason.
 
-With `--json`, a success envelope:
+With `--json`, a completed measurement record identifies the exact input
+waveform through `CircuiteFoundation.ArtifactReference`:
 
 ```json
 {
+  "schemaVersion": { "major": 1, "minor": 0, "patch": 0 },
   "status": "succeeded",
-  "waveformPath": "out.csv",
+  "invocation": {
+    "mode": "externalProcess",
+    "executable": "corespice",
+    "arguments": ["measure", "--waveform", "/workspace/out.csv", "--measure", "tran vfinal FIND V(out) AT=5u", "--json"],
+    "workingDirectory": "/workspace"
+  },
+  "inputArtifact": {
+    "id": "derived-...",
+    "locator": {
+      "location": { "storage": "absoluteFileURL", "value": "file:///workspace/out.csv" },
+      "role": "input",
+      "kind": "waveform",
+      "format": "csv"
+    },
+    "digest": { "algorithm": "sha256", "hexadecimalValue": "..." },
+    "byteCount": 4096
+  },
   "measurements": [
     { "analysis": "tran", "name": "vfinal", "value": 4.999999995, "unit": "V" }
   ],
@@ -156,17 +174,19 @@ With `--json`, a success envelope:
 
 | Field | Presence | Description |
 |-------|----------|-------------|
+| `schemaVersion` | always | Version of the measurement record schema |
 | `status` | always | `"succeeded"` |
-| `waveformPath` | always | The CSV path as given on the command line |
+| `invocation` | always | Normalized executable, arguments, and working directory required to replay the measurement |
+| `inputArtifact` | always | Foundation reference for the measured CSV, including role, kind, format, SHA-256 digest, and byte count |
 | `measurements` | always | Evaluated specs in command-line order (`unit` omitted when empty) |
 | `waveform` | always | `variables` (data variable names), `points` (sweep point count) |
 
-Failures use the shared failure envelope and exit-code convention (0 success,
-1 text-mode failure, 2 `--json` failure envelope); measure-specific codes are
+Failures use the shared failure record and exit-code convention (0 success,
+1 text-mode failure, 2 `--json` failure record); measure-specific codes are
 `measure.spec-parse`, `measure.analysis-mismatch`, `measure.evaluation`, and
 `waveform.csv-read` (see the failure-code table below).
 
-## Structured Run Envelopes (`--json`)
+## Reproducible JSON Records (`--json`)
 
 With `--json`, every invocation writes exactly one JSON object to stdout so
 external agents can parse outcomes without scraping prose. Encoding is
@@ -177,11 +197,11 @@ unchanged (plain text, errors as `error: ...` on stderr).
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | Success (with `--json`: success envelope on stdout) |
+| `0` | Success (with `--json`: completed record on stdout) |
 | `1` | Failure in text mode (`error: ...` on stderr, no JSON) |
-| `2` | Failure with `--json`: failure envelope on stdout |
+| `2` | Failure with `--json`: failure record on stdout |
 
-### Failure envelope
+### Failure record
 
 Emitted on any failure when `--json` is present:
 
@@ -235,17 +255,47 @@ Stable failure codes:
 | `export.write` | `export` | Waveform export failure |
 | `internal.unhandled` | — | Any error without a dedicated mapping |
 
-### Success envelope (batch mode)
+### Completed batch run record
 
 Emitted when a `-b` batch run completes with `--json`:
 
 ```json
 {
   "status": "succeeded",
+  "schemaVersion": { "major": 1, "minor": 0, "patch": 0 },
+  "invocation": {
+    "mode": "externalProcess",
+    "executable": "corespice",
+    "arguments": ["-b", "/workspace/deck.cir", "--json", "-r", "/workspace/out.raw"],
+    "workingDirectory": "/workspace"
+  },
   "analyses": ["tran"],
-  "artifacts": [
-    { "format": "raw", "path": "out.raw" },
-    { "format": "csv", "path": "out.csv" }
+  "inputArtifacts": [
+    {
+      "id": "derived-...",
+      "locator": {
+        "location": { "storage": "absoluteFileURL", "value": "file:///workspace/deck.cir" },
+        "role": "input",
+        "kind": "netlist",
+        "format": "spice"
+      },
+      "digest": { "algorithm": "sha256", "hexadecimalValue": "..." },
+      "byteCount": 1024
+    }
+  ],
+  "outputArtifacts": [
+    {
+      "id": "derived-...",
+      "locator": {
+        "location": { "storage": "absoluteFileURL", "value": "file:///workspace/out.raw" },
+        "role": "output",
+        "kind": "waveform",
+        "format": "raw"
+      },
+      "digest": { "algorithm": "sha256", "hexadecimalValue": "..." },
+      "byteCount": 8192,
+      "producer": { "kind": "tool", "identifier": "CoreSpiceCLI", "version": "0.1.0" }
+    }
   ],
   "measurements": [
     { "analysis": "tran", "name": "vfinal", "value": 4.999999995, "unit": "V" }
@@ -259,14 +309,17 @@ Emitted when a `-b` batch run completes with `--json`:
 
 | Field | Presence | Description |
 |-------|----------|-------------|
+| `schemaVersion` | always | Version of the batch run record schema |
 | `status` | always | `"succeeded"` |
+| `invocation` | always | Exact executable, arguments, and working directory required to replay the batch run |
 | `analyses` | always | Analyses that ran: `op`, `tran`, `ac`, `dc`, or `mc(<inner>)` |
-| `artifacts` | always | Files actually written: `format` is `raw`, `csv`, `psf`, or `coverage-json` |
+| `inputArtifacts` | always | Foundation references for materialized inputs; the deck is `role=input`, `kind=netlist`, `format=spice` |
+| `outputArtifacts` | always | Foundation references for every written file, with role/kind/format, SHA-256 digest, byte count, and CoreSpiceCLI producer identity |
 | `measurements` | always | Evaluated `.measure` results (`unit` omitted when empty) |
 | `waveform` | when a waveform was produced | `variables` (data variable names), `points` (sweep point count), `runs` (Monte Carlo run count, parametric results only) |
 
 File outputs (`-r`, `--csv`, `--psf`, `--coverage-json`) are written exactly as
-in text mode; the envelope replaces only the human-readable stdout summary.
+in text mode; the record replaces only the human-readable stdout summary.
 Non-fatal `.options` diagnostics are still reported as `warning:` lines on
 stderr in both modes. The interactive REPL ignores `--json`.
 

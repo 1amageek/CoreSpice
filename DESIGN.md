@@ -73,3 +73,15 @@ The injected executor remains responsible for parsing, analysis selection,
 artifact materialization, artifact verification, and typed domain errors.
 CLI and I/O surfaces expose only the current contract; obsolete compatibility
 paths are removed during development.
+
+## CLI artifact boundary
+
+JSON-mode CLI operations expose domain records rather than a generic result
+envelope. `CoreSpiceCLIBatchRunRecord` contains the materialized deck under
+`inputArtifacts` and every emitted waveform or coverage report under
+`outputArtifacts`. `CoreSpiceCLIMeasurementRunRecord` references the exact CSV
+that was measured. All references use `CircuiteFoundation.ArtifactReference`;
+output references identify CoreSpiceCLI as their producer, and every reference
+is created only after the file exists so its digest and byte count describe the
+materialized bytes. Both records include `ExecutionInvocation`, preserving the
+executable, arguments, and working directory needed to replay the operation.

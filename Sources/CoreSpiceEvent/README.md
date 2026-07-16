@@ -26,7 +26,7 @@ The module follows the Observer design pattern, enabling decoupled monitoring of
     +----------------+    +-----------------------+
     | CompositeObserver|  | BufferingObserver     |
     +------------------+  +-----------------------+
-    | JsonLinesObserver|
+    | JSONLinesObserver|
     +------------------+
 ```
 
@@ -61,8 +61,8 @@ The module follows the Observer design pattern, enabling decoupled monitoring of
 | `TimeStepInfo.swift` | Transient time step completion data (LTE) |
 | `TimeStepRejectInfo.swift` | Rejected time step with new step size |
 | `GridDimensions.swift` | 2D grid size for GPU dispatch |
-| `GpuDispatchInfo.swift` | GPU kernel dispatch start data |
-| `GpuDispatchResultInfo.swift` | GPU kernel completion with elapsed time |
+| `GPUDispatchInfo.swift` | GPU kernel dispatch start data |
+| `GPUDispatchResultInfo.swift` | GPU kernel completion with elapsed time |
 | `MetricSampleInfo.swift` | Generic metric sample (name, value, unit) |
 | `DiagnosticCode.swift` | Enum of diagnostic codes (NaN, Inf, singularity, etc.) |
 | `DiagnosticInfo.swift` | Warning/error diagnostic data |
@@ -76,7 +76,7 @@ The module follows the Observer design pattern, enabling decoupled monitoring of
 | `FilteringObserver.swift` | Filters events by category before forwarding |
 | `BufferingObserver.swift` | Thread-safe ring buffer for event collection |
 | `EventEnvelope.swift` | Codable wrapper for JSON serialization |
-| `JsonLinesObserver.swift` | Writes events as JSON Lines to a file handle |
+| `JSONLinesObserver.swift` | Writes events as JSON Lines to a file handle |
 
 ## Public API Summary
 
@@ -118,8 +118,8 @@ public enum AnalysisEvent: Sendable {
     case newtonConvergenceFailure(NewtonFailureInfo)
     case timeStepCompleted(TimeStepInfo)
     case timeStepRejected(TimeStepRejectInfo)
-    case gpuDispatchStarted(GpuDispatchInfo)
-    case gpuDispatchFinished(GpuDispatchResultInfo)
+    case gpuDispatchStarted(GPUDispatchInfo)
+    case gpuDispatchFinished(GPUDispatchResultInfo)
     case metricSample(MetricSampleInfo)
     case warning(DiagnosticInfo)
     case error(DiagnosticInfo)
@@ -174,7 +174,7 @@ public final class BufferingObserver: AnalysisObserver {
 }
 
 // JSON Lines file output
-public final class JsonLinesObserver: AnalysisObserver {
+public final class JSONLinesObserver: AnalysisObserver {
     public init(fileHandle: FileHandle)
 }
 ```
@@ -210,7 +210,7 @@ public final class JsonLinesObserver: AnalysisObserver {
 
 2. **Clean Separation of Concerns**: Each file contains exactly one type (following 1-file-1-type rule). Event info types are well-separated in `EventInfo/` directory.
 
-3. **Value Types First**: All info structs are value types. Only `CancellationToken`, `BufferingObserver`, `JsonLinesObserver`, and `EventDispatcher` are classes (where reference semantics are needed).
+3. **Value Types First**: All info structs are value types. Only `CancellationToken`, `BufferingObserver`, `JSONLinesObserver`, and `EventDispatcher` are classes (where reference semantics are needed).
 
 4. **Protocol-Oriented**: `AnalysisObserver` protocol enables extensibility without modification.
 
@@ -222,7 +222,7 @@ public final class JsonLinesObserver: AnalysisObserver {
 
 1. **EventDispatcher Observer Removal**: No public method to remove observers. Once added, observers persist for the dispatcher's lifetime. This is acceptable for many use cases but limits flexibility.
 
-2. **JsonLinesObserver Error Handling**: Encoding errors are logged to stderr but otherwise silently ignored. Consider providing an error callback or throwing variant.
+2. **JSONLinesObserver Error Handling**: Encoding errors are logged to stderr but otherwise silently ignored. Consider providing an error callback or throwing variant.
 
 3. **EventEnvelope Timestamp**: Uses `Date().timeIntervalSince1970` rather than the event's `Timestamp` field where available. This captures serialization time rather than event time.
 

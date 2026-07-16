@@ -12,6 +12,7 @@ import CoreSpiceIO
 import CoreSpiceIR
 import CoreSpiceLowering
 import CoreSpiceOptoelectronics
+import CircuiteFoundation
 import Foundation
 
 public enum CoreSpiceCLI {
@@ -22,7 +23,7 @@ public enum CoreSpiceCLI {
   /// Runs the CLI with explicit arguments.
   ///
   /// Exit codes: 0 on success, 1 on failure in text mode, 2 when a `--json`
-  /// failure envelope was written to stdout.
+  /// failure record was written to stdout.
   static func run(arguments: [String]) async -> Int {
     let jsonMode = arguments.contains("--json")
     do {
@@ -34,13 +35,13 @@ public enum CoreSpiceCLI {
         fputs("error: \(error.localizedDescription)\n", stderr)
         return 1
       }
-      let envelope = CoreSpiceCLIRunEnvelope.Failure(error: error)
+      let failure = CoreSpiceCLIFailure(error: error)
       do {
-        print(try CoreSpiceCLIRunEnvelope.encodeJSON(envelope))
+        print(try CoreSpiceCLIJSON.encode(failure))
         return 2
       } catch let encodingError {
         fputs(
-          "error: failed to encode JSON failure envelope: \(String(describing: encodingError))\n",
+          "error: failed to encode JSON failure record: \(String(describing: encodingError))\n",
           stderr
         )
         fputs("error: \(error.localizedDescription)\n", stderr)
@@ -136,7 +137,7 @@ struct CLI {
     var session = Session()
     let summary = try await executeBatch(options: options, session: &session)
     if options.jsonOutput {
-      print(try CoreSpiceCLIRunEnvelope.encodeJSON(summary))
+      print(try CoreSpiceCLIJSON.encode(summary))
     } else {
       printMeasurements(session.lastMeasurements)
     }
@@ -148,25 +149,33 @@ struct CLI {
   func executeBatch(
     options: CoreSpiceBatchOptions,
     session: inout Session
-  ) async throws -> CoreSpiceCLIRunEnvelope.Success {
+  ) async throws -> CoreSpiceCLIBatchRunRecord {
     let source = try String(contentsOfFile: options.deckPath, encoding: .utf8)
-    var artifacts: [CoreSpiceCLIRunEnvelope.Artifact] = []
+    let artifactReferencer = try CoreSpiceCLIArtifactReferencer()
+    let inputArtifact = try artifactReferencer.input(
+      path: options.deckPath,
+      kind: .netlist,
+      format: .spice
+    )
+    var outputArtifacts: [ArtifactReference] = []
     if let coveragePath = options.outputs.coverageJSON {
       let parseResult = await SPICEIO.parse(source, fileName: options.deckPath)
       let report = SPICEDeckCoverageReport.generate(from: parseResult)
       try writeCoverageReport(report, path: coveragePath)
-      artifacts.append(CoreSpiceCLIRunEnvelope.Artifact(format: "coverage-json", path: coveragePath))
+      outputArtifacts.append(
+        try artifactReferencer.output(path: coveragePath, kind: .report, format: .json)
+      )
     }
     try await session.loadNetlist(source: source, fileName: options.deckPath)
     reportOptionDiagnostics(session.analysisOptions.diagnostics)
     let analyses: [String]
-    let waveformSummary: CoreSpiceCLIRunEnvelope.WaveformSummary?
+    let waveformSummary: CoreSpiceCLIWaveformSummary?
     if let mc = session.monteCarloSpec {
       let parametric = try await session.runMonteCarlo(spec: mc, inner: mc.analysis)
-      artifacts += try await export(parametric: parametric, outputs: options.outputs)
+      outputArtifacts += try await export(parametric: parametric, outputs: options.outputs)
       analyses = ["mc(\(Session.analysisName(mc.analysis)))"]
       waveformSummary = parametric.runs.first.map { first in
-        CoreSpiceCLIRunEnvelope.WaveformSummary(
+        CoreSpiceCLIWaveformSummary(
           variables: first.waveform.variables.map(\.name),
           points: first.waveform.pointCount,
           runs: parametric.runs.count
@@ -174,27 +183,33 @@ struct CLI {
       }
     } else if let override = options.overrideAnalysis {
       let waveform = try await session.run(override)
-      artifacts += try await export(waveform: waveform, outputs: options.outputs)
+      outputArtifacts += try await export(waveform: waveform, outputs: options.outputs)
       analyses = [override.analysisIdentifier]
-      waveformSummary = CoreSpiceCLIRunEnvelope.WaveformSummary(
+      waveformSummary = CoreSpiceCLIWaveformSummary(
         variables: waveform.variables.map(\.name),
         points: waveform.pointCount
       )
     } else {
       let parsed = try session.requiredDefaultRunnableAnalysis()
       let waveform = try await session.runParsed(parsed)
-      artifacts += try await export(waveform: waveform, outputs: options.outputs)
+      outputArtifacts += try await export(waveform: waveform, outputs: options.outputs)
       analyses = [Session.analysisName(parsed)]
-      waveformSummary = CoreSpiceCLIRunEnvelope.WaveformSummary(
+      waveformSummary = CoreSpiceCLIWaveformSummary(
         variables: waveform.variables.map(\.name),
         points: waveform.pointCount
       )
     }
-    return CoreSpiceCLIRunEnvelope.Success(
+    return CoreSpiceCLIBatchRunRecord(
+      invocation: try ExecutionInvocation.externalProcess(
+        executable: "corespice",
+        arguments: args,
+        workingDirectory: FileManager.default.currentDirectoryPath
+      ),
+      inputArtifacts: [inputArtifact],
+      outputArtifacts: outputArtifacts,
       analyses: analyses,
-      artifacts: artifacts,
       measurements: session.lastMeasurements.map { measurement in
-        CoreSpiceCLIRunEnvelope.Measurement(
+        CoreSpiceCLIMeasurement(
           analysis: measurement.analysisType.rawValue,
           name: measurement.name,
           value: measurement.value,
@@ -276,19 +291,26 @@ struct CLI {
   private func export(
     waveform: WaveformData,
     outputs: OutputTargets
-  ) async throws -> [CoreSpiceCLIRunEnvelope.Artifact] {
-    var artifacts: [CoreSpiceCLIRunEnvelope.Artifact] = []
+  ) async throws -> [ArtifactReference] {
+    let artifactReferencer = try CoreSpiceCLIArtifactReferencer()
+    var artifacts: [ArtifactReference] = []
     if let raw = outputs.raw {
       _ = try await SPICEIO.exportToRAW(waveform, path: raw)
-      artifacts.append(CoreSpiceCLIRunEnvelope.Artifact(format: "raw", path: raw))
+      artifacts.append(try artifactReferencer.output(path: raw, kind: .waveform, format: .raw))
     }
     if let csv = outputs.csv {
       _ = try await SPICEIO.exportToCSV(waveform, path: csv)
-      artifacts.append(CoreSpiceCLIRunEnvelope.Artifact(format: "csv", path: csv))
+      artifacts.append(try artifactReferencer.output(path: csv, kind: .waveform, format: .csv))
     }
     if let psf = outputs.psf {
       _ = try await SPICEIO.exportToPSF(waveform, path: psf)
-      artifacts.append(CoreSpiceCLIRunEnvelope.Artifact(format: "psf", path: psf))
+      artifacts.append(
+        try artifactReferencer.output(
+          path: psf,
+          kind: .waveform,
+          format: ArtifactFormat(rawValue: "psf")
+        )
+      )
     }
     return artifacts
   }
@@ -297,8 +319,9 @@ struct CLI {
   private func export(
     parametric: ParametricWaveformData,
     outputs: OutputTargets
-  ) async throws -> [CoreSpiceCLIRunEnvelope.Artifact] {
-    var artifacts: [CoreSpiceCLIRunEnvelope.Artifact] = []
+  ) async throws -> [ArtifactReference] {
+    let artifactReferencer = try CoreSpiceCLIArtifactReferencer()
+    var artifacts: [ArtifactReference] = []
     // Export stats to CSV if requested; otherwise export first run for RAW/PSF.
     if let csv = outputs.csv, let firstRun = parametric.runs.first {
       var lines: [String] = []
@@ -315,17 +338,23 @@ struct CLI {
         }
       }
       try lines.joined(separator: "\n").write(toFile: csv, atomically: true, encoding: .utf8)
-      artifacts.append(CoreSpiceCLIRunEnvelope.Artifact(format: "csv", path: csv))
+      artifacts.append(try artifactReferencer.output(path: csv, kind: .waveform, format: .csv))
     }
 
     // RAW and PSF represent one plot, so export the first parametric run.
     if let raw = outputs.raw, let first = parametric.runs.first?.waveform {
       _ = try await SPICEIO.exportToRAW(first, path: raw)
-      artifacts.append(CoreSpiceCLIRunEnvelope.Artifact(format: "raw", path: raw))
+      artifacts.append(try artifactReferencer.output(path: raw, kind: .waveform, format: .raw))
     }
     if let psf = outputs.psf, let first = parametric.runs.first?.waveform {
       _ = try await SPICEIO.exportToPSF(first, path: psf)
-      artifacts.append(CoreSpiceCLIRunEnvelope.Artifact(format: "psf", path: psf))
+      artifacts.append(
+        try artifactReferencer.output(
+          path: psf,
+          kind: .waveform,
+          format: ArtifactFormat(rawValue: "psf")
+        )
+      )
     }
     return artifacts
   }
@@ -340,6 +369,13 @@ struct CLI {
         corespice -b <deck.cir> [--json] [--tran tstep tstop | --ac dec|lin points start stop | --dc source start stop step] [-r out.raw] [--csv out.csv] [--psf out.psf] [--coverage-json report.json]
         corespice measure --waveform <path.csv> --measure "<spec>" [--measure "<spec>" ...] [--json]
         corespice            # interactive shell
+
+      JSON records:
+        Batch success records contain a replayable ExecutionInvocation plus
+        inputArtifacts and outputArtifacts as
+        CircuiteFoundation ArtifactReference values. Each reference records
+        location, role, kind, format, SHA-256 digest, byte count, and the
+        producer identity for CoreSpice-generated outputs.
 
       Post-hoc measurement (measure):
         Evaluates .measure-grammar specs against a stored waveform CSV without

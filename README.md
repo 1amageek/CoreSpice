@@ -234,11 +234,14 @@ corespice -b circuit.cir --ac dec 10 1 1meg --psf output.psf
 corespice -b circuit.cir --dc V1 0 5 0.1 --csv output.csv
 ```
 
-**Structured results for agents** (`--json`): batch runs emit a single JSON
-envelope on stdout — `status: "succeeded"` with analyses, artifact paths,
-measurements, and waveform stats, or `status: "failed"` with a stable error
-`code`/`stage` (exit code 2). See the
-[CoreSpiceCLI README](Sources/CoreSpiceCLI/README.md#structured-run-envelopes---json)
+**Structured results for agents** (`--json`): batch runs emit a deterministic
+record on stdout. Completed records carry the input deck and every output as
+`CircuiteFoundation.ArtifactReference`, including semantic role, kind, format,
+SHA-256 digest, byte count, and output producer identity. The record also
+contains a Foundation `ExecutionInvocation` with the executable, arguments,
+and working directory required for replay. Failures carry a
+stable `code`/`stage` (exit code 2). See the
+[CoreSpiceCLI README](Sources/CoreSpiceCLI/README.md#reproducible-json-records---json)
 for the schema and the full failure-code table.
 ```bash
 corespice -b circuit.cir --json --csv output.csv
@@ -248,8 +251,8 @@ corespice -b circuit.cir --json --csv output.csv
 specs against a stored waveform CSV without re-simulating. Supported kinds:
 `FIND ... AT=`, `AVG`, `RMS`, `MIN`, `MAX`, `PP`, `INTEG` (with optional
 `FROM=`/`TO=`), `RISE_TIME`, `FALL_TIME`, `TRIG`/`TARG` delay, and `WHEN`.
-Exit codes match the run envelopes (0 success, 1 text-mode failure, 2 `--json`
-failure envelope). See the
+Exit codes match the JSON record contract (0 success, 1 text-mode failure,
+2 `--json` failure record). See the
 [CoreSpiceCLI README](Sources/CoreSpiceCLI/README.md#post-hoc-waveform-measurement-measure).
 ```bash
 corespice -b circuit.cir --csv output.csv

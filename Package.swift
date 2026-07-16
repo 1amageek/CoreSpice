@@ -14,10 +14,10 @@ let package = Package(
         .package(path: "../CircuiteFoundation"),
     ],
     targets: [
-        // --- C module: Metal互換型 ---
+        // --- C module: Metal-compatible types ---
         .target(name: "SharedTypes", path: "Sources/SharedTypes", exclude: ["README.md"], publicHeadersPath: "include"),
 
-        // --- Event/Observer/Cancel（依存なし）---
+        // --- Event, observer, and cancellation primitives ---
         .target(name: "CoreSpiceEvent", exclude: ["README.md"]),
 
         // --- IR ---
@@ -131,7 +131,8 @@ let package = Package(
                 "CoreSpiceExporterRAW",
                 "CoreSpiceExporterCSV",
                 "CoreSpiceExporterPSF",
-                "CoreSpiceBackend"
+                "CoreSpiceBackend",
+                .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
             ],
             path: "Sources/CoreSpiceCLI",
             exclude: ["README.md"]
@@ -180,9 +181,11 @@ let package = Package(
         .testTarget(
             name: "CoreSpiceCLITests",
             dependencies: [
-                "CoreSpiceCLICore"
+                "CoreSpiceCLICore",
+                .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
             ],
-            path: "Tests/CoreSpiceCLITests"
+            path: "Tests/CoreSpiceCLITests",
+            resources: [.copy("Fixtures")]
         ),
     ]
 )

@@ -1,7 +1,7 @@
 import Foundation
 import Synchronization
 
-public final class JsonLinesObserver: AnalysisObserver {
+public final class JSONLinesObserver: AnalysisObserver {
 
     private let fileHandle: Mutex<FileHandle>
 

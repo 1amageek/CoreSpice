@@ -1,0 +1,80 @@
+{
+  "analyses" : [
+    "tran"
+  ],
+  "inputArtifacts" : [
+    {
+      "byteCount" : 128,
+      "digest" : {
+        "algorithm" : "sha256",
+        "hexadecimalValue" : "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "id" : "fixture-input",
+      "locator" : {
+        "format" : "spice",
+        "kind" : "netlist",
+        "location" : {
+          "storage" : "workspaceRelative",
+          "value" : "inputs/fixture.cir"
+        },
+        "role" : "input"
+      }
+    }
+  ],
+  "invocation" : {
+    "arguments" : [
+      "-b",
+      "inputs/fixture.cir",
+      "--json",
+      "-r",
+      "outputs/fixture.raw"
+    ],
+    "executable" : "corespice",
+    "mode" : "externalProcess",
+    "workingDirectory" : "/workspace"
+  },
+  "measurements" : [
+    {
+      "analysis" : "tran",
+      "name" : "settled-voltage",
+      "unit" : "V",
+      "value" : 1.8
+    }
+  ],
+  "outputArtifacts" : [
+    {
+      "byteCount" : 512,
+      "digest" : {
+        "algorithm" : "sha256",
+        "hexadecimalValue" : "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "id" : "fixture-output",
+      "locator" : {
+        "format" : "raw",
+        "kind" : "waveform",
+        "location" : {
+          "storage" : "workspaceRelative",
+          "value" : "outputs/fixture.raw"
+        },
+        "role" : "output"
+      },
+      "producer" : {
+        "identifier" : "CoreSpiceCLI",
+        "kind" : "tool",
+        "version" : "0.1.0"
+      }
+    }
+  ],
+  "schemaVersion" : {
+    "major" : 1,
+    "minor" : 0,
+    "patch" : 0
+  },
+  "status" : "succeeded",
+  "waveform" : {
+    "points" : 32,
+    "variables" : [
+      "V(out)"
+    ]
+  }
+}

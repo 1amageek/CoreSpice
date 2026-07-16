@@ -11,8 +11,20 @@ struct CoreSpiceMeasureOptions {
   /// Measurement specs in `.measure` grammar without the leading `.measure`
   /// (e.g. `tran vfinal FIND V(out) AT=5u`), in command-line order.
   let specs: [String]
-  /// Whether to emit a machine-readable JSON envelope on stdout.
+  /// Whether to emit a machine-readable JSON record on stdout.
   let jsonOutput: Bool
+
+  /// A normalized command-line representation suitable for replay.
+  var invocationArguments: [String] {
+    var arguments = ["measure", "--waveform", waveformPath]
+    for spec in specs {
+      arguments += ["--measure", spec]
+    }
+    if jsonOutput {
+      arguments.append("--json")
+    }
+    return arguments
+  }
 
   init(arguments: [String]) throws {
     var cursor = CoreSpiceCLIArgumentCursor(arguments: arguments)

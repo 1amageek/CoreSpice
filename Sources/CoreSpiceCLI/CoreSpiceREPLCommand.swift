@@ -153,7 +153,7 @@ extension AnalysisCommand {
     }
   }
 
-  /// Stable identifier used in the `--json` run envelope (`analyses` field).
+  /// Stable identifier used in the `--json` batch run record (`analyses` field).
   var analysisIdentifier: String {
     switch self {
     case .op:

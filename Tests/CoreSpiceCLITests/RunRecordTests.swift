@@ -1,21 +1,18 @@
+import CircuiteFoundation
 import Foundation
 import Testing
 
 @testable import CoreSpiceCLICore
 
-/// Coverage for the `--json` structured run envelopes:
-/// - failure envelope for a nonexistent deck (io.file-read, stage load)
-/// - failure envelope for an unparsable deck (deck.parse, stage parse)
-/// - success envelope for a small RC transient deck with a `.measure`
-/// - non-json invocations keep the plain-text exit-code contract (1, not 2)
+/// Coverage for the reproducible `--json` run record contract.
 @Suite
-struct RunEnvelopeTests {
+struct RunRecordTests {
 
   // MARK: Helpers
 
   private func makeTemporaryDirectory() throws -> URL {
     let url = FileManager.default.temporaryDirectory
-      .appendingPathComponent("corespice-run-envelope-\(UUID().uuidString)")
+      .appendingPathComponent("corespice-run-record-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
   }
@@ -30,25 +27,25 @@ struct RunEnvelopeTests {
 
   private func decodeJSONObject(_ text: String) throws -> [String: Any] {
     let object = try JSONSerialization.jsonObject(with: Data(text.utf8))
-    return try #require(object as? [String: Any], "envelope must be a single JSON object")
+    return try #require(object as? [String: Any], "record must be a single JSON object")
   }
 
-  private func batchFailure(arguments: [String]) async throws -> CoreSpiceCLIRunEnvelope.Failure {
+  private func batchFailure(arguments: [String]) async throws -> CoreSpiceCLIFailure {
     let options = try CoreSpiceBatchOptions(arguments: arguments)
     let cli = CLI(arguments: arguments)
     var session = Session()
     do {
       _ = try await cli.executeBatch(options: options, session: &session)
     } catch {
-      return CoreSpiceCLIRunEnvelope.Failure(error: error)
+      return CoreSpiceCLIFailure(error: error)
     }
     throw CLIError.state("expected batch run to fail for arguments: \(arguments)")
   }
 
-  // MARK: Failure envelope
+  // MARK: Failure record
 
   @Test
-  func failureEnvelopeForNonexistentDeck() async throws {
+  func failureRecordForNonexistentDeck() async throws {
     let missing = "/nonexistent/\(UUID().uuidString).cir"
     let envelope = try await batchFailure(arguments: ["-b", missing, "--json"])
 
@@ -58,7 +55,7 @@ struct RunEnvelopeTests {
     #expect(!envelope.message.isEmpty)
     #expect(envelope.suggestedActions?.isEmpty == false)
 
-    let json = try decodeJSONObject(CoreSpiceCLIRunEnvelope.encodeJSON(envelope))
+    let json = try decodeJSONObject(CoreSpiceCLIJSON.encode(envelope))
     #expect(json["status"] as? String == "failed")
     #expect(json["code"] as? String == "io.file-read")
     #expect(json["stage"] as? String == "load")
@@ -66,7 +63,7 @@ struct RunEnvelopeTests {
   }
 
   @Test
-  func failureEnvelopeForUnparsableDeck() async throws {
+  func failureRecordForUnparsableDeck() async throws {
     let directory = try makeTemporaryDirectory()
     defer { removeDirectory(directory) }
 
@@ -86,13 +83,13 @@ struct RunEnvelopeTests {
     #expect(envelope.stage == "parse")
     #expect(!envelope.message.isEmpty)
 
-    let json = try decodeJSONObject(CoreSpiceCLIRunEnvelope.encodeJSON(envelope))
+    let json = try decodeJSONObject(CoreSpiceCLIJSON.encode(envelope))
     #expect(json["status"] as? String == "failed")
     #expect(json["code"] as? String == "deck.parse")
   }
 
   @Test
-  func failureEnvelopeForMissingAnalysisDirective() async throws {
+  func failureRecordForMissingAnalysisDirective() async throws {
     let directory = try makeTemporaryDirectory()
     defer { removeDirectory(directory) }
 
@@ -113,10 +110,36 @@ struct RunEnvelopeTests {
     #expect(envelope.suggestedActions?.isEmpty == false)
   }
 
-  // MARK: Success envelope
+  // MARK: Completed run record
 
   @Test
-  func successEnvelopeForRCTransientDeck() async throws {
+  func versionedBatchRunFixtureDecodesFoundationArtifactReferences() throws {
+    let fixtureURL = try #require(
+      Bundle.module.url(
+        forResource: "cli-batch-run-v1",
+        withExtension: "json",
+        subdirectory: "Fixtures"
+      )
+    )
+    let record = try JSONDecoder().decode(
+      CoreSpiceCLIBatchRunRecord.self,
+      from: Data(contentsOf: fixtureURL)
+    )
+
+    #expect(record.schemaVersion == .v1)
+    #expect(record.invocation.mode == .externalProcess)
+    #expect(record.invocation.executable == "corespice")
+    #expect(record.inputArtifacts.first?.locator.role == .input)
+    #expect(record.inputArtifacts.first?.locator.kind == .netlist)
+    #expect(record.inputArtifacts.first?.locator.format == .spice)
+    #expect(record.outputArtifacts.first?.locator.role == .output)
+    #expect(record.outputArtifacts.first?.locator.kind == .waveform)
+    #expect(record.outputArtifacts.first?.locator.format == .raw)
+    #expect(record.outputArtifacts.first?.producer?.identifier == "CoreSpiceCLI")
+  }
+
+  @Test
+  func completedRunRecordContainsIntegrityBackedArtifacts() async throws {
     let directory = try makeTemporaryDirectory()
     defer { removeDirectory(directory) }
 
@@ -134,8 +157,10 @@ struct RunEnvelopeTests {
 
     let csvURL = directory.appendingPathComponent("out.csv")
     let rawURL = directory.appendingPathComponent("out.raw")
+    let coverageURL = directory.appendingPathComponent("coverage.json")
     let arguments = [
       "-b", deckURL.path, "--json", "--csv", csvURL.path, "-r", rawURL.path,
+      "--coverage-json", coverageURL.path,
     ]
     let options = try CoreSpiceBatchOptions(arguments: arguments)
     #expect(options.jsonOutput)
@@ -145,10 +170,32 @@ struct RunEnvelopeTests {
     let summary = try await cli.executeBatch(options: options, session: &session)
 
     #expect(summary.status == "succeeded")
+    #expect(summary.invocation.mode == .externalProcess)
+    #expect(summary.invocation.executable == "corespice")
+    #expect(summary.invocation.arguments == arguments)
     #expect(summary.analyses == ["tran"])
-    #expect(Set(summary.artifacts.map(\.format)) == ["raw", "csv"])
+    let inputArtifact = try #require(summary.inputArtifacts.first)
+    #expect(summary.inputArtifacts.count == 1)
+    #expect(inputArtifact.locator.role == .input)
+    #expect(inputArtifact.locator.kind == .netlist)
+    #expect(inputArtifact.locator.format == .spice)
+    #expect(inputArtifact.digest.algorithm == .sha256)
+    #expect(inputArtifact.digest.hexadecimalValue.count == 64)
+    #expect(inputArtifact.byteCount == UInt64(Data(deck.utf8).count))
+    #expect(inputArtifact.producer == nil)
+
+    #expect(Set(summary.outputArtifacts.map(\.locator.format)) == [.raw, .csv, .json])
+    #expect(summary.outputArtifacts.allSatisfy { $0.locator.role == .output })
+    #expect(summary.outputArtifacts.filter { $0.locator.kind == .waveform }.count == 2)
+    #expect(summary.outputArtifacts.filter { $0.locator.kind == .report }.count == 1)
+    #expect(summary.outputArtifacts.allSatisfy { $0.digest.algorithm == .sha256 })
+    #expect(summary.outputArtifacts.allSatisfy { $0.digest.hexadecimalValue.count == 64 })
+    #expect(summary.outputArtifacts.allSatisfy { $0.byteCount > 0 })
+    #expect(summary.outputArtifacts.allSatisfy { $0.producer?.identifier == "CoreSpiceCLI" })
+    #expect(summary.outputArtifacts.allSatisfy { $0.producer?.version == "0.1.0" })
     #expect(FileManager.default.fileExists(atPath: csvURL.path))
     #expect(FileManager.default.fileExists(atPath: rawURL.path))
+    #expect(FileManager.default.fileExists(atPath: coverageURL.path))
 
     let waveform = try #require(summary.waveform)
     #expect(waveform.points > 0)
@@ -161,9 +208,11 @@ struct RunEnvelopeTests {
     // At t = 400 us (4 tau), V(out) = 5 * (1 - e^-4) ~ 4.9 V.
     #expect(measurement.value > 4.5 && measurement.value < 5.0)
 
-    let json = try decodeJSONObject(CoreSpiceCLIRunEnvelope.encodeJSON(summary))
+    let json = try decodeJSONObject(CoreSpiceCLIJSON.encode(summary))
     #expect(json["status"] as? String == "succeeded")
     #expect(json["analyses"] as? [String] == ["tran"])
+    #expect((json["inputArtifacts"] as? [[String: Any]])?.count == 1)
+    #expect((json["outputArtifacts"] as? [[String: Any]])?.count == 3)
     let measurements = try #require(json["measurements"] as? [[String: Any]])
     #expect(measurements.first?["name"] as? String == "vfinal")
     let waveformJSON = try #require(json["waveform"] as? [String: Any])

@@ -141,7 +141,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         let analysisID = AnalysisID()
         let startTime = Timestamp()
 
-        await observer?.emit(.gpuDispatchStarted(GpuDispatchInfo(
+        await observer?.emit(.gpuDispatchStarted(GPUDispatchInfo(
             id: analysisID,
             kernelName: tag,
             gridSize: GridDimensions(width: gridSize.width, height: gridSize.height),
@@ -189,7 +189,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
             )
         }
 
-        await observer?.emit(.gpuDispatchFinished(GpuDispatchResultInfo(
+        await observer?.emit(.gpuDispatchFinished(GPUDispatchResultInfo(
             id: analysisID,
             kernelName: tag,
             elapsedTime: Timestamp().elapsed(since: startTime),
@@ -241,7 +241,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         let pairCount = Int(layerDescriptor.count)
 
         // Emit dispatch started event
-        await observer?.emit(.gpuDispatchStarted(GpuDispatchInfo(
+        await observer?.emit(.gpuDispatchStarted(GPUDispatchInfo(
             id: analysisID,
             kernelName: kernelName,
             gridSize: GridDimensions(width: pairCount, height: batchSize),
@@ -287,7 +287,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         }
 
         // Emit dispatch finished event
-        await observer?.emit(.gpuDispatchFinished(GpuDispatchResultInfo(
+        await observer?.emit(.gpuDispatchFinished(GPUDispatchResultInfo(
             id: analysisID,
             kernelName: kernelName,
             elapsedTime: Timestamp().elapsed(since: startTime),
