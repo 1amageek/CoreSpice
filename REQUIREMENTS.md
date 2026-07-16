@@ -5,7 +5,7 @@
 | ID | Requirement |
 |---|---|
 | CS-001 | Build as an independent Swift package with a local `CircuiteFoundation` dependency. |
-| CS-002 | Expose `CoreSpiceSimulationEngine` as the Foundation engine boundary. |
+| CS-002 | Expose `CoreSpiceSimulating` as the Foundation engine boundary. |
 | CS-003 | Keep simulation requests and results `Sendable`, `Hashable`, and `Codable` for Agent and CLI use. |
 | CS-004 | Carry input and output files through digest-bearing `ArtifactReference` values. |
 | CS-005 | Carry execution provenance and structured `DesignDiagnostic` values without discarding conversion failures. |

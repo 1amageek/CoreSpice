@@ -1,16 +1,16 @@
 import CircuiteFoundation
 
-public struct DefaultCoreSpiceSimulationEngine: CoreSpiceSimulationEngine {
-    private let executor: any CoreSpiceSimulationExecuting
+public struct CoreSpiceSimulator: CoreSpiceSimulating {
+    private let backend: any CoreSpiceSimulationBackend
     private let producer: ProducerIdentity
     private let supportingTools: [ProducerIdentity]
 
     public init(
-        executor: any CoreSpiceSimulationExecuting,
+        backend: any CoreSpiceSimulationBackend,
         producer: ProducerIdentity,
         supportingTools: [ProducerIdentity] = []
     ) {
-        self.executor = executor
+        self.backend = backend
         self.producer = producer
         self.supportingTools = supportingTools
     }
@@ -19,7 +19,7 @@ public struct DefaultCoreSpiceSimulationEngine: CoreSpiceSimulationEngine {
         _ request: CoreSpiceSimulationRequest
     ) async throws -> CoreSpiceSimulationResult {
         try Task.checkCancellation()
-        let execution = try await executor.execute(request)
+        let execution = try await backend.execute(request)
         try Task.checkCancellation()
 
         let provenance = try ExecutionProvenance(

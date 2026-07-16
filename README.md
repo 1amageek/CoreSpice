@@ -10,14 +10,14 @@ waveform I/O. Cross-package execution evidence uses
 
 ```mermaid
 flowchart LR
-  Request["CoreSpiceSimulationRequest\ninput ArtifactReference"] --> Engine["CoreSpiceSimulationEngine"]
+  Request["CoreSpiceSimulationRequest\ninput ArtifactReference"] --> Engine["CoreSpiceSimulating"]
   Engine --> Result["CoreSpiceSimulationResult"]
   Result --> Artifacts["ArtifactReference[]"]
   Result --> Evidence["EvidenceManifest"]
   Result --> Diagnostics["DesignDiagnostic[]"]
 ```
 
-`DefaultCoreSpiceSimulationEngine` is the concrete asynchronous execution
+`CoreSpiceSimulator` is the concrete asynchronous execution
 boundary for a domain executor that composes the existing analysis APIs. Existing analysis
 types remain independent and no simulator algorithm moves into the shared
 Foundation package. `CoreSpiceSimulationResult` is the canonical hand-off for

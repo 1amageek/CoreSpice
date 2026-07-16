@@ -48,5 +48,5 @@ public struct CoreSpiceSimulationResult: Sendable, Hashable, Codable, ArtifactPr
 
 /// Protocol boundary for simulator implementations that can participate in
 /// the cross-package execution contract.
-public protocol CoreSpiceSimulationEngine: Engine
+public protocol CoreSpiceSimulating: Engine
 where Request == CoreSpiceSimulationRequest, Output == CoreSpiceSimulationResult {}

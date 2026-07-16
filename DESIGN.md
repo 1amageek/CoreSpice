@@ -12,7 +12,7 @@ physical signoff semantics.
 
 ```mermaid
 flowchart TD
-    Request["CoreSpiceSimulationRequest\nFoundation artifact inputs"] --> Engine["CoreSpiceSimulationEngine"]
+    Request["CoreSpiceSimulationRequest\nFoundation artifact inputs"] --> Engine["CoreSpiceSimulating"]
     Engine --> Domain["SPICE parser / IR / analyses / devices"]
     Domain --> Result["CoreSpiceSimulationResult"]
     Result --> Artifacts["ArtifactReference[]"]
@@ -32,7 +32,7 @@ The package depends on `CircuiteFoundation` and re-exports it from the
   seed digests.
 - `CoreSpiceSimulationResult` carries output artifacts, typed diagnostics, and
   an `EvidenceManifest` built from caller-supplied `ExecutionProvenance`.
-- `CoreSpiceSimulationEngine` refines `CircuiteFoundation.Engine` for an
+- `CoreSpiceSimulating` refines `CircuiteFoundation.Engine` for an
   asynchronous simulation entry point.
 
 The existing analysis types and synchronous setup APIs remain domain-owned.
@@ -63,13 +63,14 @@ digests or provenance.
 
 ## Concrete engine boundary
 
-`DefaultCoreSpiceSimulationEngine` is the concrete Foundation-facing engine.
-It delegates domain execution to an injected `CoreSpiceSimulationExecuting`
+`CoreSpiceSimulator` is the concrete domain engine and directly conforms to
+`CoreSpiceSimulating`. It delegates numerical execution to an injected
+`CoreSpiceSimulationBackend`
 implementation, checks cooperative cancellation, records the request inputs
 and execution-supplied invocation/environment fields in `ExecutionProvenance`, and exposes verified
 artifact references and structured diagnostics from the execution.
 
-The injected executor remains responsible for parsing, analysis selection,
+The injected backend remains responsible for parsing, analysis selection,
 artifact materialization, artifact verification, and typed domain errors.
 CLI and I/O surfaces expose only the current contract; obsolete compatibility
 paths are removed during development.

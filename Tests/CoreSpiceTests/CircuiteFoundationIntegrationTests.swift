@@ -29,9 +29,9 @@ struct CircuiteFoundationIntegrationTests {
             identifier: "CoreSpice",
             version: "1.0.0"
         )
-        let executor = FixedSimulationExecutor(execution: execution)
-        let engine = DefaultCoreSpiceSimulationEngine(
-            executor: executor,
+        let backend = FixedSimulationBackend(execution: execution)
+        let engine = CoreSpiceSimulator(
+            backend: backend,
             producer: producer
         )
         let request = CoreSpiceSimulationRequest(
@@ -90,7 +90,7 @@ struct CircuiteFoundationIntegrationTests {
     }
 }
 
-private struct FixedSimulationExecutor: CoreSpiceSimulationExecuting {
+private struct FixedSimulationBackend: CoreSpiceSimulationBackend {
     let execution: CoreSpiceSimulationExecution
 
     func execute(
