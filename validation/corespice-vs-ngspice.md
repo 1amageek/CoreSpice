@@ -1,16 +1,18 @@
-# CoreSpice Numerical Trust Gate (vs ngspice + analytic)
+# CoreSpice Numerical Correlation (vs ngspice + analytic)
 
 Systematic validation of CoreSpice against an independent oracle (closed-form
-analytic where available, otherwise ngspice). The gate is the precondition for
-trusting CoreSpice in downstream layout / PEX / signoff work. Out-of-tolerance
-discrepancies are root-caused and fixed in CoreSpice — never silently accepted.
+analytic where available, otherwise ngspice). This runner emits regression or
+independent-correlation evidence. It does not qualify CoreSpice for production;
+`ToolQualification` owns that decision. Out-of-tolerance discrepancies fail the
+run and remain visible in the emitted artifact bundle.
 
 ## Running the gate
 
 ```bash
 swift build --product corespice
-python3 validation/gate.py        # golden mode (default): 31/31 must pass, no ngspice
-swift test --filter TrustGateTests # same gate, run from the Swift test suite
+python3 validation/gate.py # regression fixture mode: 31/31 must pass, no ngspice
+swift test --filter NumericalRegressionTests
+python3 validation/gate.py --comparison-source live-oracle
 ```
 
 `gate.py` runs each circuit through CoreSpice and compares the result to the
@@ -34,23 +36,25 @@ The machine-readable reliability contracts are:
 
 | File | Purpose |
 |---|---|
-| `validation/corpus-manifest.json` | Numerical trust-gate corpus, oracle source, and tolerance contract |
+| `validation/corpus-manifest.json` | Numerical regression corpus, oracle source, and tolerance contract |
 | `validation/analysis-coverage.json` | Public analysis coverage and required gates |
 | `validation/device-passports.json` | Device physics boundaries, parameter policy, oracle requirements |
+| `validation/production-qualification-contract.json` | Native regression boundary and required production trust evidence |
 
-By default the gate runs in **golden mode**: the ngspice-derived references are
-read from the committed `validation/golden.json`, so the gate (and the
-`TrustGateTests` Swift test that drives it) runs in CI without ngspice
-installed. Regenerate the golden references from a live ngspice run when the
-reference simulator or a circuit changes:
+By default the runner reads the committed `validation/golden.json` regression
+fixture, so CI does not require ngspice. A live-oracle run executes ngspice and
+records the exact native executable, oracle executable, inputs, outputs, and
+digests. A live run never changes the regression fixture unless the explicit
+refresh option is also supplied:
 
 ```bash
 brew install ngspice
-python3 validation/gate.py --update-golden   # rewrites validation/golden.json
+python3 validation/gate.py --comparison-source live-oracle
+python3 validation/gate.py --comparison-source live-oracle --refresh-regression-fixture
 ```
 
 Circuits whose oracle is closed-form analytic (01–04, 10, 20–23) need no
-golden data; all ngspice-compared and real-extraction-scale circuits are stored
+golden data; all ngspice-compared and extraction-topology smoke circuits are stored
 in `golden.json`. `validation/corpus-manifest.json` is the machine-readable
 source of the expected corpus membership.
 
@@ -86,7 +90,7 @@ source of the expected corpus membership.
 | 26 | diode forward diffusion capacitance | AC | ngspice | 0.02 rel |
 | 27 | current-source-driven diode (convergence) | DC (op) | ngspice | 0.01 V |
 | 28 | subcircuit (.subckt) inverter VTC | DC sweep | ngspice | 0.03 V |
-| 29 | sky130 inv_1 real-extraction post-layout transient | TRAN | real PEX + ngspice | 0.05 V |
+| 29 | sky130 inv_1 extraction-topology smoke transient | TRAN | extracted topology + ngspice | 0.05 V |
 | 30 | RC interconnect at scale: 64 segments | TRAN | PEX-scale + ngspice | 0.05 V |
 | 31 | RC interconnect at scale: 256 segments | TRAN | PEX-scale + ngspice | 0.05 V |
 
@@ -135,16 +139,16 @@ verified against ngspice before blaming CoreSpice. One early "inductor AC broken
 claim was a mistake in the analytic reference (wrong RL corner frequency), caught
 because ngspice agreed with the supposed "error".
 
-## Status: gate complete
+## Status: supported-model regression complete
 
-All 28 circuits pass. The corpus now covers passives, the DC operating point and
+All 31 circuits pass. The corpus covers passives, the DC operating point and
 Newton-Raphson convergence (including current-source-driven junctions), MOSFET
 level-1/2/3 DC drive and body effect, MOSFET/diode/BJT dynamic (capacitive)
 behavior, subcircuit expansion, and the AC/TRAN/TF analyses — validated against
 closed-form analytics where available and ngspice otherwise. The gate is frozen
-into committed golden data (`golden.json`) and runs in CI without ngspice via
-the `TrustGateTests` Swift test. This satisfies the G1 precondition; G2+
-(layout / PEX / signoff) may be unfrozen.
+into committed regression data (`golden.json`) and runs in CI without ngspice
+via `NumericalRegressionTests`. This is evidence for the supported model
+envelope, not foundry signoff qualification.
 
 Out of scope for this gate (tracked separately, not blockers):
 

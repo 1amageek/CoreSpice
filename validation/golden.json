@@ -4456,7 +4456,7 @@
    1.15734266e-09
   ]
  ],
- "29 sky130 inv_1 real-extraction post-layout transient (vs ngspice)": [
+ "29 sky130 inv_1 extraction-topology smoke transient (vs ngspice)": [
   [
    0.0,
    1.8

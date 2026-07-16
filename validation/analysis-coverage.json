@@ -5,7 +5,7 @@
     "oracleOrder": [
       "analytic",
       "live-ngspice",
-      "frozen-golden",
+      "committed-regression-fixture",
       "metamorphic"
     ],
     "highReliabilityRequires": [

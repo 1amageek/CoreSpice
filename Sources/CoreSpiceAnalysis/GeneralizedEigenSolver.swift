@@ -1,8 +1,8 @@
-import Accelerate
 import CoreSpiceCompile
+import CoreSpiceLAPACK
 
 /// Solves the generalized eigenvalue problem `A * x = λ * B * x`
-/// using LAPACK's `dggev_` routine (QZ algorithm).
+/// using LAPACK's `dggev` routine (QZ algorithm).
 ///
 /// This solver is used by ``PoleZeroAnalysis`` to find the poles and zeros
 /// of circuit transfer functions by computing eigenvalues of matrix pencils
@@ -18,7 +18,7 @@ struct GeneralizedEigenSolver {
 
     /// Errors from the eigenvalue solver.
     enum EigenSolverError: Error {
-        /// LAPACK's `dggev_` returned a non-zero info code.
+        /// LAPACK's `dggev` returned a non-zero info code.
         case lapackFailed(info: Int)
         /// The matrix dimension is zero.
         case emptyMatrix
@@ -46,44 +46,42 @@ struct GeneralizedEigenSolver {
             throw EigenSolverError.emptyMatrix
         }
 
-        var n = __CLPK_integer(dimension)
+        let n = CoreSpiceLAPACKInteger(dimension)
         var a = matrixA
         var b = matrixB
-        var lda = n
-        var ldb = n
+        let lda = n
+        let ldb = n
 
         var alphar = [Double](repeating: 0, count: dimension)
         var alphai = [Double](repeating: 0, count: dimension)
         var beta = [Double](repeating: 0, count: dimension)
 
         // No eigenvectors needed
-        var jobvl = Int8(UnicodeScalar("N").value)
-        var jobvr = Int8(UnicodeScalar("N").value)
+        let jobvl = Int8(UnicodeScalar("N").value)
+        let jobvr = Int8(UnicodeScalar("N").value)
 
         var vl = [Double](repeating: 0, count: 1)
-        var ldvl: __CLPK_integer = 1
+        let ldvl: CoreSpiceLAPACKInteger = 1
         var vr = [Double](repeating: 0, count: 1)
-        var ldvr: __CLPK_integer = 1
+        let ldvr: CoreSpiceLAPACKInteger = 1
 
         // Workspace query
-        var lwork: __CLPK_integer = -1
+        var lwork: CoreSpiceLAPACKInteger = -1
         var workQuery = [Double](repeating: 0, count: 1)
-        var info: __CLPK_integer = 0
-
-        dggev_(
-            &jobvl, &jobvr, &n,
-            &a, &lda,
-            &b, &ldb,
+        var info = coreSpiceLAPACKGeneralizedEigenvalues(
+            jobvl, jobvr, n,
+            &a, lda,
+            &b, ldb,
             &alphar, &alphai, &beta,
-            &vl, &ldvl, &vr, &ldvr,
-            &workQuery, &lwork, &info
+            &vl, ldvl, &vr, ldvr,
+            &workQuery, lwork
         )
 
         guard info == 0 else {
             throw EigenSolverError.lapackFailed(info: Int(info))
         }
 
-        lwork = __CLPK_integer(workQuery[0])
+        lwork = CoreSpiceLAPACKInteger(workQuery[0])
         var work = [Double](repeating: 0, count: Int(lwork))
 
         // Reset arrays since workspace query may have modified them
@@ -91,13 +89,13 @@ struct GeneralizedEigenSolver {
         b = matrixB
 
         // Actual computation
-        dggev_(
-            &jobvl, &jobvr, &n,
-            &a, &lda,
-            &b, &ldb,
+        info = coreSpiceLAPACKGeneralizedEigenvalues(
+            jobvl, jobvr, n,
+            &a, lda,
+            &b, ldb,
             &alphar, &alphai, &beta,
-            &vl, &ldvl, &vr, &ldvr,
-            &work, &lwork, &info
+            &vl, ldvl, &vr, ldvr,
+            &work, lwork
         )
 
         guard info == 0 else {

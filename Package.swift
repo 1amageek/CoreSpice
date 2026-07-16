@@ -23,11 +23,22 @@ let package = Package(
         // --- IR ---
         .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent"], exclude: ["README.md"]),
 
+        // --- LAPACK ABI boundary ---
+        .target(
+            name: "CoreSpiceLAPACK",
+            cSettings: [.define("ACCELERATE_NEW_LAPACK")],
+            linkerSettings: [.linkedFramework("Accelerate")]
+        ),
+
         // --- Devices ---
         .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent"], exclude: ["README.md"]),
 
         // --- Compile ---
-        .target(name: "CoreSpiceCompile", dependencies: ["CoreSpiceIR"], exclude: ["README.md"]),
+        .target(
+            name: "CoreSpiceCompile",
+            dependencies: ["CoreSpiceIR", "CoreSpiceLAPACK"],
+            exclude: ["README.md"]
+        ),
 
         // --- Backend ---
         .target(name: "CoreSpiceBackend", dependencies: ["CoreSpiceEvent", "SharedTypes"],
@@ -36,6 +47,7 @@ let package = Package(
         // --- Analysis ---
         .target(name: "CoreSpiceAnalysis",
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
+                               "CoreSpiceLAPACK",
                                "CoreSpiceBackend", "CoreSpiceEvent"],
                 exclude: ["README.md"]),
 

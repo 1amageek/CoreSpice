@@ -3,7 +3,7 @@ import CoreSpiceDevices
 import CoreSpiceIR
 import CoreSpiceEvent
 import Foundation
-import Accelerate
+import CoreSpiceLAPACK
 
 /// Pole-zero (.pz) analysis.
 ///
@@ -242,7 +242,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
         return (g, c)
     }
 
-    /// Computes the DC gain by solving `G * x = b` using LAPACK's `dgesv_`.
+    /// Computes the DC gain by solving `G * x = b` using LAPACK's `dgesv`.
     ///
     /// At DC (`s = 0`) the system reduces to `G * x = b` where `b` has a
     /// unit voltage excitation at the input source branch row. The DC gain
@@ -262,14 +262,17 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
         var b = [Double](repeating: 0.0, count: dim)
         b[inputBranchIndex] = 1.0
 
-        var n = __CLPK_integer(dim)
-        var nrhs: __CLPK_integer = 1
-        var lda = n
-        var ldb = n
-        var ipiv = [__CLPK_integer](repeating: 0, count: dim)
-        var info: __CLPK_integer = 0
-
-        dgesv_(&n, &nrhs, &a, &lda, &ipiv, &b, &ldb, &info)
+        let dimension = CoreSpiceLAPACKInteger(dim)
+        var ipiv = [CoreSpiceLAPACKInteger](repeating: 0, count: dim)
+        let info = coreSpiceLAPACKSolve(
+            dimension,
+            1,
+            &a,
+            dimension,
+            &ipiv,
+            &b,
+            dimension
+        )
 
         guard info == 0 else { return 0.0 }
 

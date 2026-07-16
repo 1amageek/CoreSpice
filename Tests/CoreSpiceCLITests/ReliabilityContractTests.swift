@@ -36,12 +36,38 @@ struct ReliabilityContractTests {
             let name: String
             let analysis: String
             let oracle: String
-            let goldenRequired: Bool
+            let regressionFixtureRequired: Bool
             let tolerance: String
         }
 
         let schemaVersion: Int
         let cases: [Case]
+    }
+
+    private struct ProductionQualificationContract: Decodable {
+        struct NativeModelEnvelope: Decodable {
+            let classification: String
+            let productionQualificationIssuedByCoreSpice: Bool
+        }
+
+        struct FoundryExecution: Decodable {
+            let nativeCompactModelStatus: String
+            let unsupportedModelFamilies: [String]
+            let requiredExecutionClass: String
+        }
+
+        struct ProductionTrust: Decodable {
+            let qualificationAuthority: String
+            let evidenceSchema: String
+            let requiredIdentityArtifactRoles: [String]
+            let requiredRunArtifactRoles: [String]
+            let requirements: [String]
+        }
+
+        let schemaVersion: Int
+        let nativeModelEnvelope: NativeModelEnvelope
+        let foundryExecution: FoundryExecution
+        let productionTrust: ProductionTrust
     }
 
     private func packageRoot() -> URL {
@@ -100,8 +126,8 @@ struct ReliabilityContractTests {
         }
     }
 
-    @Test("Trust-gate corpus manifest matches committed golden references")
-    func trustGateCorpusManifestMatchesGoldenReferences() throws {
+    @Test("Regression corpus manifest matches the committed fixture")
+    func regressionCorpusManifestMatchesRegressionFixture() throws {
         let manifest = try decode("validation/corpus-manifest.json", as: CorpusManifest.self)
         #expect(manifest.schemaVersion == 1)
         #expect(manifest.cases.count == 31)
@@ -118,17 +144,37 @@ struct ReliabilityContractTests {
             #expect(seenNames.insert(item.name).inserted)
         }
 
-        let goldenURL = packageRoot().appendingPathComponent("validation/golden.json")
-        let goldenData = try Data(contentsOf: goldenURL)
-        let goldenObject = try JSONSerialization.jsonObject(with: goldenData)
-        guard let golden = goldenObject as? [String: Any] else {
-            throw ReliabilityContractError.invalidGoldenJSON
+        let regressionFixtureURL = packageRoot().appendingPathComponent("validation/golden.json")
+        let regressionFixtureData = try Data(contentsOf: regressionFixtureURL)
+        let regressionFixtureObject = try JSONSerialization.jsonObject(with: regressionFixtureData)
+        guard let regressionFixture = regressionFixtureObject as? [String: Any] else {
+            throw ReliabilityContractError.invalidRegressionFixtureJSON
         }
-        let requiredGolden = Set(manifest.cases.filter(\.goldenRequired).map(\.name))
-        #expect(Set(golden.keys) == requiredGolden)
+        let requiredRegressionFixtures = Set(manifest.cases.filter(\.regressionFixtureRequired).map(\.name))
+        #expect(Set(regressionFixture.keys) == requiredRegressionFixtures)
+    }
+
+    @Test("Production qualification contract blocks native foundry promotion")
+    func productionQualificationContractSeparatesNativeRegressionFromFoundryTrust() throws {
+        let contract = try decode(
+            "validation/production-qualification-contract.json",
+            as: ProductionQualificationContract.self
+        )
+
+        #expect(contract.schemaVersion == 1)
+        #expect(contract.nativeModelEnvelope.classification == "supported-model-regression")
+        #expect(!contract.nativeModelEnvelope.productionQualificationIssuedByCoreSpice)
+        #expect(contract.foundryExecution.nativeCompactModelStatus == "unsupported")
+        #expect(Set(contract.foundryExecution.unsupportedModelFamilies) == Set(["bsim3", "bsim4"]))
+        #expect(contract.foundryExecution.requiredExecutionClass == "qualified-external-foundry-model-simulator")
+        #expect(contract.productionTrust.qualificationAuthority == "ToolQualification")
+        #expect(contract.productionTrust.evidenceSchema == "ToolProcessQualificationEvidence")
+        #expect(!contract.productionTrust.requiredIdentityArtifactRoles.isEmpty)
+        #expect(!contract.productionTrust.requiredRunArtifactRoles.isEmpty)
+        #expect(!contract.productionTrust.requirements.isEmpty)
     }
 }
 
 private enum ReliabilityContractError: Error {
-    case invalidGoldenJSON
+    case invalidRegressionFixtureJSON
 }

@@ -1,4 +1,5 @@
 import Accelerate
+import CoreSpiceLAPACK
 
 /// LU decomposition solver with partial pivoting for real sparse matrices.
 ///
@@ -44,8 +45,8 @@ public struct SparseLUSolver: LinearSolver {
     private var useDenseSolve: Bool = false
     /// Flat column-major dense LU storage for LAPACK (n × n).
     private var denseLU: [Double] = []
-    /// LAPACK pivot indices from dgetrf_ (1-based).
-    private var lapackPivot: [__CLPK_integer] = []
+    /// LAPACK pivot indices from `dgetrf` (1-based).
+    private var lapackPivot: [CoreSpiceLAPACKInteger] = []
 
     /// Per-row overflow storage for L entries outside the symbolic pattern.
     private var lOverflow: [DynamicSparseRow<Double>] = []
@@ -255,7 +256,7 @@ public struct SparseLUSolver: LinearSolver {
 
     // MARK: - Dense Factorization
 
-    /// Dense factorization for small matrices using LAPACK dgetrf_.
+    /// Dense factorization for small matrices using LAPACK `dgetrf`.
     ///
     /// Fills the flat column-major `denseLU` workspace from permuted CSR values,
     /// then calls LAPACK's optimized LU factorization with partial pivoting.
@@ -277,12 +278,14 @@ public struct SparseLUSolver: LinearSolver {
         }
 
         // LAPACK LU factorization with partial pivoting
-        var m = __CLPK_integer(n)
-        var nn = __CLPK_integer(n)
-        var lda = __CLPK_integer(n)
-        var info: __CLPK_integer = 0
-
-        dgetrf_(&m, &nn, &denseLU, &lda, &lapackPivot, &info)
+        let dimension = CoreSpiceLAPACKInteger(n)
+        let info = coreSpiceLAPACKFactorize(
+            dimension,
+            dimension,
+            &denseLU,
+            dimension,
+            &lapackPivot
+        )
 
         guard info == 0 else {
             throw CompileError.singularMatrix
@@ -582,7 +585,7 @@ public struct SparseLUSolver: LinearSolver {
         let permutedRHS = sym.permutation.apply(to: rhs)
 
         if useDenseSolve {
-            // LAPACK dgetrs_ handles pivoting internally via lapackPivot
+            // LAPACK dgetrs handles pivoting internally via lapackPivot
             return try solveDenseAllocating(b: permutedRHS, permutation: sym.permutation)
         }
 
@@ -641,23 +644,27 @@ public struct SparseLUSolver: LinearSolver {
         return sym.permutation.applyInverse(to: x)
     }
 
-    /// Dense solve using LAPACK dgetrs_ (allocating variant).
+    /// Dense solve using LAPACK `dgetrs` (allocating variant).
     private func solveDenseAllocating(b: [Double], permutation: Permutation) throws -> [Double] {
         let n = dimension
-        var x = b  // dgetrs_ overwrites the RHS in-place
+        var x = b  // dgetrs overwrites the RHS in-place
 
-        var nn = __CLPK_integer(n)
-        var nrhs: __CLPK_integer = 1
-        var lda = __CLPK_integer(n)
-        var ldb = __CLPK_integer(n)
-        var info: __CLPK_integer = 0
-        var trans: CChar = 78  // 'N' (no transpose)
+        let dimension = CoreSpiceLAPACKInteger(n)
 
         // Need a mutable copy of denseLU and lapackPivot for LAPACK
         var lu = denseLU
         var ipiv = lapackPivot
 
-        dgetrs_(&trans, &nn, &nrhs, &lu, &lda, &ipiv, &x, &ldb, &info)
+        let info = coreSpiceLAPACKSolveFactorized(
+            78,
+            dimension,
+            1,
+            &lu,
+            dimension,
+            &ipiv,
+            &x,
+            dimension
+        )
 
         guard info == 0 else {
             throw CompileError.singularMatrix
@@ -699,18 +706,21 @@ public struct SparseLUSolver: LinearSolver {
         sym.permutation.apply(from: rhs, into: &solveTemp)
 
         if useDenseSolve {
-            // LAPACK dgetrs_ handles pivoting internally via lapackPivot.
-            // Copy AMD-permuted RHS to solveY (dgetrs_ overwrites in-place).
+            // LAPACK dgetrs handles pivoting internally via lapackPivot.
+            // Copy AMD-permuted RHS to solveY (dgetrs overwrites in-place).
             for i in 0..<n { solveY[i] = solveTemp[i] }
 
-            var nn = __CLPK_integer(n)
-            var nrhs: __CLPK_integer = 1
-            var lda = __CLPK_integer(n)
-            var ldb = __CLPK_integer(n)
-            var info: __CLPK_integer = 0
-            var trans: CChar = 78  // 'N'
-
-            dgetrs_(&trans, &nn, &nrhs, &denseLU, &lda, &lapackPivot, &solveY, &ldb, &info)
+            let dimension = CoreSpiceLAPACKInteger(n)
+            let info = coreSpiceLAPACKSolveFactorized(
+                78,
+                dimension,
+                1,
+                &denseLU,
+                dimension,
+                &lapackPivot,
+                &solveY,
+                dimension
+            )
 
             guard info == 0 else {
                 throw CompileError.singularMatrix

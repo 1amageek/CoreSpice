@@ -17,11 +17,18 @@ flowchart LR
   Result --> Diagnostics["DesignDiagnostic[]"]
 ```
 
-`CoreSpiceSimulationEngineAdapter` is the concrete asynchronous seam for a
-domain executor that composes the existing analysis APIs. Existing analysis
+`DefaultCoreSpiceSimulationEngine` is the concrete asynchronous execution
+boundary for a domain executor that composes the existing analysis APIs. Existing analysis
 types remain independent and no simulator algorithm moves into the shared
 Foundation package. `CoreSpiceSimulationResult` is the canonical hand-off for
 artifact integrity, provenance, and structured diagnostics.
+
+Native Level 1/2/3 execution is a supported-model simulation and regression
+capability. It is not a foundry compact-model signoff capability. The
+machine-readable [production qualification contract](validation/production-qualification-contract.json)
+requires a digest-bound external foundry-model simulator, an independent
+oracle, the exact PDK/model deck, and `ToolQualification` evidence before a
+production flow can accept simulation results.
 
 **Requirements**: macOS 26+, Swift 6.3
 
@@ -59,7 +66,7 @@ numerical analysis, and waveform I/O.
 | Passive | Resistor, Capacitor, Inductor |
 | Sources | Voltage/Current (DC, Pulse, Sine, PWL) |
 | Controlled Sources | VCVS, VCCS, CCVS, CCCS |
-| MOSFET | NMOS/PMOS Level 1 (Shichman-Hodges) |
+| MOSFET | NMOS/PMOS Level 1 plus empirical Level 2/3 short-channel extensions |
 | BJT | NPN, PNP (Ebers-Moll with Early effect) |
 | Diode | PN junction with breakdown, capacitance, transit time |
 
@@ -100,13 +107,6 @@ dependencies: [
     .product(name: "CoreSpiceIO", package: "CoreSpice"),
 ])
 ```
-
-## API Migration Notes
-
-| Previous API | Current API |
-|--------------|-------------|
-| `ParsedExpression.unaryOp` | `ParsedExpression.unaryOperation` |
-| `ParsedExpression.binaryOp` | `ParsedExpression.binaryOperation` |
 
 ## Quick Start
 

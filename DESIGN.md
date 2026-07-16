@@ -36,7 +36,7 @@ The package depends on `CircuiteFoundation` and re-exports it from the
   asynchronous simulation entry point.
 
 The existing analysis types and synchronous setup APIs remain domain-owned.
-They may be composed by a future engine implementation, but their numerical
+They are composed through the injected executor, but their numerical
 algorithms must not move into Foundation and must not silently invent artifact
 digests or provenance.
 
@@ -63,13 +63,13 @@ digests or provenance.
 
 ## Concrete engine boundary
 
-`CoreSpiceSimulationEngineAdapter` is the concrete Foundation-facing engine.
+`DefaultCoreSpiceSimulationEngine` is the concrete Foundation-facing engine.
 It delegates domain execution to an injected `CoreSpiceSimulationExecuting`
 implementation, checks cooperative cancellation, records the request inputs
-and reproducibility fields in `ExecutionProvenance`, and exposes verified
+and execution-supplied invocation/environment fields in `ExecutionProvenance`, and exposes verified
 artifact references and structured diagnostics from the execution.
 
 The injected executor remains responsible for parsing, analysis selection,
 artifact materialization, artifact verification, and typed domain errors.
-Existing CLI envelopes and I/O formats remain compatibility surfaces until a
-deliberate migration is documented.
+CLI and I/O surfaces expose only the current contract; obsolete compatibility
+paths are removed during development.

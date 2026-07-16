@@ -89,7 +89,7 @@ Every `BoundDevice` stamps into the Modified Nodal Analysis system through `Matr
 6. **Sensitivity** (`.sens`): Finite-difference perturbation of each device parameter. Runs N+1 DC solves (baseline + one per parameter). Reports absolute and normalized sensitivities.
 7. **Monte Carlo** (`.mc`): Repeated inner analysis with random parameter variations (Gaussian/uniform). Supports deterministic seeding. Collects per-run results and statistics.
 8. **Noise** (`.noise`): DC operating point → per-device noise contribution at each frequency → output-referred and input-referred spectral density. Integrated RMS noise over bandwidth.
-9. **Pole-Zero** (`.pz`): DC operating point → extract G/C matrices from AC stamps → generalized eigenvalue problem (LAPACK QZ) for poles/zeros. DC gain from LAPACK `dgesv_` dense solve of G matrix.
+9. **Pole-Zero** (`.pz`): DC operating point → extract G/C matrices from AC stamps → generalized eigenvalue problem (LAPACK QZ) for poles/zeros. DC gain from LAPACK `dgesv` dense solve of G matrix.
 
 ### SPICE I/O Architecture
 

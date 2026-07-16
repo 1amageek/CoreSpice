@@ -5,14 +5,22 @@ import Testing
 @Suite
 struct CircuiteFoundationIntegrationTests {
     @Test
-    func adapterProducesFoundationEvidenceWithExactExecutionMetadata() async throws {
-        let input = try artifactReference(path: "inputs/circuit.spice", byteCount: 12)
-        let output = try artifactReference(path: "outputs/waveform.raw", byteCount: 24)
+    func defaultEngineProducesFoundationEvidenceWithExactExecutionMetadata() async throws {
+        let input = try artifactReference(path: "inputs/circuit.spice", role: .input, byteCount: 12)
+        let output = try artifactReference(path: "outputs/waveform.raw", role: .output, byteCount: 24)
         let startedAt = Date(timeIntervalSince1970: 100)
         let completedAt = Date(timeIntervalSince1970: 101)
+        let invocation = try ExecutionInvocation.inProcess(entryPoint: "CoreSpiceAnalysis")
+        let environment = try ExecutionEnvironmentFingerprint(
+            platform: "macOS",
+            architecture: "arm64",
+            toolchain: "Swift-6.3"
+        )
         let execution = try CoreSpiceSimulationExecution(
             artifacts: [output],
             diagnostics: [],
+            invocation: invocation,
+            environment: environment,
             startedAt: startedAt,
             completedAt: completedAt
         )
@@ -22,7 +30,7 @@ struct CircuiteFoundationIntegrationTests {
             version: "1.0.0"
         )
         let executor = FixedSimulationExecutor(execution: execution)
-        let engine = CoreSpiceSimulationEngineAdapter(
+        let engine = DefaultCoreSpiceSimulationEngine(
             executor: executor,
             producer: producer
         )
@@ -36,6 +44,8 @@ struct CircuiteFoundationIntegrationTests {
         #expect(result.artifacts == [output])
         #expect(result.evidence.artifacts == [output])
         #expect(result.evidence.provenance.inputs == [input])
+        #expect(result.evidence.provenance.invocation == invocation)
+        #expect(result.evidence.provenance.environment == environment)
         #expect(result.evidence.provenance.randomSeed == 7)
         #expect(result.evidence.provenance.startedAt == startedAt)
         #expect(result.evidence.provenance.completedAt == completedAt)
@@ -46,6 +56,12 @@ struct CircuiteFoundationIntegrationTests {
         #expect(throws: CoreSpiceSimulationExecutionError.self) {
             try CoreSpiceSimulationExecution(
                 artifacts: [],
+                invocation: ExecutionInvocation.inProcess(entryPoint: "CoreSpiceAnalysis"),
+                environment: ExecutionEnvironmentFingerprint(
+                    platform: "macOS",
+                    architecture: "arm64",
+                    toolchain: "Swift-6.3"
+                ),
                 startedAt: Date(timeIntervalSince1970: 2),
                 completedAt: Date(timeIntervalSince1970: 1)
             )
@@ -54,12 +70,14 @@ struct CircuiteFoundationIntegrationTests {
 
     private func artifactReference(
         path: String,
+        role: ArtifactRole,
         byteCount: UInt64
     ) throws -> ArtifactReference {
         ArtifactReference(
             id: ArtifactID(rawValue: try #require(UUID(uuidString: "AF43165C-EC65-449D-868E-D26EB9C25A3F"))),
             locator: ArtifactLocator(
                 location: try ArtifactLocation(workspaceRelativePath: path),
+                role: role,
                 kind: .waveform,
                 format: .json
             ),

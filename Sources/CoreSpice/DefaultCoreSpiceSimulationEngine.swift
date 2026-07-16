@@ -1,6 +1,6 @@
 import CircuiteFoundation
 
-public struct CoreSpiceSimulationEngineAdapter: CoreSpiceSimulationEngine {
+public struct DefaultCoreSpiceSimulationEngine: CoreSpiceSimulationEngine {
     private let executor: any CoreSpiceSimulationExecuting
     private let producer: ProducerIdentity
     private let supportingTools: [ProducerIdentity]
@@ -26,6 +26,8 @@ public struct CoreSpiceSimulationEngineAdapter: CoreSpiceSimulationEngine {
             producer: producer,
             supportingTools: supportingTools,
             inputs: request.inputs,
+            invocation: execution.invocation,
+            environment: execution.environment,
             configurationDigest: request.configurationDigest,
             designRevision: request.designRevision,
             randomSeed: request.randomSeed,

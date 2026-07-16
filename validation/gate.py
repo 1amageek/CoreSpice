@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""CoreSpice numerical trust gate.
+"""CoreSpice numerical correlation runner.
 
 Runs a corpus of circuits through CoreSpice and compares each against an
-independent oracle (closed-form analytic where available, otherwise ngspice).
-Every circuit must pass its tolerance for the gate to succeed. The gate is the
-precondition for trusting CoreSpice in downstream layout / PEX / signoff work.
+analytic expression, a frozen regression fixture, or a live ngspice oracle.
+Every circuit must pass its tolerance for the run to succeed. Passing this
+runner emits correlation evidence; ToolQualification owns production trust.
 
 Usage:
-    python3 validation/gate.py [--corespice PATH] [--ngspice PATH]
+    python3 validation/gate.py [--comparison-source SOURCE]
 
 Exit code 0 if all circuits pass, 1 otherwise.
 """
@@ -19,6 +19,7 @@ import json
 import math
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -76,7 +77,7 @@ def cs_col(header, vname):
 
     Current artifacts prefer stable SPICE-facing names such as V(out) and I(v1).
     Older gate checks may still ask for legacy numeric names such as V(3) or
-    I(0). Resolve those by column order so the trust gate validates simulator
+    I(0). Resolve those by column order so the correlation runner validates simulator
     behavior instead of depending on an internal node-number presentation.
     """
     for i, c in enumerate(header):
@@ -172,47 +173,136 @@ def sha256_text(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def write_artifacts(artifact_dir, args, results):
+def resolve_executable(command):
+    if os.path.sep in command:
+        path = os.path.abspath(command)
+    else:
+        path = shutil.which(command)
+    if path is None or not os.path.isfile(path):
+        raise RuntimeError(f"executable not found: {command}")
+    return os.path.realpath(path)
+
+
+def write_json(path, value):
+    with open(path, "w") as f:
+        json.dump(value, f, indent=2, sort_keys=True, allow_nan=False)
+        f.write("\n")
+
+
+def replace_json_atomically(path, value):
+    directory = os.path.dirname(path)
+    fd, temporary_path = tempfile.mkstemp(
+        prefix=".corespice-regression-fixture-",
+        suffix=".tmp",
+        dir=directory,
+    )
+    os.close(fd)
+    try:
+        write_json(temporary_path, value)
+        os.replace(temporary_path, path)
+    finally:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
+
+
+def stage_case_artifacts(artifact_dir, name, deck, workdir, reference, passed, detail):
+    if artifact_dir is None:
+        return []
+    case_id = name.split(" ", 1)[0]
+    case_dir = os.path.join(artifact_dir, "cases", case_id)
+    os.makedirs(case_dir, exist_ok=True)
+    input_path = os.path.join(case_dir, "input.spice")
+    with open(input_path, "w") as f:
+        f.write(deck)
+
+    staged = [("input", input_path)]
+    for role, source_name, destination_name in (
+        ("native-output", "cs.csv", "native.csv"),
+        ("oracle-output", "ng.csv", "oracle.csv"),
+    ):
+        source = os.path.join(workdir, source_name)
+        if os.path.isfile(source):
+            destination = os.path.join(case_dir, destination_name)
+            shutil.copyfile(source, destination)
+            staged.append((role, destination))
+
+    if reference is not None:
+        reference_path = os.path.join(case_dir, "regression-reference.json")
+        write_json(reference_path, reference)
+        staged.append(("regression-reference", reference_path))
+
+    result_path = os.path.join(case_dir, "result.json")
+    write_json(result_path, {"caseID": case_id, "name": name, "passed": passed, "detail": detail})
+    staged.append(("comparison-result", result_path))
+
+    return [
+        {
+            "role": role,
+            "path": os.path.relpath(path, artifact_dir),
+            "sha256": sha256_file(path),
+            "byteCount": os.path.getsize(path),
+        }
+        for role, path in staged
+    ]
+
+
+def write_artifacts(artifact_dir, args, results, corespice_path, oracle_path):
     os.makedirs(artifact_dir, exist_ok=True)
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     gate_path = os.path.abspath(__file__)
-    golden_hash = sha256_file(GOLDEN_PATH) if os.path.exists(GOLDEN_PATH) else None
-    corespice_hash = sha256_file(args.corespice) if os.path.exists(args.corespice) else None
+    uses_regression_fixture = args.comparison_source == "regression-fixture"
 
     comparison = {
-        "schemaVersion": 1,
-        "gate": "corespice-numerical-trust-gate",
-        "mode": "update-golden" if args.update_golden else "golden",
+        "schemaVersion": 2,
+        "runner": "corespice-numerical-correlation",
+        "comparisonSource": args.comparison_source,
+        "evidenceClass": "regression" if uses_regression_fixture else "independent-oracle-correlation",
         "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "results": [
-            {"name": name, "passed": passed, "detail": detail}
-            for name, passed, detail in results
-        ],
+        "results": results,
     }
     comparison_path = os.path.join(artifact_dir, "oracle-comparison.json")
-    with open(comparison_path, "w") as f:
-        json.dump(comparison, f, indent=2, sort_keys=True)
-        f.write("\n")
+    write_json(comparison_path, comparison)
+
+    inputs = {
+        "runner": {
+            "path": os.path.relpath(gate_path, root),
+            "sha256": sha256_file(gate_path),
+        },
+        "corpus": {
+            "path": os.path.relpath(CORPUS_MANIFEST_PATH, root),
+            "sha256": sha256_file(CORPUS_MANIFEST_PATH),
+        },
+        "nativeExecutable": {
+            "path": corespice_path,
+            "sha256": sha256_file(corespice_path),
+        },
+    }
+    if uses_regression_fixture:
+        inputs["regressionFixture"] = {
+            "path": os.path.relpath(GOLDEN_PATH, root),
+            "sha256": sha256_file(GOLDEN_PATH),
+        }
+    if oracle_path is not None:
+        inputs["oracleExecutable"] = {
+            "path": oracle_path,
+            "sha256": sha256_file(oracle_path),
+        }
 
     manifest = {
-        "schemaVersion": 1,
-        "runType": "trust-gate",
+        "schemaVersion": 2,
+        "runType": "regression-validation" if uses_regression_fixture else "independent-oracle-correlation",
         "tool": "CoreSpice",
         "generatedAt": comparison["generatedAt"],
-        "inputs": {
-            "gateScript": os.path.relpath(gate_path, root),
-            "gateScriptSha256": sha256_file(gate_path),
-            "corpusManifest": os.path.relpath(CORPUS_MANIFEST_PATH, root),
-            "corpusManifestSha256": sha256_file(CORPUS_MANIFEST_PATH),
-            "golden": os.path.relpath(GOLDEN_PATH, root),
-            "goldenSha256": golden_hash,
-            "corespice": os.path.abspath(args.corespice),
-            "corespiceSha256": corespice_hash,
-        },
-        "environment": {
-            "python": sys.version.split()[0],
+        "qualificationAuthority": "ToolQualification",
+        "inputs": inputs,
+        "environmentFingerprint": {
+            "pythonVersion": sys.version.split()[0],
             "platform": platform.platform(),
-            "machine": platform.machine(),
+            "architecture": platform.machine(),
+        },
+        "invocation": {
+            "native": [corespice_path, "-b", "<case-input>", "--csv", "<case-output>"],
+            "oracle": None if oracle_path is None else [oracle_path, "-b", "<case-input>"],
         },
         "outputs": {
             "oracleComparison": "oracle-comparison.json",
@@ -220,17 +310,15 @@ def write_artifacts(artifact_dir, args, results):
         },
         "summary": {
             "total": len(results),
-            "passed": sum(1 for _, passed, _ in results if passed),
-            "failed": sum(1 for _, passed, _ in results if not passed),
+            "passed": sum(1 for result in results if result["passed"]),
+            "failed": sum(1 for result in results if not result["passed"]),
         },
         "reproducibility": {
             "randomSeedPolicy": "No stochastic sampling is used by this gate.",
             "artifactHash": sha256_text(json.dumps(comparison, sort_keys=True)),
         },
     }
-    with open(os.path.join(artifact_dir, "manifest.json"), "w") as f:
-        json.dump(manifest, f, indent=2, sort_keys=True)
-        f.write("\n")
+    write_json(os.path.join(artifact_dir, "manifest.json"), manifest)
 
 
 # --- oscillation / metric helpers --------------------------------------------
@@ -844,12 +932,11 @@ X1 vin out vdd 0 inv
 """, c_inverter_vtc, ("dc VIN 0 3.3 0.15", ["v(out)"]))
 
 
-# --- G5: extraction-scale validation (CoreSpice vs ngspice, within model envelope) -
+# --- G5: extraction-topology smoke correlation within the supported model envelope -
 # Validates that CoreSpice matches ngspice on netlists with the TOPOLOGY and SCALE of
-# real PEX extractions, within CoreSpice's level-1/2/3 + RLC envelope. Real silicon
-# uses BSIM4 (out of scope by design); these decks render devices as level-1 and use
-# the REAL extracted parasitic network / large RC interconnects to stress the
-# transient solver at a scale the 28-circuit corpus does not reach.
+# PEX data, within CoreSpice's level-1/2/3 + RLC envelope. Foundry silicon uses
+# compact models that CoreSpice does not implement. These decks therefore exercise
+# extracted topology and solver scale; they are not foundry electrical qualification.
 
 def _interp(ts, vs, t):
     if t <= ts[0]:
@@ -883,7 +970,7 @@ def _tran_maxdiff(cs, ng, vname, samples=200):
 
 def c_inv1_postlayout(cs, ng, nodes):
     md = _tran_maxdiff(cs, ng, f"V({nodes['Y']})")
-    return md < 0.05, f"max|V(Y) CoreSpice-ngspice| over real inv_1 parasitics = {md:.4f} V (tol 0.05)"
+    return md < 0.05, f"max|V(Y) CoreSpice-ngspice| over extracted inv_1 topology = {md:.4f} V (tol 0.05)"
 
 
 def rc_scale_checker(node, tol):
@@ -893,9 +980,10 @@ def rc_scale_checker(node, tol):
     return chk
 
 
-# Real parasitic C network extracted from sky130_fd_sc_hd__inv_1 via the LSI PEX flow
-# (Magic ext2spice). VPB (n-well) tied to VPWR, VNB (substrate) tied to VGND.
-add("29 sky130 inv_1 real-extraction post-layout transient (vs ngspice)", """* inv_1 post-layout
+# Parasitic C network extracted from sky130_fd_sc_hd__inv_1 via the LSI PEX flow
+# (Magic ext2spice), paired with smoke-only level-1 devices. VPB (n-well) is tied
+# to VPWR and VNB (substrate) is tied to VGND.
+add("29 sky130 inv_1 extraction-topology smoke transient (vs ngspice)", """* inv_1 extraction-topology smoke
 VPWR VPWR 0 dc 1.8
 VGND VGND 0 dc 0
 VVPB VPB VPWR 0
@@ -978,51 +1066,95 @@ def main():
     ap.add_argument("--corespice",
                     default=os.path.join(os.path.dirname(__file__), "..", ".build", "debug", "corespice"))
     ap.add_argument("--ngspice", default="ngspice")
-    ap.add_argument("--update-golden", action="store_true",
-                    help="Regenerate the committed golden references by running ngspice.")
+    ap.add_argument(
+        "--comparison-source",
+        choices=("regression-fixture", "live-oracle"),
+        default="regression-fixture",
+        help="Use the committed regression fixture or execute an independent live oracle.",
+    )
+    ap.add_argument(
+        "--refresh-regression-fixture",
+        action="store_true",
+        help="Atomically replace the regression fixture from a complete live-oracle run.",
+    )
     ap.add_argument("--artifact-dir",
                     help="Write manifest.json and oracle-comparison.json for reproducibility.")
     args = ap.parse_args()
-    corespice = os.path.abspath(args.corespice)
+    if args.refresh_regression_fixture and args.comparison_source != "live-oracle":
+        ap.error("--refresh-regression-fixture requires --comparison-source live-oracle")
+    corespice = resolve_executable(args.corespice)
+    oracle_path = None
+    if args.comparison_source == "live-oracle":
+        oracle_path = resolve_executable(args.ngspice)
+    artifact_dir = os.path.abspath(args.artifact_dir) if args.artifact_dir else None
 
-    # Golden mode (default) reads frozen references so the gate runs without
-    # ngspice; --update-golden regenerates them from a live ngspice run.
+    # Regression mode is deterministic and does not require ngspice. A live
+    # oracle run emits independent correlation evidence and never mutates the
+    # regression fixture unless refresh is explicitly requested.
     golden = {}
-    if not args.update_golden:
+    if args.comparison_source == "regression-fixture":
         with open(GOLDEN_PATH) as f:
             golden = json.load(f)
+    refreshed_golden = {}
 
     results = []
     for name, deck, checker, ng_spec in CIRCUITS:
         with tempfile.TemporaryDirectory() as wd:
+            reference = None
             try:
                 cs = run_corespice(corespice, deck, wd)
                 ng = None
                 if ng_spec is not None:
-                    if args.update_golden:
+                    if args.comparison_source == "live-oracle":
                         control, vectors = ng_spec
-                        cols = run_ngspice(args.ngspice, deck, control, vectors, wd)
+                        cols = run_ngspice(oracle_path, deck, control, vectors, wd)
                         ng = shape_ng(name, cols)
-                        golden[name] = ng
+                        refreshed_golden[name] = ng
                     else:
                         if name not in golden:
-                            raise RuntimeError("missing golden reference; run --update-golden")
+                            raise RuntimeError("missing regression reference; run a live-oracle refresh")
                         ng = golden[name]
+                        reference = ng
                 passed, detail = checker(cs, ng, node_ids(deck))
             except Exception as e:
                 passed, detail = False, f"ERROR: {e}"
-        results.append((name, passed, detail))
+            artifacts = stage_case_artifacts(
+                artifact_dir,
+                name,
+                deck,
+                wd,
+                reference,
+                passed,
+                detail,
+            )
+        results.append({
+            "caseID": name.split(" ", 1)[0],
+            "name": name,
+            "passed": passed,
+            "detail": detail,
+            "inputSHA256": sha256_text(deck),
+            "artifacts": artifacts,
+        })
 
-    if args.update_golden:
-        with open(GOLDEN_PATH, "w") as f:
-            json.dump(golden, f, indent=1)
-        print(f"Wrote golden references for {len(golden)} circuits to {GOLDEN_PATH}")
+    if args.refresh_regression_fixture:
+        expected = {name for name, _, _, ng_spec in CIRCUITS if ng_spec is not None}
+        if set(refreshed_golden) != expected:
+            missing = sorted(expected - set(refreshed_golden))
+            raise RuntimeError(
+                "refusing partial regression fixture refresh; missing oracle results: "
+                + ", ".join(missing)
+            )
+        replace_json_atomically(GOLDEN_PATH, refreshed_golden)
+        print(f"Refreshed regression references for {len(refreshed_golden)} circuits at {GOLDEN_PATH}")
 
     print("=" * 78)
-    print("CoreSpice numerical trust gate")
+    print("CoreSpice numerical correlation")
     print("=" * 78)
     npass = 0
-    for name, passed, detail in results:
+    for result in results:
+        name = result["name"]
+        passed = result["passed"]
+        detail = result["detail"]
         mark = "PASS" if passed else "FAIL"
         if passed:
             npass += 1
@@ -1031,8 +1163,8 @@ def main():
     print("-" * 78)
     print(f"{npass}/{len(results)} circuits passed")
 
-    if args.artifact_dir:
-        write_artifacts(args.artifact_dir, args, results)
+    if artifact_dir:
+        write_artifacts(artifact_dir, args, results, corespice, oracle_path)
 
     return 0 if npass == len(results) else 1
 

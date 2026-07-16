@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "nativeModelEnvelope": {
+    "classification": "supported-model-regression",
+    "modelFamilies": [
+      "mos-level-1-shichman-hodges",
+      "mos-level-2-empirical-extension",
+      "mos-level-3-empirical-extension"
+    ],
+    "productionQualificationIssuedByCoreSpice": false
+  },
+  "foundryExecution": {
+    "nativeCompactModelStatus": "unsupported",
+    "unsupportedModelFamilies": [
+      "bsim3",
+      "bsim4"
+    ],
+    "requiredExecutionClass": "qualified-external-foundry-model-simulator"
+  },
+  "productionTrust": {
+    "qualificationAuthority": "ToolQualification",
+    "evidenceSchema": "ToolProcessQualificationEvidence",
+    "requiredIdentityArtifactRoles": [
+      "tool-executable",
+      "oracle-executable",
+      "process-profile",
+      "pdk",
+      "model-deck"
+    ],
+    "requiredRunArtifactRoles": [
+      "corpus-input",
+      "primary-output",
+      "oracle-output",
+      "correlation-report"
+    ],
+    "requirements": [
+      "all artifacts are workspace-relative and digest-backed",
+      "primary and oracle executables have different identities and digests",
+      "the exact PDK and model deck are bound to every corpus result",
+      "correlation cases are recomputed from canonical typed evidence",
+      "a regression fixture alone cannot satisfy production trust"
+    ]
+  }
+}

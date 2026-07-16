@@ -4,7 +4,7 @@ import CircuiteFoundation
 ///
 /// The simulation implementation remains in the analysis targets. This value
 /// gives callers a stable, artifact-oriented boundary while keeping simulator
-/// details in the injected execution adapter.
+/// details in the injected executor.
 public struct CoreSpiceSimulationRequest: Sendable, Hashable, Codable {
   public let inputs: [ArtifactReference]
   public let configurationDigest: ContentDigest?
