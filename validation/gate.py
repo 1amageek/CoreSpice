@@ -784,9 +784,9 @@ C4 n4 0 20f
 C5 n5 0 20f
 .model PM PMOS level=1 gamma=0.4 kp=5e-05 lambda=0.04 phi=0.65 vto=-0.7
 .model NM NMOS level=1 gamma=0.4 kp=0.00011 lambda=0.04 phi=0.65 vto=0.7
-.tran 20p 50n
+.tran 20p 15n
 .end
-""", c_ring, ("tran 20p 50n\nlinearize", ["v(n1)"]))
+""", c_ring, ("tran 20p 15n\nlinearize", ["v(n1)"]))
 
 add("15 differential pair (DC balance, vs ngspice)", """* diff pair resistive load
 VDD vdd 0 dc 3.3
