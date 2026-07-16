@@ -226,6 +226,11 @@ See [CoreSpiceCLI README](Sources/CoreSpiceCLI/README.md) for full usage, suppor
 swift build -c release --product corespice
 ```
 
+The public numerical qualification entrypoint and its contracts remain under
+`validation/`. `CoreSpiceCLITests` copies that directory into its SwiftPM
+resource bundle and resolves fixtures through a typed test locator, so tests do
+not infer the checkout root from compiler source paths.
+
 **Batch mode**:
 ```bash
 corespice -b circuit.cir -r output.raw --csv output.csv

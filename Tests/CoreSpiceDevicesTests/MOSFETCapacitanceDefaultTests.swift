@@ -8,7 +8,7 @@ import CoreSpiceIR
 /// intrinsic gate capacitances are zero. This matches the SPICE/ngspice
 /// convention. A nonzero default TOX previously fabricated ~2.3 fF of phantom
 /// gate capacitance per device, which slowed the ring-oscillator dogfood by
-/// ~36% (1.18 GHz vs ngspice 1.85 GHz). See validation/corespice-vs-ngspice.md.
+/// ~36% (1.18 GHz vs ngspice 1.85 GHz). See the packaged numerical correlation guide.
 @Suite("MOSFET capacitance defaults")
 struct MOSFETCapacitanceDefaultTests {
 

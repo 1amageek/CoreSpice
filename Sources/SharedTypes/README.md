@@ -250,8 +250,8 @@ Sources/SharedTypes/
 
 ## Related Files
 
-- `/Users/1amageek/Desktop/CoreSpice/Sources/CoreSpiceBackend/MetalBackend.swift` - Uses LayerDescriptor
-- `/Users/1amageek/Desktop/CoreSpice/Sources/CoreSpiceBackend/Shaders/PhotonicKernels.metal` - Includes SharedTypes.h
-- `/Users/1amageek/Desktop/CoreSpice/Sources/PluginsPhotonic/Compiler/CoefficientGenerator.swift` - Generates MZICoefficients
-- `/Users/1amageek/Desktop/CoreSpice/Sources/PluginsPhotonic/Compiler/PhotonicCompiler.swift` - Creates LayerDescriptor
-- `/Users/1amageek/Desktop/CoreSpice/Sources/PluginsPhotonic/Compiler/LayerPlan512.swift` - Stores arrays of both types
+- `Sources/CoreSpiceBackend/MetalBackend.swift` - Uses LayerDescriptor
+- `Sources/CoreSpiceBackend/Shaders/PhotonicKernels.metal` - Includes SharedTypes.h
+- `Sources/PluginsPhotonic/Compiler/CoefficientGenerator.swift` - Generates MZICoefficients
+- `Sources/PluginsPhotonic/Compiler/PhotonicCompiler.swift` - Creates LayerDescriptor
+- `Sources/PluginsPhotonic/Compiler/LayerPlan512.swift` - Stores arrays of both types

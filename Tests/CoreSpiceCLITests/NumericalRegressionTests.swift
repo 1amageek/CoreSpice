@@ -63,14 +63,7 @@ struct NumericalRegressionTests {
         let results: [Result]
     }
 
-    private func packageRoot() -> URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-    }
-
-    private func corespiceExecutable(packageRoot: URL) throws -> URL {
+    private func corespiceExecutable() throws -> URL {
         let environment = ProcessInfo.processInfo.environment
         var directories: [URL] = []
 
@@ -85,8 +78,6 @@ struct NumericalRegressionTests {
                 })
             }
         }
-
-        directories.append(packageRoot.appendingPathComponent(".build/debug", isDirectory: true))
 
         var ancestor = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
         for _ in 0..<8 {
@@ -131,8 +122,7 @@ struct NumericalRegressionTests {
 
     @Test("Regression corpus passes without a live oracle", .timeLimit(.minutes(5)))
     func regressionCorpusPasses() throws {
-        let root = packageRoot()
-        let corespice = try corespiceExecutable(packageRoot: root)
+        let corespice = try corespiceExecutable()
         let artifactDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("corespice-regression-\(UUID().uuidString)")
         defer {
@@ -145,22 +135,22 @@ struct NumericalRegressionTests {
             }
         }
 
-        let runner = root.appendingPathComponent("validation/gate.py").path
+        let runnerURL = try CoreSpiceValidationFixture.numericalCorrelationRunner.url
         let (status, output) = try run(
             "python3",
             [
-                runner,
+                runnerURL.path(percentEncoded: false),
                 "--corespice", corespice.path,
                 "--comparison-source", "regression-fixture",
                 "--artifact-dir", artifactDirectory.path,
             ],
-            currentDirectory: root
+            currentDirectory: runnerURL.deletingLastPathComponent()
         )
         #expect(status == 0, "Numerical regression did not pass:\n\(output)")
 
         let manifestURL = artifactDirectory.appendingPathComponent("manifest.json")
         let reportURL = artifactDirectory.appendingPathComponent("oracle-comparison.json")
-        let corpusURL = root.appendingPathComponent("validation/corpus-manifest.json")
+        let corpusURL = try CoreSpiceValidationFixture.corpusManifest.url
         let corpus = try JSONDecoder().decode(
             CorpusManifest.self,
             from: Data(contentsOf: corpusURL)

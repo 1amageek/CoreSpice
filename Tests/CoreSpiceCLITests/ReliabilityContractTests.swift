@@ -70,22 +70,18 @@ struct ReliabilityContractTests {
         let productionTrust: ProductionTrust
     }
 
-    private func packageRoot() -> URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-    }
-
-    private func decode<T: Decodable>(_ relativePath: String, as type: T.Type) throws -> T {
-        let url = packageRoot().appendingPathComponent(relativePath)
+    private func decode<T: Decodable>(
+        _ resource: CoreSpiceValidationFixture,
+        as type: T.Type
+    ) throws -> T {
+        let url = try resource.url
         let data = try Data(contentsOf: url)
         return try JSONDecoder().decode(T.self, from: data)
     }
 
     @Test("Analysis coverage contract names every public analysis")
     func analysisCoverageNamesEveryPublicAnalysis() throws {
-        let coverage = try decode("validation/analysis-coverage.json", as: Coverage.self)
+        let coverage = try decode(.analysisCoverage, as: Coverage.self)
         #expect(coverage.schemaVersion == 1)
 
         let expected: Set<String> = ["op", "dc", "ac", "tran", "noise", "tf", "pz", "four", "sens", "mc"]
@@ -100,7 +96,7 @@ struct ReliabilityContractTests {
 
     @Test("Device passports cover the built-in electrical devices")
     func devicePassportsCoverBuiltInElectricalDevices() throws {
-        let passports = try decode("validation/device-passports.json", as: DevicePassports.self)
+        let passports = try decode(.devicePassports, as: DevicePassports.self)
         #expect(passports.schemaVersion == 1)
 
         let expected: Set<String> = [
@@ -128,7 +124,7 @@ struct ReliabilityContractTests {
 
     @Test("Regression corpus manifest matches the committed fixture")
     func regressionCorpusManifestMatchesRegressionFixture() throws {
-        let manifest = try decode("validation/corpus-manifest.json", as: CorpusManifest.self)
+        let manifest = try decode(.corpusManifest, as: CorpusManifest.self)
         #expect(manifest.schemaVersion == 1)
         #expect(manifest.cases.count == 31)
 
@@ -144,7 +140,7 @@ struct ReliabilityContractTests {
             #expect(seenNames.insert(item.name).inserted)
         }
 
-        let regressionFixtureURL = packageRoot().appendingPathComponent("validation/golden.json")
+        let regressionFixtureURL = try CoreSpiceValidationFixture.regressionReference.url
         let regressionFixtureData = try Data(contentsOf: regressionFixtureURL)
         let regressionFixtureObject = try JSONSerialization.jsonObject(with: regressionFixtureData)
         guard let regressionFixture = regressionFixtureObject as? [String: Any] else {
@@ -156,10 +152,7 @@ struct ReliabilityContractTests {
 
     @Test("Production qualification contract blocks native foundry promotion")
     func productionQualificationContractSeparatesNativeRegressionFromFoundryTrust() throws {
-        let contract = try decode(
-            "validation/production-qualification-contract.json",
-            as: ProductionQualificationContract.self
-        )
+        let contract = try decode(.productionQualificationContract, as: ProductionQualificationContract.self)
 
         #expect(contract.schemaVersion == 1)
         #expect(contract.nativeModelEnvelope.classification == "supported-model-regression")

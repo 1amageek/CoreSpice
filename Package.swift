@@ -185,7 +185,10 @@ let package = Package(
                 .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
             ],
             path: "Tests/CoreSpiceCLITests",
-            resources: [.copy("Fixtures")]
+            resources: [
+                .copy("Fixtures"),
+                .copy("../../validation"),
+            ]
         ),
     ]
 )

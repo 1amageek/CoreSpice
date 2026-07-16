@@ -7,7 +7,7 @@ import Foundation
 @testable import CoreSpiceEvent
 
 /// Regressions for the independent current-source DC behavior, validated
-/// against ngspice in validation/gate.py:
+/// against ngspice through the packaged numerical correlation runner:
 /// - Sign: SPICE draws current from the positive node and injects it into the
 ///   negative node, so `I1 out 0 1mA` into a 1k resistor gives V(out) = -1V.
 /// - A current source driving an initially-off MOSFET must reach the real
