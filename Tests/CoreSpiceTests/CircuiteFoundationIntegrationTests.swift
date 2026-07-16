@@ -1,4 +1,5 @@
 import CoreSpice
+import CircuiteFoundation
 import Foundation
 import Testing
 

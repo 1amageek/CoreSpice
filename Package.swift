@@ -176,7 +176,13 @@ let package = Package(
         .testTarget(name: "CoreSpiceAnalysisTests", dependencies: ["CoreSpiceAnalysis"]),
         .testTarget(name: "CoreSpiceBackendTests", dependencies: ["CoreSpiceBackend"]),
         .testTarget(name: "PluginsPhotonicTests", dependencies: ["PluginsPhotonic"]),
-        .testTarget(name: "CoreSpiceTests", dependencies: ["CoreSpice"]),
+        .testTarget(
+            name: "CoreSpiceTests",
+            dependencies: [
+                "CoreSpice",
+                .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+            ]
+        ),
         .testTarget(name: "CoreSpiceOptoelectronicsTests",
                     dependencies: ["CoreSpiceOptoelectronics", "CoreSpiceDevices",
                                    "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceAnalysis",
