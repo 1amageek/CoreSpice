@@ -15,7 +15,7 @@ let circuiteFoundationDependency: Package.Dependency = isLSIWorkspace && FileMan
     ? .package(path: "../CircuiteFoundation")
     : .package(
         url: "https://github.com/1amageek/CircuiteFoundation.git",
-        revision: "2ec6ee13a89ac6885be3c26b41a9ee0ef89948ac"
+        revision: "7abcac83517935c9b9f7553d7016d62cffde259d"
     )
 
 let package = Package(

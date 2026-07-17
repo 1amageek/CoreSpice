@@ -14,9 +14,6 @@ The module follows a clean value-type-first design with all types being `Sendabl
 |------|-------------|
 | `Node.swift` | Represents an electrical connection point (node) in the circuit graph. Node 0 is reserved as ground. |
 | `Branch.swift` | Represents a branch current variable in the MNA formulation, used for voltage sources and inductors. |
-| `Port.swift` | Defines a named port on a device or subcircuit, mapping a human-readable name to a positional index. |
-| `UnknownKind.swift` | Enum distinguishing between real and complex variables in the MNA system (for AC analysis). |
-| `VarID.swift` | Identifies a variable in the MNA system by its numeric kind and positional index. |
 | `Parameter.swift` | Parameter types including values (real, integer, string, complex, expression), descriptors, and expressions. |
 | `Instance.swift` | A placed device instance connecting specific nodes with configured parameters. |
 | `MNAVariable.swift` | Enum representing MNA variables: either node voltages or branch currents. |
@@ -42,15 +39,6 @@ public struct Node: Hashable, Sendable {
 public struct Branch: Hashable, Sendable {
     public let id: Int
     public init(id: Int)
-}
-```
-
-#### `Port`
-```swift
-public struct Port: Hashable, Sendable {
-    public let name: String
-    public let index: Int
-    public init(name: String, index: Int)
 }
 ```
 
@@ -156,10 +144,7 @@ public struct Netlist: Sendable {
 ```swift
 public enum NetlistError: Error, Sendable {
     case duplicateInstanceName(String)
-    case unknownNode(String)
     case invalidParameterValue(instance: String, parameter: String, message: String)
-    case missingRequiredParameter(instance: String, parameter: String)
-    case portCountMismatch(instance: String, expected: Int, got: Int)
     case emptyNetlist
 }
 ```
@@ -170,22 +155,17 @@ public enum NetlistError: Error, Sendable {
 
 - [x] Node representation with ground reference
 - [x] Branch representation for MNA current variables
-- [x] Port definition for device interfaces
 - [x] Parameter value types (real, integer, string, complex, expression)
 - [x] Device instance representation
 - [x] Circuit IR with full topology
 - [x] CircuitTopology for MNA matrix setup
 - [x] Netlist builder with node resolution
-- [x] Comprehensive error types for netlist validation
-- [x] Variable kind distinction (real vs complex)
+- [x] Typed errors for implemented netlist validation
 
 ### Incomplete/Missing Features
 
-- [ ] `VarID` is defined but not used elsewhere in the module
-- [ ] `UnknownKind` is defined but only used by `VarID`
 - [ ] Expression evaluation (expressions are stored as text strings, no parser/evaluator)
-- [ ] Port is defined but not integrated into Instance or device validation
-- [ ] Some `NetlistError` cases (`unknownNode`, `invalidParameterValue`, `missingRequiredParameter`, `portCountMismatch`) are defined but never thrown
+- [ ] Parameter value validation is delegated to registered device descriptors
 
 ## Code Review Notes
 
@@ -209,34 +189,20 @@ public enum NetlistError: Error, Sendable {
 
 1. **Missing Hashable Conformance**: `ParameterValue` and `ParameterDescriptor` lack `Hashable` conformance, limiting their use in collections as keys. `Instance` also lacks `Hashable` and `Equatable`.
 
-2. **Unused Types**: `VarID` and `UnknownKind` appear to be designed for future use but are not integrated into the current implementation. Consider removing them or documenting their intended purpose.
+2. **Expression Evaluation**: Expressions are stored as raw text strings with no parsing or evaluation capability. Evaluation belongs in the parsing or simulation layer.
 
-3. **Incomplete Validation**: Several `NetlistError` cases are defined but the corresponding validation is not implemented in `Netlist.addInstance()`:
-   - `portCountMismatch` - no port count validation
-   - `missingRequiredParameter` - no required parameter checking
-   - `invalidParameterValue` - no parameter value validation
-   - `unknownNode` - nodes are auto-created rather than validated
-
-4. **Port Not Used**: The `Port` type is defined but never used to validate instance connections against device port definitions.
-
-5. **Expression Evaluation**: Expressions are stored as raw text strings with no parsing or evaluation capability. This would need to be implemented in the simulation layer.
-
-6. **No Device Type Registry**: There is no mechanism to register device types with their port definitions and parameter descriptors. Instances reference `typeName` as a string without validation.
+3. **Descriptor Boundary**: Port-count, required-parameter, and value validation are provided by device descriptors rather than duplicated in the structural IR builder.
 
 ### Recommendations
 
 1. Add `Hashable` and `Equatable` conformance to `ParameterValue`, `ParameterDescriptor`, and `Instance`.
 
-2. Either implement the unused error cases with corresponding validation logic, or remove them to avoid confusion.
-
-3. Consider adding a device type registry that validates:
+2. Use the device descriptor registry when semantic validation is required:
    - Instance node count matches device port count
    - Required parameters are provided
    - Parameter values are valid for their descriptors
 
-4. Document the intended use of `VarID` and `UnknownKind`, or remove them if obsolete.
-
-5. Consider adding a method to `Netlist` that takes a device type registry for full validation during `addInstance()`.
+3. Keep `Netlist` focused on structural construction and perform device-specific validation before lowering.
 
 ## Usage Example
 

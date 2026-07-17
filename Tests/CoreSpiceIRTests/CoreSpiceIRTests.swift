@@ -21,12 +21,6 @@ struct CoreSpiceIRTests {
         #expect(b.id == 0)
     }
 
-    @Test func portCreation() {
-        let p = Port(name: "drain", index: 0)
-        #expect(p.name == "drain")
-        #expect(p.index == 0)
-    }
-
     @Test func netlistBuildsCircuitIR() throws {
         var netlist = Netlist()
         let n1 = netlist.node("1")
