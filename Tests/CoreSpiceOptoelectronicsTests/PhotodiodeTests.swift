@@ -241,13 +241,13 @@ struct PhotodiodeTests {
         var sensitivity = OpticalSensitivityMap()
 
         // Emitter at node 1 has dP/dV_3 = 0.5 (V_3 is laser anode)
-        sensitivity.set(opticalNode: 1, electricalVar: 3, value: 0.5)
+        sensitivity[opticalNode: 1, electricalVariable: 3] = 0.5
 
         // Waveguide propagates from node 1 to node 2 with T = 0.8
         sensitivity.propagate(from: 1, to: 2, coefficient: 0.8)
 
         // Result: dP_2/dV_3 = 0.8 * 0.5 = 0.4
-        let result = sensitivity.get(opticalNode: 2, electricalVar: 3)
+        let result = sensitivity[opticalNode: 2, electricalVariable: 3]
         #expect(abs(result - 0.4) < 1e-15)
     }
 
@@ -256,13 +256,13 @@ struct PhotodiodeTests {
         var sensitivity = OpticalSensitivityMap()
 
         // Source at node 1: dP/dV_0 = 1.0
-        sensitivity.set(opticalNode: 1, electricalVar: 0, value: 1.0)
+        sensitivity[opticalNode: 1, electricalVariable: 0] = 1.0
 
         // Splitter: node 1 → node 2 (T=0.5), node 1 → node 3 (T=0.5)
         sensitivity.propagate(from: 1, to: 2, coefficient: 0.5)
         sensitivity.propagate(from: 1, to: 3, coefficient: 0.5)
 
-        #expect(abs(sensitivity.get(opticalNode: 2, electricalVar: 0) - 0.5) < 1e-15)
-        #expect(abs(sensitivity.get(opticalNode: 3, electricalVar: 0) - 0.5) < 1e-15)
+        #expect(abs(sensitivity[opticalNode: 2, electricalVariable: 0] - 0.5) < 1e-15)
+        #expect(abs(sensitivity[opticalNode: 3, electricalVariable: 0] - 0.5) < 1e-15)
     }
 }

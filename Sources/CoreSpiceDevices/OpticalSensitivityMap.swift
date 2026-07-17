@@ -9,16 +9,16 @@ import CoreSpiceIR
 /// - **Optical receivers** (PD): read accumulated `dP/dV` to stamp `gm_opto`
 ///   into the MNA Jacobian, ensuring quadratic NR convergence
 ///
-/// Storage is sparse: only nonzero entries are stored as `(opticalNodeId, electricalVarIndex) -> dP/dV`.
+/// Storage is sparse: only nonzero entries are stored as `(opticalNodeID, electricalVarIndex) -> dP/dV`.
 public struct OpticalSensitivityMap: Sendable {
 
     /// Key identifying a sensitivity entry.
     public struct Key: Hashable, Sendable {
-        public let opticalNodeId: Int
+        public let opticalNodeID: Int
         public let electricalVarIndex: Int
 
-        public init(opticalNodeId: Int, electricalVarIndex: Int) {
-            self.opticalNodeId = opticalNodeId
+        public init(opticalNodeID: Int, electricalVarIndex: Int) {
+            self.opticalNodeID = opticalNodeID
             self.electricalVarIndex = electricalVarIndex
         }
     }
@@ -27,25 +27,31 @@ public struct OpticalSensitivityMap: Sendable {
 
     public init() {}
 
-    /// Sets the sensitivity dP/dV for the given optical node and electrical variable.
-    public mutating func set(opticalNode: Int, electricalVar: Int, value: Double) {
-        let key = Key(opticalNodeId: opticalNode, electricalVarIndex: electricalVar)
-        if abs(value) > 1e-30 {
-            entries[key] = value
-        } else {
-            entries.removeValue(forKey: key)
+    /// Accesses dP/dV for the given optical node and electrical variable.
+    public subscript(opticalNode opticalNode: Int, electricalVariable electricalVariable: Int) -> Double {
+        get {
+            entries[Key(
+                opticalNodeID: opticalNode,
+                electricalVarIndex: electricalVariable
+            )] ?? 0
         }
-    }
-
-    /// Returns the sensitivity dP/dV for the given optical node and electrical variable.
-    public func get(opticalNode: Int, electricalVar: Int) -> Double {
-        entries[Key(opticalNodeId: opticalNode, electricalVarIndex: electricalVar)] ?? 0
+        set {
+            let key = Key(
+                opticalNodeID: opticalNode,
+                electricalVarIndex: electricalVariable
+            )
+            if abs(newValue) > 1e-30 {
+                entries[key] = newValue
+            } else {
+                entries.removeValue(forKey: key)
+            }
+        }
     }
 
     /// Returns all sensitivity entries for the given optical node.
     public func sensitivities(for opticalNode: Int) -> [(electricalVarIndex: Int, dPdV: Double)] {
         entries.compactMap { key, value in
-            key.opticalNodeId == opticalNode ? (key.electricalVarIndex, value) : nil
+            key.opticalNodeID == opticalNode ? (key.electricalVarIndex, value) : nil
         }
     }
 
@@ -57,8 +63,7 @@ public struct OpticalSensitivityMap: Sendable {
     public mutating func propagate(from inputNode: Int, to outputNode: Int, coefficient: Double) {
         let inputEntries = sensitivities(for: inputNode)
         for (elecVar, dPdV) in inputEntries {
-            let existing = get(opticalNode: outputNode, electricalVar: elecVar)
-            set(opticalNode: outputNode, electricalVar: elecVar, value: existing + coefficient * dPdV)
+            self[opticalNode: outputNode, electricalVariable: elecVar] += coefficient * dPdV
         }
     }
 

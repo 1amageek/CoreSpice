@@ -5,7 +5,7 @@ import CoreSpiceIR
 /// Errors produced during optical network graph construction.
 public enum OpticalGraphError: Error, Sendable {
     /// Multiple devices output to the same optical node.
-    case multipleProducers(opticalNodeId: Int, deviceIndices: [Int])
+    case multipleProducers(opticalNodeID: Int, deviceIndices: [Int])
     /// The optical network contains a cycle and cannot be topologically sorted.
     case cyclicDependency(deviceIndicesInCycle: [Int])
 }
@@ -77,7 +77,7 @@ public struct OpticalNetworkGraphBuilder {
             for node in info.outputNodes {
                 if let existingProducer = nodeProducer[node.id] {
                     throw OpticalGraphError.multipleProducers(
-                        opticalNodeId: node.id,
+                        opticalNodeID: node.id,
                         deviceIndices: [deviceInfos[existingProducer].deviceIndex,
                                         info.deviceIndex]
                     )

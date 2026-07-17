@@ -8,39 +8,38 @@ import Foundation
 /// This is a value-type writer that uses Swift's Data type for Sendable conformance.
 public struct PSFBinaryWriter: Sendable {
 
-    /// The accumulated binary data.
-    private var data: Data
+    private var storage: Data
 
     /// Creates a new binary writer.
     public init() {
-        self.data = Data()
+        self.storage = Data()
     }
 
     /// Creates a binary writer with initial capacity.
     public init(capacity: Int) {
-        self.data = Data(capacity: capacity)
+        self.storage = Data(capacity: capacity)
     }
 
     // MARK: - Writing Primitives
 
     /// Writes a UInt32 in big-endian format.
     public mutating func writeUInt32(_ value: UInt32) {
-        withUnsafeBytes(of: value.bigEndian) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: value.bigEndian) { storage.append(contentsOf: $0) }
     }
 
     /// Writes an Int32 in big-endian format.
     public mutating func writeInt32(_ value: Int32) {
-        withUnsafeBytes(of: value.bigEndian) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: value.bigEndian) { storage.append(contentsOf: $0) }
     }
 
     /// Writes a UInt64 in big-endian format.
     public mutating func writeUInt64(_ value: UInt64) {
-        withUnsafeBytes(of: value.bigEndian) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: value.bigEndian) { storage.append(contentsOf: $0) }
     }
 
     /// Writes a Double in big-endian format.
     public mutating func writeDouble(_ value: Double) {
-        withUnsafeBytes(of: value.bitPattern.bigEndian) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: value.bitPattern.bigEndian) { storage.append(contentsOf: $0) }
     }
 
     /// Writes a complex value (real, imaginary) in big-endian format.
@@ -56,24 +55,24 @@ public struct PSFBinaryWriter: Sendable {
         writeInt32(length)
 
         if length > 0 {
-            data.append(contentsOf: utf8)
+            storage.append(contentsOf: utf8)
 
             // Pad to 4-byte boundary
             let padding = (4 - (utf8.count % 4)) % 4
             if padding > 0 {
-                data.append(contentsOf: [UInt8](repeating: 0, count: padding))
+                storage.append(contentsOf: [UInt8](repeating: 0, count: padding))
             }
         }
     }
 
     /// Writes raw bytes.
     public mutating func writeBytes(_ bytes: [UInt8]) {
-        data.append(contentsOf: bytes)
+        storage.append(contentsOf: bytes)
     }
 
     /// Writes raw data.
     public mutating func writeData(_ sourceData: Data) {
-        data.append(sourceData)
+        storage.append(sourceData)
     }
 
     // MARK: - PSF Specific
@@ -113,19 +112,17 @@ public struct PSFBinaryWriter: Sendable {
 
     // MARK: - Output
 
-    /// Returns the accumulated data.
-    public func getData() -> Data {
-        data
-    }
+    /// The accumulated binary data.
+    public var data: Data { storage }
 
     /// The current byte count.
     public var count: Int {
-        data.count
+        storage.count
     }
 
     /// Resets the writer.
     public mutating func reset() {
-        data.removeAll(keepingCapacity: true)
+        storage.removeAll(keepingCapacity: true)
     }
 }
 

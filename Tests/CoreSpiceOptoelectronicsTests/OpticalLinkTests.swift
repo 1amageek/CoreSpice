@@ -134,8 +134,11 @@ struct OpticalLinkTests {
 
         // Verify sensitivity chain: laser → waveguide → photodiode
         // dP_wg/dV_laser_anode = T_wg * dP_laser/dV_laser_anode
-        let laserAnodeSens = opticalState.sensitivities.get(opticalNode: laserOut.id, electricalVar: 0)
-        let wgSens = opticalState.sensitivities.get(opticalNode: wgOut.id, electricalVar: 0)
+        let laserAnodeSens = opticalState.sensitivities[
+            opticalNode: laserOut.id,
+            electricalVariable: 0
+        ]
+        let wgSens = opticalState.sensitivities[opticalNode: wgOut.id, electricalVariable: 0]
         #expect(laserAnodeSens > 0, "Laser should have positive dP/dV_anode")
         #expect(abs(wgSens - expectedWgLoss * laserAnodeSens) < 1e-12,
                 "Waveguide should propagate sensitivity with loss factor")
@@ -386,9 +389,9 @@ struct OpticalLinkTests {
         #expect(abs(p2 - laserPower * 0.5) < 1e-12, "Output 2 should get 50%")
 
         // Sensitivities should also split
-        let sens1 = opticalState.sensitivities.get(opticalNode: splitOut1.id, electricalVar: 0)
-        let sens2 = opticalState.sensitivities.get(opticalNode: splitOut2.id, electricalVar: 0)
-        let laserSens = opticalState.sensitivities.get(opticalNode: laserOut.id, electricalVar: 0)
+        let sens1 = opticalState.sensitivities[opticalNode: splitOut1.id, electricalVariable: 0]
+        let sens2 = opticalState.sensitivities[opticalNode: splitOut2.id, electricalVariable: 0]
+        let laserSens = opticalState.sensitivities[opticalNode: laserOut.id, electricalVariable: 0]
         #expect(abs(sens1 - 0.5 * laserSens) < 1e-12)
         #expect(abs(sens2 - 0.5 * laserSens) < 1e-12)
     }

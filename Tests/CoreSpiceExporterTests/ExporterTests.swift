@@ -796,3 +796,35 @@ struct ExportConfigurationTests {
         #expect(noneCompressed == original)
     }
 }
+
+@Suite
+struct ExporterSwiftAPITests {
+    @Test
+    func binaryWriterExposesAccumulatedDataAsAProperty() {
+        var writer = PSFBinaryWriter()
+
+        writer.writeUInt32(0x01020304)
+
+        #expect(writer.data == Data([0x01, 0x02, 0x03, 0x04]))
+    }
+
+    @Test
+    func exportSessionHelperExposesMemoryOutputAsAProperty() throws {
+        let helper = try ExportSessionHelper(
+            metadata: SimulationMetadata(
+                analysisType: .transient,
+                pointCount: 0,
+                variableCount: 0
+            ),
+            sweepVariable: .time(),
+            variables: [],
+            configuration: .default,
+            destination: .memory
+        )
+        let expected = Data([0x01, 0x02, 0x03])
+
+        try helper.write(expected)
+
+        #expect(helper.outputData == expected)
+    }
+}

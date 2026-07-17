@@ -95,7 +95,7 @@ public struct BoundLaserDiode: OpticalEmitter, VoltageLimitingDevice, NoisyDevic
         opticalState: OpticalState
     ) -> (
         signals: [OpticalNode: OpticalSignal],
-        sensitivities: [(opticalNodeId: Int, electricalVarIndex: Int, dPdV: Double)]
+        sensitivities: [(opticalNodeID: Int, electricalVarIndex: Int, dPdV: Double)]
     ) {
         let op = operatingPoint(state: electricalState)
         let iFwd = max(op.id, 0)
@@ -107,19 +107,19 @@ public struct BoundLaserDiode: OpticalEmitter, VoltageLimitingDevice, NoisyDevic
         )
 
         // Sensitivities: dP/dV_j = dP/dI * dI/dV_j
-        var sensitivities: [(opticalNodeId: Int, electricalVarIndex: Int, dPdV: Double)] = []
+        var sensitivities: [(opticalNodeID: Int, electricalVarIndex: Int, dPdV: Double)] = []
 
         if op.id > 0 {
             if let aIdx = anodeIdx {
                 sensitivities.append((
-                    opticalNodeId: opticalOutput.id,
+                    opticalNodeID: opticalOutput.id,
                     electricalVarIndex: aIdx,
                     dPdV: dPdI * op.gd
                 ))
             }
             if let cIdx = cathodeIdx {
                 sensitivities.append((
-                    opticalNodeId: opticalOutput.id,
+                    opticalNodeID: opticalOutput.id,
                     electricalVarIndex: cIdx,
                     dPdV: dPdI * (-op.gd)
                 ))

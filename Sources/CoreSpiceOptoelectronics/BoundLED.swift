@@ -70,7 +70,7 @@ public struct BoundLED: OpticalEmitter, VoltageLimitingDevice, TransientStateCom
         opticalState: OpticalState
     ) -> (
         signals: [OpticalNode: OpticalSignal],
-        sensitivities: [(opticalNodeId: Int, electricalVarIndex: Int, dPdV: Double)]
+        sensitivities: [(opticalNodeID: Int, electricalVarIndex: Int, dPdV: Double)]
     ) {
         let op = operatingPoint(state: electricalState)
 
@@ -87,20 +87,20 @@ public struct BoundLED: OpticalEmitter, VoltageLimitingDevice, TransientStateCom
         // Local sensitivities: dP/dV_j = (dP/dI) * (dI/dV_j)
         // dP/dI = factor (when I > 0)
         // dI/dV_anode = +gd, dI/dV_cathode = -gd
-        var sensitivities: [(opticalNodeId: Int, electricalVarIndex: Int, dPdV: Double)] = []
+        var sensitivities: [(opticalNodeID: Int, electricalVarIndex: Int, dPdV: Double)] = []
 
         if op.id > 0 {
             let dPdI = factor
             if let aIdx = anodeIdx {
                 sensitivities.append((
-                    opticalNodeId: opticalOutput.id,
+                    opticalNodeID: opticalOutput.id,
                     electricalVarIndex: aIdx,
                     dPdV: dPdI * op.gd
                 ))
             }
             if let cIdx = cathodeIdx {
                 sensitivities.append((
-                    opticalNodeId: opticalOutput.id,
+                    opticalNodeID: opticalOutput.id,
                     electricalVarIndex: cIdx,
                     dPdV: dPdI * (-op.gd)
                 ))

@@ -137,7 +137,7 @@ public struct BoundEOModulator: OpticalEmitter, TransientStateCommittingDevice, 
         opticalState: OpticalState
     ) -> (
         signals: [OpticalNode: OpticalSignal],
-        sensitivities: [(opticalNodeId: Int, electricalVarIndex: Int, dPdV: Double)]
+        sensitivities: [(opticalNodeID: Int, electricalVarIndex: Int, dPdV: Double)]
     ) {
         let op = mzmOperatingPoint(state: electricalState)
         let inputSignal = opticalState.signal(at: opticalInput)
@@ -151,14 +151,14 @@ public struct BoundEOModulator: OpticalEmitter, TransientStateCommittingDevice, 
             wavelength: inputSignal.wavelength > 0 ? inputSignal.wavelength : 1550e-9
         )
 
-        var sensitivities: [(opticalNodeId: Int, electricalVarIndex: Int, dPdV: Double)] = []
+        var sensitivities: [(opticalNodeID: Int, electricalVarIndex: Int, dPdV: Double)] = []
 
         // 1. Upstream sensitivities: dP_out/dV_j = T_power * dP_in/dV_j
         for (elecVarIdx, dPdV) in opticalState.sensitivities.sensitivities(for: opticalInput.id) {
             let propagated = op.tPower * dPdV
             if abs(propagated) > 1e-30 {
                 sensitivities.append((
-                    opticalNodeId: opticalOutput.id,
+                    opticalNodeID: opticalOutput.id,
                     electricalVarIndex: elecVarIdx,
                     dPdV: propagated
                 ))
@@ -171,28 +171,28 @@ public struct BoundEOModulator: OpticalEmitter, TransientStateCommittingDevice, 
         if abs(localSens) > 1e-30 {
             if let spIdx = signalPosIdx {
                 sensitivities.append((
-                    opticalNodeId: opticalOutput.id,
+                    opticalNodeID: opticalOutput.id,
                     electricalVarIndex: spIdx,
                     dPdV: localSens
                 ))
             }
             if let snIdx = signalNegIdx {
                 sensitivities.append((
-                    opticalNodeId: opticalOutput.id,
+                    opticalNodeID: opticalOutput.id,
                     electricalVarIndex: snIdx,
                     dPdV: -localSens
                 ))
             }
             if let bpIdx = biasPosIdx {
                 sensitivities.append((
-                    opticalNodeId: opticalOutput.id,
+                    opticalNodeID: opticalOutput.id,
                     electricalVarIndex: bpIdx,
                     dPdV: localSens
                 ))
             }
             if let bnIdx = biasNegIdx {
                 sensitivities.append((
-                    opticalNodeId: opticalOutput.id,
+                    opticalNodeID: opticalOutput.id,
                     electricalVarIndex: bnIdx,
                     dPdV: -localSens
                 ))

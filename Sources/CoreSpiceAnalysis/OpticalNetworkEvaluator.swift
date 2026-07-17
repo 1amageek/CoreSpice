@@ -94,11 +94,10 @@ public struct OpticalNetworkEvaluator: Sendable {
 
         // Set local sensitivities (seeds for forward-mode propagation)
         for sens in result.sensitivities {
-            opticalState.sensitivities.set(
-                opticalNode: sens.opticalNodeId,
-                electricalVar: sens.electricalVarIndex,
-                value: sens.dPdV
-            )
+            opticalState.sensitivities[
+                opticalNode: sens.opticalNodeID,
+                electricalVariable: sens.electricalVarIndex
+            ] = sens.dPdV
         }
     }
 

@@ -168,7 +168,7 @@ struct EOModulatorTests {
         var opticalState = opticalStateWithInput(power: 1e-3, optIn: optIn)
         // Upstream sensitivity: dP_in/dV_laser_anode = 0.5
         // Using electricalVar=10 as a hypothetical upstream laser anode index
-        opticalState.sensitivities.set(opticalNode: 1, electricalVar: 10, value: 0.5)
+        opticalState.sensitivities[opticalNode: 1, electricalVariable: 10] = 0.5
 
         // At peak point (V=0): T_power = IL = 0.95
         let state = makeState(sigP: 0, sigN: 0, biasP: 0, biasN: 0)

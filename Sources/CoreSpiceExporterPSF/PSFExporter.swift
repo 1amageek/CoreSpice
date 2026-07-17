@@ -213,13 +213,13 @@ final class PSFExportSession: ExportSession, Sendable {
     func finalize() async throws -> ExportResult {
         // Write value section
         let valueData = localState.withLock { state -> Data in
-            state.valueBuffer.getData()
+            state.valueBuffer.data
         }
 
         // Write value section header with actual size
         var sectionWriter = PSFBinaryWriter()
         sectionWriter.writeSectionHeader(type: PSFFormat.valueSection, size: UInt32(valueData.count))
-        try helper.write(sectionWriter.getData())
+        try helper.write(sectionWriter.data)
         try helper.write(valueData)
 
         // Write end section
@@ -272,7 +272,7 @@ final class PSFExportSession: ExportSession, Sendable {
         writer.writeSectionHeader(type: PSFFormat.traceSection, size: UInt32(traceContent.count))
         writer.writeData(traceContent)
 
-        try helper.write(writer.getData())
+        try helper.write(writer.data)
     }
 
     private func buildHeaderSection() -> Data {
@@ -298,7 +298,7 @@ final class PSFExportSession: ExportSession, Sendable {
         // End of properties marker (property count as negative)
         writer.writeInt32(-1)
 
-        return writer.getData()
+        return writer.data
     }
 
     private func buildTypeSection(isComplex: Bool) -> Data {
@@ -314,7 +314,7 @@ final class PSFExportSession: ExportSession, Sendable {
             writer.writeUInt32(PSFFormat.typeReal)
         }
 
-        return writer.getData()
+        return writer.data
     }
 
     private func buildSweepSection() -> Data {
@@ -327,7 +327,7 @@ final class PSFExportSession: ExportSession, Sendable {
         writer.writeString(helper.sweepVariable.name)
         writer.writeUInt32(PSFFormat.typeReal)  // Sweep is always real
 
-        return writer.getData()
+        return writer.data
     }
 
     private func buildTraceSection(isComplex: Bool) -> Data {
@@ -343,7 +343,7 @@ final class PSFExportSession: ExportSession, Sendable {
             writer.writeUInt32(dataType)
         }
 
-        return writer.getData()
+        return writer.data
     }
 
     private func writeValuePoint(
@@ -411,7 +411,7 @@ final class PSFExportSession: ExportSession, Sendable {
     private func writeEndSection() throws {
         var writer = PSFBinaryWriter()
         writer.writeSectionHeader(type: PSFFormat.endSection, size: 0)
-        try helper.write(writer.getData())
+        try helper.write(writer.data)
     }
 }
 

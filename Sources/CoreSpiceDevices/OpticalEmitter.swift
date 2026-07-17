@@ -22,8 +22,8 @@ public protocol OpticalEmitter: OptoelectronicDevice {
     /// ```
     /// signals: [optical_out: OpticalSignal(power = P)]
     /// sensitivities: [
-    ///     (opticalNodeId: out.id, electricalVarIndex: anodeIdx, dPdV: dP/dI × dI/dV_a),
-    ///     (opticalNodeId: out.id, electricalVarIndex: cathodeIdx, dPdV: dP/dI × dI/dV_c)
+    ///     (opticalNodeID: out.id, electricalVarIndex: anodeIdx, dPdV: dP/dI × dI/dV_a),
+    ///     (opticalNodeID: out.id, electricalVarIndex: cathodeIdx, dPdV: dP/dI × dI/dV_c)
     /// ]
     /// ```
     func computeOpticalOutputWithSensitivity(
@@ -31,6 +31,6 @@ public protocol OpticalEmitter: OptoelectronicDevice {
         opticalState: OpticalState
     ) -> (
         signals: [OpticalNode: OpticalSignal],
-        sensitivities: [(opticalNodeId: Int, electricalVarIndex: Int, dPdV: Double)]
+        sensitivities: [(opticalNodeID: Int, electricalVarIndex: Int, dPdV: Double)]
     )
 }

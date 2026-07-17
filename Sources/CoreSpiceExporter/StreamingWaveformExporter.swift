@@ -221,8 +221,8 @@ public final class ExportSessionHelper: Sendable {
         }
     }
 
-    /// Gets the current output data (for memory exports).
-    public func getOutputData() -> Data? {
+    /// The current output data for an in-memory export.
+    public var outputData: Data? {
         state.withLock { $0.outputData }
     }
 }
