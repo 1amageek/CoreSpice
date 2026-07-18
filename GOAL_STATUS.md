@@ -5,7 +5,7 @@ Updated: 2026-07-16
 | Goal | Status | Evidence |
 |---|---|---|
 | Independent Swift package | Complete | Existing multi-target CoreSpice package builds independently. |
-| CircuiteFoundation dependency | Complete | `Package.swift` depends on `../CircuiteFoundation`; umbrella re-exports it. |
+| CircuiteFoundation dependency | Complete | `Package.swift` depends on `../CircuiteFoundation`; public APIs use shared types directly without re-exporting the module. |
 | Foundation simulation request boundary | Complete | `CoreSpiceSimulationRequest`. |
 | Foundation simulation result boundary | Complete | `CoreSpiceSimulationResult` implements artifact, diagnostic, and evidence protocols. |
 | Foundation engine protocol | Complete | `CoreSpiceSimulating`. |

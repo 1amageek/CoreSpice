@@ -24,8 +24,9 @@ flowchart TD
 
 ## CircuiteFoundation integration
 
-The package depends on `CircuiteFoundation` and re-exports it from the
-`CoreSpice` umbrella target. The shared boundary is intentionally small:
+The package depends on `CircuiteFoundation` and uses its types directly from
+the `CoreSpice` target. Clients import `CircuiteFoundation` explicitly when
+they use the shared boundary, which is intentionally small:
 
 - `CoreSpiceSimulationRequest` carries digest-bearing input
   `ArtifactReference` values and optional configuration, revision, and random
