@@ -32,6 +32,8 @@ public struct CoreSpiceSimulationResult: Sendable, Hashable, Codable, ArtifactPr
   public let diagnostics: [DesignDiagnostic]
   public let evidence: EvidenceManifest
 
+  public var provenance: ExecutionProvenance { evidence.provenance }
+
   public init(
     artifacts: [ArtifactReference],
     diagnostics: [DesignDiagnostic] = [],
@@ -42,6 +44,30 @@ public struct CoreSpiceSimulationResult: Sendable, Hashable, Codable, ArtifactPr
     self.evidence = EvidenceManifest(
       provenance: provenance,
       artifacts: artifacts
+    )
+  }
+
+  public init(
+    request: CoreSpiceSimulationRequest,
+    execution: CoreSpiceSimulationExecution,
+    producer: ProducerIdentity,
+    supportingTools: [ProducerIdentity] = []
+  ) throws {
+    try self.init(
+      artifacts: execution.artifacts,
+      diagnostics: execution.diagnostics,
+      provenance: ExecutionProvenance(
+        producer: producer,
+        supportingTools: supportingTools,
+        inputs: request.inputs,
+        invocation: execution.invocation,
+        environment: execution.environment,
+        configurationDigest: request.configurationDigest,
+        designRevision: request.designRevision,
+        randomSeed: request.randomSeed,
+        startedAt: execution.startedAt,
+        completedAt: execution.completedAt
+      )
     )
   }
 }

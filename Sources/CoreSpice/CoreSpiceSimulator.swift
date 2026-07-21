@@ -22,23 +22,11 @@ public struct CoreSpiceSimulator: CoreSpiceSimulating {
         let execution = try await backend.execute(request)
         try Task.checkCancellation()
 
-        let provenance = try ExecutionProvenance(
+        return try CoreSpiceSimulationResult(
+            request: request,
+            execution: execution,
             producer: producer,
-            supportingTools: supportingTools,
-            inputs: request.inputs,
-            invocation: execution.invocation,
-            environment: execution.environment,
-            configurationDigest: request.configurationDigest,
-            designRevision: request.designRevision,
-            randomSeed: request.randomSeed,
-            startedAt: execution.startedAt,
-            completedAt: execution.completedAt
-        )
-
-        return CoreSpiceSimulationResult(
-            artifacts: execution.artifacts,
-            diagnostics: execution.diagnostics,
-            provenance: provenance
+            supportingTools: supportingTools
         )
     }
 }

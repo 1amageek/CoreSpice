@@ -21,7 +21,10 @@ flowchart LR
 boundary for a domain executor that composes the existing analysis APIs. Existing analysis
 types remain independent and no simulator algorithm moves into the shared
 Foundation package. `CoreSpiceSimulationResult` is the canonical hand-off for
-artifact integrity, provenance, and structured diagnostics.
+artifact integrity, provenance, and structured diagnostics. Its public
+request/execution initializer is the single projection used by both
+`CoreSpiceSimulator` and in-process composition layers, and `provenance`
+directly exposes the same value retained by its evidence manifest.
 
 Native Level 1/2/3 execution is a supported-model simulation and regression
 capability. It is not a foundry compact-model signoff capability. The

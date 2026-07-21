@@ -44,6 +44,7 @@ struct CircuiteFoundationIntegrationTests {
 
         #expect(result.artifacts == [output])
         #expect(result.evidence.artifacts == [output])
+        #expect(result.provenance == result.evidence.provenance)
         #expect(result.evidence.provenance.inputs == [input])
         #expect(result.evidence.provenance.invocation == invocation)
         #expect(result.evidence.provenance.environment == environment)
