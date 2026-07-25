@@ -46,7 +46,7 @@ public enum WaveformBenchmarkFixture {
             }
         }
 
-        return TransientResult(
+        return try TransientResult(
             timePoints: timePoints,
             solutionTrace: try SolutionTrace(variableCount: variableCount, rowMajorValues: rowMajorValues),
             variableMap: variableMap(count: variableCount),
