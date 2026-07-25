@@ -49,16 +49,11 @@ public struct CurrentControlledSwitchDescriptor: DeviceDescriptor, Sendable {
                 message: "Switch threshold parameters must be finite"
             )
         }
-        // FIXME(INCOMPLETE_IMPLEMENTATION):
-        // Direct descriptor binding reaches this guard when IH is non-zero.
-        // Keep failing instead of constructing a stateless device until switch
-        // state ownership, initialization, iteration rollback, transient commit,
-        // and verified hysteresis semantics are implemented.
-        guard hysteresisCurrent == 0 else {
+        guard hysteresisCurrent >= 0 else {
             throw DeviceBindingError.invalidParameterValue(
                 device: instance.name,
                 parameter: "ih",
-                message: "Current-controlled switch hysteresis requires state memory and is not supported by this stateless model"
+                message: "Switch hysteresis must be nonnegative"
             )
         }
 

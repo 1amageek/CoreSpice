@@ -577,31 +577,9 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             return "MESFET models are parsed, but native MESFET execution is not implemented"
         case .ltra:
             return "LTRA transmission-line models are parsed, but native LTRA execution is not implemented"
-        case .sw:
-            return nonZeroNumericParameterReason(
-                model,
-                name: "vh",
-                description: "stateful voltage-switch hysteresis"
-            )
-        case .csw:
-            return nonZeroNumericParameterReason(
-                model,
-                name: "ih",
-                description: "stateful current-switch hysteresis"
-            )
-        }
-    }
-
-    private static func nonZeroNumericParameterReason(
-        _ model: ParsedModel,
-        name: String,
-        description: String
-    ) -> String? {
-        guard case .numeric(let value)? = model.parameters[name],
-              value != 0 else {
+        case .sw, .csw:
             return nil
         }
-        return "Model parameter '\(name)' requests \(description), which is not executable"
     }
 
     private static func blockedJFETModelParameterReason(_ model: ParsedModel) -> String? {

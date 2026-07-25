@@ -75,7 +75,7 @@ struct SPICEIOEndToEndTests {
         VCTRL ctrl 0 dc 5
         S1 vdd out ctrl 0 swmod
         RLOAD out 0 1k
-        .model swmod sw ron=10 roff=1e9 vt=2 vh=0
+        .model swmod sw ron=10 roff=1e9 vt=2 vh=0.1
         .op
         .end
         """
@@ -104,7 +104,7 @@ struct SPICEIOEndToEndTests {
         RSENSE ctrl sense 1k
         W1 vdd out sense 0 cswmod
         RLOAD out 0 1k
-        .model cswmod csw ron=10 roff=1e9 it=1m ih=0
+        .model cswmod csw ron=10 roff=1e9 it=1m ih=0.1m
         .op
         .end
         """
@@ -152,29 +152,32 @@ struct SPICEIOEndToEndTests {
         #expect(hypot(output.real, output.imag) > 1.0e-6)
     }
 
-    @Test("Voltage-controlled switch rejects unsupported stateful hysteresis")
-    func voltageControlledSwitchRejectsStatefulHysteresis() async throws {
+    @Test("Voltage-controlled switch with hysteresis lowers and simulates")
+    func voltageControlledSwitchWithHysteresisSimulates() async throws {
         let source = """
-        voltage switch ac control gain
+        voltage switch stateful hysteresis
         VDD vdd 0 dc 5
-        VCTRL ctrl 0 dc 2 ac 1
+        VCTRL ctrl 0 dc 3
         S1 vdd out ctrl 0 swmod
         RLOAD out 0 1k
-        .model swmod sw ron=100 roff=900 vt=2 vh=8
-        .ac lin 1 1k 1k
+        .model swmod sw ron=100 roff=900 vt=2 vh=0.5
+        .op
         .end
         """
 
-        do {
-            _ = try await SPICEIO.parseAndLower(source)
-            Issue.record("Expected non-zero VH to fail before simulation")
-        } catch let error as LoweringError {
-            guard case .invalidComponent(_, let reason) = error else {
-                Issue.record("Unexpected lowering error: \(error)")
-                return
-            }
-            #expect(reason.contains("stateful switch hysteresis"))
-        }
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let result = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+
+        #expect(try result.voltage(at: outNode) > 4.0)
     }
 
     @Test("Current-controlled switch contributes control-current small-signal gain")

@@ -124,10 +124,10 @@ struct ReliabilityContractTests {
         let voltageSwitch = try #require(
             passports.devices.first { $0.typeName == "vswitch" }
         )
-        #expect(voltageSwitch.parameterPolicy.contains("vh must be finite and equal to zero"))
+        #expect(voltageSwitch.parameterPolicy.contains("vh must be finite and nonnegative"))
         #expect(
             voltageSwitch.knownLimitations.contains {
-                $0.contains("non-zero vh is rejected")
+                $0.contains("initial committed switch state is off")
             }
         )
 
@@ -135,10 +135,10 @@ struct ReliabilityContractTests {
             let currentSwitch = try #require(
                 passports.devices.first { $0.typeName == typeName }
             )
-            #expect(currentSwitch.parameterPolicy.contains("ih must be finite and equal to zero"))
+            #expect(currentSwitch.parameterPolicy.contains("ih must be finite and nonnegative"))
             #expect(
                 currentSwitch.knownLimitations.contains {
-                    $0.contains("non-zero ih is rejected")
+                    $0.contains("initial committed switch state is off")
                 }
             )
         }

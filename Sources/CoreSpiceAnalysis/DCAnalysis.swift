@@ -114,6 +114,16 @@ public struct DCAnalysis: Analysis, Sendable {
                 }
             }
 
+            let acceptedState = SolutionState(
+                variables: result.variables,
+                variableMap: variableMap
+            )
+            for device in devices {
+                if let committingDevice = device as? any AcceptedStateCommittingDevice {
+                    committingDevice.commitAcceptedState(acceptedState)
+                }
+            }
+
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .dc,

@@ -2,7 +2,7 @@ import Foundation
 import CoreSpiceIR
 
 /// A smooth current-controlled switch bound to circuit nodes.
-public struct BoundCurrentControlledSwitch: BoundDevice, Sendable {
+public struct BoundCurrentControlledSwitch: BoundDevice, AcceptedStateCommittingDevice, TransientStateCommittingDevice, Sendable {
 
     public let instance: Instance
     private let posNode: Node
@@ -14,6 +14,7 @@ public struct BoundCurrentControlledSwitch: BoundDevice, Sendable {
     private let thresholdCurrent: Double
     private let hysteresisCurrent: Double
     private let senseBranch: Branch
+    private let hysteresisState: SwitchHysteresisState
 
     init(
         instance: Instance,
@@ -37,6 +38,7 @@ public struct BoundCurrentControlledSwitch: BoundDevice, Sendable {
         self.thresholdCurrent = thresholdCurrent
         self.hysteresisCurrent = hysteresisCurrent
         self.senseBranch = senseBranch
+        self.hysteresisState = SwitchHysteresisState()
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
@@ -79,6 +81,19 @@ public struct BoundCurrentControlledSwitch: BoundDevice, Sendable {
             return .notConverged(maxDelta: delta, deviceName: instance.name)
         }
         return .converged
+    }
+
+    public func commitAcceptedState(_ state: SolutionState) {
+        guard hysteresisCurrent > 0 else { return }
+        hysteresisState.commit(
+            control: state.current(through: senseBranch),
+            threshold: thresholdCurrent,
+            hysteresis: hysteresisCurrent
+        )
+    }
+
+    public func commitTransientStep(state: SolutionState, integration: IntegrationState) {
+        commitAcceptedState(state)
     }
 
     private func stampSenseBranch(into stamper: inout MatrixStamper) {
@@ -153,6 +168,16 @@ public struct BoundCurrentControlledSwitch: BoundDevice, Sendable {
     }
 
     private func switchPositionAndDerivative(controlCurrent: Double) -> (position: Double, derivative: Double) {
+        if hysteresisCurrent > 0 {
+            return (
+                hysteresisState.position(
+                    for: controlCurrent,
+                    threshold: thresholdCurrent,
+                    hysteresis: hysteresisCurrent
+                ),
+                0.0
+            )
+        }
         let transitionWidth = CurrentControlledSwitchTransition.width(
             hysteresisCurrent: hysteresisCurrent,
             thresholdCurrent: thresholdCurrent,

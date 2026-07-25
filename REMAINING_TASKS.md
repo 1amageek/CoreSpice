@@ -1,0 +1,34 @@
+# CoreSpice Remaining Tasks
+
+Updated: 2026-07-26
+
+CoreSpice is complete for its declared native supported-model envelope. The
+items below are explicit typed failures on parsed but unsupported native
+capabilities; no silent fallback is present.
+
+## Remaining tasks
+
+| ID | Priority | Owner | Task | Exit criteria |
+|---|---|---|---|---|
+| CSP-1 | P1 | CoreSpice | Implement native lowering and execution for parsed B-sources, MESFETs, transmission-line elements, and uniform-RC elements. | Each parsed element lowers to a concrete device/backend, participates in DC/AC/transient analyses as applicable, preserves branch ownership, rejects malformed parameters with typed errors, and has success/failure/numerical correlation tests. |
+| CSP-3 | P1 | CoreSpice | Add BSIM3/BSIM4 and other required compact-model execution through a qualified native or explicit external backend. | Model selection is capability-driven, unsupported models cannot be reported as native success, numerical fixtures cover operating regions and derivatives, and foundry production claims still require independent ToolQualification evidence. |
+
+## Source markers
+
+The current `FIXME(INCOMPLETE_IMPLEMENTATION)` marker is authoritative for
+callable incomplete branches:
+
+- `Sources/CoreSpiceLowering/SubcircuitExpander.swift`
+
+## External prerequisites
+
+Foundry compact-model production qualification requires a qualified external
+simulator or independently qualified native implementation. That decision is
+not owned by CoreSpice.
+
+## Evidence reviewed
+
+- `GOAL_STATUS.md`
+- `README.md`
+- The marked lowering and descriptor implementations
+- Native success and typed-failure tests associated with the markers

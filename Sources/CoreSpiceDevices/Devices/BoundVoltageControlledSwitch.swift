@@ -2,7 +2,7 @@ import Foundation
 import CoreSpiceIR
 
 /// A voltage-controlled switch with a narrow numerical transition at its threshold.
-public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
+public struct BoundVoltageControlledSwitch: BoundDevice, AcceptedStateCommittingDevice, TransientStateCommittingDevice, Sendable {
 
     public let instance: Instance
     private let posNode: Node
@@ -12,6 +12,8 @@ public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
     private let onResistance: Double
     private let offResistance: Double
     private let threshold: Double
+    private let hysteresis: Double
+    private let hysteresisState: SwitchHysteresisState
 
     init(
         instance: Instance,
@@ -21,7 +23,8 @@ public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
         controlNegNode: Node,
         onResistance: Double,
         offResistance: Double,
-        threshold: Double
+        threshold: Double,
+        hysteresis: Double
     ) {
         self.instance = instance
         self.posNode = posNode
@@ -31,6 +34,8 @@ public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
         self.onResistance = onResistance
         self.offResistance = offResistance
         self.threshold = threshold
+        self.hysteresis = hysteresis
+        self.hysteresisState = SwitchHysteresisState()
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
@@ -73,8 +78,21 @@ public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
         return .converged
     }
 
+    public func commitAcceptedState(_ state: SolutionState) {
+        guard hysteresis > 0 else { return }
+        hysteresisState.commit(
+            control: controlVoltage(in: state),
+            threshold: threshold,
+            hysteresis: hysteresis
+        )
+    }
+
+    public func commitTransientStep(state: SolutionState, integration: IntegrationState) {
+        commitAcceptedState(state)
+    }
+
     private func operatingPoint(state: SolutionState) -> OperatingPoint {
-        let controlVoltage = state.voltage(at: controlPosNode) - state.voltage(at: controlNegNode)
+        let controlVoltage = controlVoltage(in: state)
         let switchVoltage = state.voltage(at: posNode) - state.voltage(at: negNode)
         let switchPosition = switchPositionAndDerivative(controlVoltage: controlVoltage)
         let onConductance = 1.0 / onResistance
@@ -85,6 +103,10 @@ public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
             controlGain: deltaConductance * switchPosition.derivative * switchVoltage,
             controlVoltage: controlVoltage
         )
+    }
+
+    private func controlVoltage(in state: SolutionState) -> Double {
+        state.voltage(at: controlPosNode) - state.voltage(at: controlNegNode)
     }
 
     private func stampControlSensitivity(into stamper: inout MatrixStamper, point: OperatingPoint) {
@@ -140,6 +162,16 @@ public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
     }
 
     private func switchPositionAndDerivative(controlVoltage: Double) -> (position: Double, derivative: Double) {
+        if hysteresis > 0 {
+            return (
+                hysteresisState.position(
+                    for: controlVoltage,
+                    threshold: threshold,
+                    hysteresis: hysteresis
+                ),
+                0.0
+            )
+        }
         let transitionWidth = 1.0e-3
         let normalized = clamp((controlVoltage - threshold) / transitionWidth, lower: -80.0, upper: 80.0)
         let position = 1.0 / (1.0 + exp(-normalized))

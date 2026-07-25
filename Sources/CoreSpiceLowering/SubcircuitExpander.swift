@@ -77,12 +77,6 @@ public struct SubcircuitExpander: Sendable {
             let evaluated = try evaluator.evaluate(value)
             evaluatedParams[name] = .real(evaluated)
         }
-        try validateEvaluatedParameters(
-            component.type,
-            parameters: evaluatedParams,
-            componentName: fullName
-        )
-
         if component.type == .coupledInductors {
             try addMutualInductanceInstance(
                 fullName: fullName,
@@ -582,36 +576,6 @@ public struct SubcircuitExpander: Sendable {
         default:
             return nil
         }
-    }
-
-    // FIXME(INCOMPLETE_IMPLEMENTATION):
-    // Production lowering currently reaches this branch for non-zero SW.VH and
-    // CSW.IH values. Keep returning a typed failure instead of treating the
-    // numeric transition as hysteresis until switch state ownership, initial
-    // state, Newton iteration rollback, transient commit, and DC/AC/transient
-    // hysteresis behavior are implemented and regression-tested.
-    private func validateEvaluatedParameters(
-        _ type: ComponentType,
-        parameters: [String: ParameterValue],
-        componentName: String
-    ) throws {
-        let parameterName: String
-        switch type {
-        case .switch_:
-            parameterName = "vh"
-        case .currentSwitch:
-            parameterName = "ih"
-        default:
-            return
-        }
-        guard case .real(let hysteresis)? = parameters[parameterName],
-              hysteresis != 0 else {
-            return
-        }
-        throw LoweringError.invalidComponent(
-            name: componentName,
-            reason: "Non-zero \(parameterName.uppercased()) requires stateful switch hysteresis and is not executable"
-        )
     }
 
     private func unsupportedModelReason(_ model: ParsedModel) -> String? {

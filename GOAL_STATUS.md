@@ -22,6 +22,7 @@ Updated: 2026-07-26
 | Numerical false-success prevention | Complete | Newton iteration rejects non-finite solution/residual values and validates the physical KCL residual before reporting convergence. |
 | Public analysis result validation | Complete | DC, AC, transient, noise, transfer-function, pole-zero, and sensitivity result constructors reject malformed dimensions and non-finite values with typed errors. |
 | Optical/electrical execution boundary | Complete | Optical-network analyses pass evaluated optical state explicitly; intentional electrical-only device calls use a zero-power state sized to the device's declared optical nodes, without out-of-bounds fallback. |
+| Stateful switch hysteresis | Complete | SW and both CSW bindings implement non-zero `VH`/`IH`; Newton candidates read committed state without mutation, and only accepted DC/transient states commit threshold crossings. |
 | Independent numerical correlation | Verified | Regression-fixture and live-ngspice runs both pass 31/31; live evidence retains executable/input/output digests without rewriting the fixture. |
 | Foundry compact-model production claim | Blocked by contract | Native Level 1/2/3 execution cannot issue production qualification; a qualified external foundry-model simulator is required. |
 
@@ -29,8 +30,8 @@ Updated: 2026-07-26
 
 The supported-model envelope is complete for the capabilities marked complete
 above. Parsed B-sources, MESFETs, transmission-line and uniform-RC elements,
-BSIM3/4 and other unsupported compact models, and non-zero switch hysteresis
-remain typed failures. Their production call paths and implementation completion
+BSIM3/4 and other unsupported compact models remain typed failures. Their
+production call paths and implementation completion
 conditions are marked with `FIXME(INCOMPLETE_IMPLEMENTATION)` in the lowering
 or binding boundary; they are not silently accepted and are not part of the
 native supported-model completion claim.
@@ -46,5 +47,21 @@ lifecycle and physical signoff responsibilities remain outside CoreSpice.
 process lifecycle and artifact verification but does not own SPICE parsing,
 analysis algorithms, project lifecycle, or release qualification.
 
-The aggregate `CoreSpice-Package` Xcode test run passes 885 tests on macOS
-arm64 with no failures or skips.
+## Switch-state isolation review
+
+| Target | Storage | Isolation | Read entry point | Mutation entry point | Release |
+|---|---|---|---|---|---|
+| Native | `Mutex<Bool>` | `Synchronization.Mutex` | `position(for:threshold:hysteresis:)` | accepted DC or transient `commit` only | owner release |
+| WASM | `Mutex<Bool>` | `Synchronization.Mutex` | same implementation | same implementation | owner release |
+| Embedded WASM | `Mutex<Bool>` | `Synchronization.Mutex` | same implementation | same implementation | owner release |
+
+The switch state has no target-conditional declaration, conformance, read, or
+mutation path. Stamping never commits state, so a rejected Newton candidate or
+transient retry cannot contaminate the next attempt. No I/O, callback, event
+emission, or suspension occurs while the state lock is held.
+
+The aggregate `CoreSpice-Package` Xcode test run passes on macOS arm64 with no
+failures. `CoreSpiceDevices` also builds for the pinned Swift 6.4 WASM SDK, and
+the switch-state source type-checks with the matching Embedded WASM SDK.
+The complete Embedded target remains outside the current package envelope
+because the pre-existing `CoreSpiceEvent` target imports Foundation.

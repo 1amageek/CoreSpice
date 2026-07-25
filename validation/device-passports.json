@@ -213,27 +213,27 @@
       "modelFamily": "stateless voltage-controlled switch",
       "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
       "supportedRegions": ["continuous numerical transition around vt with vh equal to zero"],
-      "parameterPolicy": "ron must be positive; roff must be greater than ron; vt must be finite; vh must be finite and equal to zero",
+      "parameterPolicy": "ron must be positive; roff must be greater than ron; vt must be finite; vh must be finite and nonnegative",
       "oracleRequirements": ["threshold dc deck", "small-signal control gain"],
-      "knownLimitations": ["non-zero vh is rejected until stateful hysteresis is implemented"]
+      "knownLimitations": ["the initial committed switch state is off until an accepted operating point crosses vt + vh"]
     },
     {
       "typeName": "cswitch",
       "modelFamily": "stateless current-controlled switch with explicit sense terminals",
       "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
       "supportedRegions": ["continuous numerical transition around it with ih equal to zero"],
-      "parameterPolicy": "ron must be positive; roff must be greater than ron; it must be finite; ih must be finite and equal to zero",
+      "parameterPolicy": "ron must be positive; roff must be greater than ron; it must be finite; ih must be finite and nonnegative",
       "oracleRequirements": ["threshold dc deck", "small-signal control-current gain"],
-      "knownLimitations": ["non-zero ih is rejected until stateful hysteresis is implemented"]
+      "knownLimitations": ["the initial committed switch state is off until an accepted operating point crosses it + ih"]
     },
     {
       "typeName": "cswitch_ref",
       "modelFamily": "stateless current-controlled switch referencing an existing voltage-source branch",
       "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
       "supportedRegions": ["continuous numerical transition around it with ih equal to zero"],
-      "parameterPolicy": "ron must be positive; roff must be greater than ron; it must be finite; ih must be finite and equal to zero; control_source must resolve to a branch-bearing source",
+      "parameterPolicy": "ron must be positive; roff must be greater than ron; it must be finite; ih must be finite and nonnegative; control_source must resolve to a branch-bearing source",
       "oracleRequirements": ["threshold dc deck", "SPICE source-name reference deck", "small-signal control-current gain"],
-      "knownLimitations": ["non-zero ih is rejected until stateful hysteresis is implemented"]
+      "knownLimitations": ["the initial committed switch state is off until an accepted operating point crosses it + ih"]
     },
     {
       "typeName": "njfet",

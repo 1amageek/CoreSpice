@@ -49,16 +49,11 @@ public struct VoltageControlledSwitchDescriptor: DeviceDescriptor, Sendable {
                 message: "Switch threshold parameters must be finite"
             )
         }
-        // FIXME(INCOMPLETE_IMPLEMENTATION):
-        // Direct descriptor binding reaches this guard when VH is non-zero.
-        // Keep failing instead of constructing a stateless device until switch
-        // state ownership, initialization, iteration rollback, transient commit,
-        // and verified hysteresis semantics are implemented.
-        guard hysteresis == 0 else {
+        guard hysteresis >= 0 else {
             throw DeviceBindingError.invalidParameterValue(
                 device: instance.name,
                 parameter: "vh",
-                message: "Non-zero switch hysteresis requires stateful switching and is not executable"
+                message: "Switch hysteresis must be nonnegative"
             )
         }
 
@@ -70,7 +65,8 @@ public struct VoltageControlledSwitchDescriptor: DeviceDescriptor, Sendable {
             controlNegNode: instance.nodes[3],
             onResistance: ron,
             offResistance: roff,
-            threshold: threshold
+            threshold: threshold,
+            hysteresis: hysteresis
         )
     }
 

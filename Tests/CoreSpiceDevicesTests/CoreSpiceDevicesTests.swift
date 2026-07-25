@@ -237,7 +237,7 @@ struct CoreSpiceDevicesTests {
         }
     }
 
-    @Test func voltageSwitchRejectsUnsupportedHysteresis() {
+    @Test func voltageSwitchCommitsHysteresisOnlyAfterAcceptedState() throws {
         let instance = Instance(
             name: "S1",
             typeName: "vswitch",
@@ -262,21 +262,68 @@ struct CoreSpiceDevicesTests {
             matrixDimension: 2
         )
 
-        do {
+        let bound = try VoltageControlledSwitchDescriptor().bind(
+            instance: instance,
+            context: &context
+        )
+        let stateful = try #require(bound as? any AcceptedStateCommittingDevice)
+        let variableMap = context.variableMap
+
+        func conductance(controlVoltage: Double) -> Double {
+            let collector = StampCollector()
+            var stamper = MatrixStamper(
+                variableMap: variableMap,
+                stampMatrix: { row, column, value in
+                    collector.addMatrix(row, column, value)
+                },
+                stampRHS: { row, value in
+                    collector.addRHS(row, value)
+                }
+            )
+            bound.stampDC(
+                into: &stamper,
+                state: SolutionState(
+                    variables: [1.0, controlVoltage],
+                    variableMap: variableMap
+                )
+            )
+            return collector.matrixSum(row: 0, col: 0)
+        }
+
+        #expect(abs(conductance(controlVoltage: 0.5) - 1.0e-9) < 1.0e-12)
+        #expect(abs(conductance(controlVoltage: 0.7) - 1.0) < 1.0e-12)
+        #expect(abs(conductance(controlVoltage: 0.5) - 1.0e-9) < 1.0e-12)
+
+        stateful.commitAcceptedState(
+            SolutionState(variables: [1.0, 0.7], variableMap: variableMap)
+        )
+        #expect(abs(conductance(controlVoltage: 0.5) - 1.0) < 1.0e-12)
+
+        stateful.commitAcceptedState(
+            SolutionState(variables: [1.0, 0.3], variableMap: variableMap)
+        )
+        #expect(abs(conductance(controlVoltage: 0.5) - 1.0e-9) < 1.0e-12)
+    }
+
+    @Test func voltageSwitchRejectsNegativeHysteresis() {
+        let instance = Instance(
+            name: "S1",
+            typeName: "vswitch",
+            nodes: [Node(id: 1), .ground, Node(id: 2), .ground],
+            parameters: [
+                "ron": .real(1.0),
+                "roff": .real(1.0e9),
+                "vt": .real(0.5),
+                "vh": .real(-0.1),
+            ]
+        )
+        var context = BindingContext(variableMap: [:], matrixDimension: 0)
+
+        #expect(throws: DeviceBindingError.self) {
             _ = try VoltageControlledSwitchDescriptor().bind(
                 instance: instance,
                 context: &context
             )
-            Issue.record("Expected non-zero VH to be rejected")
-        } catch let error as DeviceBindingError {
-            guard case .invalidParameterValue(_, let parameter, let message) = error else {
-                Issue.record("Unexpected binding error: \(error)")
-                return
-            }
-            #expect(parameter == "vh")
-            #expect(message.contains("stateful switching"))
-        } catch {
-            Issue.record("Unexpected error type: \(error)")
         }
     }
 

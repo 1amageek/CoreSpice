@@ -213,6 +213,7 @@ optical nodes remain typed failures.
 - [x] JFET DC/AC/transient stamping for `NJF`/`PJF` models with gate junction leakage, voltage-dependent `CGS`/`CGD`, `RD`/`RS` lowering, and noise hooks
 - [x] Voltage-controlled switch execution from SPICE `S` elements and `.model SW` parameters
 - [x] Current-controlled switch execution from explicit sense-terminal `W` elements and `.model CSW` parameters
+- [x] Stateful voltage- and current-controlled switch hysteresis with accepted-step commit and retry rollback semantics
 - [x] Source-name current-controlled source/switch execution for standard SPICE `F`/`H`/`W` references to existing voltage-source branches
 - [x] Mutual inductance execution for standard SPICE `K` elements referencing inductor branches
 - [x] Device registry with dynamic registration
@@ -221,7 +222,6 @@ optical nodes remain typed failures.
 
 - [ ] **BSIM models**: No advanced MOSFET models
 - [ ] **MESFET execution**: Parsed components are not lowered to executable native devices
-- [ ] **Switch hysteresis state**: Non-zero voltage-controlled `VH` and current-controlled `IH` are rejected until stateful SPICE hysteresis and initial switch state are modeled.
 - [ ] **Transmission lines**: Not implemented
 - [ ] **Behavioral source execution**: B-source expressions are not executable native devices
 - [ ] **Advanced parasitic capacitances**: MOSFET capacitance coverage remains limited compared with foundry-grade models
