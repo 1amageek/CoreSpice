@@ -46,6 +46,7 @@ public struct SweepAnalysis<A: Analysis>: Sendable {
         observer: EventDispatcher?,
         cancellation: CancellationToken
     ) async throws -> SweepResult<A.Result> {
+        try PreparedCircuit.validate(plan: plan, devices: devices)
         var results: [A.Result] = []
 
         for (idx, value) in values.enumerated() {

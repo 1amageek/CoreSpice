@@ -43,6 +43,9 @@ public struct DiodeModelParameters: Sendable {
     /// Nominal temperature (K). Default: 300.15 K (27°C).
     public var nominalTemperature: Double
 
+    /// Circuit operating temperature (K).
+    public var operatingTemperature: Double
+
     /// Creates default diode parameters.
     public init(
         saturationCurrent: Double = 1e-14,
@@ -56,7 +59,8 @@ public struct DiodeModelParameters: Sendable {
         transitTime: Double = 0.0,
         energyGap: Double = 1.11,
         saturationCurrentExponent: Double = 3.0,
-        nominalTemperature: Double = 300.15
+        nominalTemperature: Double = 300.15,
+        operatingTemperature: Double? = nil
     ) {
         self.saturationCurrent = saturationCurrent
         self.emissionCoefficient = emissionCoefficient
@@ -70,13 +74,26 @@ public struct DiodeModelParameters: Sendable {
         self.energyGap = energyGap
         self.saturationCurrentExponent = saturationCurrentExponent
         self.nominalTemperature = nominalTemperature
+        self.operatingTemperature = operatingTemperature ?? nominalTemperature
     }
 
-    /// Thermal voltage at nominal temperature (kT/q).
+    /// Thermal voltage at the circuit operating temperature (kT/q).
     public var thermalVoltage: Double {
         let k = 1.380649e-23  // Boltzmann constant (J/K)
         let q = 1.602176634e-19  // Elementary charge (C)
-        return k * nominalTemperature / q
+        return k * operatingTemperature / q
+    }
+
+    /// Saturation current adjusted from model nominal to operating temperature.
+    public var effectiveSaturationCurrent: Double {
+        let ratio = operatingTemperature / nominalTemperature
+        let boltzmannEV = 8.617333262145e-5
+        let exponent = energyGap
+            / (emissionCoefficient * boltzmannEV)
+            * (1.0 / nominalTemperature - 1.0 / operatingTemperature)
+        return saturationCurrent
+            * pow(ratio, saturationCurrentExponent / emissionCoefficient)
+            * exp(exponent)
     }
 
     public func validate(device: String) throws {
@@ -92,6 +109,7 @@ public struct DiodeModelParameters: Sendable {
         try requirePositive(energyGap, "eg", device: device)
         try requireFinite(saturationCurrentExponent, "xti", device: device)
         try requirePositive(nominalTemperature, "tnom", device: device)
+        try requirePositive(operatingTemperature, "temp", device: device)
     }
 
     private func requireFinite(_ value: Double, _ parameter: String, device: String) throws {

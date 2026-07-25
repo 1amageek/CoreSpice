@@ -10,6 +10,12 @@ public struct Instance: Sendable {
     public let nodes: [Node]
     public let parameters: [String: ParameterValue]
 
+    /// MNA branch variables introduced by this instance.
+    public let ownedBranches: [Branch]
+
+    /// Existing MNA branches referenced by this instance.
+    public let referencedBranches: [Branch]
+
     /// Optical nodes connected to this device (empty for purely electrical devices).
     public let opticalNodes: [OpticalNode]
 
@@ -18,12 +24,16 @@ public struct Instance: Sendable {
         typeName: String,
         nodes: [Node],
         parameters: [String: ParameterValue],
+        ownedBranches: [Branch] = [],
+        referencedBranches: [Branch] = [],
         opticalNodes: [OpticalNode] = []
     ) {
         self.name = name
         self.typeName = typeName
         self.nodes = nodes
         self.parameters = parameters
+        self.ownedBranches = ownedBranches
+        self.referencedBranches = referencedBranches
         self.opticalNodes = opticalNodes
     }
 }

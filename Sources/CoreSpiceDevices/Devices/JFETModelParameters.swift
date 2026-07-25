@@ -59,6 +59,9 @@ public struct JFETModelParameters: Sendable {
     /// Nominal temperature (K).
     public var nominalTemperature: Double
 
+    /// Circuit operating temperature (K).
+    public var operatingTemperature: Double
+
     public init(
         polarity: JFETPolarity = .nChannel,
         thresholdVoltage: Double? = nil,
@@ -74,7 +77,8 @@ public struct JFETModelParameters: Sendable {
         flickerNoiseCoefficient: Double = 0.0,
         flickerNoiseExponent: Double = 1.0,
         area: Double = 1.0,
-        nominalTemperature: Double = 300.15
+        nominalTemperature: Double = 300.15,
+        operatingTemperature: Double? = nil
     ) {
         self.polarity = polarity
         self.thresholdVoltage = thresholdVoltage ?? -2.0
@@ -91,13 +95,14 @@ public struct JFETModelParameters: Sendable {
         self.flickerNoiseExponent = flickerNoiseExponent
         self.area = area
         self.nominalTemperature = nominalTemperature
+        self.operatingTemperature = operatingTemperature ?? nominalTemperature
     }
 
-    /// Thermal voltage at nominal temperature (kT/q).
+    /// Thermal voltage at the circuit operating temperature (kT/q).
     public var thermalVoltage: Double {
         let k = 1.380649e-23
         let q = 1.602176634e-19
-        return k * nominalTemperature / q
+        return k * operatingTemperature / q
     }
 
     var channelSign: Double {
@@ -139,6 +144,7 @@ public struct JFETModelParameters: Sendable {
         try requirePositive(flickerNoiseExponent, "af", device: device)
         try requirePositive(area, "area", device: device)
         try requirePositive(nominalTemperature, "tnom", device: device)
+        try requirePositive(operatingTemperature, "temp", device: device)
     }
 
     private func requireFinite(_ value: Double, _ parameter: String, device: String) throws {

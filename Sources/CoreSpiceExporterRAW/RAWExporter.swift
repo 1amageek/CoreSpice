@@ -36,32 +36,35 @@ public struct RAWExporter: WaveformExporter, StreamingWaveformExporter {
             useBinaryFormat: useBinaryFormat
         )
 
-        // Write all data points
-        if exportData.isComplex {
-            for point in 0..<exportData.pointCount {
-                guard let sweepValue = exportData.sweepValue(at: point) else {
-                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
+        do {
+            if exportData.isComplex {
+                for point in 0..<exportData.pointCount {
+                    guard let sweepValue = exportData.sweepValue(at: point) else {
+                        throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
+                    }
+                    try session.writeComplexPointValues(
+                        sweepValue: sweepValue,
+                        source: exportData,
+                        point: point
+                    )
                 }
-                try session.writeComplexPointValues(
-                    sweepValue: sweepValue,
-                    source: exportData,
-                    point: point
-                )
-            }
-        } else {
-            for point in 0..<exportData.pointCount {
-                guard let sweepValue = exportData.sweepValue(at: point) else {
-                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
+            } else {
+                for point in 0..<exportData.pointCount {
+                    guard let sweepValue = exportData.sweepValue(at: point) else {
+                        throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
+                    }
+                    try session.writePointValues(
+                        sweepValue: sweepValue,
+                        source: exportData,
+                        point: point
+                    )
                 }
-                try session.writePointValues(
-                    sweepValue: sweepValue,
-                    source: exportData,
-                    point: point
-                )
             }
+            return try await session.finalize()
+        } catch {
+            await session.cancel()
+            throw error
         }
-
-        return try await session.finalize()
     }
 
     public func beginExport(
@@ -107,6 +110,11 @@ final class RAWExportSession: ExportSession, Sendable {
         configuration: ExportConfiguration,
         useBinaryFormat: Bool
     ) throws {
+        guard configuration.includeMetadata, configuration.includeVariableNames else {
+            throw ExporterError.invalidConfiguration(
+                reason: "RAW requires metadata and variable names for a valid file"
+            )
+        }
         self.useBinaryFormat = useBinaryFormat
         self.byteOrder = configuration.byteOrder
         self.localState = Mutex(LocalState())
@@ -129,6 +137,11 @@ final class RAWExportSession: ExportSession, Sendable {
         sweepValue: Double,
         values: UnsafeBufferPointer<Double>
     ) throws {
+        try helper.validatePoint(
+            kind: .real,
+            sweepValue: sweepValue,
+            valueCount: values.count
+        )
         let needsHeader = localState.withLock { state -> Bool in
             if !state.headerWritten {
                 state.headerWritten = true
@@ -147,7 +160,7 @@ final class RAWExportSession: ExportSession, Sendable {
             try writeASCIIPoint(sweepValue: sweepValue, values: values)
         }
 
-        helper.incrementPointCount()
+        try helper.incrementPointCount()
     }
 
     func writePointValues(
@@ -155,6 +168,11 @@ final class RAWExportSession: ExportSession, Sendable {
         source: any WaveformReadable,
         point: Int
     ) throws {
+        try helper.validatePoint(
+            kind: .real,
+            sweepValue: sweepValue,
+            valueCount: source.variables.count
+        )
         let needsHeader = localState.withLock { state -> Bool in
             if !state.headerWritten {
                 state.headerWritten = true
@@ -173,7 +191,7 @@ final class RAWExportSession: ExportSession, Sendable {
             try writeASCIIPointValues(sweepValue: sweepValue, source: source, point: point)
         }
 
-        helper.incrementPointCount()
+        try helper.incrementPointCount()
     }
 
     func writeComplexPoint(
@@ -189,6 +207,11 @@ final class RAWExportSession: ExportSession, Sendable {
         sweepValue: Double,
         values: UnsafeBufferPointer<(real: Double, imag: Double)>
     ) throws {
+        try helper.validatePoint(
+            kind: .complex,
+            sweepValue: sweepValue,
+            valueCount: values.count
+        )
         let needsHeader = localState.withLock { state -> Bool in
             if !state.headerWritten {
                 state.headerWritten = true
@@ -207,7 +230,7 @@ final class RAWExportSession: ExportSession, Sendable {
             try writeASCIIComplexPoint(sweepValue: sweepValue, values: values)
         }
 
-        helper.incrementPointCount()
+        try helper.incrementPointCount()
     }
 
     func writeComplexPointValues(
@@ -215,6 +238,11 @@ final class RAWExportSession: ExportSession, Sendable {
         source: any WaveformReadable,
         point: Int
     ) throws {
+        try helper.validatePoint(
+            kind: .complex,
+            sweepValue: sweepValue,
+            valueCount: source.variables.count
+        )
         let needsHeader = localState.withLock { state -> Bool in
             if !state.headerWritten {
                 state.headerWritten = true
@@ -233,28 +261,15 @@ final class RAWExportSession: ExportSession, Sendable {
             try writeASCIIComplexPointValues(sweepValue: sweepValue, source: source, point: point)
         }
 
-        helper.incrementPointCount()
+        try helper.incrementPointCount()
     }
 
     func finalize() async throws -> ExportResult {
-        helper.close()
-        return helper.createResult()
+        try helper.finalize()
     }
 
     func cancel() async {
-        helper.close()
-        // Delete partial file if needed
-        if let path = helper.outputPath {
-            do {
-                try FileManager.default.removeItem(atPath: path)
-            } catch {
-                // File removal during cancel is best-effort.
-                // The file may already be deleted or inaccessible.
-                #if DEBUG
-                print("RAWExporter: Failed to remove partial file at \(path): \(error)")
-                #endif
-            }
-        }
+        helper.cancel()
     }
 
     // MARK: - Private Methods
@@ -459,6 +474,10 @@ final class RAWExportSession: ExportSession, Sendable {
     }
 
     private func formatDouble(_ value: Double) -> String {
-        String(format: "%.15e", value)
+        String(
+            format: "%.\(helper.configuration.precision)e",
+            locale: Locale(identifier: "en_US_POSIX"),
+            value
+        ).lowercased()
     }
 }

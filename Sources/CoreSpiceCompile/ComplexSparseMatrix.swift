@@ -206,7 +206,7 @@ public struct ComplexSparseMatrix: Sendable {
         }
 
         let newStructure = SparseStructure(
-            dimension: n,
+            uncheckedDimension: n,
             rowPointers: rowPointers,
             columnIndices: columnIndices
         )

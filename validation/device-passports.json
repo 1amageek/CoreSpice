@@ -210,30 +210,30 @@
     },
     {
       "typeName": "vswitch",
-      "modelFamily": "smooth voltage-controlled switch",
+      "modelFamily": "stateless voltage-controlled switch",
       "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
-      "supportedRegions": ["smooth transition around vt"],
-      "parameterPolicy": "ron must be positive; roff must be greater than ron; vt and vh must be finite",
+      "supportedRegions": ["continuous numerical transition around vt with vh equal to zero"],
+      "parameterPolicy": "ron must be positive; roff must be greater than ron; vt must be finite; vh must be finite and equal to zero",
       "oracleRequirements": ["threshold dc deck", "small-signal control gain"],
-      "knownLimitations": ["vh is modeled as smooth transition width, not stateful hysteresis"]
+      "knownLimitations": ["non-zero vh is rejected until stateful hysteresis is implemented"]
     },
     {
       "typeName": "cswitch",
-      "modelFamily": "smooth current-controlled switch with explicit sense terminals",
+      "modelFamily": "stateless current-controlled switch with explicit sense terminals",
       "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
-      "supportedRegions": ["smooth transition around it"],
-      "parameterPolicy": "ron must be positive; roff must be greater than ron; it and ih must be finite",
+      "supportedRegions": ["continuous numerical transition around it with ih equal to zero"],
+      "parameterPolicy": "ron must be positive; roff must be greater than ron; it must be finite; ih must be finite and equal to zero",
       "oracleRequirements": ["threshold dc deck", "small-signal control-current gain"],
-      "knownLimitations": ["ih is modeled as smooth transition width, not stateful hysteresis"]
+      "knownLimitations": ["non-zero ih is rejected until stateful hysteresis is implemented"]
     },
     {
       "typeName": "cswitch_ref",
-      "modelFamily": "smooth current-controlled switch referencing an existing voltage-source branch",
+      "modelFamily": "stateless current-controlled switch referencing an existing voltage-source branch",
       "supportedAnalyses": ["op", "dc", "ac", "tran", "sens", "mc"],
-      "supportedRegions": ["smooth transition around it"],
-      "parameterPolicy": "ron must be positive; roff must be greater than ron; it and ih must be finite; control_source must resolve to a branch-bearing source",
+      "supportedRegions": ["continuous numerical transition around it with ih equal to zero"],
+      "parameterPolicy": "ron must be positive; roff must be greater than ron; it must be finite; ih must be finite and equal to zero; control_source must resolve to a branch-bearing source",
       "oracleRequirements": ["threshold dc deck", "SPICE source-name reference deck", "small-signal control-current gain"],
-      "knownLimitations": ["ih is modeled as smooth transition width, not stateful hysteresis"]
+      "knownLimitations": ["non-zero ih is rejected until stateful hysteresis is implemented"]
     },
     {
       "typeName": "njfet",

@@ -52,6 +52,7 @@ public struct TransientAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         cancellation: CancellationToken
     ) async throws -> TransientResult {
+        try PreparedCircuit.validate(plan: plan, devices: devices)
         let analysisID = AnalysisID()
         let startTimestamp = Timestamp()
         let dim = plan.topology.dimension
@@ -488,7 +489,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                 }
             }
 
-            let result = TransientResult(
+            let result = try TransientResult(
                 timePoints: timePoints,
                 solutionTrace: solutionTrace,
                 variableMap: variableMap,

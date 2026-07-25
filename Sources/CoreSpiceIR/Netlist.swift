@@ -13,6 +13,7 @@ public struct Netlist: Sendable {
     private var branchNames: [Branch: String] = [:]
     private var opticalNodeMap: [String: OpticalNode] = [:]
     private var instances: [Instance] = []
+    private var referencedBranchNamesByInstance: [String: [String]] = [:]
     private var branches: [Branch] = []
     private var instanceNames: Set<String> = []
 
@@ -61,6 +62,13 @@ public struct Netlist: Sendable {
         return b
     }
 
+    /// Resolves an allocated branch by its source-level name.
+    public func branch(named name: String) -> Branch? {
+        branchNames.first { _, branchName in
+            branchName.caseInsensitiveCompare(name) == .orderedSame
+        }?.key
+    }
+
     /// Adds a device instance to the netlist.
     ///
     /// - Parameters:
@@ -74,7 +82,10 @@ public struct Netlist: Sendable {
         name: String,
         typeName: String,
         nodes nodeNames: [String],
-        parameters: [String: ParameterValue] = [:]
+        parameters: [String: ParameterValue] = [:],
+        ownedBranches: [Branch] = [],
+        referencedBranches: [Branch] = [],
+        referencedBranchNames: [String] = []
     ) throws {
         // Check for duplicate instance name
         guard !instanceNames.contains(name) else {
@@ -115,13 +126,16 @@ public struct Netlist: Sendable {
         }
 
         instanceNames.insert(name)
+        referencedBranchNamesByInstance[name] = referencedBranchNames
         let resolvedNodes = nodeNames.map { self.node($0) }
         instances.append(
             Instance(
                 name: name,
                 typeName: typeName,
                 nodes: resolvedNodes,
-                parameters: parameters
+                parameters: parameters,
+                ownedBranches: ownedBranches,
+                referencedBranches: referencedBranches
             )
         )
     }
@@ -140,7 +154,10 @@ public struct Netlist: Sendable {
         typeName: String,
         nodes nodeNames: [String],
         opticalNodes opticalNodeNames: [String],
-        parameters: [String: ParameterValue] = [:]
+        parameters: [String: ParameterValue] = [:],
+        ownedBranches: [Branch] = [],
+        referencedBranches: [Branch] = [],
+        referencedBranchNames: [String] = []
     ) throws {
         guard !instanceNames.contains(name) else {
             throw NetlistError.duplicateInstanceName(name)
@@ -174,6 +191,7 @@ public struct Netlist: Sendable {
         }
 
         instanceNames.insert(name)
+        referencedBranchNamesByInstance[name] = referencedBranchNames
         let resolvedNodes = nodeNames.map { self.node($0) }
         let resolvedOpticalNodes = opticalNodeNames.map { self.opticalNode($0) }
         instances.append(
@@ -182,6 +200,8 @@ public struct Netlist: Sendable {
                 typeName: typeName,
                 nodes: resolvedNodes,
                 parameters: parameters,
+                ownedBranches: ownedBranches,
+                referencedBranches: referencedBranches,
                 opticalNodes: resolvedOpticalNodes
             )
         )
@@ -196,10 +216,32 @@ public struct Netlist: Sendable {
         }
         let allNodes = Array(Set(nodes.values)).sorted { $0.id < $1.id }
         let allOpticalNodes = Array(opticalNodeMap.values).sorted { $0.id < $1.id }
+        let resolvedInstances = try instances.map { instance -> Instance in
+            let referenceNames = referencedBranchNamesByInstance[instance.name] ?? []
+            let namedReferences = try referenceNames.map { referenceName -> Branch in
+                guard let branch = branch(named: referenceName) else {
+                    throw NetlistError.invalidParameterValue(
+                        instance: instance.name,
+                        parameter: "branch_reference",
+                        message: "No branch named '\(referenceName)' exists"
+                    )
+                }
+                return branch
+            }
+            return Instance(
+                name: instance.name,
+                typeName: instance.typeName,
+                nodes: instance.nodes,
+                parameters: instance.parameters,
+                ownedBranches: instance.ownedBranches,
+                referencedBranches: instance.referencedBranches + namedReferences,
+                opticalNodes: instance.opticalNodes
+            )
+        }
         return CircuitIR(
             nodes: allNodes,
             branches: branches,
-            instances: instances,
+            instances: resolvedInstances,
             nodeNames: nodeNames,
             branchNames: branchNames,
             opticalNodes: allOpticalNodes

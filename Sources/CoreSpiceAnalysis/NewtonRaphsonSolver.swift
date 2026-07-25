@@ -183,6 +183,13 @@ public struct NewtonRaphsonSolver: Sendable {
                 rhs = localRHS
                 throw AnalysisError.singularMatrix
             }
+            if let invalidIndex = dx.firstIndex(where: { !$0.isFinite }) {
+                throw AnalysisError.nonFiniteSolution(
+                    iteration: iter,
+                    variableIndex: invalidIndex,
+                    value: dx[invalidIndex]
+                )
+            }
 
             // Compute raw update norm for adaptive damping (vDSP — SIMD accelerated)
             vDSP_vsubD(solution, 1, dx, 1, &vdspTemp, 1, vDSP_Length(n))
@@ -223,6 +230,13 @@ public struct NewtonRaphsonSolver: Sendable {
             //            = (1 - damping) * previousX[i] + damping * dx[i]
             var d = damping
             vDSP_vintbD(previousX, 1, dx, 1, &d, &solution, 1, vDSP_Length(n))
+            if let invalidIndex = solution.firstIndex(where: { !$0.isFinite }) {
+                throw AnalysisError.nonFiniteSolution(
+                    iteration: iter,
+                    variableIndex: invalidIndex,
+                    value: solution[invalidIndex]
+                )
+            }
 
             // Compute residual norm (vDSP — SIMD accelerated)
             vDSP_vsubD(previousX, 1, solution, 1, &vdspTemp, 1, vDSP_Length(n))
@@ -278,6 +292,13 @@ public struct NewtonRaphsonSolver: Sendable {
                 try residualMatrix.checkedMultiply(vector: solution, into: &residualProduct)
                 for i in 0..<n {
                     let residual = abs(residualProduct[i] - residualRHS[i])
+                    guard residual.isFinite else {
+                        throw AnalysisError.nonFiniteResidual(
+                            iteration: iter,
+                            variableIndex: i,
+                            value: residual
+                        )
+                    }
                     let tol = (branchCurrentIndices.contains(i) ? config.vntol : config.abstol)
                         + config.reltol * abs(residualRHS[i])
                     if residual > tol {
@@ -307,12 +328,44 @@ public struct NewtonRaphsonSolver: Sendable {
         matrix = localMatrix
         rhs = localRHS
 
+        residualMatrix.clear()
+        for i in 0..<n {
+            residualRHS[i] = 0
+        }
+        var finalResidualStamper = MatrixStamper(
+            variableMap: variableMap,
+            stampMatrix: { row, col, value in
+                residualMatrix.addValue(row: row, col: col, value: value)
+            },
+            stampRHS: { row, value in
+                residualRHS[row] += value
+            },
+            stampValue: { index, value in
+                residualMatrix.addValueDirect(at: index, value: value)
+            }
+        )
+        stampFunction(
+            &finalResidualStamper,
+            SolutionState(variables: solution, variableMap: variableMap)
+        )
+        for i in 0..<n {
+            residualMatrix.addValue(row: i, col: i, value: config.gmin)
+        }
+        try residualMatrix.checkedMultiply(vector: solution, into: &residualProduct)
+
         var residual = 0.0
         var worstIndex: Int?
-        for i in 0..<localRHS.count {
-            let a = abs(localRHS[i])
-            if a > residual {
-                residual = a
+        for i in 0..<n {
+            let physicalResidual = abs(residualProduct[i] - residualRHS[i])
+            guard physicalResidual.isFinite else {
+                throw AnalysisError.nonFiniteResidual(
+                    iteration: config.maxIterations,
+                    variableIndex: i,
+                    value: physicalResidual
+                )
+            }
+            if physicalResidual > residual {
+                residual = physicalResidual
                 worstIndex = i
             }
         }

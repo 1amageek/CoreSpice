@@ -56,7 +56,10 @@ public struct SparseStructure: Sendable {
     public var nonZeroCount: Int { get }
 
     public init(dimension: Int, rowPointers: [Int], columnIndices: [Int])
-    public static func fromTriplets(dimension: Int, entries: [(row: Int, col: Int)]) -> SparseStructure
+    public static func fromTriplets(
+        dimension: Int,
+        entries: [(row: Int, col: Int)]
+    ) throws -> SparseStructure
     public func index(row: Int, col: Int) -> Int?
 }
 
@@ -206,14 +209,17 @@ public struct IncrementalUpdate: Sendable {
 
 3. **Hardcoded Singularity Threshold**: Both solvers use `1e-15` as the singularity threshold. This should ideally be configurable or scaled relative to matrix norms for better numerical robustness.
 
-4. **Missing Input Validation**: `SparseStructure.init` does not validate that:
-   - `rowPointers.count == dimension + 1`
-   - `columnIndices` are within bounds
-   - `rowPointers` are monotonically increasing
+4. **Sparse Input Validation**: Public `SparseStructure` construction validates
+   dimensions, row-pointer shape and monotonicity, terminal nonzero count,
+   column bounds, and per-row ordering. Internal compiler construction uses a
+   checked-by-construction path.
 
 5. **Error Type Reuse**: `solve(rhs:)` throws `CompileError.singularMatrix` when called without prior factorization. A more specific error (e.g., `.notFactorized`) would improve diagnostics.
 
-6. **Branch Coupling Over-Approximation**: In `MatrixTopology`, branch current rows are coupled with ALL node voltages. This is conservative but may create unnecessary fill-in. A more precise implementation would only couple with nodes directly connected to the branch's device.
+6. **Branch Connectivity**: `MatrixTopology` uses each instance's owned and
+   referenced branches to emit only local node/branch and branch/branch
+   structure. A conservative fallback remains only for legacy programmatic IR
+   whose branches have no instance association.
 
 ### Test Coverage
 

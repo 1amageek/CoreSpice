@@ -45,7 +45,10 @@ public struct OpticalNetworkEvaluator: Sendable {
         var state = OpticalState(nodeCount: graph.opticalNodeCount)
 
         for entry in graph.evaluationOrder {
-            guard entry.deviceIndex < devices.count else { continue }
+            precondition(
+                devices.indices.contains(entry.deviceIndex),
+                "Optical graph must be validated through PreparedCircuit before evaluation"
+            )
             let device = devices[entry.deviceIndex]
 
             if let emitter = device as? OpticalEmitter {

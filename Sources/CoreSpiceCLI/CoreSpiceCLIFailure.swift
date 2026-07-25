@@ -59,6 +59,28 @@ extension CoreSpiceCLIFailure {
         stage: "lower"
       )
 
+    case let loadError as SPICEDeckLoadError:
+      switch loadError {
+      case .fileRead:
+        self.init(
+          code: "io.file-read",
+          message: Self.describe(loadError),
+          stage: "load",
+          suggestedActions: [
+            "verify that the deck path exists and is readable"
+          ]
+        )
+      case .blockedExecutionIntent:
+        self.init(
+          code: "deck.blocked-intent",
+          message: Self.describe(loadError),
+          stage: "parse",
+          suggestedActions: [
+            "remove or replace execution-blocking directives reported by deck coverage"
+          ]
+        )
+      }
+
     case let compileError as CompileError:
       self.init(
         code: "compile.failed",
@@ -102,6 +124,16 @@ extension CoreSpiceCLIFailure {
         code: "measure.evaluation",
         message: Self.describe(measurementError),
         stage: "measure"
+      )
+
+    case let projectionError as SPICEOutputProjectionError:
+      self.init(
+        code: "output.projection",
+        message: Self.describe(projectionError),
+        stage: "export",
+        suggestedActions: [
+          "correct .save, .probe, .print, or .plot variables to match generated waveform names"
+        ]
       )
 
     case let measureCommandError as CoreSpiceMeasureCommandError:
@@ -207,6 +239,16 @@ extension CoreSpiceCLIFailure {
       code = "analysis.convergence-failure"
       suggestedActions = [
         "generate a recovery plan with 'corespice convergence-recovery-objective'"
+      ]
+    case .nonFiniteSolution:
+      code = "analysis.non-finite-solution"
+      suggestedActions = [
+        "inspect device parameters and matrix scaling near the reported variable"
+      ]
+    case .nonFiniteResidual:
+      code = "analysis.non-finite-residual"
+      suggestedActions = [
+        "inspect nonlinear device stamps near the reported variable"
       ]
     case .singularMatrix:
       code = "analysis.singular-matrix"

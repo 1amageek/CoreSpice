@@ -31,8 +31,15 @@ public struct CoefficientGenerator: Sendable {
     ///   - block: MZI block parameters (theta, phi, loss).
     ///   - wavelength: Operating wavelength in meters.
     /// - Returns: The computed transfer-matrix coefficients.
-    public func generate(block: MZIBlock, wavelength: Double) -> MZICoefficients {
-        let effectiveTheta = wavelengthModel.effectivePhase(
+    public func generate(block: MZIBlock, wavelength: Double) throws -> MZICoefficients {
+        if let failure = block.validationFailure() {
+            throw PhotonicExecutionError.invalidMZIBlock(
+                layer: 0,
+                block: 0,
+                reason: failure
+            )
+        }
+        let effectiveTheta = try wavelengthModel.effectivePhase(
             basePhase: block.theta, wavelength: wavelength)
         let loss = Float(block.loss)
         let cosT = Float(cos(effectiveTheta / 2))
@@ -64,7 +71,7 @@ public struct CoefficientGenerator: Sendable {
     ///   - layer: The mesh layer whose blocks are to be compiled.
     ///   - wavelength: Operating wavelength in meters.
     /// - Returns: Array of coefficients, one per pair.
-    public func generateLayer(layer: MeshLayer, wavelength: Double) -> [MZICoefficients] {
-        layer.blocks.map { generate(block: $0, wavelength: wavelength) }
+    public func generateLayer(layer: MeshLayer, wavelength: Double) throws -> [MZICoefficients] {
+        try layer.blocks.map { try generate(block: $0, wavelength: wavelength) }
     }
 }

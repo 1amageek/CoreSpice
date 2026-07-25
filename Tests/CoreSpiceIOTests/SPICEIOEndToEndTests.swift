@@ -28,7 +28,7 @@ struct SPICEIOEndToEndTests {
             observer: nil,
             cancellation: CancellationToken()
         )
-        #expect(approximately(result.voltage(at: outNode), 2.5, tolerance: 1e-9))
+        #expect(approximately(try result.voltage(at: outNode), 2.5, tolerance: 1e-9))
 
         let waveform = WaveformData.from(
             dcResult: result,
@@ -75,7 +75,7 @@ struct SPICEIOEndToEndTests {
         VCTRL ctrl 0 dc 5
         S1 vdd out ctrl 0 swmod
         RLOAD out 0 1k
-        .model swmod sw ron=10 roff=1e9 vt=2 vh=0.1
+        .model swmod sw ron=10 roff=1e9 vt=2 vh=0
         .op
         .end
         """
@@ -92,7 +92,7 @@ struct SPICEIOEndToEndTests {
         )
 
         let expected = 5.0 * 1000.0 / 1010.0
-        #expect(approximately(result.voltage(at: outNode), expected, tolerance: 1.0e-3))
+        #expect(approximately(try result.voltage(at: outNode), expected, tolerance: 1.0e-3))
     }
 
     @Test("Public API executes a current-controlled switch deck")
@@ -121,7 +121,7 @@ struct SPICEIOEndToEndTests {
         )
 
         let expected = 5.0 * 1000.0 / 1010.0
-        #expect(approximately(result.voltage(at: outNode), expected, tolerance: 1.0e-3))
+        #expect(approximately(try result.voltage(at: outNode), expected, tolerance: 1.0e-3))
     }
 
     @Test("Public API executes a coupled-inductor AC deck")
@@ -148,12 +148,12 @@ struct SPICEIOEndToEndTests {
             observer: nil,
             cancellation: CancellationToken()
         )
-        let output = result.voltage(at: outNode, frequencyIndex: 0)
+        let output = try result.voltage(at: outNode, frequencyIndex: 0)
         #expect(hypot(output.real, output.imag) > 1.0e-6)
     }
 
-    @Test("Voltage-controlled switch contributes control small-signal gain")
-    func voltageControlledSwitchContributesControlSmallSignalGain() async throws {
+    @Test("Voltage-controlled switch rejects unsupported stateful hysteresis")
+    func voltageControlledSwitchRejectsStatefulHysteresis() async throws {
         let source = """
         voltage switch ac control gain
         VDD vdd 0 dc 5
@@ -165,18 +165,16 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
-        let outNode = try node(fromInstance: "s1", terminal: 1, in: circuit.ir)
-
-        let result = try await ACAnalysis(sweep: .linear(start: 1.0e3, stop: 1.0e3, points: 1)).run(
-            plan: circuit.plan,
-            devices: circuit.devices,
-            solver: SparseLUSolver(),
-            observer: nil,
-            cancellation: CancellationToken()
-        )
-
-        #expect(approximately(result.voltage(at: outNode, frequencyIndex: 0).real, 0.258546394893831, tolerance: 1.0e-6))
+        do {
+            _ = try await SPICEIO.parseAndLower(source)
+            Issue.record("Expected non-zero VH to fail before simulation")
+        } catch let error as LoweringError {
+            guard case .invalidComponent(_, let reason) = error else {
+                Issue.record("Unexpected lowering error: \(error)")
+                return
+            }
+            #expect(reason.contains("stateful switch hysteresis"))
+        }
     }
 
     @Test("Current-controlled switch contributes control-current small-signal gain")
@@ -204,7 +202,7 @@ struct SPICEIOEndToEndTests {
             cancellation: CancellationToken()
         )
 
-        #expect(approximately(result.voltage(at: outNode, frequencyIndex: 0).real, 258.5463948934515, tolerance: 1.0e-6))
+        #expect(approximately(try result.voltage(at: outNode, frequencyIndex: 0).real, 258.5463948934515, tolerance: 1.0e-6))
     }
 
     @Test("Public API executes NJFET and PJFET operating-point decks")
@@ -237,8 +235,8 @@ struct SPICEIOEndToEndTests {
             cancellation: CancellationToken()
         )
 
-        #expect(approximately(result.voltage(at: nout), 1.0, tolerance: 1.0e-3))
-        #expect(approximately(result.voltage(at: pout), (5.0 + sqrt(5.0)) / 2.0, tolerance: 1.0e-3))
+        #expect(approximately(try result.voltage(at: nout), 1.0, tolerance: 1.0e-3))
+        #expect(approximately(try result.voltage(at: pout), (5.0 + sqrt(5.0)) / 2.0, tolerance: 1.0e-3))
     }
 
     @Test("JFET contributes gate-control small-signal gain")
@@ -265,7 +263,7 @@ struct SPICEIOEndToEndTests {
             cancellation: CancellationToken()
         )
 
-        let gain = result.voltage(at: outNode, frequencyIndex: 0).real
+        let gain = try result.voltage(at: outNode, frequencyIndex: 0).real
         #expect(gain > 0.3)
         #expect(gain < 0.8)
     }
@@ -296,8 +294,8 @@ struct SPICEIOEndToEndTests {
             cancellation: CancellationToken()
         )
 
-        #expect(approximately(result.voltage(at: outNode), 2.0, tolerance: 1.0e-6))
-        #expect(approximately(result.voltage(at: hOutNode), -1.0, tolerance: 1.0e-6))
+        #expect(approximately(try result.voltage(at: outNode), 2.0, tolerance: 1.0e-6))
+        #expect(approximately(try result.voltage(at: hOutNode), -1.0, tolerance: 1.0e-6))
     }
 
     @Test("Public API resolves forward source-name current references")
@@ -323,7 +321,7 @@ struct SPICEIOEndToEndTests {
             cancellation: CancellationToken()
         )
 
-        #expect(approximately(result.voltage(at: outNode), 2.0, tolerance: 1.0e-6))
+        #expect(approximately(try result.voltage(at: outNode), 2.0, tolerance: 1.0e-6))
     }
 
     @Test("Public API resolves subcircuit-local source-name current references")
@@ -352,7 +350,7 @@ struct SPICEIOEndToEndTests {
             cancellation: CancellationToken()
         )
 
-        #expect(approximately(result.voltage(at: outNode), 2.0, tolerance: 1.0e-6))
+        #expect(approximately(try result.voltage(at: outNode), 2.0, tolerance: 1.0e-6))
     }
 
     @Test("Public API executes a source-name current-controlled switch deck")
@@ -381,7 +379,7 @@ struct SPICEIOEndToEndTests {
         )
 
         let expected = 5.0 * 1000.0 / 1010.0
-        #expect(approximately(result.voltage(at: outNode), expected, tolerance: 1.0e-3))
+        #expect(approximately(try result.voltage(at: outNode), expected, tolerance: 1.0e-3))
     }
 
     @Test("Source-name current-controlled switch contributes AC control gain")
@@ -409,7 +407,7 @@ struct SPICEIOEndToEndTests {
             cancellation: CancellationToken()
         )
 
-        #expect(abs(result.voltage(at: outNode, frequencyIndex: 0).real) > 1.0e-3)
+        #expect(abs(try result.voltage(at: outNode, frequencyIndex: 0).real) > 1.0e-3)
     }
 
     @Test("SPICE serialization round trip preserves executable subcircuit semantics")
@@ -484,7 +482,7 @@ private func runSubcircuitDividerOutputVoltage(_ netlist: ParsedNetlist) async t
         observer: nil,
         cancellation: CancellationToken()
     )
-    return result.voltage(at: outputNode)
+    return try result.voltage(at: outputNode)
 }
 
 private func node(fromInstance instanceName: String, terminal: Int, in ir: CircuitIR) throws -> Node {

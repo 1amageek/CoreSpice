@@ -231,7 +231,13 @@ public struct BoundLaserDiode: OpticalEmitter, VoltageLimitingDevice, NoisyDevic
     // MARK: - NoisyDevice
 
     public func noiseContributions(state: SolutionState, frequency: Double) -> [NoiseSource] {
-        noiseContributions(state: state, opticalState: OpticalState(), frequency: frequency)
+        let highestNodeID = (opticalInputNodes + opticalOutputNodes)
+            .reduce(0) { max($0, $1.id) }
+        return noiseContributions(
+            state: state,
+            opticalState: OpticalState(nodeCount: highestNodeID + 1),
+            frequency: frequency
+        )
     }
 
     public func noiseContributions(
@@ -266,25 +272,6 @@ public struct BoundLaserDiode: OpticalEmitter, VoltageLimitingDevice, NoisyDevic
                 currentSpectralDensity: rinElecNoise
             )
         ]
-    }
-
-    // MARK: - BoundDevice (delegated)
-
-    public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
-        stampDC(into: &stamper, state: state, opticalState: OpticalState())
-    }
-
-    public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
-        stampAC(into: &stamper, state: state, opticalState: OpticalState(), omega: omega)
-    }
-
-    public func stampTransient(into stamper: inout MatrixStamper, state: SolutionState, integration: IntegrationState) {
-        stampTransient(into: &stamper, state: state, opticalState: OpticalState(), integration: integration)
-    }
-
-    public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
-        checkConvergence(state: state, previousState: previousState,
-                        opticalState: OpticalState(), previousOpticalState: OpticalState())
     }
 
     // MARK: - VoltageLimitingDevice

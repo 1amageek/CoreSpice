@@ -27,7 +27,31 @@ public struct TransferFunctionResult: Sendable {
         outputImpedance: Double,
         dcOperatingPoint: DCResult,
         variableMap: [MNAVariable: Int]
-    ) {
+    ) throws {
+        guard gain.isFinite else {
+            throw AnalysisResultValidationError.nonFiniteValue(
+                field: "gain",
+                index: 0,
+                value: gain
+            )
+        }
+        guard !inputImpedance.isNaN else {
+            throw AnalysisResultValidationError.nonFiniteValue(
+                field: "inputImpedance",
+                index: 0,
+                value: inputImpedance
+            )
+        }
+        guard !outputImpedance.isNaN else {
+            throw AnalysisResultValidationError.nonFiniteValue(
+                field: "outputImpedance",
+                index: 0,
+                value: outputImpedance
+            )
+        }
+        guard variableMap == dcOperatingPoint.variableMap else {
+            throw AnalysisResultValidationError.variableMapMismatch
+        }
         self.gain = gain
         self.inputImpedance = inputImpedance
         self.outputImpedance = outputImpedance

@@ -140,7 +140,7 @@ struct IntegrationMethodAccuracyTests {
             }
         }
 
-        let vOut = result.voltage(at: out, frequencyIndex: closestIdx)
+        let vOut = try result.voltage(at: out, frequencyIndex: closestIdx)
         let magnitude = vOut.magnitude
         let phase = atan2(vOut.imag, vOut.real) * 180 / Double.pi  // Convert to degrees
 

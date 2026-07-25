@@ -63,4 +63,24 @@ struct CoreSpiceBackendTests {
             try backend.prepare(configuration: BackendConfiguration(preferredDevice: unavailableDeviceName))
         }
     }
+
+    @Test func metalBackendRejectsInvalidBufferAndConfiguredLimit() throws {
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            return
+        }
+        let backend = try MetalBackend(device: device)
+        #expect(throws: BackendError.self) {
+            try backend.allocateBuffer(type: UInt8.self, count: 0, label: "empty")
+        }
+        try backend.prepare(configuration: BackendConfiguration(maxBufferSize: 256))
+        #expect(throws: BackendError.self) {
+            try backend.allocateBuffer(type: UInt8.self, count: 257, label: "oversized")
+        }
+    }
+
+    @Test func backendConfigurationRejectsInvalidLimit() {
+        #expect(throws: BackendError.self) {
+            try BackendConfiguration(maxBufferSize: 0).validate()
+        }
+    }
 }

@@ -7,13 +7,13 @@ struct SparseSolverTests {
 
     // MARK: - Permutation Tests
 
-    @Test func permutationIdentity() {
+    @Test func permutationIdentity() throws {
         let p = Permutation.identity(size: 4)
         #expect(p.forward == [0, 1, 2, 3])
         #expect(p.inverse == [0, 1, 2, 3])
     }
 
-    @Test func permutationApply() {
+    @Test func permutationApply() throws {
         // Permutation: 0→2, 1→0, 2→1
         let p = Permutation(forward: [2, 0, 1])
         let array = ["a", "b", "c"]
@@ -29,7 +29,7 @@ struct SparseSolverTests {
         #expect(restored == array)
     }
 
-    @Test func permutationComposition() {
+    @Test func permutationComposition() throws {
         let p1 = Permutation(forward: [1, 0, 2])  // swap first two
         let p2 = Permutation(forward: [0, 2, 1])  // swap last two
 
@@ -43,7 +43,7 @@ struct SparseSolverTests {
 
     // MARK: - AMD Ordering Tests
 
-    @Test func amdOrderingTridiagonal() {
+    @Test func amdOrderingTridiagonal() throws {
         // Tridiagonal matrix: well-ordered, minimal fill-in
         let entries: [(row: Int, col: Int)] = [
             (0, 0), (0, 1),
@@ -51,7 +51,7 @@ struct SparseSolverTests {
             (2, 1), (2, 2), (2, 3),
             (3, 2), (3, 3)
         ]
-        let structure = SparseStructure.fromTriplets(dimension: 4, entries: entries)
+        let structure = try SparseStructure.fromTriplets(dimension: 4, entries: entries)
         let ordering = AMDOrdering.compute(structure: structure)
 
         #expect(ordering.dimension == 4)
@@ -60,7 +60,7 @@ struct SparseSolverTests {
         #expect(sorted == [0, 1, 2, 3])
     }
 
-    @Test func amdOrderingArrowhead() {
+    @Test func amdOrderingArrowhead() throws {
         // Arrowhead matrix: first row/column dense, rest diagonal
         // Poor natural ordering creates fill-in, AMD should reorder
         var entries: [(row: Int, col: Int)] = []
@@ -79,7 +79,7 @@ struct SparseSolverTests {
             entries.append((i, i))
         }
 
-        let structure = SparseStructure.fromTriplets(dimension: n, entries: entries)
+        let structure = try SparseStructure.fromTriplets(dimension: n, entries: entries)
         let ordering = AMDOrdering.compute(structure: structure)
 
         // AMD should move the dense row/column to the end
@@ -88,9 +88,9 @@ struct SparseSolverTests {
 
     // MARK: - Symbolic Analysis Tests
 
-    @Test func symbolicAnalysisDiagonal() {
+    @Test func symbolicAnalysisDiagonal() throws {
         // Diagonal matrix: no fill-in
-        let structure = SparseStructure.fromTriplets(
+        let structure = try SparseStructure.fromTriplets(
             dimension: 3,
             entries: [(0, 0), (1, 1), (2, 2)]
         )
@@ -100,22 +100,22 @@ struct SparseSolverTests {
         #expect(analysis.eliminationTree.count == 3)
     }
 
-    @Test func symbolicAnalysisTridiagonal() {
+    @Test func symbolicAnalysisTridiagonal() throws {
         // Tridiagonal: minimal fill-in
         let entries: [(row: Int, col: Int)] = [
             (0, 0), (0, 1),
             (1, 0), (1, 1), (1, 2),
             (2, 1), (2, 2)
         ]
-        let structure = SparseStructure.fromTriplets(dimension: 3, entries: entries)
+        let structure = try SparseStructure.fromTriplets(dimension: 3, entries: entries)
         let analysis = SymbolicAnalysis.analyze(structure: structure)
 
         // Tridiagonal has no fill-in with natural ordering
         #expect(analysis.fillInCount >= 0)
     }
 
-    @Test func symbolicAnalysisEliminationTree() {
-        let structure = SparseStructure.fromTriplets(
+    @Test func symbolicAnalysisEliminationTree() throws {
+        let structure = try SparseStructure.fromTriplets(
             dimension: 3,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1), (1, 2), (2, 1), (2, 2)]
         )
@@ -133,7 +133,7 @@ struct SparseSolverTests {
 
     @Test func luSolverWithAMDOrdering() throws {
         // 3x3 system with good sparsity
-        let structure = SparseStructure.fromTriplets(
+        let structure = try SparseStructure.fromTriplets(
             dimension: 3,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1), (1, 2), (2, 1), (2, 2)]
         )
@@ -159,7 +159,7 @@ struct SparseSolverTests {
 
     @Test func luSolverWithoutAMDOrdering() throws {
         // Same test but with natural ordering
-        let structure = SparseStructure.fromTriplets(
+        let structure = try SparseStructure.fromTriplets(
             dimension: 3,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1), (1, 2), (2, 1), (2, 2)]
         )
@@ -184,7 +184,7 @@ struct SparseSolverTests {
 
     @Test func luSolverSingularMatrix() throws {
         // Singular matrix should throw
-        let structure = SparseStructure.fromTriplets(
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1)]
         )
@@ -200,8 +200,8 @@ struct SparseSolverTests {
         }
     }
 
-    @Test func structuralMissFailsFactorization() {
-        let structure = SparseStructure.fromTriplets(
+    @Test func structuralMissFailsFactorization() throws {
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (1, 1)]
         )
@@ -220,7 +220,7 @@ struct SparseSolverTests {
         var solver = SparseLUSolver(useAMDOrdering: false)
         try solver.factorize(matrix: Self.denseRealMatrix())
 
-        let structure = SparseStructure.fromTriplets(
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (1, 1)]
         )
@@ -244,7 +244,7 @@ struct SparseSolverTests {
         var solver = ComplexSparseLUSolver(useAMDOrdering: false)
         try solver.factorize(matrix: Self.denseComplexMatrix())
 
-        let structure = SparseStructure.fromTriplets(
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (1, 1)]
         )
@@ -293,7 +293,7 @@ struct SparseSolverTests {
     // MARK: - Complex Solver Tests
 
     @Test func complexSolverWithAMDOrdering() throws {
-        let structure = SparseStructure.fromTriplets(
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1)]
         )
@@ -347,8 +347,8 @@ struct SparseSolverTests {
         }
     }
 
-    @Test func sparseMatrixOutOfBoundsAccessUsesStructuralMissContract() {
-        let structure = SparseStructure.fromTriplets(dimension: 2, entries: [(0, 0), (1, 1)])
+    @Test func sparseMatrixOutOfBoundsAccessUsesStructuralMissContract() throws {
+        let structure = try SparseStructure.fromTriplets(dimension: 2, entries: [(0, 0), (1, 1)])
 
         var matrix = SparseMatrix(structure: structure)
         #expect(matrix.value(row: -1, col: 0) == 0)
@@ -364,8 +364,8 @@ struct SparseSolverTests {
         ])
     }
 
-    @Test func complexSparseMatrixOutOfBoundsAccessUsesStructuralMissContract() {
-        let structure = SparseStructure.fromTriplets(dimension: 2, entries: [(0, 0), (1, 1)])
+    @Test func complexSparseMatrixOutOfBoundsAccessUsesStructuralMissContract() throws {
+        let structure = try SparseStructure.fromTriplets(dimension: 2, entries: [(0, 0), (1, 1)])
 
         var matrix = ComplexSparseMatrix(structure: structure)
         #expect(matrix.value(row: -1, col: 0) == .zero)
@@ -398,7 +398,7 @@ struct SparseSolverTests {
             }
         }
 
-        let structure = SparseStructure.fromTriplets(dimension: n, entries: entries)
+        let structure = try SparseStructure.fromTriplets(dimension: n, entries: entries)
         var matrix = SparseMatrix(structure: structure)
 
         // Fill with typical circuit values (diagonally dominant)
@@ -428,8 +428,8 @@ struct SparseSolverTests {
         }
     }
 
-    @Test func matrixPermutation() {
-        let structure = SparseStructure.fromTriplets(
+    @Test func matrixPermutation() throws {
+        let structure = try SparseStructure.fromTriplets(
             dimension: 3,
             entries: [(0, 0), (0, 1), (1, 1), (2, 0), (2, 2)]
         )
@@ -467,7 +467,7 @@ struct SparseSolverTests {
     }
 
     @Test func emptyMatrix() throws {
-        let structure = SparseStructure.fromTriplets(dimension: 0, entries: [])
+        let structure = try SparseStructure.fromTriplets(dimension: 0, entries: [])
         let matrix = SparseMatrix(structure: structure)
 
         var solver = SparseLUSolver()
@@ -478,7 +478,7 @@ struct SparseSolverTests {
     }
 
     @Test func singleElementMatrix() throws {
-        let structure = SparseStructure.fromTriplets(dimension: 1, entries: [(0, 0)])
+        let structure = try SparseStructure.fromTriplets(dimension: 1, entries: [(0, 0)])
         var matrix = SparseMatrix(structure: structure)
         matrix.addValue(row: 0, col: 0, value: 5.0)
 
@@ -508,7 +508,7 @@ struct SparseSolverTests {
             }
         }
 
-        let structure = SparseStructure.fromTriplets(dimension: n, entries: entries)
+        let structure = try SparseStructure.fromTriplets(dimension: n, entries: entries)
         var matrix = SparseMatrix(structure: structure)
 
         // Diagonally dominant: |diagonal| > sum of |off-diagonals|
@@ -551,7 +551,7 @@ struct SparseSolverTests {
             }
         }
 
-        let structure = SparseStructure.fromTriplets(dimension: n, entries: entries)
+        let structure = try SparseStructure.fromTriplets(dimension: n, entries: entries)
         var matrix = SparseMatrix(structure: structure)
 
         for i in 0..<n {
@@ -594,7 +594,7 @@ struct SparseSolverTests {
             }
         }
 
-        let structure = SparseStructure.fromTriplets(dimension: n, entries: entries)
+        let structure = try SparseStructure.fromTriplets(dimension: n, entries: entries)
         var matrix = ComplexSparseMatrix(structure: structure)
 
         // Diagonally dominant with complex values
@@ -633,7 +633,7 @@ struct SparseSolverTests {
             (3, 0), (3, 1), (3, 2), (3, 3)
         ]
 
-        let structure = SparseStructure.fromTriplets(dimension: n, entries: entries)
+        let structure = try SparseStructure.fromTriplets(dimension: n, entries: entries)
         var matrix = SparseMatrix(structure: structure)
 
         // Matrix requiring pivoting:
@@ -670,8 +670,8 @@ struct SparseSolverTests {
         }
     }
 
-    private static func denseRealMatrix() -> SparseMatrix {
-        let structure = SparseStructure.fromTriplets(
+    private static func denseRealMatrix() throws -> SparseMatrix {
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1)]
         )
@@ -683,8 +683,8 @@ struct SparseSolverTests {
         return matrix
     }
 
-    private static func denseComplexMatrix() -> ComplexSparseMatrix {
-        let structure = SparseStructure.fromTriplets(
+    private static func denseComplexMatrix() throws -> ComplexSparseMatrix {
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1)]
         )

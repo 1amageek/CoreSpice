@@ -17,14 +17,15 @@ public struct SensitivityResult: Sendable {
         /// Absolute sensitivity: dOutput/dParam.
         public let sensitivity: Double
         /// Normalized sensitivity: (dOutput/Output) / (dParam/Param).
-        public let normalizedSensitivity: Double
+        /// Normalized sensitivity, or `nil` when the baseline output is zero.
+        public let normalizedSensitivity: Double?
 
         public init(
             deviceName: String,
             parameterName: String,
             nominalValue: Double,
             sensitivity: Double,
-            normalizedSensitivity: Double
+            normalizedSensitivity: Double?
         ) {
             self.deviceName = deviceName
             self.parameterName = parameterName
@@ -51,7 +52,41 @@ public struct SensitivityResult: Sendable {
         baselineValue: Double,
         sensitivities: [ParameterSensitivity],
         dcOperatingPoint: DCResult
-    ) {
+    ) throws {
+        guard !outputVariable.isEmpty else {
+            throw AnalysisResultValidationError.emptyOutputVariable
+        }
+        guard baselineValue.isFinite else {
+            throw AnalysisResultValidationError.nonFiniteValue(
+                field: "baselineValue",
+                index: 0,
+                value: baselineValue
+            )
+        }
+        for (index, entry) in sensitivities.enumerated() {
+            guard entry.nominalValue.isFinite else {
+                throw AnalysisResultValidationError.nonFiniteValue(
+                    field: "sensitivities.nominalValue",
+                    index: index,
+                    value: entry.nominalValue
+                )
+            }
+            guard entry.sensitivity.isFinite else {
+                throw AnalysisResultValidationError.nonFiniteValue(
+                    field: "sensitivities.sensitivity",
+                    index: index,
+                    value: entry.sensitivity
+                )
+            }
+            if let normalized = entry.normalizedSensitivity,
+               !normalized.isFinite {
+                throw AnalysisResultValidationError.nonFiniteValue(
+                    field: "sensitivities.normalizedSensitivity",
+                    index: index,
+                    value: normalized
+                )
+            }
+        }
         self.outputVariable = outputVariable
         self.baselineValue = baselineValue
         self.sensitivities = sensitivities

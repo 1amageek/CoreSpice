@@ -53,7 +53,7 @@ struct SolutionTraceTests {
             variableCount: 2,
             rowMajorValues: [1.0, 2.0, 3.0, 4.0]
         )
-        let result = TransientResult(
+        let result = try TransientResult(
             timePoints: [0.0, 1.0],
             solutionTrace: trace,
             variableMap: [:],
@@ -77,6 +77,21 @@ struct SolutionTraceTests {
 
         #expect(throws: SolutionTrace.ValidationError.invalidRowMajorValueCount(variableCount: 2, valueCount: 3)) {
             _ = try SolutionTrace(variableCount: 2, rowMajorValues: [1.0, 2.0, 3.0])
+        }
+    }
+
+    @Test
+    func rejectsCapacityOverflow() {
+        #expect(
+            throws: SolutionTrace.ValidationError.capacityOverflow(
+                variableCount: Int.max,
+                pointCapacity: 2
+            )
+        ) {
+            _ = try SolutionTrace(
+                variableCount: Int.max,
+                estimatedPointCapacity: 2
+            )
         }
     }
 
@@ -109,7 +124,7 @@ struct SolutionTraceTests {
             variableCount: 2,
             rowMajorValues: [1.0, 2.0]
         )
-        let result = TransientResult(
+        let result = try TransientResult(
             timePoints: [0.0],
             solutionTrace: trace,
             variableMap: [:],

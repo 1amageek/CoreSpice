@@ -46,9 +46,43 @@ public struct WavelengthModel: Sendable {
     ///   - basePhase: The nominal phase at center wavelength (radians).
     ///   - wavelength: The actual operating wavelength (meters).
     /// - Returns: Adjusted phase accounting for group index shift.
-    public func effectivePhase(basePhase: Double, wavelength: Double) -> Double {
+    public func validate() throws {
+        guard centerWavelength.isFinite, centerWavelength > 0 else {
+            throw PhotonicExecutionError.invalidWavelengthModel(
+                "centerWavelength must be finite and positive"
+            )
+        }
+        guard groupIndex.isFinite, groupIndex > 0 else {
+            throw PhotonicExecutionError.invalidWavelengthModel(
+                "groupIndex must be finite and positive"
+            )
+        }
+        guard dispersion.isFinite else {
+            throw PhotonicExecutionError.invalidWavelengthModel("dispersion must be finite")
+        }
+        guard armLengthImbalance.isFinite else {
+            throw PhotonicExecutionError.invalidWavelengthModel(
+                "armLengthImbalance must be finite"
+            )
+        }
+    }
+
+    public func effectivePhase(basePhase: Double, wavelength: Double) throws -> Double {
+        try validate()
+        guard basePhase.isFinite, wavelength.isFinite, wavelength > 0 else {
+            throw PhotonicExecutionError.invalidWavelength(
+                index: 0,
+                value: wavelength
+            )
+        }
         let deltaLambda = wavelength - centerWavelength
         let phaseShift = -2.0 * .pi * groupIndex * deltaLambda * armLengthImbalance / (centerWavelength * centerWavelength)
-        return basePhase + phaseShift
+        let phase = basePhase + phaseShift
+        guard phase.isFinite else {
+            throw PhotonicExecutionError.invalidWavelengthModel(
+                "phase evaluation produced a non-finite result"
+            )
+        }
+        return phase
     }
 }

@@ -21,6 +21,8 @@ public struct DiodeDescriptor: DeviceDescriptor, Sendable {
         ParameterDescriptor(name: "tt", defaultValue: .real(0.0), description: "Transit time (s)"),
         ParameterDescriptor(name: "eg", defaultValue: .real(1.11), description: "Energy gap (eV)"),
         ParameterDescriptor(name: "xti", defaultValue: .real(3.0), description: "Saturation current temperature exponent"),
+        ParameterDescriptor(name: "tnom", defaultValue: .real(27.0), description: "Model nominal temperature (°C)"),
+        ParameterDescriptor(name: "tnom_k", defaultValue: .real(300.15), description: "Model nominal temperature (K)"),
     ]
 
     public init() {}
@@ -34,6 +36,15 @@ public struct DiodeDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
+        let nominalTemperature = try extractReal(
+            instance.parameters["tnom_k"],
+            parameter: "tnom_k",
+            device: instance.name
+        ) ?? ((try extractReal(
+            instance.parameters["tnom"],
+            parameter: "tnom",
+            device: instance.name
+        )).map { $0 + 273.15 } ?? 300.15)
         let params = DiodeModelParameters(
             saturationCurrent: try extractReal(instance.parameters["is"], parameter: "is", device: instance.name) ?? 1e-14,
             emissionCoefficient: try extractReal(instance.parameters["n"], parameter: "n", device: instance.name) ?? 1.0,
@@ -45,7 +56,9 @@ public struct DiodeDescriptor: DeviceDescriptor, Sendable {
             gradingCoefficient: try extractReal(instance.parameters["m"], parameter: "m", device: instance.name) ?? 0.5,
             transitTime: try extractReal(instance.parameters["tt"], parameter: "tt", device: instance.name) ?? 0.0,
             energyGap: try extractReal(instance.parameters["eg"], parameter: "eg", device: instance.name) ?? 1.11,
-            saturationCurrentExponent: try extractReal(instance.parameters["xti"], parameter: "xti", device: instance.name) ?? 3.0
+            saturationCurrentExponent: try extractReal(instance.parameters["xti"], parameter: "xti", device: instance.name) ?? 3.0,
+            nominalTemperature: nominalTemperature,
+            operatingTemperature: context.operatingConditions.temperatureKelvin
         )
         try params.validate(device: instance.name)
 

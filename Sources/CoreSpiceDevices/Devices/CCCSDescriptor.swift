@@ -34,7 +34,7 @@ public struct CCCSDescriptor: DeviceDescriptor, Sendable {
             throw DeviceBindingError.missingParameter(device: instance.name, parameter: "f")
         }
 
-        let senseBranch = context.allocateBranch()
+        let senseBranch = try context.claimBranch(for: instance)
 
         return BoundCCCS(
             instance: instance,

@@ -185,7 +185,7 @@ public struct SparseMatrix: Sendable {
         }
 
         let newStructure = SparseStructure(
-            dimension: n,
+            uncheckedDimension: n,
             rowPointers: rowPointers,
             columnIndices: columnIndices
         )

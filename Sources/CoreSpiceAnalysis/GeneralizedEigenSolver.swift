@@ -17,11 +17,16 @@ struct GeneralizedEigenSolver {
     }
 
     /// Errors from the eigenvalue solver.
-    enum EigenSolverError: Error {
+    enum EigenSolverError: Error, Equatable {
         /// LAPACK's `dggev` returned a non-zero info code.
         case lapackFailed(info: Int)
         /// The matrix dimension is zero.
         case emptyMatrix
+        case dimensionTooLarge(Int)
+        case matrixSizeMismatch(expected: Int, matrixA: Int, matrixB: Int)
+        case nonFiniteMatrixValue(matrix: String, index: Int, value: Double)
+        case invalidWorkspaceSize(Double)
+        case nonFiniteEigenvalue(index: Int, real: Double, imag: Double)
     }
 
     /// Solves the generalized eigenvalue problem `A * x = λ * B * x`.
@@ -45,8 +50,35 @@ struct GeneralizedEigenSolver {
         guard dimension > 0 else {
             throw EigenSolverError.emptyMatrix
         }
+        let (expectedCount, overflow) = dimension.multipliedReportingOverflow(by: dimension)
+        guard !overflow else {
+            throw EigenSolverError.dimensionTooLarge(dimension)
+        }
+        guard matrixA.count == expectedCount, matrixB.count == expectedCount else {
+            throw EigenSolverError.matrixSizeMismatch(
+                expected: expectedCount,
+                matrixA: matrixA.count,
+                matrixB: matrixB.count
+            )
+        }
+        if let index = matrixA.firstIndex(where: { !$0.isFinite }) {
+            throw EigenSolverError.nonFiniteMatrixValue(
+                matrix: "A",
+                index: index,
+                value: matrixA[index]
+            )
+        }
+        if let index = matrixB.firstIndex(where: { !$0.isFinite }) {
+            throw EigenSolverError.nonFiniteMatrixValue(
+                matrix: "B",
+                index: index,
+                value: matrixB[index]
+            )
+        }
 
-        let n = CoreSpiceLAPACKInteger(dimension)
+        guard let n = CoreSpiceLAPACKInteger(exactly: dimension) else {
+            throw EigenSolverError.dimensionTooLarge(dimension)
+        }
         var a = matrixA
         var b = matrixB
         let lda = n
@@ -81,7 +113,12 @@ struct GeneralizedEigenSolver {
             throw EigenSolverError.lapackFailed(info: Int(info))
         }
 
-        lwork = CoreSpiceLAPACKInteger(workQuery[0])
+        guard workQuery[0].isFinite,
+              workQuery[0] >= 1,
+              workQuery[0] <= Double(CoreSpiceLAPACKInteger.max) else {
+            throw EigenSolverError.invalidWorkspaceSize(workQuery[0])
+        }
+        lwork = CoreSpiceLAPACKInteger(workQuery[0].rounded(.up))
         var work = [Double](repeating: 0, count: Int(lwork))
 
         // Reset arrays since workspace query may have modified them
@@ -107,10 +144,16 @@ struct GeneralizedEigenSolver {
         let threshold = 1e-30
         for j in 0..<dimension {
             if abs(beta[j]) > threshold {
-                eigenvalues.append(ComplexPair(
-                    real: alphar[j] / beta[j],
-                    imag: alphai[j] / beta[j]
-                ))
+                let real = alphar[j] / beta[j]
+                let imag = alphai[j] / beta[j]
+                guard real.isFinite, imag.isFinite else {
+                    throw EigenSolverError.nonFiniteEigenvalue(
+                        index: j,
+                        real: real,
+                        imag: imag
+                    )
+                }
+                eigenvalues.append(ComplexPair(real: real, imag: imag))
             }
         }
 

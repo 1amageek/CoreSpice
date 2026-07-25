@@ -594,7 +594,10 @@ extension WaveformData {
 
         for (i, entry) in entries.enumerated() {
             sweepValues.append(Double(i))
-            realData.append([entry.sensitivity, entry.normalizedSensitivity])
+            realData.append([
+                entry.sensitivity,
+                entry.normalizedSensitivity ?? Double.nan,
+            ])
         }
 
         let metadata = SimulationMetadata(
@@ -617,6 +620,62 @@ extension WaveformData {
             sweepValues: sweepValues,
             variables: variables,
             realData: realData
+        )
+    }
+
+    /// Creates complex waveform data from an AC sensitivity result.
+    ///
+    /// Each parameter contributes an absolute and normalized derivative column
+    /// over the shared frequency sweep.
+    public static func from(
+        acSensitivityResult: ACSensitivityResult,
+        title: String? = nil
+    ) -> WaveformData {
+        var variables: [VariableDescriptor] = []
+        variables.reserveCapacity(acSensitivityResult.sensitivities.count * 2)
+        for entry in acSensitivityResult.sensitivities {
+            let baseName = "\(entry.deviceName).\(entry.parameterName)"
+            variables.append(VariableDescriptor(
+                name: "d\(acSensitivityResult.outputVariable)/d\(baseName)",
+                unit: .dimensionless,
+                type: .voltage,
+                index: variables.count
+            ))
+            variables.append(VariableDescriptor(
+                name: "normalized_\(baseName)",
+                unit: .dimensionless,
+                type: .magnitude,
+                index: variables.count
+            ))
+        }
+
+        let complexData = acSensitivityResult.frequencies.indices.map { frequencyIndex in
+            var row: [(real: Double, imag: Double)] = []
+            row.reserveCapacity(variables.count)
+            for entry in acSensitivityResult.sensitivities {
+                let derivative = entry.sensitivities[frequencyIndex]
+                row.append((real: derivative.real, imag: derivative.imag))
+                if let normalized = entry.normalizedSensitivities[frequencyIndex] {
+                    row.append((real: normalized.real, imag: normalized.imag))
+                } else {
+                    row.append((real: Double.nan, imag: Double.nan))
+                }
+            }
+            return row
+        }
+
+        return WaveformData(
+            metadata: SimulationMetadata(
+                title: title,
+                analysisType: .sensitivity,
+                pointCount: acSensitivityResult.frequencies.count,
+                variableCount: variables.count,
+                isComplex: true
+            ),
+            sweepVariable: .frequency(),
+            sweepValues: acSensitivityResult.frequencies,
+            variables: variables,
+            complexData: complexData
         )
     }
 

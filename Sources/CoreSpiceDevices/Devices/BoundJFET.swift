@@ -132,7 +132,8 @@ public struct BoundJFET: BoundDevice, VoltageLimitingDevice, TransientStateCommi
             positiveNode: effectiveDrain,
             negativeNode: effectiveSource,
             gm: point.channel.gm,
-            gds: point.channel.gds
+            gds: point.channel.gds,
+            temperatureKelvin: parameters.operatingTemperature
         )
 
         let q = 1.602176634e-19

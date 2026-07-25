@@ -240,7 +240,8 @@ public struct BoundNMOSL1: BoundDevice, VoltageLimitingDevice, TransientStateCom
             positiveNode: effectiveDrain,
             negativeNode: effectiveSource,
             gm: op.gm,
-            gds: op.gds
+            gds: op.gds,
+            temperatureKelvin: parameters.operatingTemperature
         )
     }
 

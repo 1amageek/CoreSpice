@@ -43,12 +43,12 @@ struct CurrentControlledSwitchTests {
             _ = try CurrentControlledSwitchDescriptor().bind(instance: instance, context: &context)
             Issue.record("Expected binding to reject an unindexed sense branch.")
         } catch let error as DeviceBindingError {
-            guard case .invalidParameterValue(_, let parameter, let message) = error else {
+            guard case .missingBranchVariable(let device, let index) = error else {
                 Issue.record("Unexpected DeviceBindingError: \(error)")
                 return
             }
-            #expect(parameter == "sense_branch")
-            #expect(message.contains("No matrix branch index found"))
+            #expect(device == "W1")
+            #expect(index == 0)
         } catch {
             Issue.record("Unexpected error: \(error)")
         }

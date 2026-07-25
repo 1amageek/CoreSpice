@@ -213,14 +213,14 @@ struct SensitivityTests {
             $0.deviceName == "R1" && $0.parameterName == "r"
         })
         #expect(r1Sens != nil)
-        #expect(abs(r1Sens!.normalizedSensitivity - (-0.5)) < 0.01)
+        #expect(abs(try #require(r1Sens!.normalizedSensitivity) - (-0.5)) < 0.01)
 
         // Normalized sensitivity of R2: (dV/dR2 * R2) / V(out) = +0.5
         let r2Sens = result.sensitivities.first(where: {
             $0.deviceName == "R2" && $0.parameterName == "r"
         })
         #expect(r2Sens != nil)
-        #expect(abs(r2Sens!.normalizedSensitivity - 0.5) < 0.01)
+        #expect(abs(try #require(r2Sens!.normalizedSensitivity) - 0.5) < 0.01)
     }
 
     /// Voltage source sensitivity: dV(out)/dV = R2/(R1+R2) = 0.5

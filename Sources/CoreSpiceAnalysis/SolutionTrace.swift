@@ -8,6 +8,8 @@ import Foundation
 public struct SolutionTrace: Sendable {
     public enum ValidationError: Error, LocalizedError, Equatable, Sendable {
         case negativeVariableCount(Int)
+        case negativeEstimatedPointCapacity(Int)
+        case capacityOverflow(variableCount: Int, pointCapacity: Int)
         case invalidRowMajorValueCount(variableCount: Int, valueCount: Int)
         case solutionWidthMismatch(expected: Int, actual: Int)
         case pointIndexOutOfRange(index: Int, pointCount: Int)
@@ -18,6 +20,10 @@ public struct SolutionTrace: Sendable {
             switch self {
             case .negativeVariableCount(let count):
                 return "Solution trace variable count must not be negative: \(count)."
+            case .negativeEstimatedPointCapacity(let count):
+                return "Estimated point capacity must not be negative: \(count)."
+            case .capacityOverflow(let variableCount, let pointCapacity):
+                return "Solution trace capacity overflows for \(variableCount) variables and \(pointCapacity) points."
             case .invalidRowMajorValueCount(let variableCount, let valueCount):
                 return "Row-major value count \(valueCount) is not valid for variable count \(variableCount)."
             case .solutionWidthMismatch(let expected, let actual):
@@ -48,10 +54,24 @@ public struct SolutionTrace: Sendable {
         guard variableCount >= 0 else {
             throw ValidationError.negativeVariableCount(variableCount)
         }
+        guard estimatedPointCapacity >= 0 else {
+            throw ValidationError.negativeEstimatedPointCapacity(
+                estimatedPointCapacity
+            )
+        }
         self.variableCount = variableCount
         self.values = []
         if variableCount > 0, estimatedPointCapacity > 0 {
-            values.reserveCapacity(variableCount * estimatedPointCapacity)
+            let (capacity, overflow) = variableCount.multipliedReportingOverflow(
+                by: estimatedPointCapacity
+            )
+            guard !overflow else {
+                throw ValidationError.capacityOverflow(
+                    variableCount: variableCount,
+                    pointCapacity: estimatedPointCapacity
+                )
+            }
+            values.reserveCapacity(capacity)
         }
     }
 

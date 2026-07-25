@@ -49,6 +49,11 @@ public struct CurrentControlledSwitchDescriptor: DeviceDescriptor, Sendable {
                 message: "Switch threshold parameters must be finite"
             )
         }
+        // FIXME(INCOMPLETE_IMPLEMENTATION):
+        // Direct descriptor binding reaches this guard when IH is non-zero.
+        // Keep failing instead of constructing a stateless device until switch
+        // state ownership, initialization, iteration rollback, transient commit,
+        // and verified hysteresis semantics are implemented.
         guard hysteresisCurrent == 0 else {
             throw DeviceBindingError.invalidParameterValue(
                 device: instance.name,
@@ -57,7 +62,7 @@ public struct CurrentControlledSwitchDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
-        let senseBranch = context.allocateBranch()
+        let senseBranch = try context.claimBranch(for: instance)
         guard context.branchIndex(senseBranch) != nil else {
             throw DeviceBindingError.invalidParameterValue(
                 device: instance.name,

@@ -127,7 +127,7 @@ struct CancellationIntegrationTests {
         )
 
         // Verify result is correct
-        let midVoltage = result.voltage(at: mid)
+        let midVoltage = try result.voltage(at: mid)
         #expect(abs(midVoltage - 5.0) < 0.01, "Voltage divider should give 5V at midpoint")
     }
 

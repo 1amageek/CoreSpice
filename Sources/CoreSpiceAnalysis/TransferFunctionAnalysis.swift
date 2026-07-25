@@ -46,6 +46,7 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         cancellation: CancellationToken
     ) async throws -> TransferFunctionResult {
+        try PreparedCircuit.validate(plan: plan, devices: devices)
         let analysisID = AnalysisID()
         let startTimestamp = Timestamp()
         let dim = plan.topology.dimension
@@ -173,7 +174,7 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
                 wallTime: Timestamp().elapsed(since: startTimestamp)
             )))
 
-            return TransferFunctionResult(
+            return try TransferFunctionResult(
                 gain: gain,
                 inputImpedance: inputImpedance,
                 outputImpedance: outputImpedance,

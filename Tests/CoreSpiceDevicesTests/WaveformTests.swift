@@ -5,6 +5,16 @@ import Testing
 @Suite("Waveform Tests")
 struct WaveformTests {
 
+    private func branchContext() -> BindingContext {
+        BindingContext(
+            variableMap: [
+                .nodeVoltage(Node(id: 1)): 0,
+                .branchCurrent(Branch(id: 0)): 1,
+            ],
+            matrixDimension: 2
+        )
+    }
+
     // MARK: - DC Waveform Tests
 
     @Test func dcWaveformValue() {
@@ -198,7 +208,7 @@ struct WaveformTests {
             parameters: ["v": .real(5.0)]
         )
 
-        var context = BindingContext(variableMap: [:], matrixDimension: 2)
+        var context = branchContext()
         let bound = try descriptor.bind(instance: instance, context: &context)
 
         #expect(bound.instance.name == "V1")
@@ -224,7 +234,7 @@ struct WaveformTests {
             ]
         )
 
-        var context = BindingContext(variableMap: [:], matrixDimension: 2)
+        var context = branchContext()
         let bound = try descriptor.bind(instance: instance, context: &context)
 
         // Should have breakpoints
@@ -246,7 +256,7 @@ struct WaveformTests {
             ]
         )
 
-        var context = BindingContext(variableMap: [:], matrixDimension: 2)
+        var context = branchContext()
         let bound = try descriptor.bind(instance: instance, context: &context)
 
         #expect(bound.instance.name == "V1")
@@ -268,7 +278,7 @@ struct WaveformTests {
             ]
         )
 
-        var context = BindingContext(variableMap: [:], matrixDimension: 2)
+        var context = branchContext()
         #expect(throws: DeviceBindingError.self) {
             _ = try descriptor.bind(instance: instance, context: &context)
         }
@@ -285,7 +295,7 @@ struct WaveformTests {
             parameters: ["i": .real(1e-3)]
         )
 
-        var context = BindingContext(variableMap: [:], matrixDimension: 2)
+        var context = branchContext()
         let bound = try descriptor.bind(instance: instance, context: &context)
 
         #expect(bound.instance.name == "I1")
@@ -308,7 +318,7 @@ struct WaveformTests {
             ]
         )
 
-        var context = BindingContext(variableMap: [:], matrixDimension: 2)
+        var context = branchContext()
         let bound = try descriptor.bind(instance: instance, context: &context)
 
         #expect(!bound.breakpoints(in: 0.0...5e-6).isEmpty)
@@ -327,7 +337,7 @@ struct WaveformTests {
             ]
         )
 
-        var context = BindingContext(variableMap: [:], matrixDimension: 2)
+        var context = branchContext()
         let bound = try descriptor.bind(instance: instance, context: &context)
 
         #expect(bound.instance.name == "I1")
@@ -384,7 +394,7 @@ struct WaveformTests {
             parameters: ["l": .real(1e-3), "ic": .real(0.1)]
         )
 
-        var context = BindingContext(variableMap: [:], matrixDimension: 2)
+        var context = branchContext()
         let bound = try descriptor.bind(instance: instance, context: &context)
 
         if let ind = bound as? BoundInductor {
@@ -404,7 +414,7 @@ struct WaveformTests {
             parameters: ["l": .real(1e-3)]
         )
 
-        var context = BindingContext(variableMap: [:], matrixDimension: 2)
+        var context = branchContext()
         let bound = try descriptor.bind(instance: instance, context: &context)
 
         if let ind = bound as? BoundInductor {

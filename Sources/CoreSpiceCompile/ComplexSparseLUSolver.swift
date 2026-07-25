@@ -197,7 +197,7 @@ public struct ComplexSparseLUSolver: ComplexLinearSolver {
         }
 
         permutedStructure = SparseStructure(
-            dimension: n,
+            uncheckedDimension: n,
             rowPointers: rowPointers,
             columnIndices: columnIndices
         )

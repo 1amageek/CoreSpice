@@ -61,7 +61,11 @@ private func bindJFET(
         )
     }
 
-    let params = try extractJFETParameters(from: instance, polarity: polarity)
+    let params = try extractJFETParameters(
+        from: instance,
+        polarity: polarity,
+        operatingTemperature: context.operatingConditions.temperatureKelvin
+    )
     let drainNode = instance.nodes[0]
     let gateNode = instance.nodes[1]
     let sourceNode = instance.nodes[2]
@@ -81,7 +85,11 @@ private func bindJFET(
     )
 }
 
-private func extractJFETParameters(from instance: Instance, polarity: JFETPolarity) throws -> JFETModelParameters {
+private func extractJFETParameters(
+    from instance: Instance,
+    polarity: JFETPolarity,
+    operatingTemperature: Double
+) throws -> JFETModelParameters {
     let supportedKeys: Set<String> = [
         "vto", "beta", "b", "lambda", "is", "n", "cgs", "cgd", "pb", "m",
         "fc", "kf", "af", "area", "tnom", "tnom_k"
@@ -123,6 +131,7 @@ private func extractJFETParameters(from instance: Instance, polarity: JFETPolari
     if let value = try extractReal("area") { params.area = value }
     if let value = try extractReal("tnom") { params.nominalTemperature = value + 273.15 }
     if let value = try extractReal("tnom_k") { params.nominalTemperature = value }
+    params.operatingTemperature = operatingTemperature
     try params.validate(device: instance.name)
     return params
 }

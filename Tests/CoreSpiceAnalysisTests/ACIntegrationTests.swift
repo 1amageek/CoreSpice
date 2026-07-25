@@ -31,24 +31,24 @@ struct ACIntegrationTests {
 
         // f = 1 Hz: |H| ≈ 0 dB
         let lowIdx = frequencyIndex(in: result, closest: 1.0)
-        let magLow = result.magnitudeDB(at: out, frequencyIndex: lowIdx)
+        let magLow = try result.magnitudeDB(at: out, frequencyIndex: lowIdx)
         #expect(abs(magLow) < 0.5, "At 1 Hz, |H| should be ~0 dB, got \(magLow)")
 
         // f = fc: |H| ≈ -3 dB
         let fcIdx = frequencyIndex(in: result, closest: fc)
-        let magFc = result.magnitudeDB(at: out, frequencyIndex: fcIdx)
+        let magFc = try result.magnitudeDB(at: out, frequencyIndex: fcIdx)
         #expect(abs(magFc - (-3.01)) < 0.5,
                 "At fc=\(fc) Hz, |H| should be ~-3 dB, got \(magFc)")
 
         // f = 10×fc: |H| ≈ -20 dB
         let highIdx = frequencyIndex(in: result, closest: 10 * fc)
-        let magHigh = result.magnitudeDB(at: out, frequencyIndex: highIdx)
+        let magHigh = try result.magnitudeDB(at: out, frequencyIndex: highIdx)
         #expect(abs(magHigh - (-20.0)) < 1.5,
                 "At 10×fc, |H| should be ~-20 dB, got \(magHigh)")
 
         // f = 100×fc: |H| ≈ -40 dB
         let vhighIdx = frequencyIndex(in: result, closest: 100 * fc)
-        let magVHigh = result.magnitudeDB(at: out, frequencyIndex: vhighIdx)
+        let magVHigh = try result.magnitudeDB(at: out, frequencyIndex: vhighIdx)
         #expect(abs(magVHigh - (-40.0)) < 1.5,
                 "At 100×fc, |H| should be ~-40 dB, got \(magVHigh)")
     }
@@ -66,18 +66,18 @@ struct ACIntegrationTests {
 
         // f << fc: attenuated
         let lowIdx = frequencyIndex(in: result, closest: 1.0)
-        let magLow = result.magnitudeDB(at: out, frequencyIndex: lowIdx)
+        let magLow = try result.magnitudeDB(at: out, frequencyIndex: lowIdx)
         #expect(magLow < -30.0, "At 1 Hz, highpass should be attenuated, got \(magLow)")
 
         // f = fc: |H| ≈ -3 dB
         let fcIdx = frequencyIndex(in: result, closest: fc)
-        let magFc = result.magnitudeDB(at: out, frequencyIndex: fcIdx)
+        let magFc = try result.magnitudeDB(at: out, frequencyIndex: fcIdx)
         #expect(abs(magFc - (-3.01)) < 0.5,
                 "At fc, |H| should be ~-3 dB, got \(magFc)")
 
         // f >> fc: |H| ≈ 0 dB
         let highIdx = frequencyIndex(in: result, closest: 100 * fc)
-        let magHigh = result.magnitudeDB(at: out, frequencyIndex: highIdx)
+        let magHigh = try result.magnitudeDB(at: out, frequencyIndex: highIdx)
         #expect(abs(magHigh) < 0.5, "At 100×fc, |H| should be ~0 dB, got \(magHigh)")
     }
 
@@ -98,7 +98,7 @@ struct ACIntegrationTests {
         var peakMag = -Double.infinity
         var peakFreq = 0.0
         for (idx, freq) in result.frequencies.enumerated() {
-            let mag = result.magnitudeDB(at: out, frequencyIndex: idx)
+            let mag = try result.magnitudeDB(at: out, frequencyIndex: idx)
             if mag > peakMag {
                 peakMag = mag
                 peakFreq = freq
@@ -116,8 +116,8 @@ struct ACIntegrationTests {
         // Verify bandpass behavior: both low and high frequency should be below peak
         let lowIdx = frequencyIndex(in: result, closest: 100.0)
         let highIdx = frequencyIndex(in: result, closest: 100_000.0)
-        let magLow = result.magnitudeDB(at: out, frequencyIndex: lowIdx)
-        let magHigh = result.magnitudeDB(at: out, frequencyIndex: highIdx)
+        let magLow = try result.magnitudeDB(at: out, frequencyIndex: lowIdx)
+        let magHigh = try result.magnitudeDB(at: out, frequencyIndex: highIdx)
 
         #expect(magLow < peakMag - 5.0,
                 "Low frequency (\(magLow) dB) should be well below peak (\(peakMag) dB)")
@@ -154,7 +154,7 @@ struct ACIntegrationTests {
         var peakMag = -Double.infinity
         var peakFreq = 0.0
         for (idx, freq) in result.frequencies.enumerated() {
-            let mag = result.magnitudeDB(at: out, frequencyIndex: idx)
+            let mag = try result.magnitudeDB(at: out, frequencyIndex: idx)
             if mag > peakMag {
                 peakMag = mag
                 peakFreq = freq
@@ -192,13 +192,13 @@ struct ACIntegrationTests {
 
         // High frequency: should roll off at -40 dB/decade (2nd order)
         let highIdx = frequencyIndex(in: result, closest: 100_000)
-        let magHigh = result.magnitudeDB(at: out, frequencyIndex: highIdx)
+        let magHigh = try result.magnitudeDB(at: out, frequencyIndex: highIdx)
         #expect(magHigh < -40.0,
                 "At 100kHz, 2nd-order filter should be < -40 dB, got \(magHigh)")
 
         // Passband: should be near 0 dB at low frequency
         let lowIdx = frequencyIndex(in: result, closest: 1.0)
-        let magLow = result.magnitudeDB(at: out, frequencyIndex: lowIdx)
+        let magLow = try result.magnitudeDB(at: out, frequencyIndex: lowIdx)
         #expect(abs(magLow) < 1.0,
                 "Passband should be ~0 dB, got \(magLow)")
     }
@@ -215,18 +215,18 @@ struct ACIntegrationTests {
 
         // f << fc: phase ≈ 0°
         let lowIdx = frequencyIndex(in: result, closest: 1.0)
-        let phaseLow = result.phase(at: out, frequencyIndex: lowIdx)
+        let phaseLow = try result.phase(at: out, frequencyIndex: lowIdx)
         #expect(abs(phaseLow) < 5.0, "At 1 Hz, phase should be ~0°, got \(phaseLow)")
 
         // f = fc: phase ≈ -45°
         let fcIdx = frequencyIndex(in: result, closest: fc)
-        let phaseFc = result.phase(at: out, frequencyIndex: fcIdx)
+        let phaseFc = try result.phase(at: out, frequencyIndex: fcIdx)
         #expect(abs(phaseFc - (-45.0)) < 3.0,
                 "At fc, phase should be ~-45°, got \(phaseFc)")
 
         // f >> fc: phase ≈ -90°
         let highIdx = frequencyIndex(in: result, closest: 100 * fc)
-        let phaseHigh = result.phase(at: out, frequencyIndex: highIdx)
+        let phaseHigh = try result.phase(at: out, frequencyIndex: highIdx)
         #expect(abs(phaseHigh - (-90.0)) < 5.0,
                 "At 100×fc, phase should be ~-90°, got \(phaseHigh)")
     }
@@ -267,7 +267,7 @@ struct ACIntegrationTests {
 
         // BJT CE gain: |Av| ≈ gm × Rc where gm = Ic/Vt
         let midIdx = result.frequencies.count / 2
-        let mag = result.magnitudeDB(at: col, frequencyIndex: midIdx)
+        let mag = try result.magnitudeDB(at: col, frequencyIndex: midIdx)
         #expect(mag > 10.0, "BJT CE gain should be > 10 dB, got \(mag)")
     }
 
@@ -306,7 +306,7 @@ struct ACIntegrationTests {
         let result = try await CircuitFactory.runAC(netlist, sweep: sweep)
 
         let midIdx = result.frequencies.count / 2
-        let mag = result.magnitudeDB(at: drain, frequencyIndex: midIdx)
+        let mag = try result.magnitudeDB(at: drain, frequencyIndex: midIdx)
         #expect(mag > 3.5, "MOSFET CS gain should be > 3.5 dB, got \(mag)")
     }
 
@@ -338,7 +338,7 @@ struct ACIntegrationTests {
         let sweep = FrequencySweep.single(1000.0)
         let result = try await CircuitFactory.runAC(netlist, sweep: sweep)
 
-        let mag = result.magnitudeDB(at: out, frequencyIndex: 0)
+        let mag = try result.magnitudeDB(at: out, frequencyIndex: 0)
         // |closed-loop gain| = Rf/Ri = 10 → 20 dB
         #expect(abs(mag - 20.0) < 1.0,
                 "Inverting amp closed-loop gain should be ~20 dB, got \(mag)")
@@ -373,8 +373,8 @@ struct ACIntegrationTests {
         let f2 = 100_000.0
         let idx1 = frequencyIndex(in: result, closest: f1)
         let idx2 = frequencyIndex(in: result, closest: f2)
-        let mag1 = result.magnitudeDB(at: out, frequencyIndex: idx1)
-        let mag2 = result.magnitudeDB(at: out, frequencyIndex: idx2)
+        let mag1 = try result.magnitudeDB(at: out, frequencyIndex: idx1)
+        let mag2 = try result.magnitudeDB(at: out, frequencyIndex: idx2)
 
         let slopePerDecade = mag2 - mag1
         // Two-stage RC → -40 dB/decade asymptotically
@@ -382,8 +382,8 @@ struct ACIntegrationTests {
                 "Two-stage rolloff should approach -40 dB/dec, got \(slopePerDecade)")
 
         // Mid node (1st stage) should show single-stage -20 dB/dec
-        let magMid1 = result.magnitudeDB(at: mid, frequencyIndex: idx1)
-        let magMid2 = result.magnitudeDB(at: mid, frequencyIndex: idx2)
+        let magMid1 = try result.magnitudeDB(at: mid, frequencyIndex: idx1)
+        let magMid2 = try result.magnitudeDB(at: mid, frequencyIndex: idx2)
         let midSlope = magMid2 - magMid1
         #expect(midSlope > slopePerDecade,
                 "First stage slope (\(midSlope)) should be less steep than output (\(slopePerDecade))")
@@ -413,9 +413,9 @@ struct ACIntegrationTests {
         // All should agree at cutoff frequency
         let decFcIdx = frequencyIndex(in: decadeResult, closest: fc)
         let linFcIdx = frequencyIndex(in: linearResult, closest: fc)
-        let magDecade = decadeResult.magnitudeDB(at: out1, frequencyIndex: decFcIdx)
-        let magLinear = linearResult.magnitudeDB(at: out2, frequencyIndex: linFcIdx)
-        let magSingle = singleResult.magnitudeDB(at: out3, frequencyIndex: 0)
+        let magDecade = try decadeResult.magnitudeDB(at: out1, frequencyIndex: decFcIdx)
+        let magLinear = try linearResult.magnitudeDB(at: out2, frequencyIndex: linFcIdx)
+        let magSingle = try singleResult.magnitudeDB(at: out3, frequencyIndex: 0)
 
         // All should be close to -3 dB
         #expect(abs(magDecade - (-3.01)) < 1.0,
@@ -441,18 +441,18 @@ struct ACIntegrationTests {
 
         // f << fc: attenuated
         let lowIdx = frequencyIndex(in: result, closest: 10.0)
-        let magLow = result.magnitudeDB(at: out, frequencyIndex: lowIdx)
+        let magLow = try result.magnitudeDB(at: out, frequencyIndex: lowIdx)
         #expect(magLow < -30.0, "At 10 Hz, RL highpass should be attenuated, got \(magLow)")
 
         // f = fc: |H| ≈ -3 dB
         let fcIdx = frequencyIndex(in: result, closest: fc)
-        let magFc = result.magnitudeDB(at: out, frequencyIndex: fcIdx)
+        let magFc = try result.magnitudeDB(at: out, frequencyIndex: fcIdx)
         #expect(abs(magFc - (-3.01)) < 1.0,
                 "At fc=\(fc) Hz, |H| should be ~-3 dB, got \(magFc)")
 
         // f >> fc: |H| ≈ 0 dB
         let highIdx = frequencyIndex(in: result, closest: 100 * fc)
-        let magHigh = result.magnitudeDB(at: out, frequencyIndex: highIdx)
+        let magHigh = try result.magnitudeDB(at: out, frequencyIndex: highIdx)
         #expect(abs(magHigh) < 1.0,
                 "At 100×fc, |H| should be ~0 dB, got \(magHigh)")
     }
@@ -488,7 +488,7 @@ struct ACIntegrationTests {
 
         // f = fc (159 Hz): |H| ≈ -3 dB
         let fcIdx = frequencyIndex(in: result, closest: fc)
-        let magFc = result.magnitudeDB(at: out, frequencyIndex: fcIdx)
+        let magFc = try result.magnitudeDB(at: out, frequencyIndex: fcIdx)
         #expect(abs(magFc - (-3.01)) < 0.5,
                 "At fc=\(fc) Hz, |H| should be ~-3 dB, got \(magFc)")
 
@@ -496,13 +496,13 @@ struct ACIntegrationTests {
         // First-order RC: -6 dB/octave → -18 dB after 3 octaves
         let f8fc = 8.0 * fc // ≈ 1273 Hz
         let f8fcIdx = frequencyIndex(in: result, closest: f8fc)
-        let mag8fc = result.magnitudeDB(at: out, frequencyIndex: f8fcIdx)
+        let mag8fc = try result.magnitudeDB(at: out, frequencyIndex: f8fcIdx)
         #expect(abs(mag8fc - (-18.0)) < 2.0,
                 "At 8×fc (3 octaves), |H| should be ~-18 dB, got \(mag8fc)")
 
         // Verify passband: f << fc should be ~0 dB
         let lowIdx = frequencyIndex(in: result, closest: 10.0)
-        let magLow = result.magnitudeDB(at: out, frequencyIndex: lowIdx)
+        let magLow = try result.magnitudeDB(at: out, frequencyIndex: lowIdx)
         #expect(abs(magLow) < 0.5, "At 10 Hz, |H| should be ~0 dB, got \(magLow)")
     }
 
@@ -530,8 +530,8 @@ struct ACIntegrationTests {
         // Compare magnitudes at fc
         let decFcIdx = frequencyIndex(in: decadeResult, closest: fc)
         let octFcIdx = frequencyIndex(in: octaveResult, closest: fc)
-        let magDecade = decadeResult.magnitudeDB(at: out1, frequencyIndex: decFcIdx)
-        let magOctave = octaveResult.magnitudeDB(at: out2, frequencyIndex: octFcIdx)
+        let magDecade = try decadeResult.magnitudeDB(at: out1, frequencyIndex: decFcIdx)
+        let magOctave = try octaveResult.magnitudeDB(at: out2, frequencyIndex: octFcIdx)
 
         // Both should be close to -3 dB
         #expect(abs(magDecade - magOctave) < 0.5,
@@ -540,8 +540,8 @@ struct ACIntegrationTests {
         // Compare at 1 kHz
         let decIdx1k = frequencyIndex(in: decadeResult, closest: 1000.0)
         let octIdx1k = frequencyIndex(in: octaveResult, closest: 1000.0)
-        let magDec1k = decadeResult.magnitudeDB(at: out1, frequencyIndex: decIdx1k)
-        let magOct1k = octaveResult.magnitudeDB(at: out2, frequencyIndex: octIdx1k)
+        let magDec1k = try decadeResult.magnitudeDB(at: out1, frequencyIndex: decIdx1k)
+        let magOct1k = try octaveResult.magnitudeDB(at: out2, frequencyIndex: octIdx1k)
 
         #expect(abs(magDec1k - magOct1k) < 1.0,
                 "Decade (\(magDec1k) dB) and octave (\(magOct1k) dB) should agree at 1kHz")

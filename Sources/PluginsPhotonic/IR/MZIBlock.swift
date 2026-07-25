@@ -24,4 +24,17 @@ public struct MZIBlock: Sendable {
 
     /// Balanced 50/50 beam splitter (pi/2 internal phase).
     public static let halfSplitter = MZIBlock(theta: .pi / 2, phi: 0, loss: 1.0)
+
+    func validationFailure() -> String? {
+        guard theta.isFinite else {
+            return "theta must be finite"
+        }
+        guard phi.isFinite else {
+            return "phi must be finite"
+        }
+        guard loss.isFinite, (0...1).contains(loss) else {
+            return "loss must be finite and in 0...1"
+        }
+        return nil
+    }
 }

@@ -11,6 +11,7 @@ public struct BoundResistor: BoundDevice, NoisyDevice, Sendable {
     private let posNode: Node
     private let negNode: Node
     private let resistance: Double
+    private let temperatureKelvin: Double
 
     /// Pre-resolved node indices (nil for ground).
     private let posIdx: Int?
@@ -27,6 +28,7 @@ public struct BoundResistor: BoundDevice, NoisyDevice, Sendable {
         posNode: Node,
         negNode: Node,
         resistance: Double,
+        temperatureKelvin: Double = OperatingConditions.nominal.temperatureKelvin,
         posIdx: Int? = nil,
         negIdx: Int? = nil,
         stampPP: Int? = nil,
@@ -38,6 +40,7 @@ public struct BoundResistor: BoundDevice, NoisyDevice, Sendable {
         self.posNode = posNode
         self.negNode = negNode
         self.resistance = resistance
+        self.temperatureKelvin = temperatureKelvin
         self.posIdx = posIdx
         self.negIdx = negIdx
         self.stampPP = stampPP
@@ -78,12 +81,9 @@ public struct BoundResistor: BoundDevice, NoisyDevice, Sendable {
     /// Boltzmann constant (J/K).
     private static let kB: Double = 1.380649e-23
 
-    /// Default temperature (300K ≈ 27°C).
-    private static let temperature: Double = 300.0
-
     public func noiseContributions(state: SolutionState, frequency: Double) -> [NoiseSource] {
         // Thermal noise: spectral density = 4kT/R [A²/Hz]
-        let spectralDensity = 4.0 * Self.kB * Self.temperature / resistance
+        let spectralDensity = 4.0 * Self.kB * temperatureKelvin / resistance
         return [
             NoiseSource(
                 name: "\(instance.name)_thermal",

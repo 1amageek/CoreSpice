@@ -26,8 +26,8 @@ public struct FourierAnalysis: Analysis, Sendable {
     /// Number of harmonics to compute (including the fundamental).
     public let harmonicCount: Int
 
-    /// Node voltages to analyze (output nodes).
-    public let outputNodes: [Node]
+    /// MNA variables to analyze.
+    public let outputs: [FourierOutput]
 
     /// Transient configuration for the underlying simulation.
     public let transientConfig: TransientConfig
@@ -44,7 +44,23 @@ public struct FourierAnalysis: Analysis, Sendable {
     ) {
         self.fundamentalFrequency = fundamentalFrequency
         self.harmonicCount = harmonicCount
-        self.outputNodes = outputNodes
+        self.outputs = outputNodes.map {
+            FourierOutput(variable: .nodeVoltage($0), name: "V(\($0.id))")
+        }
+        self.transientConfig = transientConfig
+        self.convergenceConfig = convergenceConfig
+    }
+
+    public init(
+        fundamentalFrequency: Double,
+        harmonicCount: Int = 9,
+        outputs: [FourierOutput],
+        transientConfig: TransientConfig,
+        convergenceConfig: ConvergenceConfig = ConvergenceConfig()
+    ) {
+        self.fundamentalFrequency = fundamentalFrequency
+        self.harmonicCount = harmonicCount
+        self.outputs = outputs
         self.transientConfig = transientConfig
         self.convergenceConfig = convergenceConfig
     }
@@ -56,6 +72,7 @@ public struct FourierAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         cancellation: CancellationToken
     ) async throws -> FourierResult {
+        try PreparedCircuit.validate(plan: plan, devices: devices)
         let analysisID = AnalysisID()
         let startTimestamp = Timestamp()
 
@@ -68,6 +85,35 @@ public struct FourierAnalysis: Analysis, Sendable {
         )))
 
         do {
+            guard fundamentalFrequency.isFinite, fundamentalFrequency > 0 else {
+                throw AnalysisError.invalidConfiguration(
+                    "Fourier fundamental frequency must be positive and finite"
+                )
+            }
+            guard harmonicCount >= 1 else {
+                throw AnalysisError.invalidConfiguration(
+                    "Fourier harmonic count must be at least one"
+                )
+            }
+            guard !outputs.isEmpty else {
+                throw AnalysisError.invalidConfiguration(
+                    "Fourier analysis requires at least one output node"
+                )
+            }
+            let period = 1.0 / fundamentalFrequency
+            guard transientConfig.stopTime >= period else {
+                throw AnalysisError.invalidConfiguration(
+                    "Transient stop time must cover at least one Fourier period"
+                )
+            }
+            for output in outputs {
+                guard plan.topology.variableMap[output.variable] != nil else {
+                    throw AnalysisError.invalidConfiguration(
+                        "Fourier output \(output.name) not found in variable map"
+                    )
+                }
+            }
+
             // Phase 1: Run transient analysis
             let transientAnalysis = TransientAnalysis(
                 config: transientConfig,
@@ -82,15 +128,18 @@ public struct FourierAnalysis: Analysis, Sendable {
             )
 
             // Phase 2: Extract the final period and compute Fourier coefficients
-            let period = 1.0 / fundamentalFrequency
             let variableMap = plan.topology.variableMap
 
             var allHarmonics: [String: [FourierResult.HarmonicComponent]] = [:]
             var allTHD: [String: Double] = [:]
 
-            for node in outputNodes {
-                guard let varIndex = variableMap[.nodeVoltage(node)] else { continue }
-                let varName = "V(\(node.id))"
+            for output in outputs {
+                guard let varIndex = variableMap[output.variable] else {
+                    throw AnalysisError.internalError(
+                        "Validated Fourier output \(output.name) disappeared from variable map"
+                    )
+                }
+                let varName = output.name
 
                 // Extract time-value pairs for the last period
                 let waveform = Self.extractLastPeriod(

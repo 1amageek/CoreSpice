@@ -8,4 +8,8 @@ public enum DeviceBindingError: Error, Sendable {
     case portCountMismatch(device: String, expected: Int, got: Int)
     /// A parameter value is out of range or otherwise invalid.
     case invalidParameterValue(device: String, parameter: String, message: String)
+    /// The compiled topology does not contain a branch required by the device.
+    case missingBranchVariable(device: String, ownedIndex: Int)
+    /// Two devices attempted to claim the same canonical branch.
+    case duplicateBranchOwnership(device: String, branchID: Int)
 }

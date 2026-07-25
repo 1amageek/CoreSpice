@@ -24,7 +24,32 @@ public struct ACResult: Sendable {
         frequencies: [Double],
         solutions: [[ComplexPair]],
         variableMap: [MNAVariable: Int]
-    ) {
+    ) throws {
+        guard frequencies.count == solutions.count else {
+            throw ACResultError.frequencySolutionCountMismatch(
+                frequencies: frequencies.count,
+                solutions: solutions.count
+            )
+        }
+        for (index, frequency) in frequencies.enumerated() where !frequency.isFinite {
+            throw ACResultError.nonFiniteFrequency(index: index, value: frequency)
+        }
+        let solutionSize = solutions.first?.count ?? 0
+        for (index, solution) in solutions.enumerated() where solution.count != solutionSize {
+            throw ACResultError.inconsistentSolutionSize(
+                index: index,
+                expected: solutionSize,
+                actual: solution.count
+            )
+        }
+        for (variable, index) in variableMap
+            where index < 0 || index >= solutionSize {
+            throw ACResultError.variableIndexOutOfBounds(
+                variable: variable,
+                index: index,
+                count: solutionSize
+            )
+        }
         self.frequencies = frequencies
         self.solutions = solutions
         self.variableMap = variableMap
@@ -33,23 +58,29 @@ public struct ACResult: Sendable {
     /// Returns the complex voltage at the given node for a specific frequency index.
     ///
     /// Ground always returns zero.
-    public func voltage(at node: Node, frequencyIndex: Int) -> ComplexPair {
+    public func voltage(at node: Node, frequencyIndex: Int) throws -> ComplexPair {
+        guard frequencies.indices.contains(frequencyIndex) else {
+            throw ACResultError.frequencyIndexOutOfBounds(
+                index: frequencyIndex,
+                count: frequencies.count
+            )
+        }
         if node == .ground { return ComplexPair(real: 0, imag: 0) }
         guard let idx = variableMap[.nodeVoltage(node)] else {
-            return ComplexPair(real: 0, imag: 0)
+            throw ACResultError.missingNodeVoltage(nodeID: node.id)
         }
         return solutions[frequencyIndex][idx]
     }
 
     /// Returns the voltage magnitude in decibels at the given node and frequency.
-    public func magnitudeDB(at node: Node, frequencyIndex: Int) -> Double {
-        let v = voltage(at: node, frequencyIndex: frequencyIndex)
+    public func magnitudeDB(at node: Node, frequencyIndex: Int) throws -> Double {
+        let v = try voltage(at: node, frequencyIndex: frequencyIndex)
         return 20.0 * log10(max(v.magnitude, 1e-300))
     }
 
     /// Returns the voltage phase in degrees at the given node and frequency.
-    public func phase(at node: Node, frequencyIndex: Int) -> Double {
-        let v = voltage(at: node, frequencyIndex: frequencyIndex)
+    public func phase(at node: Node, frequencyIndex: Int) throws -> Double {
+        let v = try voltage(at: node, frequencyIndex: frequencyIndex)
         return atan2(v.imag, v.real) * 180.0 / .pi
     }
 }

@@ -68,14 +68,6 @@ public enum CompressionOption: String, Sendable, Hashable, Codable {
     /// No compression.
     case none
 
-    /// Gzip compression.
-    case gzip
-
-    /// Bzip2 compression.
-    case bzip2
-
-    /// Zstandard compression.
-    case zstd
 }
 
 /// Byte order for binary formats.
@@ -111,6 +103,15 @@ import CoreSpiceWaveform
 import Foundation
 
 extension ExportConfiguration {
+
+    /// Validates configuration shared by every exporter.
+    public func validate() throws {
+        guard (1...17).contains(precision) else {
+            throw ExporterError.invalidConfiguration(
+                reason: "Numeric precision must be in 1...17"
+            )
+        }
+    }
 
     /// Applies configured filters as a lazy waveform projection.
     ///
@@ -224,18 +225,6 @@ extension CompressionOption {
         switch self {
         case .none:
             return data
-        case .gzip:
-            return try compressWithAlgorithm(data, algorithm: .zlib)
-        case .bzip2:
-            // bzip2 not directly available in Foundation, use zlib as fallback
-            return try compressWithAlgorithm(data, algorithm: .zlib)
-        case .zstd:
-            // Zstandard requires external library, use lz4 as closest alternative
-            if #available(macOS 10.15, *) {
-                return try compressWithAlgorithm(data, algorithm: .lz4)
-            } else {
-                return data
-            }
         }
     }
 
@@ -248,16 +237,6 @@ extension CompressionOption {
         switch self {
         case .none:
             return data
-        case .gzip:
-            return try decompressWithAlgorithm(data, algorithm: .zlib)
-        case .bzip2:
-            return try decompressWithAlgorithm(data, algorithm: .zlib)
-        case .zstd:
-            if #available(macOS 10.15, *) {
-                return try decompressWithAlgorithm(data, algorithm: .lz4)
-            } else {
-                return data
-            }
         }
     }
 
@@ -265,27 +244,7 @@ extension CompressionOption {
     public var fileExtension: String? {
         switch self {
         case .none: return nil
-        case .gzip: return "gz"
-        case .bzip2: return "bz2"
-        case .zstd: return "zst"
         }
     }
 
-    private func compressWithAlgorithm(_ data: Data, algorithm: NSData.CompressionAlgorithm) throws -> Data {
-        let nsData = data as NSData
-        do {
-            return try nsData.compressed(using: algorithm) as Data
-        } catch {
-            throw ExporterError.writeFailed(reason: "Compression failed: \(error)")
-        }
-    }
-
-    private func decompressWithAlgorithm(_ data: Data, algorithm: NSData.CompressionAlgorithm) throws -> Data {
-        let nsData = data as NSData
-        do {
-            return try nsData.decompressed(using: algorithm) as Data
-        } catch {
-            throw ExporterError.writeFailed(reason: "Decompression failed: \(error)")
-        }
-    }
 }

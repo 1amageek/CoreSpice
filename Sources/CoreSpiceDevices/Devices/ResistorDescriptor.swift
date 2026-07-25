@@ -51,6 +51,7 @@ public struct ResistorDescriptor: DeviceDescriptor, Sendable {
             posNode: posNode,
             negNode: negNode,
             resistance: resistance,
+            temperatureKelvin: context.operatingConditions.temperatureKelvin,
             posIdx: posIdx,
             negIdx: negIdx,
             stampPP: stampPP,

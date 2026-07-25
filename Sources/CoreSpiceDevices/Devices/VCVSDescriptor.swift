@@ -33,7 +33,7 @@ public struct VCVSDescriptor: DeviceDescriptor, Sendable {
             throw DeviceBindingError.missingParameter(device: instance.name, parameter: "e")
         }
 
-        let branch = context.allocateBranch()
+        let branch = try context.claimBranch(for: instance)
 
         return BoundVCVS(
             instance: instance,

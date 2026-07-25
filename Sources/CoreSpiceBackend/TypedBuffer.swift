@@ -12,12 +12,24 @@ public struct TypedBuffer<Element: Sendable>: Sendable {
         self.label = label
     }
 
-    public var contents: UnsafeMutableBufferPointer<Element> {
+    public func withMutableContents<Result>(
+        _ body: (UnsafeMutableBufferPointer<Element>) throws -> Result
+    ) rethrows -> Result {
         let ptr = buffer.contents().bindMemory(to: Element.self, capacity: count)
-        return UnsafeMutableBufferPointer(start: ptr, count: count)
+        return try body(UnsafeMutableBufferPointer(start: ptr, count: count))
     }
 
-    public var byteLength: Int {
-        count * MemoryLayout<Element>.stride
+    public func byteLength() throws -> Int {
+        let (length, overflow) = count.multipliedReportingOverflow(
+            by: MemoryLayout<Element>.stride
+        )
+        guard count >= 0, !overflow else {
+            throw BackendError.invalidBufferRequest(
+                count: count,
+                stride: MemoryLayout<Element>.stride,
+                label: label
+            )
+        }
+        return length
     }
 }

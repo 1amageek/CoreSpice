@@ -13,9 +13,6 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
     private let library: MTLLibrary
     private let pool: BufferPool
 
-    /// Maximum buffer size in bytes (configurable).
-    private let maxBufferSize: Mutex<Int>
-
     /// Whether profiling is enabled.
     private let profilingEnabled: Mutex<Bool>
 
@@ -42,8 +39,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
             }
         }
 
-        self.pool = BufferPool(device: dev)
-        self.maxBufferSize = Mutex(256 * 1024 * 1024)  // Default: 256 MB
+        self.pool = try BufferPool(device: dev)
         self.profilingEnabled = Mutex(false)
     }
 
@@ -77,8 +73,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
             }
         }
 
-        self.pool = BufferPool(device: matchedDevice)
-        self.maxBufferSize = Mutex(256 * 1024 * 1024)
+        self.pool = try BufferPool(device: matchedDevice)
         self.profilingEnabled = Mutex(false)
     }
 
@@ -101,17 +96,30 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         count: Int,
         label: String
     ) throws -> MTLBuffer {
-        let byteCount = count * MemoryLayout<T>.stride
+        let stride = MemoryLayout<T>.stride
+        let (byteCount, overflow) = count.multipliedReportingOverflow(by: stride)
+        guard count > 0, stride > 0, !overflow else {
+            throw BackendError.invalidBufferRequest(count: count, stride: stride, label: label)
+        }
         return try pool.acquire(byteCount: byteCount, label: label)
     }
 
-    public func contents<T>(
+    public func withMutableContents<T, Result>(
         of buffer: MTLBuffer,
-        as type: T.Type
-    ) -> UnsafeMutableBufferPointer<T> {
+        as type: T.Type,
+        _ body: (UnsafeMutableBufferPointer<T>) throws -> Result
+    ) throws -> Result {
+        guard MemoryLayout<T>.stride > 0,
+              buffer.length.isMultiple(of: MemoryLayout<T>.stride) else {
+            throw BackendError.invalidBufferRequest(
+                count: buffer.length,
+                stride: MemoryLayout<T>.stride,
+                label: buffer.label ?? "unlabelled"
+            )
+        }
         let count = buffer.length / MemoryLayout<T>.stride
         let ptr = buffer.contents().bindMemory(to: T.self, capacity: count)
-        return UnsafeMutableBufferPointer(start: ptr, count: count)
+        return try body(UnsafeMutableBufferPointer(start: ptr, count: count))
     }
 
     public func releaseBuffer(_ buffer: MTLBuffer) {
@@ -138,6 +146,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         observer: EventDispatcher?,
         tag: String
     ) async throws {
+        try validate(gridSize: gridSize)
         let analysisID = AnalysisID()
         let startTime = Timestamp()
 
@@ -189,10 +198,13 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
             )
         }
 
+        let elapsed: Duration = profilingEnabled.withLock { $0 }
+            ? .seconds(max(0, commandBuffer.gpuEndTime - commandBuffer.gpuStartTime))
+            : Timestamp().elapsed(since: startTime)
         await observer?.emit(.gpuDispatchFinished(GPUDispatchResultInfo(
             id: analysisID,
             kernelName: tag,
-            elapsedTime: Timestamp().elapsed(since: startTime),
+            elapsedTime: elapsed,
             tag: tag
         )))
     }
@@ -203,6 +215,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
     }
 
     public func prepare(configuration: BackendConfiguration) throws {
+        try configuration.validate()
         if let preferredDevice = configuration.preferredDevice,
            preferredDevice != device.name {
             throw BackendError.preferredDeviceMismatch(
@@ -211,8 +224,7 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
             )
         }
 
-        // Apply max buffer size configuration
-        maxBufferSize.withLock { $0 = configuration.maxBufferSize }
+        try pool.setMaximumBufferSize(configuration.maxBufferSize)
 
         // Apply profiling configuration
         profilingEnabled.withLock { $0 = configuration.enableProfiling }
@@ -239,6 +251,13 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         let analysisID = AnalysisID()
         let startTime = Timestamp()
         let pairCount = Int(layerDescriptor.count)
+        guard pairCount > 0, batchSize > 0 else {
+            throw BackendError.invalidDispatchGrid(
+                width: pairCount,
+                height: batchSize,
+                depth: 1
+            )
+        }
 
         // Emit dispatch started event
         await observer?.emit(.gpuDispatchStarted(GPUDispatchInfo(
@@ -287,10 +306,13 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         }
 
         // Emit dispatch finished event
+        let elapsed: Duration = profilingEnabled.withLock { $0 }
+            ? .seconds(max(0, commandBuffer.gpuEndTime - commandBuffer.gpuStartTime))
+            : Timestamp().elapsed(since: startTime)
         await observer?.emit(.gpuDispatchFinished(GPUDispatchResultInfo(
             id: analysisID,
             kernelName: kernelName,
-            elapsedTime: Timestamp().elapsed(since: startTime),
+            elapsedTime: elapsed,
             tag: tag
         )))
     }
@@ -310,6 +332,12 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         gridSize: GridSize,
         completion: @escaping @Sendable (Result<Void, Error>) -> Void
     ) {
+        do {
+            try validate(gridSize: gridSize)
+        } catch {
+            completion(.failure(error))
+            return
+        }
         guard let commandBuffer = commandQueue.makeCommandBuffer() else {
             completion(.failure(BackendError.dispatchFailed(
                 kernel: "async",
@@ -356,6 +384,16 @@ public final class MetalBackend: ComputeBackend, PhotonicComputeBackend, Sendabl
         }
 
         commandBuffer.commit()
+    }
+
+    private func validate(gridSize: GridSize) throws {
+        guard gridSize.width > 0, gridSize.height > 0, gridSize.depth > 0 else {
+            throw BackendError.invalidDispatchGrid(
+                width: gridSize.width,
+                height: gridSize.height,
+                depth: gridSize.depth
+            )
+        }
     }
 
     /// Dispatch a kernel asynchronously using Swift concurrency.

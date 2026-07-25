@@ -154,7 +154,7 @@ struct TemperatureEffectsTests {
             try netlist.addInstance(name: "D1", typeName: "diode", nodes: ["anode", "0"],
                                      parameters: [
                                          "is": .real(1e-14),
-                                         "tnom": .real(temp)
+                                         "tnom_k": .real(temp)
                                      ])
 
             let ir = try netlist.build()
@@ -184,7 +184,7 @@ struct TemperatureEffectsTests {
                 observer: nil, cancellation: token
             )
 
-            let vf = result.voltage(at: anode)
+            let vf = try result.voltage(at: anode)
             forwardVoltages.append(vf)
         }
 

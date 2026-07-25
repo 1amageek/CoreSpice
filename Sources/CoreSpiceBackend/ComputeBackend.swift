@@ -11,10 +11,11 @@ public protocol ComputeBackend: Sendable {
         label: String
     ) throws -> BufferHandle
 
-    func contents<T>(
+    func withMutableContents<T, Result>(
         of buffer: BufferHandle,
-        as type: T.Type
-    ) -> UnsafeMutableBufferPointer<T>
+        as type: T.Type,
+        _ body: (UnsafeMutableBufferPointer<T>) throws -> Result
+    ) throws -> Result
 
     func releaseBuffer(_ buffer: BufferHandle)
 

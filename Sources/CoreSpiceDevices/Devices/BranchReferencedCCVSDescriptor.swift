@@ -38,7 +38,7 @@ public struct BranchReferencedCCVSDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
-        let outputBranch = context.allocateBranch()
+        let outputBranch = try context.claimBranch(for: instance)
 
         return BoundBranchReferencedCCVS(
             instance: instance,

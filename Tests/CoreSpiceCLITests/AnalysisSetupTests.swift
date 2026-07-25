@@ -196,7 +196,7 @@ struct AnalysisSetupTests {
   }
 
   @Test
-  func defaultAnalysisRejectsUnsupportedDirectiveInsteadOfOperatingPointFallback() async throws {
+  func defaultAnalysisRunsNoiseDirectiveInsteadOfFallingBack() async throws {
     let deck = """
       noise deck
       V1 in 0 dc 1
@@ -208,19 +208,90 @@ struct AnalysisSetupTests {
     var session = Session()
     try await session.loadNetlist(source: deck, fileName: "noise.cir")
 
-    #expect(session.firstRunnableAnalysis == nil)
-    do {
-      _ = try session.defaultRunnableAnalysis()
-      Issue.record("expected unsupported analysis directive to fail")
-    } catch let error as CLIError {
-      guard case .unsupportedAnalysis(let analysis) = error else {
-        Issue.record("expected unsupportedAnalysis, got \(error)")
-        return
-      }
-      #expect(analysis == "noise")
-    } catch {
-      Issue.record("unexpected error: \(error)")
+    let analysis = try #require(session.firstRunnableAnalysis)
+    guard case .noise = analysis else {
+      Issue.record("expected noise analysis, got \(analysis)")
+      return
     }
+    let waveform = try await session.runParsed(analysis)
+    #expect(waveform.metadata.analysisType == .noise)
+    #expect(waveform.pointCount > 1)
+  }
+
+  @Test
+  func parsedTransferFunctionSensitivityAndPoleZeroAreExecutable() async throws {
+    let directives = [
+      ".tf V(out) V1",
+      ".sens V(out)",
+      ".sens V(out) ac dec 2 10 1k",
+      ".pz in 0 out 0 vol pz",
+    ]
+
+    for directive in directives {
+      var session = Session()
+      try await session.loadNetlist(
+        source: """
+          parsed analysis deck
+          V1 in 0 dc 1 ac 1
+          R1 in out 1k
+          C1 out 0 1u
+          \(directive)
+          .end
+          """,
+        fileName: "parsed-analysis.cir"
+      )
+      let analysis = try session.requiredDefaultRunnableAnalysis()
+      let waveform = try await session.runParsed(analysis)
+      #expect(waveform.pointCount > 0)
+      #expect(waveform.variableCount > 0)
+    }
+  }
+
+  @Test
+  func parsedCurrentInputAndDifferentialOutputPoleZeroAreExecutable() async throws {
+    var session = Session()
+    try await session.loadNetlist(
+      source: """
+        current-input differential-output pole-zero
+        I1 in 0 dc 0
+        R1 in out 1k
+        R2 in 0 2k
+        C1 out 0 1u
+        .pz in 0 out in cur pz
+        .end
+        """,
+      fileName: "current-differential-pz.cir"
+    )
+    let analysis = try session.requiredDefaultRunnableAnalysis()
+    let waveform = try await session.runParsed(analysis)
+    #expect(waveform.metadata.analysisType == .poleZero)
+    #expect(waveform.pointCount > 0)
+  }
+
+  @Test
+  func parsedFourierUsesTransientDirectiveAndSupportsBranchCurrent() async throws {
+    var session = Session()
+    try await session.loadNetlist(
+      source: """
+        Fourier execution deck
+        V1 in 0 sin(0 1 1k)
+        R1 in out 1k
+        C1 out 0 1u
+        .tran 10u 2m
+        .four 1k V(out) I(V1)
+        .end
+        """,
+      fileName: "fourier.cir"
+    )
+    let fourier = try #require(session.parsedNetlist?.analyses.first {
+      if case .fourier = $0 { return true }
+      return false
+    })
+    let waveform = try await session.runParsed(fourier)
+    #expect(waveform.metadata.analysisType == .fourier)
+    #expect(waveform.variables.contains {
+      $0.name.caseInsensitiveCompare("I(V1)_mag") == .orderedSame
+    })
   }
 
   @Test

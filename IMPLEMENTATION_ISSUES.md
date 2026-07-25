@@ -1,6 +1,10 @@
-# Implementation Issues Review (2026-02-05)
+# Historical Implementation Issues Review (2026-02-05)
 
-**Status: All issues resolved**
+**Status: Superseded by current implementation and `GOAL_STATUS.md`**
+
+This file records the scope of the 2026-02-05 review only. “Resolved” below
+means resolved within that historical issue set; it is not a claim that every
+CoreSpice capability or qualification milestone is complete.
 
 ## Resolved Issues
 
@@ -55,4 +59,6 @@ The EventDispatcher fix required cascading changes to make `emit()` actor-isolat
 | `MetalBackend` dispatch methods | Now `async throws`, use `await commandBuffer.completed()` |
 | `PhotonicExecutor` | Added `await` to all `emit()` and `dispatch()` calls |
 
-All 121 tests pass with these changes.
+At the time of this review, 121 tests covered this migration. Current
+verification counts and capability status are maintained in `GOAL_STATUS.md`
+and the active Xcode test results.

@@ -238,7 +238,7 @@ struct StiffCircuitConvergenceTests {
 
         // Diode should be forward biased
         // Va ≈ 0.6-0.7V (diode drop)
-        let va = dcResult.voltage(at: anode)
+        let va = try dcResult.voltage(at: anode)
         #expect(va > 0.5, "Anode voltage should be ~0.6-0.7V: got \(va)")
         #expect(va < 0.8, "Anode voltage should not exceed 0.8V: got \(va)")
     }

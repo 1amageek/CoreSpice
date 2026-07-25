@@ -82,6 +82,9 @@ public struct MOSFETModelParameters: Sendable {
     /// Source diffusion perimeter (m).
     public var ps: Double
 
+    /// Circuit operating temperature (K).
+    public var operatingTemperature: Double
+
     public init(
         vto: Double = 0.0,
         kp: Double = 2e-5,
@@ -106,7 +109,8 @@ public struct MOSFETModelParameters: Sendable {
         ad: Double = 0,
         asrc: Double = 0,
         pd: Double = 0,
-        ps: Double = 0
+        ps: Double = 0,
+        operatingTemperature: Double = OperatingConditions.nominal.temperatureKelvin
     ) {
         self.vto = vto
         self.kp = kp
@@ -132,6 +136,7 @@ public struct MOSFETModelParameters: Sendable {
         self.asrc = asrc
         self.pd = pd
         self.ps = ps
+        self.operatingTemperature = operatingTemperature
     }
 
     /// Effective transconductance parameter scaled by W/L.
@@ -172,6 +177,7 @@ public struct MOSFETModelParameters: Sendable {
         try requireGrading(mj, "mj", device: device)
         try requireGrading(mjsw, "mjsw", device: device)
         try requirePositive(pb, "pb", device: device)
+        try requirePositive(operatingTemperature, "temp", device: device)
     }
 
     private func requireFinite(_ value: Double, _ parameter: String, device: String) throws {

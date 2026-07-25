@@ -279,7 +279,7 @@ struct WaveformDataTests {
                 3.0, 0.3
             ]
         )
-        let result = TransientResult(
+        let result = try TransientResult(
             timePoints: [0.0, 1.0, 2.0],
             solutionTrace: trace,
             variableMap: [
@@ -323,7 +323,7 @@ struct WaveformDataTests {
         let known = Node(id: 1)
         let missing = Node(id: 2)
         let trace = try SolutionTrace(variableCount: 1, rowMajorValues: [1.0])
-        let result = TransientResult(
+        let result = try TransientResult(
             timePoints: [0.0],
             solutionTrace: trace,
             variableMap: [.nodeVoltage(known): 0],
@@ -351,7 +351,7 @@ struct WaveformDataTests {
                 1.8, 0.9, -0.0005
             ]
         )
-        let result = TransientResult(
+        let result = try TransientResult(
             timePoints: [0.0, 1.0e-9],
             solutionTrace: trace,
             variableMap: [
@@ -386,7 +386,7 @@ struct WaveformDataTests {
             variableCount: 1,
             rowMajorValues: [1.0, 2.0]
         )
-        let result = TransientResult(
+        let result = try TransientResult(
             timePoints: [0.0, 1.0],
             solutionTrace: trace,
             variableMap: [.nodeVoltage(node): 0],
@@ -414,7 +414,7 @@ struct WaveformDataTests {
         let input = Node(id: 1)
         let output = Node(id: 2)
         let sourceBranch = Branch(id: 0)
-        let result = ACResult(
+        let result = try ACResult(
             frequencies: [1.0, 10.0],
             solutions: [
                 [
@@ -454,71 +454,44 @@ struct WaveformDataTests {
     }
 
     @Test
-    func checkedTransientConversionRejectsTraceTimePointMismatch() throws {
+    func transientResultRejectsTraceTimePointMismatchBeforeConversion() throws {
         let node = Node(id: 1)
         let trace = try SolutionTrace(
             variableCount: 1,
             rowMajorValues: [1.0, 2.0]
         )
-        let result = TransientResult(
-            timePoints: [0.0],
-            solutionTrace: trace,
-            variableMap: [.nodeVoltage(node): 0],
-            timeSteps: 1,
-            rejectedSteps: 0
-        )
-        let topology = CircuitTopology(ir: CircuitIR(
-            nodes: [.ground, node],
-            branches: [],
-            instances: []
-        ))
-
-        #expect(throws: WaveformValidationError.metadataPointCountMismatch(expected: 2, actual: 1)) {
-            _ = try WaveformData.checkedFrom(
-                transientResult: result,
-                topology: topology,
-                title: "Invalid"
+        #expect(throws: AnalysisResultValidationError.self) {
+            _ = try TransientResult(
+                timePoints: [0.0],
+                solutionTrace: trace,
+                variableMap: [.nodeVoltage(node): 0],
+                timeSteps: 1,
+                rejectedSteps: 0
             )
         }
     }
 
     @Test
-    func checkedTransientParametricConversionRejectsTraceTimePointMismatch() throws {
+    func transientResultRejectsMalformedParametricInputAtCreation() throws {
         let node = Node(id: 1)
         let trace = try SolutionTrace(
             variableCount: 1,
             rowMajorValues: [1.0, 2.0]
         )
-        let result = TransientResult(
-            timePoints: [0.0],
-            solutionTrace: trace,
-            variableMap: [.nodeVoltage(node): 0],
-            timeSteps: 1,
-            rejectedSteps: 0
-        )
-        let topology = CircuitTopology(ir: CircuitIR(
-            nodes: [.ground, node],
-            branches: [],
-            instances: []
-        ))
-        let sweep = SweepResult(
-            parameterName: "vdd",
-            values: [1.8],
-            results: [result]
-        )
-
-        #expect(throws: WaveformValidationError.metadataPointCountMismatch(expected: 2, actual: 1)) {
-            _ = try WaveformData.checkedParametricFrom(
-                sweepResult: sweep,
-                topology: topology,
-                title: "Invalid Sweep"
+        #expect(throws: AnalysisResultValidationError.self) {
+            _ = try TransientResult(
+                timePoints: [0.0],
+                solutionTrace: trace,
+                variableMap: [.nodeVoltage(node): 0],
+                timeSteps: 1,
+                rejectedSteps: 0
             )
         }
     }
 
     @Test
-    func noiseConversionPreservesSpectralDensityChannels() {
-        let result = NoiseResult(
+    func noiseConversionPreservesSpectralDensityChannels() throws {
+        let result = try NoiseResult(
             frequencies: [1_000.0, 2_000.0],
             outputNoiseDensity: [1.0e-18, 2.0e-18],
             inputReferredNoiseDensity: [4.0e-18, 8.0e-18],
@@ -543,7 +516,7 @@ struct WaveformDataTests {
 
     @Test
     func poleZeroConversionPreservesComplexPairsAndDCGain() throws {
-        let result = PoleZeroResult(
+        let result = try PoleZeroResult(
             poles: [
                 ComplexPair(real: -1_000.0, imag: 10.0),
                 ComplexPair(real: -2_000.0, imag: -20.0),

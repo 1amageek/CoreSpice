@@ -239,7 +239,11 @@ public struct BoundPhotodiode: OptoelectronicDevice, VoltageLimitingDevice, Nois
     // MARK: - NoisyDevice
 
     public func noiseContributions(state: SolutionState, frequency: Double) -> [NoiseSource] {
-        noiseContributions(state: state, opticalState: OpticalState(), frequency: frequency)
+        noiseContributions(
+            state: state,
+            opticalState: OpticalState(nodeCount: opticalInput.id + 1),
+            frequency: frequency
+        )
     }
 
     public func noiseContributions(
@@ -286,25 +290,6 @@ public struct BoundPhotodiode: OptoelectronicDevice, VoltageLimitingDevice, Nois
                 solution[aIdx] += correction
             }
         }
-    }
-
-    // MARK: - BoundDevice (delegated to optical-aware versions)
-
-    public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
-        stampDC(into: &stamper, state: state, opticalState: OpticalState())
-    }
-
-    public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
-        stampAC(into: &stamper, state: state, opticalState: OpticalState(), omega: omega)
-    }
-
-    public func stampTransient(into stamper: inout MatrixStamper, state: SolutionState, integration: IntegrationState) {
-        stampTransient(into: &stamper, state: state, opticalState: OpticalState(), integration: integration)
-    }
-
-    public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
-        checkConvergence(state: state, previousState: previousState,
-                        opticalState: OpticalState(), previousOpticalState: OpticalState())
     }
 
     // MARK: - Internal Diode Model

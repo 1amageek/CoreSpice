@@ -1,3 +1,5 @@
+import Foundation
+
 public struct BackendConfiguration: Sendable {
 
     public var maxBufferSize: Int
@@ -12,5 +14,14 @@ public struct BackendConfiguration: Sendable {
         self.maxBufferSize = maxBufferSize
         self.preferredDevice = preferredDevice
         self.enableProfiling = enableProfiling
+    }
+
+    public func validate() throws {
+        guard maxBufferSize > 0 else {
+            throw BackendError.invalidConfiguration("maxBufferSize must be positive")
+        }
+        if let preferredDevice, preferredDevice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw BackendError.invalidConfiguration("preferredDevice must not be empty")
+        }
     }
 }

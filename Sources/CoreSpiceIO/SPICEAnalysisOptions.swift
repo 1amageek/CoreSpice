@@ -77,6 +77,14 @@ public struct SPICEAnalysisOptions: Sendable {
         )
     }
 
+    /// Resolves validated device operating conditions for binding.
+    public func operatingConditions() throws -> OperatingConditions {
+        try OperatingConditions(
+            temperatureCelsius: temperatureCelsius
+                ?? NetlistLowering.Configuration.default.temperature
+        )
+    }
+
     /// Creates a transient analysis configuration from a `.tran` directive and global options.
     public func transientConfig(
         stopTime: Double,

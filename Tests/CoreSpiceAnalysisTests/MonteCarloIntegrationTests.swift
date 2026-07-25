@@ -38,7 +38,7 @@ struct MonteCarloIntegrationTests {
                 plan: plan, devices: devices, solver: SparseLUSolver(),
                 observer: nil, cancellation: CancellationToken()
             )
-            return r.results.map { $0.voltage(at: mid) }
+            return try r.results.map { try $0.voltage(at: mid) }
         }
         let a = try await runOnce()
         let b = try await runOnce()
@@ -85,7 +85,7 @@ struct MonteCarloIntegrationTests {
         // Diode forward voltage should vary but stay in physical range
         let anode = Node(id: 2)
         for dcResult in result.results {
-            let v = dcResult.voltage(at: anode)
+            let v = try dcResult.voltage(at: anode)
             #expect(v > 0.3 && v < 0.9, "Diode Vf should be in range, got \(v)")
         }
     }
@@ -129,7 +129,7 @@ struct MonteCarloIntegrationTests {
         let out = Node(id: 2)
         var voltages: [Double] = []
         for dcResult in result.results {
-            let v = dcResult.voltage(at: out)
+            let v = try dcResult.voltage(at: out)
             voltages.append(v)
             // V(out) = 5 × R2/(R1+R2) - with variations, should stay reasonable
             #expect(v > 1.0 && v < 4.0, "V(out) should be in reasonable range, got \(v)")
@@ -187,7 +187,7 @@ struct MonteCarloIntegrationTests {
 
         #expect(result.results.count == 20)
         for dcResult in result.results {
-            let vCol = dcResult.voltage(at: col)
+            let vCol = try dcResult.voltage(at: col)
             #expect(vCol > 0 && vCol < 12.0)
         }
     }
@@ -223,7 +223,7 @@ struct MonteCarloIntegrationTests {
         #expect(result.results.count == 100)
 
         let out = Node(id: 2)
-        let voltages = result.results.map { $0.voltage(at: out) }
+        let voltages = try result.results.map { try $0.voltage(at: out) }
 
         // Mean should converge to ~2.5V with 100 samples
         let mean = voltages.reduce(0.0, +) / Double(voltages.count)

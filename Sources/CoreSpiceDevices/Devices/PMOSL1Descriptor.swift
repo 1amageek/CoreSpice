@@ -41,7 +41,8 @@ public struct PMOSL1Descriptor: DeviceDescriptor, Sendable {
             )
         }
 
-        let params = try extractModelParameters(from: instance)
+        var params = try extractModelParameters(from: instance)
+        params.operatingTemperature = context.operatingConditions.temperatureKelvin
 
         let drainNode = instance.nodes[0]
         let gateNode = instance.nodes[1]

@@ -167,7 +167,7 @@ public struct SymbolicAnalysis: Sendable {
             }
         }
 
-        let factorizationStructure = SparseStructure.fromTriplets(
+        let factorizationStructure = SparseStructure.uncheckedFromTriplets(
             dimension: n,
             entries: combinedEntries
         )

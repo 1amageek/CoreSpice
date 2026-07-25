@@ -25,7 +25,26 @@ public struct DCResult: Sendable {
         variableMap: [MNAVariable: Int],
         iterations: Int,
         opticalState: OpticalState? = nil
-    ) {
+    ) throws {
+        guard iterations >= 0 else {
+            throw DCResultValidationError.negativeIterationCount(iterations)
+        }
+        for (index, value) in variables.enumerated() where !value.isFinite {
+            throw DCResultValidationError.nonFiniteVariable(index: index, value: value)
+        }
+        var mappedIndices: Set<Int> = []
+        for (variable, index) in variableMap {
+            guard variables.indices.contains(index) else {
+                throw DCResultValidationError.variableIndexOutOfBounds(
+                    variable: variable,
+                    index: index,
+                    count: variables.count
+                )
+            }
+            guard mappedIndices.insert(index).inserted else {
+                throw DCResultValidationError.duplicateVariableIndex(index)
+            }
+        }
         self.variables = variables
         self.variableMap = variableMap
         self.iterations = iterations
@@ -34,47 +53,43 @@ public struct DCResult: Sendable {
 
     /// Returns the voltage at the given node.
     ///
-    /// The ground node always returns 0. Use `checkedVoltage(at:)` when a
-    /// missing variable must be reported as a structured failure.
-    public func voltage(at node: Node) -> Double {
+    /// The ground node always returns 0.
+    public func voltage(at node: Node) throws -> Double {
         if node == .ground { return 0.0 }
-        guard let idx = variableMap[.nodeVoltage(node)] else { return 0.0 }
-        guard idx >= 0, idx < variables.count else { return 0.0 }
-        return variables[idx]
+        guard let idx = variableMap[.nodeVoltage(node)] else {
+            throw SolutionStateAccessError.missingNodeVoltage(nodeID: node.id)
+        }
+        return try value(at: idx)
     }
 
     /// Returns the voltage at the given node, or throws when the node is not part of the solved state.
     ///
     /// The ground node always returns 0.
     public func checkedVoltage(at node: Node) throws -> Double {
-        if node == .ground { return 0.0 }
-        guard let idx = variableMap[.nodeVoltage(node)] else {
-            throw SolutionStateAccessError.missingNodeVoltage(nodeID: node.id)
-        }
-        guard idx >= 0, idx < variables.count else {
-            throw SolutionStateAccessError.valueIndexOutOfBounds(index: idx, count: variables.count)
-        }
-        return variables[idx]
+        try voltage(at: node)
     }
 
     /// Returns the current through the given branch.
     ///
-    /// Use `checkedCurrent(through:)` when a missing branch must be reported
-    /// as a structured failure.
-    public func current(through branch: Branch) -> Double {
-        guard let idx = variableMap[.branchCurrent(branch)] else { return 0.0 }
-        guard idx >= 0, idx < variables.count else { return 0.0 }
-        return variables[idx]
+    public func current(through branch: Branch) throws -> Double {
+        guard let idx = variableMap[.branchCurrent(branch)] else {
+            throw SolutionStateAccessError.missingBranchCurrent(branchID: branch.id)
+        }
+        return try value(at: idx)
     }
 
     /// Returns the current through the given branch, or throws when the branch is not part of the solved state.
     public func checkedCurrent(through branch: Branch) throws -> Double {
-        guard let idx = variableMap[.branchCurrent(branch)] else {
-            throw SolutionStateAccessError.missingBranchCurrent(branchID: branch.id)
+        try current(through: branch)
+    }
+
+    private func value(at index: Int) throws -> Double {
+        guard variables.indices.contains(index) else {
+            throw SolutionStateAccessError.valueIndexOutOfBounds(
+                index: index,
+                count: variables.count
+            )
         }
-        guard idx >= 0, idx < variables.count else {
-            throw SolutionStateAccessError.valueIndexOutOfBounds(index: idx, count: variables.count)
-        }
-        return variables[idx]
+        return variables[index]
     }
 }

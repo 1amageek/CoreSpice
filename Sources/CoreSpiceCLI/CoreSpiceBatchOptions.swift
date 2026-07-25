@@ -5,6 +5,7 @@ struct CoreSpiceBatchOptions {
   let outputs: OutputTargets
   let overrideAnalysis: AnalysisCommand?
   let jsonOutput: Bool
+  let randomSeed: UInt64?
 
   init(arguments: [String]) throws {
     var cursor = CoreSpiceCLIArgumentCursor(arguments: arguments)
@@ -12,6 +13,7 @@ struct CoreSpiceBatchOptions {
     var outputs = OutputTargets()
     var overrideAnalysis: AnalysisCommand?
     var jsonOutput: Bool?
+    var randomSeed: UInt64?
 
     while !cursor.isAtEnd {
       let argument = cursor.current
@@ -48,6 +50,15 @@ struct CoreSpiceBatchOptions {
         try Self.rejectDuplicate(jsonOutput, argument: argument)
         jsonOutput = true
         cursor.advance()
+      case "--seed":
+        try Self.rejectDuplicate(randomSeed, argument: argument)
+        let rawSeed = try cursor.nonOptionValue(after: argument)
+        guard let seed = UInt64(rawSeed) else {
+          throw CLIError.invalidArguments(
+            "--seed expects a nonnegative integer, got '\(rawSeed)'"
+          )
+        }
+        randomSeed = seed
       default:
         throw CLIError.invalidArguments("unknown batch argument: \(argument)")
       }
@@ -61,6 +72,7 @@ struct CoreSpiceBatchOptions {
     self.outputs = outputs
     self.overrideAnalysis = overrideAnalysis
     self.jsonOutput = jsonOutput ?? false
+    self.randomSeed = randomSeed
   }
 
   private static func parseTransient(

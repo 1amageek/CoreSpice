@@ -1608,6 +1608,22 @@ struct AdvancedAnalysisParserTests {
     }
 
     @Test
+    func rejectIncompleteACSensitivityAnalysis() async {
+        let parser = SPICEParser()
+
+        for directive in [
+            ".sens V(out) ac",
+            ".sens V(out) ac dec",
+            ".sens V(out) ac dec 10 1",
+        ] {
+            let result = await parser.parse(
+                source: "Sensitivity Test\n\(directive)\n.end\n"
+            )
+            #expect(!result.isSuccess)
+        }
+    }
+
+    @Test
     func parseFourierAnalysis() async {
         let source = """
         Fourier Test
@@ -1651,6 +1667,20 @@ struct AdvancedAnalysisParserTests {
             #expect(spec.transferType == .voltage)
             #expect(spec.analysisType == .both)
         }
+    }
+
+    @Test
+    func rejectInvalidPoleZeroModes() async {
+        let parser = SPICEParser()
+        let invalidTransfer = await parser.parse(
+            source: "PZ Test\n.pz in 0 out 0 invalid pz\n.end\n"
+        )
+        let invalidAnalysis = await parser.parse(
+            source: "PZ Test\n.pz in 0 out 0 vol invalid\n.end\n"
+        )
+
+        #expect(!invalidTransfer.isSuccess)
+        #expect(!invalidAnalysis.isSuccess)
     }
 
     @Test

@@ -16,13 +16,14 @@ public struct OpticalState: Sendable {
     public let nodeCount: Int
 
     /// Optical signals at each node, indexed by OpticalNode.id.
-    public var signals: [OpticalSignal]
+    public private(set) var signals: [OpticalSignal]
 
     /// Sensitivity map: dP_optical / dV_electrical.
     /// Populated during DAG evaluation via forward-mode sensitivity propagation.
     public var sensitivities: OpticalSensitivityMap
 
     public init(nodeCount: Int = 0) {
+        precondition(nodeCount >= 0, "Optical node count must be nonnegative")
         self.nodeCount = nodeCount
         self.signals = [OpticalSignal](repeating: .zero, count: nodeCount)
         self.sensitivities = OpticalSensitivityMap()
@@ -30,24 +31,73 @@ public struct OpticalState: Sendable {
 
     /// Returns the optical power at the given node.
     public func power(at node: OpticalNode) -> Double {
-        guard node.id > 0, node.id < nodeCount else { return 0 }
+        if node.id == 0 { return 0 }
+        precondition(
+            node.id > 0 && node.id < nodeCount,
+            "Optical node \(node.id) is outside state size \(nodeCount)"
+        )
         return signals[node.id].power
     }
 
     /// Returns the optical signal at the given node.
     public func signal(at node: OpticalNode) -> OpticalSignal {
-        guard node.id > 0, node.id < nodeCount else { return .zero }
+        if node.id == 0 { return .zero }
+        precondition(
+            node.id > 0 && node.id < nodeCount,
+            "Optical node \(node.id) is outside state size \(nodeCount)"
+        )
         return signals[node.id]
+    }
+
+    /// Returns the optical power or a structured bounds failure.
+    public func checkedPower(at node: OpticalNode) throws -> Double {
+        (try checkedSignal(at: node)).power
+    }
+
+    /// Returns the optical signal or a structured bounds failure.
+    public func checkedSignal(at node: OpticalNode) throws -> OpticalSignal {
+        if node.id == 0 { return .zero }
+        guard node.id > 0, node.id < nodeCount else {
+            throw OpticalStateAccessError.nodeOutOfBounds(
+                nodeID: node.id,
+                nodeCount: nodeCount
+            )
+        }
+        return signals[node.id]
+    }
+
+    /// Updates a non-ground optical node or throws a structured bounds failure.
+    public mutating func setSignal(
+        _ signal: OpticalSignal,
+        at node: OpticalNode
+    ) throws {
+        guard node.id != 0 else {
+            throw OpticalStateAccessError.groundNodeIsImmutable
+        }
+        guard node.id > 0, node.id < nodeCount else {
+            throw OpticalStateAccessError.nodeOutOfBounds(
+                nodeID: node.id,
+                nodeCount: nodeCount
+            )
+        }
+        signals[node.id] = signal
     }
 
     /// Subscript access by OpticalNode.
     public subscript(node: OpticalNode) -> OpticalSignal {
         get {
-            guard node.id > 0, node.id < nodeCount else { return .zero }
+            if node.id == 0 { return .zero }
+            precondition(
+                node.id > 0 && node.id < nodeCount,
+                "Optical node \(node.id) is outside state size \(nodeCount)"
+            )
             return signals[node.id]
         }
         set {
-            guard node.id > 0, node.id < nodeCount else { return }
+            precondition(
+                node.id > 0 && node.id < nodeCount,
+                "Optical node \(node.id) is immutable or outside state size \(nodeCount)"
+            )
             signals[node.id] = newValue
         }
     }

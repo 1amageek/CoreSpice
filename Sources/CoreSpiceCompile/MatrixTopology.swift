@@ -70,38 +70,63 @@ public struct MatrixTopology: Sendable {
             }
         }
 
-        // Add branch-related entries.
-        // For each branch, stamp coupling between the branch current row
-        // and the nodes of the associated voltage source or inductor.
-        //
-        // NOTE: This conservatively couples each branch with ALL non-ground
-        // nodes rather than only the device's terminal nodes. This produces
-        // a correct superset sparsity pattern but may include unnecessary
-        // entries for large circuits. A future optimization could add
-        // branch-to-instance mapping in the IR to scope coupling precisely.
-        var branchIndices: [Int] = []
-        for branch in ir.branches {
-            if let branchIdx = topology.variableMap[.branchCurrent(branch)] {
-                branchIndices.append(branchIdx)
-                for node in ir.nodes where node != ir.groundNode {
-                    if let nodeIdx = topology.variableMap[.nodeVoltage(node)] {
-                        entries.append((row: branchIdx, col: nodeIdx))
-                        entries.append((row: nodeIdx, col: branchIdx))
-                    }
+        // Add branch structure from canonical per-instance connectivity.
+        // This keeps PEX-scale patterns linear in local device connectivity
+        // instead of coupling every branch to every circuit variable.
+        var associatedBranches: Set<Branch> = []
+        for instance in ir.instances {
+            let nodeIndices = instance.nodes.compactMap { node -> Int? in
+                guard node != ir.groundNode else { return nil }
+                return topology.variableMap[.nodeVoltage(node)]
+            }
+            let branches = instance.ownedBranches + instance.referencedBranches
+            let branchIndices = branches.compactMap {
+                topology.variableMap[.branchCurrent($0)]
+            }
+            associatedBranches.formUnion(instance.ownedBranches)
+
+            for branchIndex in branchIndices {
+                for nodeIndex in nodeIndices {
+                    entries.append((row: branchIndex, col: nodeIndex))
+                    entries.append((row: nodeIndex, col: branchIndex))
+                }
+            }
+            for row in branchIndices {
+                for col in branchIndices {
+                    entries.append((row: row, col: col))
                 }
             }
         }
 
-        // Add branch-to-branch coupling entries.
-        // Devices like CCVS stamp cross-branch terms (e.g., transresistance
-        // coupling between output branch and sense branch).
-        for i in branchIndices {
-            for j in branchIndices {
-                entries.append((row: i, col: j))
+        // Legacy programmatic IR may allocate branches without associating
+        // them with an instance. Preserve correctness for that source form by
+        // applying the conservative pattern only to those unassociated
+        // branches. Standard lowering always emits explicit associations.
+        let unassociatedBranches = ir.branches.filter {
+            !associatedBranches.contains($0)
+        }
+        if !unassociatedBranches.isEmpty {
+            let nodeIndices = ir.nodes.compactMap { node -> Int? in
+                guard node != ir.groundNode else { return nil }
+                return topology.variableMap[.nodeVoltage(node)]
+            }
+            let branchIndices = unassociatedBranches.compactMap {
+                topology.variableMap[.branchCurrent($0)]
+            }
+            for branchIndex in branchIndices {
+                for nodeIndex in nodeIndices {
+                    entries.append((row: branchIndex, col: nodeIndex))
+                    entries.append((row: nodeIndex, col: branchIndex))
+                }
+            }
+            for row in branchIndices {
+                for col in branchIndices {
+                    entries.append((row: row, col: col))
+                }
             }
         }
 
-        self.structure = SparseStructure.fromTriplets(
+        self.structure = SparseStructure.uncheckedFromTriplets(
             dimension: topology.matrixSize,
             entries: entries
         )

@@ -194,7 +194,8 @@ public struct BoundPMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
             positiveNode: effectiveSource,
             negativeNode: effectiveDrain,
             gm: op.gm,
-            gds: op.gds
+            gds: op.gds,
+            temperatureKelvin: parameters.operatingTemperature
         )
     }
 

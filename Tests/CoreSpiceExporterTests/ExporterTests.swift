@@ -777,23 +777,14 @@ struct ExportConfigurationTests {
     @Test
     func compressionOption() {
         #expect(CompressionOption.none.fileExtension == nil)
-        #expect(CompressionOption.gzip.fileExtension == "gz")
-        #expect(CompressionOption.bzip2.fileExtension == "bz2")
-        #expect(CompressionOption.zstd.fileExtension == "zst")
     }
 
     @Test
-    func compressionRoundTrip() throws {
+    func noCompressionPreservesData() throws {
         let original = Data("Test data for compression".utf8)
-
-        // Test gzip
-        let gzipCompressed = try CompressionOption.gzip.compress(original)
-        let gzipDecompressed = try CompressionOption.gzip.decompress(gzipCompressed)
-        #expect(gzipDecompressed == original)
-
-        // Test none
         let noneCompressed = try CompressionOption.none.compress(original)
         #expect(noneCompressed == original)
+        #expect(try CompressionOption.none.decompress(noneCompressed) == original)
     }
 }
 
@@ -826,5 +817,87 @@ struct ExporterSwiftAPITests {
         try helper.write(expected)
 
         #expect(helper.outputData == expected)
+    }
+
+    @Test
+    func exportSessionRejectsWrongWidthMixedKindsAndWritesAfterFinalize() async throws {
+        let exporter = CSVExporter()
+        let session = try await exporter.beginExport(
+            to: .memory,
+            metadata: SimulationMetadata(
+                analysisType: .transient,
+                pointCount: 1,
+                variableCount: 1
+            ),
+            sweepVariable: .time(),
+            variables: [.voltage(node: "out", index: 0)],
+            configuration: .default
+        )
+
+        await #expect(throws: ExporterError.self) {
+            try await session.writePoint(sweepValue: 0, values: [])
+        }
+        try await session.writePoint(sweepValue: 0, values: [1])
+        _ = try await session.finalize()
+        await #expect(throws: ExporterError.self) {
+            try await session.writeComplexPoint(
+                sweepValue: 1,
+                values: [(real: 1, imag: 0)]
+            )
+        }
+    }
+
+    @Test
+    func fileExportCommitsAtomicallyAndCancelPreservesExistingFile() async throws {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("corespice-export-session-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        defer {
+            do {
+                try FileManager.default.removeItem(at: directory)
+            } catch {
+                Issue.record("Failed to remove export test directory: \(error)")
+            }
+        }
+        let output = directory.appendingPathComponent("waveform.csv")
+        let original = Data("existing-result".utf8)
+        try original.write(to: output)
+
+        let exporter = CSVExporter()
+        let metadata = SimulationMetadata(
+            analysisType: .transient,
+            pointCount: 1,
+            variableCount: 1
+        )
+        let variables = [VariableDescriptor.voltage(node: "out", index: 0)]
+
+        let cancelled = try await exporter.beginExport(
+            to: .file(path: output.path),
+            metadata: metadata,
+            sweepVariable: .time(),
+            variables: variables,
+            configuration: .default
+        )
+        try await cancelled.writePoint(sweepValue: 0, values: [1])
+        #expect(try Data(contentsOf: output) == original)
+        await cancelled.cancel()
+        #expect(try Data(contentsOf: output) == original)
+
+        let committed = try await exporter.beginExport(
+            to: .file(path: output.path),
+            metadata: metadata,
+            sweepVariable: .time(),
+            variables: variables,
+            configuration: .default
+        )
+        try await committed.writePoint(sweepValue: 0, values: [2])
+        #expect(try Data(contentsOf: output) == original)
+        _ = try await committed.finalize()
+        let finalData = try Data(contentsOf: output)
+        #expect(finalData != original)
+        #expect(String(data: finalData, encoding: .utf8)?.contains(",2") == true)
     }
 }

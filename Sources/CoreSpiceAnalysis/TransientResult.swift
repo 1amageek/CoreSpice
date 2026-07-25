@@ -38,7 +38,62 @@ public struct TransientResult: Sendable {
         variableMap: [MNAVariable: Int],
         timeSteps: Int,
         rejectedSteps: Int
-    ) {
+    ) throws {
+        guard timeSteps >= 0 else {
+            throw AnalysisResultValidationError.negativeCount(
+                field: "timeSteps",
+                value: timeSteps
+            )
+        }
+        guard rejectedSteps >= 0 else {
+            throw AnalysisResultValidationError.negativeCount(
+                field: "rejectedSteps",
+                value: rejectedSteps
+            )
+        }
+        guard !timePoints.isEmpty else {
+            throw AnalysisResultValidationError.countMismatch(
+                field: "timePoints",
+                expected: 1,
+                actual: 0
+            )
+        }
+        guard timePoints.count == solutionTrace.pointCount else {
+            throw AnalysisResultValidationError.countMismatch(
+                field: "solutionTrace.pointCount",
+                expected: timePoints.count,
+                actual: solutionTrace.pointCount
+            )
+        }
+        for (index, time) in timePoints.enumerated() {
+            guard time.isFinite else {
+                throw AnalysisResultValidationError.nonFiniteValue(
+                    field: "timePoints",
+                    index: index,
+                    value: time
+                )
+            }
+            if index > 0, time <= timePoints[index - 1] {
+                throw AnalysisResultValidationError.nonIncreasingValue(
+                    field: "timePoints",
+                    index: index,
+                    previous: timePoints[index - 1],
+                    value: time
+                )
+            }
+        }
+        var usedIndices: Set<Int> = []
+        for index in variableMap.values {
+            guard index >= 0, index < solutionTrace.variableCount else {
+                throw AnalysisResultValidationError.invalidVariableIndex(
+                    index: index,
+                    variableCount: solutionTrace.variableCount
+                )
+            }
+            guard usedIndices.insert(index).inserted else {
+                throw AnalysisResultValidationError.duplicateVariableIndex(index)
+            }
+        }
         self.timePoints = timePoints
         self.solutionTrace = solutionTrace
         self.variableMap = variableMap

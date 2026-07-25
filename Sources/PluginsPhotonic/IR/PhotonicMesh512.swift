@@ -33,4 +33,27 @@ public struct PhotonicMesh512: Sendable {
         case .odd:  return (portCount - 1) / 2 // 255
         }
     }
+
+    public func validate() throws {
+        try wavelengthModel.validate()
+        for (layerIndex, layer) in layers.enumerated() {
+            let maximum = Self.maxPairs(for: layer.pattern)
+            guard !layer.blocks.isEmpty, layer.blocks.count <= maximum else {
+                throw PhotonicExecutionError.invalidLayer(
+                    layer: layerIndex,
+                    pairCount: layer.blocks.count,
+                    maximum: maximum
+                )
+            }
+            for (blockIndex, block) in layer.blocks.enumerated() {
+                if let failure = block.validationFailure() {
+                    throw PhotonicExecutionError.invalidMZIBlock(
+                        layer: layerIndex,
+                        block: blockIndex,
+                        reason: failure
+                    )
+                }
+            }
+        }
+    }
 }

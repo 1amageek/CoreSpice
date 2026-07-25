@@ -9,6 +9,41 @@ import Foundation
 @Suite("Pole-Zero Analysis Tests")
 struct PoleZeroTests {
 
+    @Test("Generalized eigen solver rejects malformed and non-finite matrices")
+    func generalizedEigenSolverValidatesInputs() {
+        #expect(
+            throws: GeneralizedEigenSolver.EigenSolverError.matrixSizeMismatch(
+                expected: 4,
+                matrixA: 1,
+                matrixB: 4
+            )
+        ) {
+            _ = try GeneralizedEigenSolver.solve(
+                matrixA: [1],
+                matrixB: [1, 0, 0, 1],
+                dimension: 2
+            )
+        }
+        do {
+            _ = try GeneralizedEigenSolver.solve(
+                matrixA: [.nan],
+                matrixB: [1],
+                dimension: 1
+            )
+            Issue.record("Expected a non-finite matrix failure.")
+        } catch GeneralizedEigenSolver.EigenSolverError.nonFiniteMatrixValue(
+            let matrix,
+            let index,
+            let value
+        ) {
+            #expect(matrix == "A")
+            #expect(index == 0)
+            #expect(value.isNaN)
+        } catch {
+            Issue.record("Unexpected eigen solver error: \(error)")
+        }
+    }
+
     /// RC lowpass filter: V1 → R(1kΩ) → out → C(1µF) → GND
     ///
     /// Transfer function: H(s) = 1 / (1 + sRC)

@@ -39,6 +39,7 @@ public struct ACAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         cancellation: CancellationToken
     ) async throws -> ACResult {
+        try PreparedCircuit.validate(plan: plan, devices: devices)
         let analysisID = AnalysisID()
         let startTimestamp = Timestamp()
         let dim = plan.topology.dimension
@@ -194,7 +195,7 @@ public struct ACAnalysis: Analysis, Sendable {
                 wallTime: Timestamp().elapsed(since: startTimestamp)
             )))
 
-            return ACResult(
+            return try ACResult(
                 frequencies: frequencies,
                 solutions: solutions,
                 variableMap: variableMap

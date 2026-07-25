@@ -28,14 +28,24 @@ public struct SensitivityAnalysis: Analysis, Sendable {
     /// Fractional perturbation applied to each parameter (default: 1e-6).
     public let perturbationFraction: Double
 
+    /// Minimum absolute perturbation used for zero and near-zero parameters.
+    public let minimumPerturbation: Double
+
+    /// Device binding service used for every perturbed circuit.
+    public let deviceBinding: any CircuitDeviceBinding
+
     public init(
         outputNode: Node,
         dcConfig: ConvergenceConfig = ConvergenceConfig(),
-        perturbationFraction: Double = 1e-6
+        perturbationFraction: Double = 1e-6,
+        minimumPerturbation: Double = 1e-12,
+        deviceBinding: any CircuitDeviceBinding = StandardCircuitDeviceBinding()
     ) {
         self.outputNode = outputNode
         self.dcConfig = dcConfig
         self.perturbationFraction = perturbationFraction
+        self.minimumPerturbation = minimumPerturbation
+        self.deviceBinding = deviceBinding
     }
 
     public func run(
@@ -45,6 +55,7 @@ public struct SensitivityAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         cancellation: CancellationToken
     ) async throws -> SensitivityResult {
+        try PreparedCircuit.validate(plan: plan, devices: devices)
         let analysisID = AnalysisID()
         let startTimestamp = Timestamp()
         let variableMap = plan.topology.variableMap
@@ -58,6 +69,11 @@ public struct SensitivityAnalysis: Analysis, Sendable {
         )))
 
         do {
+            let perturbations = try CircuitParameterPerturbation.makeAll(
+                instances: plan.ir.instances,
+                fraction: perturbationFraction,
+                minimumDelta: minimumPerturbation
+            )
             // Phase 1: Baseline DC operating point
             let dcAnalysis = DCAnalysis(config: dcConfig)
             let baselineResult = try await dcAnalysis.run(
@@ -77,66 +93,45 @@ public struct SensitivityAnalysis: Analysis, Sendable {
             let outputVariable = "V(\(outputNode.id))"
 
             // Phase 2: Perturb each parameter and recompute
-            let registry = DeviceRegistry.standard()
             var sensitivities: [SensitivityResult.ParameterSensitivity] = []
 
-            for (instanceIndex, instance) in plan.ir.instances.enumerated() {
+            for perturbation in perturbations {
                 if cancellation.isCancelled {
                     throw AnalysisError.cancelled
                 }
 
-                for (paramName, paramValue) in instance.parameters {
-                    guard case .real(let nominalValue) = paramValue else { continue }
-                    guard abs(nominalValue) > 1e-30 else { continue }
+                let perturbedCircuit = try rebindDevices(
+                    plan: plan,
+                    perturbedInstanceIndex: perturbation.instanceIndex,
+                    perturbedInstance: perturbation.perturbedInstance
+                )
 
-                    let dp = nominalValue * perturbationFraction
-                    let perturbedValue = nominalValue + dp
+                let perturbedResult = try await dcAnalysis.run(
+                    plan: plan,
+                    devices: perturbedCircuit.devices,
+                    solver: solver,
+                    observer: nil,
+                    cancellation: cancellation
+                )
 
-                    // Create perturbed instance
-                    var perturbedParams = instance.parameters
-                    perturbedParams[paramName] = .real(perturbedValue)
-                    let perturbedInstance = Instance(
-                        name: instance.name,
-                        typeName: instance.typeName,
-                        nodes: instance.nodes,
-                        parameters: perturbedParams
-                    )
+                let perturbedOutput = perturbedResult.variables[outputIndex]
+                let sensitivity = (perturbedOutput - baselineValue) / perturbation.delta
 
-                    // Rebind all devices with the perturbed instance
-                    let perturbedDevices = try rebindDevices(
-                        plan: plan,
-                        registry: registry,
-                        perturbedInstanceIndex: instanceIndex,
-                        perturbedInstance: perturbedInstance
-                    )
-
-                    // Solve perturbed DC
-                    let perturbedResult = try await dcAnalysis.run(
-                        plan: plan,
-                        devices: perturbedDevices,
-                        solver: solver,
-                        observer: nil,
-                        cancellation: cancellation
-                    )
-
-                    let perturbedOutput = perturbedResult.variables[outputIndex]
-                    let sensitivity = (perturbedOutput - baselineValue) / dp
-
-                    let normalizedSensitivity: Double
-                    if abs(baselineValue) > 1e-30 {
-                        normalizedSensitivity = (sensitivity * nominalValue) / baselineValue
-                    } else {
-                        normalizedSensitivity = 0.0
-                    }
-
-                    sensitivities.append(SensitivityResult.ParameterSensitivity(
-                        deviceName: instance.name,
-                        parameterName: paramName,
-                        nominalValue: nominalValue,
-                        sensitivity: sensitivity,
-                        normalizedSensitivity: normalizedSensitivity
-                    ))
+                let normalizedSensitivity: Double?
+                if abs(baselineValue) > 1e-30 {
+                    normalizedSensitivity =
+                        (sensitivity * perturbation.nominalValue) / baselineValue
+                } else {
+                    normalizedSensitivity = nil
                 }
+
+                sensitivities.append(SensitivityResult.ParameterSensitivity(
+                    deviceName: perturbation.deviceName,
+                    parameterName: perturbation.parameterName,
+                    nominalValue: perturbation.nominalValue,
+                    sensitivity: sensitivity,
+                    normalizedSensitivity: normalizedSensitivity
+                ))
             }
 
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
@@ -147,7 +142,7 @@ public struct SensitivityAnalysis: Analysis, Sendable {
                 wallTime: Timestamp().elapsed(since: startTimestamp)
             )))
 
-            return SensitivityResult(
+            return try SensitivityResult(
                 outputVariable: outputVariable,
                 baselineValue: baselineValue,
                 sensitivities: sensitivities,
@@ -180,26 +175,11 @@ public struct SensitivityAnalysis: Analysis, Sendable {
     /// Rebinds all device instances, substituting one perturbed instance.
     private func rebindDevices(
         plan: ExecutionPlan,
-        registry: DeviceRegistry,
         perturbedInstanceIndex: Int,
         perturbedInstance: Instance
-    ) throws -> [any BoundDevice] {
-        let structure = plan.matrixStructure
-        var context = BindingContext(
-            variableMap: plan.topology.variableMap,
-            matrixDimension: plan.topology.dimension,
-            branchNames: plan.ir.branchNames,
-            stampIndexResolver: { row, col in structure.index(row: row, col: col) }
-        )
-        var devices: [any BoundDevice] = []
-
-        for (i, instance) in plan.ir.instances.enumerated() {
-            let inst = (i == perturbedInstanceIndex) ? perturbedInstance : instance
-            guard let desc = registry.descriptor(for: inst.typeName) else { continue }
-            let bound = try desc.bind(instance: inst, context: &context)
-            devices.append(bound)
-        }
-
-        return devices
+    ) throws -> PreparedCircuit {
+        var instances = plan.ir.instances
+        instances[perturbedInstanceIndex] = perturbedInstance
+        return try deviceBinding.bind(plan: plan, instances: instances)
     }
 }

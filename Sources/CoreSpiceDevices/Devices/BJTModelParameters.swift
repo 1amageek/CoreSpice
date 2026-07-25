@@ -73,6 +73,9 @@ public struct BJTModelParameters: Sendable {
     /// Nominal temperature (K). Default: 300.15 K.
     public var nominalTemperature: Double
 
+    /// Circuit operating temperature (K).
+    public var operatingTemperature: Double
+
     /// Creates default BJT parameters for an NPN transistor.
     public init(
         polarity: BJTPolarity = .npn,
@@ -94,7 +97,8 @@ public struct BJTModelParameters: Sendable {
         baseCollectorPotential: Double = 0.75,
         baseEmitterGradingCoeff: Double = 0.33,
         baseCollectorGradingCoeff: Double = 0.33,
-        nominalTemperature: Double = 300.15
+        nominalTemperature: Double = 300.15,
+        operatingTemperature: Double? = nil
     ) {
         self.polarity = polarity
         self.saturationCurrent = saturationCurrent
@@ -116,13 +120,14 @@ public struct BJTModelParameters: Sendable {
         self.baseEmitterGradingCoeff = baseEmitterGradingCoeff
         self.baseCollectorGradingCoeff = baseCollectorGradingCoeff
         self.nominalTemperature = nominalTemperature
+        self.operatingTemperature = operatingTemperature ?? nominalTemperature
     }
 
-    /// Thermal voltage at nominal temperature (kT/q).
+    /// Thermal voltage at the circuit operating temperature (kT/q).
     public var thermalVoltage: Double {
         let k = 1.380649e-23  // Boltzmann constant (J/K)
         let q = 1.602176634e-19  // Elementary charge (C)
-        return k * nominalTemperature / q
+        return k * operatingTemperature / q
     }
 
     /// Forward alpha (common-base current gain).
@@ -155,6 +160,7 @@ public struct BJTModelParameters: Sendable {
         try requireGrading(baseEmitterGradingCoeff, "mje", device: device)
         try requireGrading(baseCollectorGradingCoeff, "mjc", device: device)
         try requirePositive(nominalTemperature, "tnom", device: device)
+        try requirePositive(operatingTemperature, "temp", device: device)
     }
 
     private func requireFinite(_ value: Double, _ parameter: String, device: String) throws {

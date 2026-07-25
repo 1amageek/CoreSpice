@@ -30,16 +30,21 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
     /// Optional seed for reproducible results.
     public let seed: UInt64?
 
+    /// Device binding service used for every sampled circuit.
+    public let deviceBinding: any CircuitDeviceBinding
+
     public init(
         iterations: Int,
         variations: [ParameterVariation],
         analysisFactory: @Sendable @escaping () -> A,
-        seed: UInt64? = nil
+        seed: UInt64? = nil,
+        deviceBinding: any CircuitDeviceBinding = StandardCircuitDeviceBinding()
     ) {
         self.iterations = iterations
         self.variations = variations
         self.analysisFactory = analysisFactory
         self.seed = seed
+        self.deviceBinding = deviceBinding
     }
 
     /// Runs the Monte Carlo analysis.
@@ -58,6 +63,7 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
         observer: EventDispatcher?,
         cancellation: CancellationToken
     ) async throws -> MonteCarloResult<A.Result> {
+        try PreparedCircuit.validate(plan: plan, devices: devices)
         let analysisID = AnalysisID()
         let startTimestamp = Timestamp()
 
@@ -73,8 +79,8 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
             guard iterations > 0 else {
                 throw AnalysisError.invalidConfiguration("Monte Carlo iterations must be positive")
             }
+            try validateVariations(in: plan)
 
-            let registry = DeviceRegistry.standard()
             var rng: any RandomNumberGenerator = seed.map {
                 SeededRandomNumberGenerator(seed: $0) as any RandomNumberGenerator
             } ?? SystemRandomNumberGenerator() as any RandomNumberGenerator
@@ -99,9 +105,8 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
                 }
 
                 // Rebuild devices with the sampled parameters
-                let perturbedDevices = try rebindDevices(
+                let perturbedCircuit = try rebindDevices(
                     plan: plan,
-                    registry: registry,
                     overrides: instanceOverrides
                 )
 
@@ -109,7 +114,7 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
                 let analysis = analysisFactory()
                 let result = try await analysis.run(
                     plan: plan,
-                    devices: perturbedDevices,
+                    devices: perturbedCircuit.devices,
                     solver: solver,
                     observer: nil,
                     cancellation: cancellation
@@ -168,18 +173,10 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
     /// Rebinds all device instances, applying parameter overrides where specified.
     private func rebindDevices(
         plan: ExecutionPlan,
-        registry: DeviceRegistry,
         overrides: [String: [String: Double]]
-    ) throws -> [any BoundDevice] {
-        let structure = plan.matrixStructure
-        var context = BindingContext(
-            variableMap: plan.topology.variableMap,
-            matrixDimension: plan.topology.dimension,
-            branchNames: plan.ir.branchNames,
-            stampIndexResolver: { row, col in structure.index(row: row, col: col) }
-        )
-        var devices: [any BoundDevice] = []
-
+    ) throws -> PreparedCircuit {
+        var instances: [Instance] = []
+        instances.reserveCapacity(plan.ir.instances.count)
         for instance in plan.ir.instances {
             let inst: Instance
             if let paramOverrides = overrides[instance.name] {
@@ -191,17 +188,52 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
                     name: instance.name,
                     typeName: instance.typeName,
                     nodes: instance.nodes,
-                    parameters: params
+                    parameters: params,
+                    opticalNodes: instance.opticalNodes
                 )
             } else {
                 inst = instance
             }
 
-            guard let desc = registry.descriptor(for: inst.typeName) else { continue }
-            let bound = try desc.bind(instance: inst, context: &context)
-            devices.append(bound)
+            instances.append(inst)
         }
+        return try deviceBinding.bind(plan: plan, instances: instances)
+    }
 
-        return devices
+    private func validateVariations(in plan: ExecutionPlan) throws {
+        let instances = Dictionary(
+            uniqueKeysWithValues: plan.ir.instances.map { ($0.name.lowercased(), $0) }
+        )
+        for variation in variations {
+            guard variation.nominalValue.isFinite else {
+                throw AnalysisError.invalidConfiguration(
+                    "Monte Carlo nominal value must be finite for \(variation.deviceName).\(variation.parameterName)"
+                )
+            }
+            guard let instance = instances[variation.deviceName.lowercased()] else {
+                throw AnalysisError.invalidConfiguration(
+                    "Monte Carlo device \(variation.deviceName) does not exist"
+                )
+            }
+            guard case .real? = instance.parameters[variation.parameterName] else {
+                throw AnalysisError.invalidConfiguration(
+                    "Monte Carlo parameter \(variation.deviceName).\(variation.parameterName) is not a real device parameter"
+                )
+            }
+            switch variation.distribution {
+            case .gaussian(let sigma):
+                guard sigma.isFinite, sigma >= 0 else {
+                    throw AnalysisError.invalidConfiguration(
+                        "Monte Carlo sigma must be finite and nonnegative"
+                    )
+                }
+            case .uniform(let range):
+                guard range.isFinite, range >= 0 else {
+                    throw AnalysisError.invalidConfiguration(
+                        "Monte Carlo range must be finite and nonnegative"
+                    )
+                }
+            }
+        }
     }
 }

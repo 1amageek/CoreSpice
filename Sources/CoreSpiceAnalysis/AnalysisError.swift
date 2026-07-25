@@ -11,6 +11,12 @@ public enum AnalysisError: Error, Sendable {
     ///   - residualNorm: The infinity-norm of the residual at the final iteration.
     case convergenceFailure(iterations: Int, residualNorm: Double)
 
+    /// A linear solve or nonlinear update produced a non-finite value.
+    case nonFiniteSolution(iteration: Int, variableIndex: Int, value: Double)
+
+    /// Physical residual evaluation produced a non-finite value.
+    case nonFiniteResidual(iteration: Int, variableIndex: Int, value: Double)
+
     /// The MNA system matrix is singular and cannot be factorized.
     case singularMatrix
 

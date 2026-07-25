@@ -7,20 +7,52 @@ import CircuiteFoundation
 /// details in the injected executor.
 public struct CoreSpiceSimulationRequest: Sendable, Hashable, Codable {
   public let inputs: [ArtifactReference]
+  /// The input artifact that contains the root SPICE deck.
+  ///
+  /// A backend may infer the primary input only when exactly one SPICE
+  /// netlist input is present.
+  public let primaryInputID: ArtifactID?
   public let configurationDigest: ContentDigest?
   public let designRevision: ContentDigest?
   public let randomSeed: UInt64?
 
   public init(
     inputs: [ArtifactReference] = [],
+    primaryInputID: ArtifactID? = nil,
     configurationDigest: ContentDigest? = nil,
     designRevision: ContentDigest? = nil,
     randomSeed: UInt64? = nil
   ) {
     self.inputs = inputs
+    self.primaryInputID = primaryInputID
     self.configurationDigest = configurationDigest
     self.designRevision = designRevision
     self.randomSeed = randomSeed
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      inputs: try container.decode([ArtifactReference].self, forKey: .inputs),
+      primaryInputID: try container.decodeIfPresent(ArtifactID.self, forKey: .primaryInputID),
+      configurationDigest: try container.decodeIfPresent(
+        ContentDigest.self,
+        forKey: .configurationDigest
+      ),
+      designRevision: try container.decodeIfPresent(
+        ContentDigest.self,
+        forKey: .designRevision
+      ),
+      randomSeed: try container.decodeIfPresent(UInt64.self, forKey: .randomSeed)
+    )
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case inputs
+    case primaryInputID
+    case configurationDigest
+    case designRevision
+    case randomSeed
   }
 }
 

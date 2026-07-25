@@ -141,7 +141,7 @@ struct NumericalRobustnessTests {
 
         // Should get voltage divider result
         // Note: GMIN (~1e-12 S) causes small deviation at high resistances
-        let vMid = result.voltage(at: mid)
+        let vMid = try result.voltage(at: mid)
         let expected = v / 2.0
 
         // Allow 0.01% tolerance due to GMIN effect
@@ -204,7 +204,7 @@ struct NumericalRobustnessTests {
 
         // Expected: V_mid = V * R2 / (R1 + R2)
         let expected = v * r2 / (r1 + r2)
-        let vMid = result.voltage(at: mid)
+        let vMid = try result.voltage(at: mid)
 
         // Difference from exactly 0.5V should be tiny
         let diffFrom05 = abs(vMid - 0.5)
@@ -273,7 +273,7 @@ struct NumericalRobustnessTests {
 
         // Expected: V_mid = V * R_small / (R_large + R_small) ≈ 1e-9 V
         let expected = v * rSmall / (rLarge + rSmall)
-        let vMid = result.voltage(at: mid)
+        let vMid = try result.voltage(at: mid)
 
         #expect(vMid.isFinite, "Voltage should be finite")
         #expect(abs(vMid - expected) / expected < 0.01,
@@ -407,7 +407,7 @@ struct NumericalRobustnessTests {
         )
 
         // V_mid should be almost exactly V_in (tiny voltage drop across R_tiny)
-        let vMid = result.voltage(at: mid)
+        let vMid = try result.voltage(at: mid)
         let expected = v * r_normal / (r_tiny + r_normal)
 
         #expect(abs(vMid - expected) < 1e-6, "Should handle near-short circuit: got \(vMid)")

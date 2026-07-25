@@ -370,7 +370,7 @@ struct NetlistLoweringTests {
                         "ron": .numeric(10),
                         "roff": .numeric(1.0e9),
                         "vt": .numeric(2),
-                        "vh": .numeric(0.1),
+                        "vh": .numeric(0),
                     ]
                 )
             ]
@@ -411,7 +411,7 @@ struct NetlistLoweringTests {
                         "ron": .numeric(10),
                         "roff": .numeric(1.0e9),
                         "it": .numeric(1.0e-3),
-                        "ih": .numeric(1.0e-4),
+                        "ih": .numeric(0),
                     ]
                 )
             ]
@@ -572,7 +572,7 @@ struct NetlistLoweringTests {
                         "ron": .numeric(10),
                         "roff": .numeric(1.0e9),
                         "it": .numeric(1.0e-3),
-                        "ih": .numeric(1.0e-4),
+                        "ih": .numeric(0),
                     ]
                 )
             ]

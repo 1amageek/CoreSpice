@@ -26,7 +26,30 @@ public struct PoleZeroResult: Sendable {
         zeros: [ComplexPair],
         dcGain: Double,
         variableMap: [MNAVariable: Int]
-    ) {
+    ) throws {
+        for (index, value) in poles.enumerated() {
+            guard value.real.isFinite, value.imag.isFinite else {
+                throw AnalysisResultValidationError.nonFiniteComplex(
+                    field: "poles",
+                    index: index
+                )
+            }
+        }
+        for (index, value) in zeros.enumerated() {
+            guard value.real.isFinite, value.imag.isFinite else {
+                throw AnalysisResultValidationError.nonFiniteComplex(
+                    field: "zeros",
+                    index: index
+                )
+            }
+        }
+        guard dcGain.isFinite else {
+            throw AnalysisResultValidationError.nonFiniteValue(
+                field: "dcGain",
+                index: 0,
+                value: dcGain
+            )
+        }
         self.poles = poles
         self.zeros = zeros
         self.dcGain = dcGain

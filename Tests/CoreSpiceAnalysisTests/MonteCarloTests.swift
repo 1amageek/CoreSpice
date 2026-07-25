@@ -50,14 +50,14 @@ struct MonteCarloTests {
         // All results should produce valid voltages
         let out = Node(id: 2)
         for dcResult in result.results {
-            let vout = dcResult.voltage(at: out)
+            let vout = try dcResult.voltage(at: out)
             // With R1 varying around 1kΩ and R2 = 1kΩ:
             // V(out) = 5 * R2 / (R1 + R2) should be in reasonable range
             #expect(vout > 1.0 && vout < 4.0)
         }
 
         // Results should not all be identical (randomness is working)
-        let voltages = result.results.map { $0.voltage(at: out) }
+        let voltages = try result.results.map { try $0.voltage(at: out) }
         let minV = try #require(voltages.min())
         let maxV = try #require(voltages.max())
         #expect(maxV - minV > 0.001)

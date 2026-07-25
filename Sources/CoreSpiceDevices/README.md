@@ -19,7 +19,7 @@ This separation allows the analysis engine to efficiently iterate Newton-Raphson
 |------|-------------|
 | `DeviceDescriptor.swift` | Protocol defining the device type interface with port names, parameter descriptors, and a factory method for creating bound devices |
 | `BoundDevice.swift` | Protocol for devices bound to specific matrix indices, with methods for DC, AC, and transient stamping plus convergence checking |
-| `BindingContext.swift` | Context passed during binding phase; provides variable-to-index mapping and branch allocation |
+| `BindingContext.swift` | Context passed during binding; claims canonical owned branches and rejects missing or duplicate ownership before stamping |
 | `DeviceRegistry.swift` | Registry mapping device type names to their descriptors; includes `standard()` factory for built-in devices |
 | `DeviceBindingError.swift` | Typed error enum for binding failures (missing parameters, type mismatches, port count errors) |
 
@@ -123,7 +123,7 @@ public struct DeviceRegistry: Sendable {
     public static func standard() -> DeviceRegistry  // Pre-populated with all built-in devices
 }
 
-public struct MatrixStamper: Sendable {
+public struct MatrixStamper {
     public func stampConductance(node1: Node, node2: Node, conductance: Double)
     public func stampVoltageSource(posNode: Node, negNode: Node, branch: Branch, voltage: Double)
     public func stampCurrentSource(posNode: Node, negNode: Node, current: Double)
@@ -133,10 +133,20 @@ public struct MatrixStamper: Sendable {
 
 public struct SolutionState: Sendable {
     public func voltage(at node: Node) -> Double
+    public func checkedVoltage(at node: Node) throws -> Double
     public func current(through branch: Branch) -> Double
+    public func checkedCurrent(through branch: Branch) throws -> Double
     public func previousVoltage(at node: Node) -> Double
     public func previousCurrent(through branch: Branch) -> Double
     public func twoPreviousVoltage(at node: Node) -> Double
+}
+
+public struct OpticalState: Sendable {
+    public func power(at node: OpticalNode) -> Double
+    public func checkedPower(at node: OpticalNode) throws -> Double
+    public func signal(at node: OpticalNode) -> OpticalSignal
+    public func checkedSignal(at node: OpticalNode) throws -> OpticalSignal
+    public mutating func setSignal(_ signal: OpticalSignal, at node: OpticalNode) throws
 }
 
 public enum Waveform: Sendable {
@@ -149,6 +159,11 @@ public enum Waveform: Sendable {
     public func breakpoints(in interval: ClosedRange<Double>) -> [Double]
 }
 ```
+
+The non-throwing state accessors are for already-bound internal execution
+paths and enforce binding invariants. Parsers, adapters, and other external
+input boundaries use the checked accessors so missing variables and invalid
+optical nodes remain typed failures.
 
 ### Built-in Device Types
 
@@ -206,13 +221,12 @@ public enum Waveform: Sendable {
 
 - [ ] **BSIM models**: No advanced MOSFET models
 - [ ] **MESFET execution**: Parsed components are not lowered to executable native devices
-- [ ] **Switch hysteresis state**: Voltage-controlled `VH` is currently modeled as a smooth transition width. Current-controlled `IH > 0` is rejected until stateful SPICE hysteresis and initial switch state are modeled.
+- [ ] **Switch hysteresis state**: Non-zero voltage-controlled `VH` and current-controlled `IH` are rejected until stateful SPICE hysteresis and initial switch state are modeled.
 - [ ] **Transmission lines**: Not implemented
 - [ ] **Behavioral source execution**: B-source expressions are not executable native devices
 - [ ] **Advanced parasitic capacitances**: MOSFET capacitance coverage remains limited compared with foundry-grade models
-- [ ] **Temperature modeling**: Device behavior still assumes nominal temperature in most execution paths
-- [ ] **Noise analysis breadth**: Existing noise hooks do not yet amount to full simulator-level noise analysis
-- [ ] **Parameter expressions**: Waveform parameters not exposed through instance parameters
+- [ ] **Foundry temperature fidelity**: Operating temperature is propagated to built-in device models, but foundry-grade temperature coefficients and self-heating are not implemented
+- [ ] **Advanced noise fidelity**: Thermal, shot, and supported flicker hooks feed native noise analysis; foundry compact-model noise remains unavailable
 
 ## Code Review Notes
 
@@ -234,17 +248,15 @@ public enum Waveform: Sendable {
 
 3. **Waveform Parameter Exposure**: The `VoltageSourceDescriptor` and `CurrentSourceDescriptor` always create `.dc(dcValue)` waveforms. Time-varying waveforms (pulse, sine, PWL) cannot be specified through instance parameters.
 
-4. **Initial Conditions Unused**: `BoundCapacitor` stores `initialVoltage` and `BoundInductor` stores `initialCurrent`, but these are never used in the stamping methods. Initial condition handling appears incomplete.
+4. **Magic Numbers**: The MOSFET convergence tolerance (`1e-6`) is hardcoded. This could be configurable.
 
-5. **Magic Numbers**: The MOSFET convergence tolerance (`1e-6`) is hardcoded. This could be configurable.
+5. **Complex Stamper Value Type**: `ComplexStampValue` is defined but never used anywhere in the codebase.
 
-6. **Complex Stamper Value Type**: `ComplexStampValue` is defined but never used anywhere in the codebase.
-
-7. **Incomplete AC Stamp for Sources**: `BoundVoltageSource.stampAC` always stamps zero RHS, with a comment explaining the stimulus is set elsewhere. This coupling could be documented more clearly.
+6. **AC Source Stimulus Boundary**: `BoundVoltageSource.stampAC` owns its declared AC stimulus; analysis code does not inject an implicit source.
 
 ### Potential Issues
 
-1. **Branch Variable Allocation**: `BindingContext.allocateBranch()` increments an internal counter, but the allocated branches are not registered in `variableMap`. The analysis engine must handle this separately, which could lead to mismatched indices if not coordinated properly.
+1. **Branch Ownership Contract**: Canonical IR should provide `ownedBranches` and `referencedBranches`. Legacy programmatic IR may consume compiled branches in deterministic order, but missing or duplicate branches fail during binding.
 
 2. **PWL Waveform Edge Case**: `Waveform.evaluatePWL` handles empty arrays by returning 0.0, which may not be the intended behavior.
 

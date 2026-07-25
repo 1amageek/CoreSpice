@@ -139,6 +139,147 @@ struct CoreSpiceDevicesTests {
         }
     }
 
+    @Test func opticalStateCheckedAccessRejectsInvalidNodes() throws {
+        let validNode = OpticalNode(id: 1)
+        let invalidNode = OpticalNode(id: 2)
+        var state = OpticalState(nodeCount: 2)
+        let signal = OpticalSignal.fromPolar(
+            amplitude: 2.0,
+            phase: 0.0,
+            wavelength: 1.55e-6
+        )
+
+        try state.setSignal(signal, at: validNode)
+        #expect(try state.checkedPower(at: validNode) == 4.0)
+        #expect(try state.checkedPower(at: OpticalNode(id: 0)) == 0.0)
+        #expect(
+            throws: OpticalStateAccessError.nodeOutOfBounds(
+                nodeID: invalidNode.id,
+                nodeCount: 2
+            )
+        ) {
+            _ = try state.checkedSignal(at: invalidNode)
+        }
+        #expect(throws: OpticalStateAccessError.groundNodeIsImmutable) {
+            try state.setSignal(signal, at: OpticalNode(id: 0))
+        }
+    }
+
+    @Test func bindingClaimsExplicitCanonicalBranch() throws {
+        let node = Node(id: 1)
+        let canonicalBranch = Branch(id: 7)
+        let instance = Instance(
+            name: "V1",
+            typeName: "vsource",
+            nodes: [node, .ground],
+            parameters: ["v": .real(1.0)],
+            ownedBranches: [canonicalBranch]
+        )
+        let variableMap: [MNAVariable: Int] = [
+            .nodeVoltage(node): 0,
+            .branchCurrent(canonicalBranch): 1,
+        ]
+        var context = BindingContext(
+            variableMap: variableMap,
+            matrixDimension: 2
+        )
+
+        let bound = try VoltageSourceDescriptor().bind(
+            instance: instance,
+            context: &context
+        )
+        let collector = StampCollector()
+        var stamper = MatrixStamper(
+            variableMap: variableMap,
+            stampMatrix: { row, column, value in
+                collector.addMatrix(row, column, value)
+            },
+            stampRHS: { row, value in collector.addRHS(row, value) }
+        )
+        bound.stampDC(
+            into: &stamper,
+            state: SolutionState(
+                variables: [0.0, 0.0],
+                variableMap: variableMap
+            )
+        )
+
+        #expect(collector.rhsSum(row: 1) == 1.0)
+    }
+
+    @Test func bindingRejectsMissingBranchBeforeStamping() {
+        let instance = Instance(
+            name: "V1",
+            typeName: "vsource",
+            nodes: [Node(id: 1), .ground],
+            parameters: ["v": .real(1.0)]
+        )
+        var context = BindingContext(
+            variableMap: [.nodeVoltage(Node(id: 1)): 0],
+            matrixDimension: 1
+        )
+
+        do {
+            _ = try VoltageSourceDescriptor().bind(
+                instance: instance,
+                context: &context
+            )
+            Issue.record("Expected binding to reject the missing branch")
+        } catch let error as DeviceBindingError {
+            guard case .missingBranchVariable(let device, let index) = error else {
+                Issue.record("Unexpected binding error: \(error)")
+                return
+            }
+            #expect(device == "V1")
+            #expect(index == 0)
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+    }
+
+    @Test func voltageSwitchRejectsUnsupportedHysteresis() {
+        let instance = Instance(
+            name: "S1",
+            typeName: "vswitch",
+            nodes: [
+                Node(id: 1),
+                .ground,
+                Node(id: 2),
+                .ground,
+            ],
+            parameters: [
+                "ron": .real(1.0),
+                "roff": .real(1.0e9),
+                "vt": .real(0.5),
+                "vh": .real(0.1),
+            ]
+        )
+        var context = BindingContext(
+            variableMap: [
+                .nodeVoltage(Node(id: 1)): 0,
+                .nodeVoltage(Node(id: 2)): 1,
+            ],
+            matrixDimension: 2
+        )
+
+        do {
+            _ = try VoltageControlledSwitchDescriptor().bind(
+                instance: instance,
+                context: &context
+            )
+            Issue.record("Expected non-zero VH to be rejected")
+        } catch let error as DeviceBindingError {
+            guard case .invalidParameterValue(_, let parameter, let message) = error else {
+                Issue.record("Unexpected binding error: \(error)")
+                return
+            }
+            #expect(parameter == "vh")
+            #expect(message.contains("stateful switching"))
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+    }
+
     @Test func mutualInductanceStampsACAndTransientBranchCoupling() throws {
         let positiveA = Node(id: 1)
         let positiveB = Node(id: 2)

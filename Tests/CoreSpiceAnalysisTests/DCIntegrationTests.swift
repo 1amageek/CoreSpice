@@ -20,7 +20,7 @@ struct DCIntegrationTests {
         for vin in sweepValues {
             let (netlist, anode) = try CircuitFactory.diodeCircuit(v: vin, r: 1000)
             let result = try await CircuitFactory.runDC(netlist)
-            voltages.append(result.voltage(at: anode))
+            voltages.append(try result.voltage(at: anode))
         }
 
         // Low voltage: diode barely conducts
@@ -52,7 +52,7 @@ struct DCIntegrationTests {
             diodeParams: ["bv": .real(5.0), "ibv": .real(1e-3)]
         )
         let result = try await CircuitFactory.runDC(netlist)
-        let vAnode = result.voltage(at: anode)
+        let vAnode = try result.voltage(at: anode)
         // Verify reverse bias: anode should be significantly negative
         #expect(vAnode < -3.0, "Zener anode should be significantly negative, got \(vAnode)")
         // The voltage depends on breakdown model implementation
@@ -70,7 +70,7 @@ struct DCIntegrationTests {
             bjtParams: ["is": .real(1e-16), "bf": .real(100)]
         )
         let result = try await CircuitFactory.runDC(netlist)
-        let vCol = result.voltage(at: col)
+        let vCol = try result.voltage(at: col)
         #expect(vCol > 8.0 && vCol < 12.0,
                 "Collector voltage should be ~10.4V (active), got \(vCol)")
     }
@@ -100,8 +100,8 @@ struct DCIntegrationTests {
                                 parameters: ["is": .real(1e-16), "bf": .real(100)])
 
         let result = try await CircuitFactory.runDC(netlist)
-        let vBase = result.voltage(at: base)
-        let vEmitter = result.voltage(at: emitter)
+        let vBase = try result.voltage(at: base)
+        let vEmitter = try result.voltage(at: emitter)
 
         #expect(vBase > 1.5 && vBase < 3.5, "Base voltage should be ~2.4V, got \(vBase)")
         #expect(vEmitter > 0.5 && vEmitter < 2.5, "Emitter voltage should be ~1.7V, got \(vEmitter)")
@@ -134,8 +134,8 @@ struct DCIntegrationTests {
                                 parameters: ["is": .real(1e-16), "bf": .real(100)])
 
         let result = try await CircuitFactory.runDC(netlist)
-        let vEmitter = result.voltage(at: emitter)
-        let vBase = result.voltage(at: base)
+        let vEmitter = try result.voltage(at: emitter)
+        let vBase = try result.voltage(at: base)
 
         #expect(vEmitter > 10.0 && vEmitter < 12.5,
                 "PNP emitter should be near Vcc, got \(vEmitter)")
@@ -153,7 +153,7 @@ struct DCIntegrationTests {
             mosParams: ["vto": .real(0.7), "kp": .real(110e-6), "w": .real(10e-6), "l": .real(1e-6)]
         )
         let result = try await CircuitFactory.runDC(netlist)
-        let vDrain = result.voltage(at: drain)
+        let vDrain = try result.voltage(at: drain)
         #expect(vDrain > 3.0 && vDrain < 5.0,
                 "NMOS drain voltage should be ~4.07V, got \(vDrain)")
     }
@@ -167,7 +167,7 @@ struct DCIntegrationTests {
             mosParams: ["vto": .real(-0.7), "kp": .real(50e-6), "w": .real(20e-6), "l": .real(1e-6)]
         )
         let result = try await CircuitFactory.runDC(netlist)
-        let vDrain = result.voltage(at: drain)
+        let vDrain = try result.voltage(at: drain)
         #expect(vDrain > 0.0 && vDrain < 3.0,
                 "PMOS drain voltage should reflect current flow, got \(vDrain)")
     }
@@ -181,7 +181,7 @@ struct DCIntegrationTests {
             mosParams: ["vto": .real(0.7), "kp": .real(110e-6), "w": .real(10e-6), "l": .real(1e-6)]
         )
         let result = try await CircuitFactory.runDC(netlist)
-        let vDrain = result.voltage(at: drain)
+        let vDrain = try result.voltage(at: drain)
         let vds = vDrain
         let vgsMinusVth = 3.0 - 0.7
         #expect(vds < vgsMinusVth,
@@ -194,7 +194,7 @@ struct DCIntegrationTests {
     func vcvsAmplifier() async throws {
         let (netlist, out) = try CircuitFactory.vcvsCircuit(vin: 1.0, r1: 1000, gain: 10.0, rload: 1000)
         let result = try await CircuitFactory.runDC(netlist)
-        let vOut = result.voltage(at: out)
+        let vOut = try result.voltage(at: out)
         #expect(abs(vOut - 10.0) < 0.01,
                 "VCVS output should be 10V (gain=10 × 1V), got \(vOut)")
     }
@@ -208,7 +208,7 @@ struct DCIntegrationTests {
         // So Vout = -(g × Vctrl × Rload)
         let (netlist, out) = try CircuitFactory.vccsCircuit(vin: 1.0, r1: 1000, g: 1e-3, rload: 1000)
         let result = try await CircuitFactory.runDC(netlist)
-        let vOut = result.voltage(at: out)
+        let vOut = try result.voltage(at: out)
         // Expect negative voltage due to VCCS current direction convention
         #expect(abs(abs(vOut) - 1.0) < 0.01,
                 "VCCS output magnitude should be 1V (g=1mS × 1V × 1kΩ), got \(vOut)")
@@ -242,7 +242,7 @@ struct DCIntegrationTests {
                                 parameters: ["r": .real(1000)])
 
         let result = try await CircuitFactory.runDC(netlist)
-        let vOut = result.voltage(at: out)
+        let vOut = try result.voltage(at: out)
         // I_sense ≈ 5V/1kΩ = 5mA (sense path has very low impedance to GND)
         // Vout = h × I_sense = 1000 × 5mA = 5V (or -5V depending on convention)
         #expect(abs(vOut) > 1.0, "CCVS should produce significant output, got \(vOut)")
@@ -254,7 +254,7 @@ struct DCIntegrationTests {
     func cccsCurrentMirror() async throws {
         let (netlist, out) = try CircuitFactory.cccsCircuit(vin: 5.0, rSense: 1000, f: 2.0, rload: 1000)
         let result = try await CircuitFactory.runDC(netlist)
-        let vOut = result.voltage(at: out)
+        let vOut = try result.voltage(at: out)
         #expect(abs(vOut) > 0.1, "CCCS should produce measurable output voltage, got \(vOut)")
     }
 
@@ -274,7 +274,7 @@ struct DCIntegrationTests {
                                 parameters: [:])
 
         let result = try await CircuitFactory.runDC(netlist)
-        let vMid = result.voltage(at: mid)
+        let vMid = try result.voltage(at: mid)
         #expect(vMid > 0.4 && vMid < 0.9,
                 "Diode forward voltage should be ~0.6V, got \(vMid)")
         #expect(result.iterations >= 2, "Nonlinear circuit should need multiple NR iterations")
@@ -314,8 +314,8 @@ struct DCIntegrationTests {
                                 parameters: ["is": .real(1e-16), "bf": .real(100)])
 
         let result = try await CircuitFactory.runDC(netlist)
-        let vCol1 = result.voltage(at: col1)
-        let vCol2 = result.voltage(at: col2)
+        let vCol1 = try result.voltage(at: col1)
+        let vCol2 = try result.voltage(at: col2)
 
         #expect(abs(vCol1 - vCol2) < 0.1,
                 "Symmetric diff pair: V(col1)=\(vCol1) should equal V(col2)=\(vCol2)")
@@ -336,7 +336,7 @@ struct DCIntegrationTests {
 
         do {
             let result = try await CircuitFactory.runDC(netlist)
-            let v2 = result.voltage(at: Node(id: 2))
+            let v2 = try result.voltage(at: Node(id: 2))
             #expect(abs(v2 - 5.0) < 1.0, "With Gmin, floating node should be near source voltage")
         } catch {
             // Convergence failure is also acceptable
@@ -368,8 +368,8 @@ struct DCIntegrationTests {
                                 parameters: ["r": .real(100_000)])
 
         let result = try await CircuitFactory.runDC(netlist)
-        let vOutP = result.voltage(at: outp)
-        let vOutN = result.voltage(at: outn)
+        let vOutP = try result.voltage(at: outp)
+        let vOutN = try result.voltage(at: outn)
         let vLoad = vOutP - vOutN
 
         #expect(vLoad > 6.0 && vLoad < 11.0,
@@ -403,7 +403,7 @@ struct DCIntegrationTests {
                                                  "w": .real(20e-6), "l": .real(1e-6)])
 
             let result = try await CircuitFactory.runDC(netlist)
-            outputs.append(result.voltage(at: out))
+            outputs.append(try result.voltage(at: out))
         }
 
         #expect(outputs[0] > 4.0, "Vin=0: Vout should be high (~5V), got \(outputs[0])")

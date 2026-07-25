@@ -23,6 +23,9 @@ public struct NoiseAnalysis: Analysis, Sendable {
     /// The output node for noise measurement.
     public let outputNode: Node
 
+    /// Optional reference node for differential output noise.
+    public let outputReferenceNode: Node?
+
     /// The name of the input source (for input-referred noise calculation).
     public let inputSourceName: String?
 
@@ -34,11 +37,13 @@ public struct NoiseAnalysis: Analysis, Sendable {
 
     public init(
         outputNode: Node,
+        outputReferenceNode: Node? = nil,
         inputSourceName: String? = nil,
         sweep: FrequencySweep,
         dcConfig: ConvergenceConfig = ConvergenceConfig()
     ) {
         self.outputNode = outputNode
+        self.outputReferenceNode = outputReferenceNode
         self.inputSourceName = inputSourceName
         self.sweep = sweep
         self.dcConfig = dcConfig
@@ -51,6 +56,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         cancellation: CancellationToken
     ) async throws -> NoiseResult {
+        try PreparedCircuit.validate(plan: plan, devices: devices)
         let analysisID = AnalysisID()
         let startTimestamp = Timestamp()
         let dim = plan.topology.dimension
@@ -84,6 +90,16 @@ public struct NoiseAnalysis: Analysis, Sendable {
             guard let outputIndex = variableMap[.nodeVoltage(outputNode)] else {
                 throw AnalysisError.invalidConfiguration(
                     "Output node \(outputNode.id) not found in variable map"
+                )
+            }
+            let outputReferenceIndex = outputReferenceNode.flatMap {
+                variableMap[.nodeVoltage($0)]
+            }
+            if let outputReferenceNode,
+               outputReferenceNode != plan.ir.groundNode,
+               outputReferenceIndex == nil {
+                throw AnalysisError.invalidConfiguration(
+                    "Output reference node \(outputReferenceNode.id) not found in variable map"
                 )
             }
             let inputStimulus = try inputSourceName.map {
@@ -208,8 +224,11 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         }
 
                         // Transfer function H(f) = V_out for unit current injection
-                        let hReal = noiseSolutionBuf[outputIndex].real
-                        let hImag = noiseSolutionBuf[outputIndex].imag
+                        let reference = outputReferenceIndex.map {
+                            noiseSolutionBuf[$0]
+                        } ?? ComplexPair()
+                        let hReal = noiseSolutionBuf[outputIndex].real - reference.real
+                        let hImag = noiseSolutionBuf[outputIndex].imag - reference.imag
                         let hMagSquared = hReal * hReal + hImag * hImag
 
                         // Output noise contribution = |H(f)|² × S_n(f)
@@ -237,7 +256,13 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         )
                     }
 
-                    let gain = inputSolutionBuf[outputIndex]
+                    let reference = outputReferenceIndex.map {
+                        inputSolutionBuf[$0]
+                    } ?? ComplexPair()
+                    let gain = ComplexPair(
+                        real: inputSolutionBuf[outputIndex].real - reference.real,
+                        imag: inputSolutionBuf[outputIndex].imag - reference.imag
+                    )
                     let gainMagnitudeSquared = gain.real * gain.real + gain.imag * gain.imag
                     guard gainMagnitudeSquared.isFinite, gainMagnitudeSquared > 1.0e-30 else {
                         throw AnalysisError.invalidConfiguration(
@@ -282,7 +307,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 wallTime: Timestamp().elapsed(since: startTimestamp)
             )))
 
-            return NoiseResult(
+            return try NoiseResult(
                 frequencies: frequencies,
                 outputNoiseDensity: outputNoiseDensity,
                 inputReferredNoiseDensity: inputReferredNoiseDensity,

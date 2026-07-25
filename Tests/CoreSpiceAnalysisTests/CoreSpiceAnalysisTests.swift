@@ -73,7 +73,7 @@ struct CoreSpiceAnalysisTests {
     @Test func dcResultCheckedAccessRejectsMissingVariables() throws {
         let knownNode = Node(id: 1)
         let knownBranch = Branch(id: 1)
-        let result = DCResult(
+        let result = try DCResult(
             variables: [2.5, 0.01],
             variableMap: [
                 .nodeVoltage(knownNode): 0,
@@ -89,6 +89,50 @@ struct CoreSpiceAnalysisTests {
         }
         #expect(throws: SolutionStateAccessError.missingBranchCurrent(branchID: 9)) {
             _ = try result.checkedCurrent(through: Branch(id: 9))
+        }
+        #expect(
+            throws: DCResultValidationError.variableIndexOutOfBounds(
+                variable: .nodeVoltage(knownNode),
+                index: 1,
+                count: 1
+            )
+        ) {
+            _ = try DCResult(
+                variables: [2.5],
+                variableMap: [.nodeVoltage(knownNode): 1],
+                iterations: 1
+            )
+        }
+    }
+
+    @Test func acResultRejectsMalformedShapesAndInvalidAccess() throws {
+        #expect(
+            throws: ACResultError.frequencySolutionCountMismatch(
+                frequencies: 1,
+                solutions: 0
+            )
+        ) {
+            _ = try ACResult(
+                frequencies: [1.0],
+                solutions: [],
+                variableMap: [:]
+            )
+        }
+
+        let knownNode = Node(id: 1)
+        let result = try ACResult(
+            frequencies: [1.0],
+            solutions: [[ComplexPair(real: 2.0, imag: -1.0)]],
+            variableMap: [.nodeVoltage(knownNode): 0]
+        )
+        #expect(try result.voltage(at: knownNode, frequencyIndex: 0).real == 2.0)
+        #expect(throws: ACResultError.missingNodeVoltage(nodeID: 9)) {
+            _ = try result.voltage(at: Node(id: 9), frequencyIndex: 0)
+        }
+        #expect(
+            throws: ACResultError.frequencyIndexOutOfBounds(index: 1, count: 1)
+        ) {
+            _ = try result.voltage(at: .ground, frequencyIndex: 1)
         }
     }
 
@@ -214,12 +258,12 @@ struct CoreSpiceAnalysisTests {
 
         // V(node1) should be 5V (voltage source)
         let node1 = Node(id: 1)
-        let v1 = result.voltage(at: node1)
+        let v1 = try result.voltage(at: node1)
         #expect(abs(v1 - 5.0) < 1e-9, "V(node1) should be 5V, got \(v1)")
 
         // V(node2) should be 2.5V (voltage divider)
         let node2 = Node(id: 2)
-        let v2 = result.voltage(at: node2)
+        let v2 = try result.voltage(at: node2)
         #expect(abs(v2 - 2.5) < 1e-6, "V(node2) should be 2.5V, got \(v2)")
 
         // Should converge in few iterations for linear circuit
@@ -272,12 +316,12 @@ struct CoreSpiceAnalysisTests {
 
         // V(node2) should be around 0.6-0.7V (typical diode forward voltage)
         let node2 = Node(id: 2)
-        let v2 = result.voltage(at: node2)
+        let v2 = try result.voltage(at: node2)
         #expect(v2 > 0.5 && v2 < 0.8, "Diode forward voltage should be ~0.6-0.7V, got \(v2)")
 
         // Diode current: I = (V1 - Vd) / R1 ≈ (1.0 - 0.65) / 1000 ≈ 0.35mA
         let node1 = Node(id: 1)
-        let v1 = result.voltage(at: node1)
+        let v1 = try result.voltage(at: node1)
         let diodeCurrent = (v1 - v2) / 1000.0
         #expect(diodeCurrent > 0.0002 && diodeCurrent < 0.0005,
                 "Diode current should be ~0.3-0.4mA, got \(diodeCurrent * 1000) mA")
@@ -289,9 +333,11 @@ struct CoreSpiceAnalysisTests {
         var netlist = Netlist()
         let _ = netlist.node("1")
         let _ = netlist.node("2")
+        let sourceBranch = netlist.branch(name: "V1")
 
         try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["1", "0"],
-                                parameters: ["v": .real(1.0)])
+                                parameters: ["v": .real(1.0)],
+                                ownedBranches: [sourceBranch])
         try netlist.addInstance(name: "R1", typeName: "resistor", nodes: ["1", "2"],
                                 parameters: ["r": .real(1000)])
         try netlist.addInstance(name: "C1", typeName: "capacitor", nodes: ["2", "0"],
@@ -522,8 +568,8 @@ struct CoreSpiceAnalysisTests {
         // Total resistance = 6kΩ, current = 10V / 6kΩ = 1.667mA
         // V(n2) = V(n3) + I × R2 = 5V + 1.667mA × 2kΩ = 8.333V
         // V(n3) = I × R3 = 1.667mA × 3kΩ = 5V
-        let v2 = result.voltage(at: n2)
-        let v3 = result.voltage(at: n3)
+        let v2 = try result.voltage(at: n2)
+        let v3 = try result.voltage(at: n3)
 
         let expectedV3 = 10.0 * 3.0 / 6.0  // 5V
         let expectedV2 = 10.0 * 5.0 / 6.0  // 8.333V

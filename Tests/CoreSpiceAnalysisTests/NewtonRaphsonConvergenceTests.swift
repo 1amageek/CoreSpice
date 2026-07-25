@@ -10,6 +10,45 @@ import Synchronization
 @Suite("Newton-Raphson Convergence Tests")
 struct NewtonRaphsonConvergenceTests {
 
+    @Test("Newton-Raphson rejects a non-finite linear solution")
+    func rejectsNonFiniteLinearSolution() async throws {
+        let structure = try SparseStructure.fromTriplets(
+            dimension: 1,
+            entries: [(0, 0)]
+        )
+        var matrix = SparseMatrix(structure: structure)
+        var rhs = [0.0]
+        var solver: any LinearSolver = NonFiniteLinearSolver()
+        let node = Node(id: 1)
+
+        do {
+            _ = try await NewtonRaphsonSolver().solve(
+                initialGuess: [0.0],
+                matrix: &matrix,
+                rhs: &rhs,
+                devices: [],
+                variableMap: [.nodeVoltage(node): 0],
+                solver: &solver,
+                stampFunction: { stamper, _ in
+                    stamper.stampMatrix(0, 0, 1.0)
+                    stamper.stampRHS(0, 1.0)
+                },
+                observer: nil,
+                analysisID: AnalysisID(),
+                cancellation: CancellationToken()
+            )
+            Issue.record("Expected a non-finite solution failure.")
+        } catch AnalysisError.nonFiniteSolution(
+            let iteration,
+            let variableIndex,
+            let value
+        ) {
+            #expect(iteration == 0)
+            #expect(variableIndex == 0)
+            #expect(value.isNaN)
+        }
+    }
+
     // MARK: - Test Observer
 
     /// Observer that records Newton-Raphson iteration residuals, tracking sequences.
@@ -331,5 +370,17 @@ struct NewtonRaphsonConvergenceTests {
         let decreaseRatio = Double(decreaseCount) / Double(residuals.count - 1)
         #expect(decreaseRatio > 0.6,
                 "At least 60% of iterations should show residual decrease, got \(decreaseRatio * 100)%")
+    }
+}
+
+private struct NonFiniteLinearSolver: LinearSolver {
+    mutating func factorize(matrix: SparseMatrix) throws {}
+
+    func solve(rhs: [Double]) throws -> [Double] {
+        [Double.nan]
+    }
+
+    mutating func solve(rhs: [Double], into result: inout [Double]) throws {
+        result[0] = .nan
     }
 }

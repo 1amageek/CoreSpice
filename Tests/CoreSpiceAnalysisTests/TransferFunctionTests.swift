@@ -171,7 +171,7 @@ struct TransferFunctionTests {
         )
 
         // DC operating point should show V(out) = 2.5V
-        let vOut = result.dcOperatingPoint.voltage(at: out)
+        let vOut = try result.dcOperatingPoint.voltage(at: out)
         #expect(abs(vOut - 2.5) < 1e-6)
     }
 

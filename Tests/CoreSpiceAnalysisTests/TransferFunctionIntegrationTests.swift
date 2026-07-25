@@ -52,7 +52,7 @@ struct TransferFunctionIntegrationTests {
                 "RC LPF Zout should be R=1kΩ, got \(result.outputImpedance)")
 
         // DC operating point: V(out) = 1.0V (no current through R with C open)
-        let vOut = result.dcOperatingPoint.voltage(at: out)
+        let vOut = try result.dcOperatingPoint.voltage(at: out)
         #expect(abs(vOut - 1.0) < 1e-6,
                 "DC operating point V(out) should be 1.0V, got \(vOut)")
     }
@@ -100,7 +100,7 @@ struct TransferFunctionIntegrationTests {
                 "Inverting amp gain should be ~-10, got \(result.gain)")
 
         // DC operating point: V(out) ≈ -10V
-        let vOut = result.dcOperatingPoint.voltage(at: out)
+        let vOut = try result.dcOperatingPoint.voltage(at: out)
         #expect(abs(vOut - (-10.0)) < 0.1,
                 "DC V(out) should be ~-10V, got \(vOut)")
     }
@@ -149,7 +149,7 @@ struct TransferFunctionIntegrationTests {
                 "Non-inverting amp gain should be ~10, got \(result.gain)")
 
         // DC operating point: V(out) = 10V
-        let vOut = result.dcOperatingPoint.voltage(at: out)
+        let vOut = try result.dcOperatingPoint.voltage(at: out)
         #expect(abs(vOut - 10.0) < 0.1,
                 "DC V(out) should be ~10V, got \(vOut)")
     }

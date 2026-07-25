@@ -27,7 +27,7 @@ struct CurrentSourceConventionTests {
                                 parameters: ["r": .real(1000)])
 
         let result = try await CircuitFactory.runDC(netlist)
-        let v = result.voltage(at: out)
+        let v = try result.voltage(at: out)
         #expect(abs(v - (-1.0)) < 1e-6,
                 "V(out) should be -1V (SPICE current source sign), got \(v)")
     }
@@ -50,7 +50,7 @@ struct CurrentSourceConventionTests {
                                              "w": .real(20e-6), "l": .real(1e-6)])
 
         let result = try await CircuitFactory.runDC(netlist)
-        let v = result.voltage(at: d)
+        let v = try result.voltage(at: d)
         #expect(v > 0.6 && v < 1.0,
                 "Diode-connected MOSFET driven by 20uA should bias ~0.83V, got \(v)")
     }
@@ -72,7 +72,7 @@ struct CurrentSourceConventionTests {
                                 parameters: ["is": .real(1e-14)])
 
         let result = try await CircuitFactory.runDC(netlist)
-        let v = result.voltage(at: n1)
+        let v = try result.voltage(at: n1)
         #expect(v > 1.5 && v < 1.8,
                 "V(n1) should be ~1.66V (diode drop + 1mA*1k), got \(v)")
     }

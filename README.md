@@ -57,7 +57,7 @@ numerical analysis, and waveform I/O.
 | Transfer Function | Small-signal gain, input/output impedance |
 | Pole-Zero | Poles and zeros via generalized eigenvalue (LAPACK QZ) |
 | Fourier | Harmonic decomposition and THD from transient results |
-| Sensitivity | Per-parameter DC sensitivity via finite difference |
+| Sensitivity | Per-parameter DC and AC sensitivity via deterministic finite difference |
 | Monte Carlo | Repeated analysis with Gaussian/uniform parameter variations |
 
 ### Devices
@@ -94,7 +94,7 @@ numerical analysis, and waveform I/O.
 ### I/O
 
 - **Input**: SPICE netlist parser (`.op`, `.dc`, `.ac`, `.tran`, `.noise`, `.tf`, `.pz`, `.four`, `.sens`, `.mc`)
-- **Output**: RAW (ngspice), CSV, PSF (Cadence) with variable filtering and compression
+- **Output**: RAW (ngspice), CSV, PSF (Cadence) with variable and sweep filtering
 
 ## Installation
 
@@ -119,8 +119,10 @@ dependencies: [
 import CoreSpice
 
 var netlist = Netlist()
+let sourceBranch = netlist.branch(name: "V1")
 try netlist.addInstance(name: "V1", typeName: "vsource", nodes: ["in", "0"],
-                        parameters: ["v": .real(5.0)])
+                        parameters: ["v": .real(5.0)],
+                        ownedBranches: [sourceBranch])
 try netlist.addInstance(name: "R1", typeName: "resistor", nodes: ["in", "out"],
                         parameters: ["r": .real(1000)])
 try netlist.addInstance(name: "R2", typeName: "resistor", nodes: ["out", "0"],
@@ -130,13 +132,10 @@ let ir = try netlist.build()
 let compiler = StandardCompiler()
 let plan = try compiler.compile(ir: ir)
 
-let registry = DeviceRegistry.standard()
-var context = BindingContext(variableMap: plan.topology.variableMap,
-                             matrixDimension: plan.topology.dimension)
-let devices = try ir.instances.map { instance in
-    try registry.descriptor(for: instance.typeName)!
-        .bind(instance: instance, context: &context)
-}
+let circuit = try StandardCircuitDeviceBinding().bind(
+    plan: plan,
+    instances: ir.instances
+)
 ```
 
 ### DC Analysis
@@ -144,28 +143,28 @@ let devices = try ir.instances.map { instance in
 ```swift
 let solver = SparseLUSolver()
 let dc = DCAnalysis()
-let result = try await dc.run(plan: plan, devices: devices, solver: solver,
-                               observer: nil, cancellation: CancellationToken())
+let result = try await dc.run(circuit: circuit, solver: solver,
+                              observer: nil, cancellation: CancellationToken())
 
-let vOut = result.voltage(at: netlist.node("out"))  // 2.5V
+let vOut = try result.voltage(at: netlist.node("out"))  // 2.5V
 ```
 
 ### AC Analysis
 
 ```swift
 let ac = ACAnalysis(sweep: .decade(start: 1, stop: 1e6, pointsPerDecade: 10))
-let acResult = try await ac.run(plan: plan, devices: devices, solver: solver,
-                                 observer: nil, cancellation: CancellationToken())
+let acResult = try await ac.run(circuit: circuit, solver: solver,
+                                observer: nil, cancellation: CancellationToken())
 
-let gain = acResult.magnitudeDB(at: outputNode, frequencyIndex: 0)
+let gain = try acResult.magnitudeDB(at: outputNode, frequencyIndex: 0)
 ```
 
 ### Transient Analysis
 
 ```swift
 let tran = TransientAnalysis(config: TransientConfig(stopTime: 1e-3))
-let tranResult = try await tran.run(plan: plan, devices: devices, solver: solver,
-                                     observer: nil, cancellation: CancellationToken())
+let tranResult = try await tran.run(circuit: circuit, solver: solver,
+                                    observer: nil, cancellation: CancellationToken())
 
 let waveform = try tranResult.voltageWaveform(at: outputNode)
 ```
@@ -242,6 +241,10 @@ corespice -b circuit.cir --ac dec 10 1 1meg --psf output.psf
 corespice -b circuit.cir --dc V1 0 5 0.1 --csv output.csv
 ```
 
+Use `--seed <UInt64>` for replayable stochastic execution. The isolated
+process backend requires an explicit seed so the recorded invocation is
+unambiguous even when the current deck does not use randomness.
+
 **Structured results for agents** (`--json`): batch runs emit a deterministic
 record on stdout. Completed records carry the input deck and every output as
 `CircuiteFoundation.ArtifactReference`, including semantic role, kind, format,
@@ -254,6 +257,16 @@ for the schema and the full failure-code table.
 ```bash
 corespice -b circuit.cir --json --csv output.csv
 ```
+
+### Isolated process backend
+
+Applications that need an auditable out-of-process boundary can depend on
+`CoreSpiceProcessBackend` and construct `CoreSpiceExternalProcessBackend`.
+It verifies every declared input before launch, executes `corespice` in a
+unique run directory, validates the reported invocation and exact consumed
+input set, verifies every output, preserves stdout/stderr evidence, and
+terminates the child process on cancellation. Requests require `randomSeed`;
+when multiple SPICE inputs are declared they also require `primaryInputID`.
 
 **Post-hoc waveform measurement** (`measure`): evaluates `.measure`-grammar
 specs against a stored waveform CSV without re-simulating. Supported kinds:
@@ -281,10 +294,12 @@ CoreSpice (umbrella)
 ├── CoreSpiceIR              Circuit IR: nodes, branches, instances
 ├── CoreSpiceDevices         Device models and MNA stamping
 ├── CoreSpiceCompile         Matrix topology, sparse LU solver
-├── CoreSpiceAnalysis        10 analysis engines, Newton-Raphson solver
+├── CoreSpiceAnalysis        Analysis engines, Newton-Raphson solver
 ├── CoreSpiceOptoelectronics Laser, LED, photodiode, modulator, waveguide
 ├── CoreSpiceEvent           Event system and cancellation
 └── CoreSpiceBackend         Metal GPU compute
+
+CoreSpiceProcessBackend      Isolated process execution and evidence verification
 
 CoreSpiceIO (umbrella)
 ├── CoreSpiceParserSPICE     SPICE netlist parser

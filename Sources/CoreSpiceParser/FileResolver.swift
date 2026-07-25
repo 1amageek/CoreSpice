@@ -37,6 +37,17 @@ public protocol FileResolver: Sendable {
     func readFile(at path: String) async throws -> String
 }
 
+/// A file resolver that can report the canonical path selected for an include.
+///
+/// Parsers use this capability to resolve nested relative includes against the
+/// actual selected file instead of reconstructing a path from the directive.
+public protocol ResolvedPathProvidingFileResolver: FileResolver {
+    func resolvedPath(
+        for path: String,
+        relativeTo: String?
+    ) async throws -> String
+}
+
 /// Errors that can occur during file resolution.
 public enum FileResolverError: Error, Sendable {
 
@@ -74,7 +85,7 @@ extension FileResolverError: CustomStringConvertible {
 }
 
 /// A file resolver that reads from the local filesystem.
-public struct LocalFileResolver: FileResolver {
+public struct LocalFileResolver: ResolvedPathProvidingFileResolver {
 
     /// Search paths for resolving includes.
     public let searchPaths: [String]
@@ -94,7 +105,7 @@ public struct LocalFileResolver: FileResolver {
         path: String,
         relativeTo: String?
     ) async throws -> String {
-        let resolvedPath = try resolvePath(path, relativeTo: relativeTo)
+        let resolvedPath = try await resolvedPath(for: path, relativeTo: relativeTo)
         return try await readFile(at: resolvedPath)
     }
 
@@ -103,7 +114,7 @@ public struct LocalFileResolver: FileResolver {
         section: String?,
         relativeTo: String?
     ) async throws -> String {
-        let resolvedPath = try resolvePath(path, relativeTo: relativeTo)
+        let resolvedPath = try await resolvedPath(for: path, relativeTo: relativeTo)
         let content = try await readFile(at: resolvedPath)
 
         guard let sectionName = section else {
@@ -124,7 +135,10 @@ public struct LocalFileResolver: FileResolver {
     }
 
     /// Resolves a path relative to the base path or search paths.
-    private func resolvePath(_ path: String, relativeTo: String?) throws -> String {
+    public func resolvedPath(
+        for path: String,
+        relativeTo: String?
+    ) async throws -> String {
         // Check if path is absolute
         if path.hasPrefix("/") {
             if FileManager.default.fileExists(atPath: path) {

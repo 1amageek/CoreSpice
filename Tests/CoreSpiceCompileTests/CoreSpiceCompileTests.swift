@@ -6,8 +6,8 @@ import Foundation
 @Suite("CoreSpiceCompile Tests")
 struct CoreSpiceCompileTests {
 
-    @Test func sparseStructureFromTriplets() {
-        let structure = SparseStructure.fromTriplets(
+    @Test func sparseStructureFromTriplets() throws {
+        let structure = try SparseStructure.fromTriplets(
             dimension: 3,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1), (2, 2)]
         )
@@ -19,8 +19,46 @@ struct CoreSpiceCompileTests {
         #expect(structure.index(row: 2, col: 2) != nil)
     }
 
-    @Test func sparseMatrixAddAndRetrieve() {
-        let structure = SparseStructure.fromTriplets(
+    @Test func sparseStructureRejectsMalformedCSR() {
+        #expect(throws: SparseStructureError.rowPointerCount(expected: 3, actual: 2)) {
+            _ = try SparseStructure(
+                dimension: 2,
+                rowPointers: [0, 1],
+                columnIndices: [0]
+            )
+        }
+        #expect(
+            throws: SparseStructureError.columnsNotStrictlyIncreasing(
+                row: 0,
+                previous: 1,
+                current: 0
+            )
+        ) {
+            _ = try SparseStructure(
+                dimension: 2,
+                rowPointers: [0, 2, 2],
+                columnIndices: [1, 0]
+            )
+        }
+    }
+
+    @Test func sparseStructureRejectsOutOfBoundsTriplet() {
+        #expect(
+            throws: SparseStructureError.tripletOutOfBounds(
+                row: 2,
+                column: 0,
+                dimension: 2
+            )
+        ) {
+            _ = try SparseStructure.fromTriplets(
+                dimension: 2,
+                entries: [(row: 2, col: 0)]
+            )
+        }
+    }
+
+    @Test func sparseMatrixAddAndRetrieve() throws {
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1)]
         )
@@ -35,8 +73,8 @@ struct CoreSpiceCompileTests {
         #expect(matrix.value(row: 1, col: 1) == 2.0)
     }
 
-    @Test func sparseMatrixClear() {
-        let structure = SparseStructure.fromTriplets(
+    @Test func sparseMatrixClear() throws {
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (1, 1)]
         )
@@ -49,7 +87,7 @@ struct CoreSpiceCompileTests {
     @Test func sparseMatrixMultiply() throws {
         // [2 -1] * [1] = [1]
         // [-1 2]   [1]   [1]
-        let structure = SparseStructure.fromTriplets(
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1)]
         )
@@ -64,8 +102,8 @@ struct CoreSpiceCompileTests {
         #expect(abs(result[1] - 1.0) < 1e-10)
     }
 
-    @Test func sparseMatrixCheckedMultiplyRejectsShapeMismatch() {
-        let structure = SparseStructure.fromTriplets(
+    @Test func sparseMatrixCheckedMultiplyRejectsShapeMismatch() throws {
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (1, 1)]
         )
@@ -81,8 +119,8 @@ struct CoreSpiceCompileTests {
         }
     }
 
-    @Test func complexSparseMatrixCheckedMultiplyRejectsShapeMismatch() {
-        let structure = SparseStructure.fromTriplets(
+    @Test func complexSparseMatrixCheckedMultiplyRejectsShapeMismatch() throws {
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (1, 1)]
         )
@@ -102,7 +140,7 @@ struct CoreSpiceCompileTests {
         // Solve: [2 1] [x] = [5]
         //        [1 3] [y]   [7]
         // Solution: x=8/5=1.6, y=9/5=1.8
-        let structure = SparseStructure.fromTriplets(
+        let structure = try SparseStructure.fromTriplets(
             dimension: 2,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1)]
         )
@@ -124,7 +162,7 @@ struct CoreSpiceCompileTests {
         // [0  2  1] [x]   [1]
         // [1 -1  0] [y] = [2]
         // [2  1 -1] [z]   [3]
-        let structure = SparseStructure.fromTriplets(
+        let structure = try SparseStructure.fromTriplets(
             dimension: 3,
             entries: [(0,0),(0,1),(0,2),(1,0),(1,1),(1,2),(2,0),(2,1),(2,2)]
         )
@@ -150,7 +188,7 @@ struct CoreSpiceCompileTests {
         #expect(abs(result[2] - 3.0) < 1e-10)
     }
 
-    @Test func complexPairArithmetic() {
+    @Test func complexPairArithmetic() throws {
         let a = ComplexPair(real: 1, imag: 2)
         let b = ComplexPair(real: 3, imag: -1)
 
@@ -172,7 +210,7 @@ struct CoreSpiceCompileTests {
 
     @Test func complexLUSolver() throws {
         // Solve (1+i)x = 2+0i => x = 2/(1+i) = 1-i
-        let structure = SparseStructure.fromTriplets(dimension: 1, entries: [(0, 0)])
+        let structure = try SparseStructure.fromTriplets(dimension: 1, entries: [(0, 0)])
         var matrix = ComplexSparseMatrix(structure: structure)
         matrix.addValue(row: 0, col: 0, value: ComplexPair(real: 1, imag: 1))
 
@@ -239,5 +277,71 @@ struct CoreSpiceCompileTests {
 
         #expect(plan.deviceNames.count == 1)
         #expect(plan.deviceNames[0] == "R1")
+    }
+
+    @Test("PEX-scale branch topology remains locally sparse")
+    func pexScaleBranchTopologyIsLinear() {
+        let deviceCount = 1_000
+        let nodes = (1...deviceCount).map(Node.init(id:))
+        let branches = (0..<deviceCount).map(Branch.init(id:))
+        let instances = (0..<deviceCount).map { index in
+            Instance(
+                name: "V\(index)",
+                typeName: "vsource",
+                nodes: [nodes[index], .ground],
+                parameters: ["v": .real(0)],
+                ownedBranches: [branches[index]]
+            )
+        }
+        let topology = MatrixTopology(
+            ir: CircuitIR(
+                nodes: [.ground] + nodes,
+                branches: branches,
+                instances: instances
+            )
+        )
+
+        #expect(topology.dimension == deviceCount * 2)
+        #expect(topology.structure.nonZeroCount == deviceCount * 4)
+    }
+
+    @Test("Referenced branch connectivity includes only the local dependency")
+    func referencedBranchConnectivityIsExplicit() {
+        let sourceNode = Node(id: 1)
+        let outputNode = Node(id: 2)
+        let sourceBranch = Branch(id: 0)
+        let outputBranch = Branch(id: 1)
+        let topology = MatrixTopology(
+            ir: CircuitIR(
+                nodes: [.ground, sourceNode, outputNode],
+                branches: [sourceBranch, outputBranch],
+                instances: [
+                    Instance(
+                        name: "V1",
+                        typeName: "vsource",
+                        nodes: [sourceNode, .ground],
+                        parameters: ["v": .real(1)],
+                        ownedBranches: [sourceBranch]
+                    ),
+                    Instance(
+                        name: "H1",
+                        typeName: "ccvs_ref",
+                        nodes: [outputNode, .ground],
+                        parameters: ["h": .real(1)],
+                        ownedBranches: [outputBranch],
+                        referencedBranches: [sourceBranch]
+                    ),
+                ]
+            )
+        )
+        let sourceIndex = topology.variableMap[.branchCurrent(sourceBranch)]
+        let outputIndex = topology.variableMap[.branchCurrent(outputBranch)]
+
+        #expect(sourceIndex != nil)
+        #expect(outputIndex != nil)
+        if let sourceIndex, let outputIndex {
+            #expect(topology.structure.index(row: outputIndex, col: sourceIndex) != nil)
+            #expect(topology.structure.index(row: sourceIndex, col: outputIndex) != nil)
+        }
     }
 }

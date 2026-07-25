@@ -45,6 +45,7 @@ public struct DCAnalysis: Analysis, Sendable {
         observer: EventDispatcher?,
         cancellation: CancellationToken
     ) async throws -> DCResult {
+        try PreparedCircuit.validate(plan: plan, devices: devices)
         let analysisID = AnalysisID()
         let startTimestamp = Timestamp()
         let dim = plan.topology.dimension
@@ -204,7 +205,7 @@ public struct DCAnalysis: Analysis, Sendable {
             cancellation: cancellation
         )
 
-        return DCResult(
+        return try DCResult(
             variables: solution,
             variableMap: variableMap,
             iterations: iterations,
@@ -244,7 +245,7 @@ public struct DCAnalysis: Analysis, Sendable {
             totalIterations += result.iterations
         }
 
-        return DCResult(
+        return try DCResult(
             variables: x,
             variableMap: variableMap,
             iterations: totalIterations
@@ -315,7 +316,7 @@ public struct DCAnalysis: Analysis, Sendable {
             totalIterations += iterations
         }
 
-        return DCResult(
+        return try DCResult(
             variables: x,
             variableMap: variableMap,
             iterations: totalIterations,

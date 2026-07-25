@@ -31,7 +31,7 @@ struct DevicePhysicsTests {
                 diodeParams: ["is": .real(Is), "n": .real(n)]
             )
             let result = try await CircuitFactory.runDC(netlist)
-            let vAnode = result.voltage(at: anode)
+            let vAnode = try result.voltage(at: anode)
             measuredVoltages.append(vAnode)
             measuredCurrents.append((vin - vAnode) / R)
         }
@@ -88,7 +88,7 @@ struct DevicePhysicsTests {
                     bjtParams: ["is": .real(1e-16), "bf": .real(bf)]
                 )
                 let result = try await CircuitFactory.runDC(netlist, config: CircuitFactory.nonlinearConfig)
-                let vCol = result.voltage(at: col)
+                let vCol = try result.voltage(at: col)
                 let ic = (vcc - vCol) / rc
                 icValues.append(ic)
             }
@@ -126,7 +126,7 @@ struct DevicePhysicsTests {
                                 "w": .real(w), "l": .real(l), "lambda": .real(0.0)]
                 )
                 let result = try await CircuitFactory.runDC(netlist, config: CircuitFactory.nonlinearConfig)
-                let vDrain = result.voltage(at: drain)
+                let vDrain = try result.voltage(at: drain)
                 let ids = (vds - vDrain) / 1.0 // Current through Rd
                 idsValues.append(ids)
             }
@@ -172,7 +172,7 @@ struct DevicePhysicsTests {
                             "w": .real(w), "l": .real(l), "lambda": .real(0.0)]
             )
             let result = try await CircuitFactory.runDC(netlist)
-            let vDrain = result.voltage(at: drain)
+            let vDrain = try result.voltage(at: drain)
             drainVoltages.append(vDrain)
             // PMOS current flows from source(Vdd) through device to drain
             // Drain is connected to GND through Rd → Vdrain = Ids × Rd
@@ -235,7 +235,7 @@ struct DevicePhysicsTests {
                 bjtParams: ["is": .real(1e-16), "bf": .real(bf), "vaf": .real(vaf)]
             )
             let result = try await CircuitFactory.runDC(netlist, config: CircuitFactory.nonlinearConfig)
-            let vCol = result.voltage(at: col)
+            let vCol = try result.voltage(at: col)
             icValues.append((vcc - vCol) / 2000)
         }
 
@@ -282,7 +282,7 @@ struct DevicePhysicsTests {
                             "w": .real(w), "l": .real(l), "lambda": .real(lambda)]
             )
             let result = try await CircuitFactory.runDC(netlist)
-            let vDrain = result.voltage(at: drain)
+            let vDrain = try result.voltage(at: drain)
             let ids = vDrain / rd
             let vsd = vdd - vDrain
             idsValues.append(ids)
@@ -329,7 +329,7 @@ struct DevicePhysicsTests {
                 diodeParams: ["is": .real(isVal), "n": .real(1.0)]
             )
             let result = try await CircuitFactory.runDC(netlist)
-            forwardVoltages.append(result.voltage(at: anode))
+            forwardVoltages.append(try result.voltage(at: anode))
         }
 
         // Forward voltage should decrease as Is increases

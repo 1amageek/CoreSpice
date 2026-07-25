@@ -212,7 +212,7 @@ public struct SparseLUSolver: LinearSolver {
         }
 
         permutedStructure = SparseStructure(
-            dimension: n,
+            uncheckedDimension: n,
             rowPointers: rowPointers,
             columnIndices: columnIndices
         )

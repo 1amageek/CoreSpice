@@ -34,8 +34,8 @@ public struct CCVSDescriptor: DeviceDescriptor, Sendable {
             throw DeviceBindingError.missingParameter(device: instance.name, parameter: "h")
         }
 
-        let senseBranch = context.allocateBranch()
-        let outputBranch = context.allocateBranch()
+        let senseBranch = try context.claimBranch(for: instance, ownedIndex: 0)
+        let outputBranch = try context.claimBranch(for: instance, ownedIndex: 1)
 
         return BoundCCVS(
             instance: instance,

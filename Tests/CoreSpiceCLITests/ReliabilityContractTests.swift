@@ -120,6 +120,28 @@ struct ReliabilityContractTests {
             #expect(!device.oracleRequirements.isEmpty)
             _ = device.knownLimitations
         }
+
+        let voltageSwitch = try #require(
+            passports.devices.first { $0.typeName == "vswitch" }
+        )
+        #expect(voltageSwitch.parameterPolicy.contains("vh must be finite and equal to zero"))
+        #expect(
+            voltageSwitch.knownLimitations.contains {
+                $0.contains("non-zero vh is rejected")
+            }
+        )
+
+        for typeName in ["cswitch", "cswitch_ref"] {
+            let currentSwitch = try #require(
+                passports.devices.first { $0.typeName == typeName }
+            )
+            #expect(currentSwitch.parameterPolicy.contains("ih must be finite and equal to zero"))
+            #expect(
+                currentSwitch.knownLimitations.contains {
+                    $0.contains("non-zero ih is rejected")
+                }
+            )
+        }
     }
 
     @Test("Regression corpus manifest matches the committed fixture")

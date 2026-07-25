@@ -150,28 +150,28 @@ struct CLI {
     options: CoreSpiceBatchOptions,
     session: inout Session
   ) async throws -> CoreSpiceCLIBatchRunRecord {
-    let source = try String(contentsOfFile: options.deckPath, encoding: .utf8)
+    let loadedDeck = try await SPICEDeckLoader.loadFile(at: options.deckPath)
     let artifactReferencer = try CoreSpiceCLIArtifactReferencer()
-    let inputArtifact = try artifactReferencer.input(
-      path: options.deckPath,
-      kind: .netlist,
-      format: .spice
-    )
+    let inputArtifacts = try loadedDeck.inputPaths.map { path in
+      try artifactReferencer.input(path: path, kind: .netlist, format: .spice)
+    }
     var outputArtifacts: [ArtifactReference] = []
     if let coveragePath = options.outputs.coverageJSON {
-      let parseResult = await SPICEIO.parse(source, fileName: options.deckPath)
-      let report = SPICEDeckCoverageReport.generate(from: parseResult)
-      try writeCoverageReport(report, path: coveragePath)
+      try writeCoverageReport(loadedDeck.coverage, path: coveragePath)
       outputArtifacts.append(
         try artifactReferencer.output(path: coveragePath, kind: .report, format: .json)
       )
     }
-    try await session.loadNetlist(source: source, fileName: options.deckPath)
+    try session.loadNetlist(loadedDeck, randomSeed: options.randomSeed)
     reportOptionDiagnostics(session.analysisOptions.diagnostics)
     let analyses: [String]
     let waveformSummary: CoreSpiceCLIWaveformSummary?
     if let mc = session.monteCarloSpec {
-      let parametric = try await session.runMonteCarlo(spec: mc, inner: mc.analysis)
+      let parametric = try await session.runMonteCarlo(
+        spec: mc,
+        inner: mc.analysis,
+        seedOverride: options.randomSeed
+      )
       outputArtifacts += try await export(parametric: parametric, outputs: options.outputs)
       analyses = ["mc(\(Session.analysisName(mc.analysis)))"]
       waveformSummary = parametric.runs.first.map { first in
@@ -205,7 +205,7 @@ struct CLI {
         arguments: args,
         workingDirectory: FileManager.default.currentDirectoryPath
       ),
-      inputArtifacts: [inputArtifact],
+      inputArtifacts: inputArtifacts,
       outputArtifacts: outputArtifacts,
       analyses: analyses,
       measurements: session.lastMeasurements.map { measurement in
@@ -243,8 +243,8 @@ struct CLI {
   }
 
   private func source(_ path: String, session: inout Session) async throws {
-    let source = try String(contentsOfFile: path, encoding: .utf8)
-    try await session.loadNetlist(source: source, fileName: path)
+    let loadedDeck = try await SPICEDeckLoader.loadFile(at: path)
+    try session.loadNetlist(loadedDeck)
     reportOptionDiagnostics(session.analysisOptions.diagnostics)
     print("loaded \(path)")
   }
@@ -442,9 +442,16 @@ struct Session {
   var isLoaded: Bool { plan != nil }
 
   mutating func loadNetlist(source: String, fileName: String?) async throws {
-    lastSource = source
-    let parseResult = await SPICEIO.parse(source, fileName: fileName)
-    let netlist = try parseResult.get()
+    let loadedDeck = try await SPICEDeckLoader.load(source: source, fileName: fileName)
+    try loadNetlist(loadedDeck)
+  }
+
+  mutating func loadNetlist(
+    _ loadedDeck: LoadedSPICEDeck,
+    randomSeed: UInt64? = nil
+  ) throws {
+    lastSource = loadedDeck.source
+    let netlist = loadedDeck.netlist
     parsedNetlist = netlist
     analysisEvaluationContext = try SPICEAnalysisOptions.makeEvaluationContext(from: netlist)
     analysisOptions = try SPICEAnalysisOptions.resolve(from: netlist)
@@ -454,7 +461,12 @@ struct Session {
         return nil
       }.first
 
-    let ir = try SPICEIO.lower(netlist, configuration: analysisOptions.loweringConfiguration())
+    let ir = try SPICEIO.lower(
+      netlist,
+      configuration: analysisOptions.loweringConfiguration(
+        randomSeed: randomSeed
+      )
+    )
     let compiler = StandardCompiler()
     var compiled = try compiler.compile(ir: ir)
     let evaluator = ExpressionEvaluator(context: analysisEvaluationContext)
@@ -517,10 +529,15 @@ struct Session {
       )
     }
 
-    self.lastWaveform = waveform
+    let measurements = try evaluateMeasurements(for: waveform)
+    let projected = try SPICEOutputProjector.project(
+      waveform,
+      controls: parsedNetlist?.controls ?? []
+    )
+    self.lastWaveform = projected
     self.lastParametric = nil
-    self.lastMeasurements = try evaluateMeasurements(for: waveform)
-    return waveform
+    self.lastMeasurements = measurements
+    return projected
   }
 
   private func runOperatingPoint(
@@ -656,9 +673,10 @@ struct Session {
 
   private static func isRunnableAnalysis(_ analysis: ParsedAnalysisCommand) -> Bool {
     switch analysis {
-    case .op, .transient, .ac, .dc:
+    case .op, .transient, .ac, .dc, .noise, .transferFunction,
+      .sensitivity, .poleZero, .fourier:
       return true
-    case .noise, .transferFunction, .sensitivity, .monteCarlo, .poleZero, .fourier:
+    case .monteCarlo:
       return false
     }
   }
@@ -708,17 +726,27 @@ struct Session {
       options: analysisOptions,
       initialNodeVoltages: initialNodeVoltages,
       nodeSetVoltages: nodeSetVoltages,
-      evaluator: ExpressionEvaluator(context: analysisEvaluationContext)
+      evaluator: ExpressionEvaluator(context: analysisEvaluationContext),
+      transientSpec: parsedNetlist?.analyses.compactMap {
+        if case .transient(let spec) = $0 { return spec }
+        return nil
+      }.first
     )
-    self.lastWaveform = waveform
+    let measurements = try evaluateMeasurements(for: waveform)
+    let projected = try SPICEOutputProjector.project(
+      waveform,
+      controls: parsedNetlist?.controls ?? []
+    )
+    self.lastWaveform = projected
     self.lastParametric = nil
-    self.lastMeasurements = try evaluateMeasurements(for: waveform)
-    return waveform
+    self.lastMeasurements = measurements
+    return projected
   }
 
   mutating func runMonteCarlo(
     spec: MonteCarloSpec,
-    inner: ParsedAnalysisCommand
+    inner: ParsedAnalysisCommand,
+    seedOverride: UInt64? = nil
   ) async throws -> ParametricWaveformData {
     guard let netlist = parsedNetlist else {
       throw CLIError.state("no parsed netlist for Monte Carlo")
@@ -728,7 +756,7 @@ struct Session {
     }
 
     var runs: [ParametricWaveformData.Run] = []
-    let baseSeed = UInt64(spec.seed ?? 1)
+    let baseSeed = seedOverride ?? UInt64(spec.seed ?? 1)
 
     for i in 0..<spec.iterations {
       let seed = baseSeed &+ UInt64(i)
@@ -737,12 +765,13 @@ struct Session {
       let compiler = StandardCompiler()
       let compiled = try compiler.compile(ir: ir)
 
-      let registry = DeviceRegistry.standard()
+      let registry = DeviceRegistry.withOptoelectronics()
       let mcStructure = compiled.matrixStructure
       var context = BindingContext(
         variableMap: compiled.topology.variableMap,
         matrixDimension: compiled.topology.dimension,
         branchNames: compiled.ir.branchNames,
+        operatingConditions: try analysisOptions.operatingConditions(),
         stampIndexResolver: { row, col in mcStructure.index(row: row, col: col) }
       )
       var bound: [any BoundDevice] = []
@@ -756,7 +785,7 @@ struct Session {
       // Build optical network graph for this Monte Carlo iteration
       let mcPlan = try Self.integrateOpticalNetwork(plan: compiled, devices: bound)
 
-      let waveform = try await Self.runParsedAnalysis(
+      let fullWaveform = try await Self.runParsedAnalysis(
         inner,
         plan: mcPlan,
         devices: bound,
@@ -764,8 +793,20 @@ struct Session {
         options: analysisOptions,
         initialNodeVoltages: initialNodeVoltages,
         nodeSetVoltages: nodeSetVoltages,
-        evaluator: ExpressionEvaluator(context: analysisEvaluationContext)
+        evaluator: ExpressionEvaluator(context: analysisEvaluationContext),
+        transientSpec: netlist.analyses.compactMap {
+          if case .transient(let spec) = $0 { return spec }
+          return nil
+        }.first
       )
+      let measurements = try evaluateMeasurements(for: fullWaveform)
+      let waveform = try SPICEOutputProjector.project(
+        fullWaveform,
+        controls: netlist.controls
+      )
+      if i == 0 {
+        lastMeasurements = measurements
+      }
       let run = try ParametricWaveformData.Run(
         validatingIndex: i,
         parameters: ["run": Double(i)],
@@ -783,9 +824,7 @@ struct Session {
 
     self.lastParametric = parametric
     self.lastWaveform = runs.first?.waveform
-    if let waveform = runs.first?.waveform {
-      self.lastMeasurements = try evaluateMeasurements(for: waveform)
-    } else {
+    if runs.isEmpty {
       self.lastMeasurements = []
     }
     return parametric
@@ -799,7 +838,8 @@ struct Session {
     options: SPICEAnalysisOptions,
     initialNodeVoltages: [Node: Double],
     nodeSetVoltages: [Node: Double],
-    evaluator: ExpressionEvaluator
+    evaluator: ExpressionEvaluator,
+    transientSpec: TransientAnalysisSpec?
   ) async throws -> WaveformData {
     let cancellation = CancellationToken()
     let solver = SparseLUSolver()
@@ -851,12 +891,150 @@ struct Session {
         cancellation: cancellation
       )
 
+    case .noise(let spec):
+      let outputNode = try resolveNode(named: spec.outputNode, plan: plan)
+      let referenceNode = try spec.referenceNode.map {
+        try resolveNode(named: $0, plan: plan)
+      }
+      let sweep = try frequencySweep(from: spec, evaluator: evaluator)
+      let result = try await NoiseAnalysis(
+        outputNode: outputNode,
+        outputReferenceNode: referenceNode,
+        inputSourceName: spec.inputSource,
+        sweep: sweep,
+        dcConfig: options.convergence
+      ).run(
+        plan: plan,
+        devices: devices,
+        solver: solver,
+        observer: nil,
+        cancellation: cancellation
+      )
+      return WaveformData.from(noiseResult: result, title: "Noise")
+
+    case .transferFunction(let spec):
+      let outputNode = try resolveVoltageOutput(spec.output, plan: plan)
+      let result = try await TransferFunctionAnalysis(
+        outputNode: outputNode,
+        inputSourceName: spec.input,
+        dcConfig: options.convergence
+      ).run(
+        plan: plan,
+        devices: devices,
+        solver: solver,
+        observer: nil,
+        cancellation: cancellation
+      )
+      return WaveformData.from(transferFunctionResult: result, title: "Transfer Function")
+
+    case .sensitivity(let spec):
+      let outputNode = try resolveVoltageOutput(spec.output, plan: plan)
+      let binding = StandardCircuitDeviceBinding(
+        registry: registry,
+        operatingConditions: try options.operatingConditions()
+      )
+      if let acSpec = spec.acSpec {
+        let sweep = try frequencySweep(from: acSpec, evaluator: evaluator)
+        let result = try await ACSensitivityAnalysis(
+          outputPositiveNode: outputNode,
+          sweep: sweep,
+          dcConfig: options.convergence,
+          deviceBinding: binding
+        ).run(
+          plan: plan,
+          devices: devices,
+          solver: solver,
+          observer: nil,
+          cancellation: cancellation
+        )
+        return WaveformData.from(
+          acSensitivityResult: result,
+          title: "AC Sensitivity"
+        )
+      }
+      let result = try await SensitivityAnalysis(
+        outputNode: outputNode,
+        dcConfig: options.convergence,
+        deviceBinding: binding
+      ).run(
+        plan: plan,
+        devices: devices,
+        solver: solver,
+        observer: nil,
+        cancellation: cancellation
+      )
+      return WaveformData.from(sensitivityResult: result, title: "Sensitivity")
+
+    case .poleZero(let spec):
+      let inputPositive = try resolveNode(named: spec.inputNode, plan: plan)
+      let inputNegative = try resolveNode(named: spec.inputReference, plan: plan)
+      let outputPositive = try resolveNode(named: spec.outputNode, plan: plan)
+      let outputNegative = try resolveNode(named: spec.outputReference, plan: plan)
+      let input: PoleZeroInput
+      switch spec.transferType {
+      case .voltage:
+        input = .voltage(positive: inputPositive, reference: inputNegative)
+      case .current:
+        input = .current(positive: inputPositive, reference: inputNegative)
+      }
+      let unfiltered = try await PoleZeroAnalysis(
+        input: input,
+        outputPositiveNode: outputPositive,
+        outputReferenceNode: outputNegative,
+        dcConfig: options.convergence
+      ).run(
+        plan: plan,
+        devices: devices,
+        solver: solver,
+        observer: nil,
+        cancellation: cancellation
+      )
+      let result = try PoleZeroResult(
+        poles: spec.analysisType == .zeros ? [] : unfiltered.poles,
+        zeros: spec.analysisType == .poles ? [] : unfiltered.zeros,
+        dcGain: unfiltered.dcGain,
+        variableMap: unfiltered.variableMap
+      )
+      return WaveformData.from(poleZeroResult: result, title: "Pole-Zero")
+
+    case .fourier(let spec):
+      guard let transientSpec else {
+        throw CLIError.invalidArguments(
+          "Fourier analysis requires a .tran directive in the same deck"
+        )
+      }
+      let frequency = try numericValue(
+        spec.frequency,
+        field: "four.frequency",
+        evaluator: evaluator
+      )
+      let outputs = try spec.outputs.map {
+        try resolveFourierOutput($0, plan: plan)
+      }
+      let config = try makeTransientConfig(
+        spec: transientSpec,
+        options: options,
+        initialNodeVoltages: initialNodeVoltages,
+        nodeSetVoltages: nodeSetVoltages,
+        evaluator: evaluator
+      )
+      let result = try await FourierAnalysis(
+        fundamentalFrequency: frequency,
+        outputs: outputs,
+        transientConfig: config,
+        convergenceConfig: options.convergence
+      ).run(
+        plan: plan,
+        devices: devices,
+        solver: solver,
+        observer: nil,
+        cancellation: cancellation
+      )
+      return WaveformData.from(fourierResult: result, title: "Fourier")
+
     case .monteCarlo:
       // Nested Monte Carlo is not supported
       throw CLIError.state("nested Monte Carlo not supported")
-
-    case .noise, .poleZero, .sensitivity, .transferFunction, .fourier:
-      throw CLIError.state("analysis not supported in CLI Monte Carlo")
     }
   }
 
@@ -893,6 +1071,34 @@ struct Session {
     solver: SparseLUSolver,
     cancellation: CancellationToken
   ) async throws -> WaveformData {
+    let config = try makeTransientConfig(
+      spec: spec,
+      options: options,
+      initialNodeVoltages: initialNodeVoltages,
+      nodeSetVoltages: nodeSetVoltages,
+      evaluator: evaluator
+    )
+    let result = try await TransientAnalysis(
+      config: config,
+      convergenceConfig: options.convergence
+    ).run(
+      plan: plan,
+      devices: devices,
+      solver: solver,
+      observer: nil,
+      cancellation: cancellation
+    )
+    return try WaveformData.checkedFrom(
+      transientResult: result, topology: plan.topology.circuitTopology, title: "Transient")
+  }
+
+  private static func makeTransientConfig(
+    spec: TransientAnalysisSpec,
+    options: SPICEAnalysisOptions,
+    initialNodeVoltages: [Node: Double],
+    nodeSetVoltages: [Node: Double],
+    evaluator: ExpressionEvaluator
+  ) throws -> TransientConfig {
     let stop = try numericValue(spec.stopTime, field: "tran.tstop", evaluator: evaluator)
     guard stop > 0 else {
       throw CLIError.invalidArguments("transient analysis requires a positive stop time")
@@ -909,7 +1115,7 @@ struct Session {
     let maxStep = try spec.maxStep.map {
       try numericValue($0, field: "tran.tmax", evaluator: evaluator)
     }
-    let config = try options.transientConfig(
+    return try options.transientConfig(
       stopTime: stop,
       stepTime: step,
       startTime: startTime,
@@ -918,18 +1124,6 @@ struct Session {
       initialNodeVoltages: initialNodeVoltages,
       nodeVoltageGuesses: nodeSetVoltages
     )
-    let result = try await TransientAnalysis(
-      config: config,
-      convergenceConfig: options.convergence
-    ).run(
-      plan: plan,
-      devices: devices,
-      solver: solver,
-      observer: nil,
-      cancellation: cancellation
-    )
-    return try WaveformData.checkedFrom(
-      transientResult: result, topology: plan.topology.circuitTopology, title: "Transient")
   }
 
   private static func runParsedAC(
@@ -971,7 +1165,11 @@ struct Session {
     var results: [DCResult] = []
     for value in values {
       let devices = try bindDevices(
-        plan: plan, registry: registry, overrideSource: (spec.source, value))
+        plan: plan,
+        registry: registry,
+        overrideSource: (spec.source, value),
+        operatingConditions: try options.operatingConditions()
+      )
       let result = try await DCAnalysis(
         config: options.convergence,
         nodeInitialGuess: nodeSetVoltages
@@ -1004,6 +1202,82 @@ struct Session {
     case .linear:
       return .linear(start: start, stop: stop, points: points)
     }
+  }
+
+  private static func frequencySweep(
+    from spec: NoiseAnalysisSpec,
+    evaluator: ExpressionEvaluator
+  ) throws -> FrequencySweep {
+    let start = try numericValue(
+      spec.startFrequency,
+      field: "noise.start",
+      evaluator: evaluator
+    )
+    let stop = try numericValue(
+      spec.stopFrequency,
+      field: "noise.stop",
+      evaluator: evaluator
+    )
+    switch spec.scaleType {
+    case .decade:
+      return .decade(start: start, stop: stop, pointsPerDecade: spec.numberOfPoints)
+    case .octave:
+      return .octave(start: start, stop: stop, pointsPerOctave: spec.numberOfPoints)
+    case .linear:
+      return .linear(start: start, stop: stop, points: spec.numberOfPoints)
+    }
+  }
+
+  private static func resolveNode(named name: String, plan: ExecutionPlan) throws -> Node {
+    let normalized = name.lowercased()
+    if normalized == "0" || normalized == "gnd" {
+      return plan.ir.groundNode
+    }
+    guard let node = plan.ir.nodeNames.first(where: {
+      $0.value.caseInsensitiveCompare(name) == .orderedSame
+    })?.key else {
+      throw CLIError.invalidArguments("analysis references unknown node '\(name)'")
+    }
+    return node
+  }
+
+  private static func resolveVoltageOutput(
+    _ expression: String,
+    plan: ExecutionPlan
+  ) throws -> Node {
+    guard expression.count >= 4,
+      expression.lowercased().hasPrefix("v("),
+      expression.hasSuffix(")")
+    else {
+      throw CLIError.invalidArguments(
+        "expected voltage output V(node), got '\(expression)'"
+      )
+    }
+    return try resolveNode(named: String(expression.dropFirst(2).dropLast()), plan: plan)
+  }
+
+  private static func resolveFourierOutput(
+    _ expression: String,
+    plan: ExecutionPlan
+  ) throws -> FourierOutput {
+    if expression.lowercased().hasPrefix("v("), expression.hasSuffix(")") {
+      let node = try resolveVoltageOutput(expression, plan: plan)
+      return FourierOutput(variable: .nodeVoltage(node), name: expression)
+    }
+    if expression.lowercased().hasPrefix("i("), expression.hasSuffix(")") {
+      let name = String(expression.dropFirst(2).dropLast())
+      guard let branch = plan.ir.branchNames.first(where: {
+        $0.value.caseInsensitiveCompare(name) == .orderedSame
+      })?.key else {
+        throw CLIError.invalidArguments(
+          "Fourier output references unknown branch current '\(name)'"
+        )
+      }
+      return FourierOutput(variable: .branchCurrent(branch), name: expression)
+    }
+    throw CLIError.invalidArguments(
+      "Fourier output must be V(node) or I(device), got '\(expression)'"
+    )
   }
 
   private static func resolveNodeVoltages(
@@ -1073,13 +1347,19 @@ struct Session {
     plan: ExecutionPlan,
     overrideSource: (String, Double)?
   ) throws -> [any BoundDevice] {
-    try Self.bindDevices(plan: plan, registry: registry, overrideSource: overrideSource)
+    try Self.bindDevices(
+      plan: plan,
+      registry: registry,
+      overrideSource: overrideSource,
+      operatingConditions: try analysisOptions.operatingConditions()
+    )
   }
 
   private static func bindDevices(
     plan: ExecutionPlan,
     registry: DeviceRegistry,
-    overrideSource: (String, Double)?
+    overrideSource: (String, Double)?,
+    operatingConditions: OperatingConditions
   ) throws -> [any BoundDevice] {
     if let overrideSource {
       try validateDCSweepSource(plan: plan, source: overrideSource.0)
@@ -1090,6 +1370,7 @@ struct Session {
       variableMap: plan.topology.variableMap,
       matrixDimension: plan.topology.dimension,
       branchNames: plan.ir.branchNames,
+      operatingConditions: operatingConditions,
       stampIndexResolver: { row, col in structure.index(row: row, col: col) }
     )
 

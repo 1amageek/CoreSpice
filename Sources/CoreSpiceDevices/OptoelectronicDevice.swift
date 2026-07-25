@@ -13,8 +13,9 @@ import CoreSpiceIR
 ///
 /// The protocol extends `BoundDevice` and provides default implementations
 /// of the base stamp methods that delegate to the optical-aware versions
-/// with an empty `OpticalState`. This defines electrical-only execution for
-/// contexts that intentionally do not provide an optical network.
+/// with a zero-power state covering the device's declared optical nodes.
+/// This defines electrical-only execution for contexts that intentionally
+/// do not provide an optical network.
 public protocol OptoelectronicDevice: BoundDevice {
 
     /// Optical nodes that this device reads from.
@@ -68,6 +69,12 @@ public protocol OptoelectronicDevice: BoundDevice {
 
 extension OptoelectronicDevice {
 
+    private func disconnectedOpticalState() -> OpticalState {
+        let highestNodeID = (opticalInputNodes + opticalOutputNodes)
+            .reduce(0) { max($0, $1.id) }
+        return OpticalState(nodeCount: highestNodeID + 1)
+    }
+
     /// Default: no optical output (for receivers like photodiodes).
     public func computeOpticalOutput(
         electricalState: SolutionState,
@@ -76,30 +83,45 @@ extension OptoelectronicDevice {
         [:]
     }
 
-    /// Default: delegates to optical-aware stampDC with empty OpticalState.
+    /// Default: delegates with an explicit disconnected optical state.
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
-        stampDC(into: &stamper, state: state, opticalState: OpticalState())
+        stampDC(
+            into: &stamper,
+            state: state,
+            opticalState: disconnectedOpticalState()
+        )
     }
 
-    /// Default: delegates to optical-aware stampAC with empty OpticalState.
+    /// Default: delegates with an explicit disconnected optical state.
     public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
-        stampAC(into: &stamper, state: state, opticalState: OpticalState(), omega: omega)
+        stampAC(
+            into: &stamper,
+            state: state,
+            opticalState: disconnectedOpticalState(),
+            omega: omega
+        )
     }
 
-    /// Default: delegates to optical-aware stampTransient with empty OpticalState.
+    /// Default: delegates with an explicit disconnected optical state.
     public func stampTransient(
         into stamper: inout MatrixStamper,
         state: SolutionState,
         integration: IntegrationState
     ) {
-        stampTransient(into: &stamper, state: state, opticalState: OpticalState(), integration: integration)
+        stampTransient(
+            into: &stamper,
+            state: state,
+            opticalState: disconnectedOpticalState(),
+            integration: integration
+        )
     }
 
-    /// Default: delegates to optical-aware checkConvergence with empty OpticalState.
+    /// Default: checks electrical convergence with disconnected optical inputs.
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
-        checkConvergence(
+        let opticalState = disconnectedOpticalState()
+        return checkConvergence(
             state: state, previousState: previousState,
-            opticalState: OpticalState(), previousOpticalState: OpticalState()
+            opticalState: opticalState, previousOpticalState: opticalState
         )
     }
 

@@ -1,7 +1,7 @@
 import Foundation
 import CoreSpiceIR
 
-/// A smooth voltage-controlled switch bound to circuit nodes.
+/// A voltage-controlled switch with a narrow numerical transition at its threshold.
 public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
 
     public let instance: Instance
@@ -12,7 +12,6 @@ public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
     private let onResistance: Double
     private let offResistance: Double
     private let threshold: Double
-    private let hysteresis: Double
 
     init(
         instance: Instance,
@@ -22,8 +21,7 @@ public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
         controlNegNode: Node,
         onResistance: Double,
         offResistance: Double,
-        threshold: Double,
-        hysteresis: Double
+        threshold: Double
     ) {
         self.instance = instance
         self.posNode = posNode
@@ -33,7 +31,6 @@ public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
         self.onResistance = onResistance
         self.offResistance = offResistance
         self.threshold = threshold
-        self.hysteresis = hysteresis
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
@@ -143,7 +140,7 @@ public struct BoundVoltageControlledSwitch: BoundDevice, Sendable {
     }
 
     private func switchPositionAndDerivative(controlVoltage: Double) -> (position: Double, derivative: Double) {
-        let transitionWidth = max(abs(hysteresis) / 8.0, 1.0e-3)
+        let transitionWidth = 1.0e-3
         let normalized = clamp((controlVoltage - threshold) / transitionWidth, lower: -80.0, upper: 80.0)
         let position = 1.0 / (1.0 + exp(-normalized))
         return (position, position * (1.0 - position) / transitionWidth)

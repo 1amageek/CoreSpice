@@ -77,6 +77,11 @@ public struct SubcircuitExpander: Sendable {
             let evaluated = try evaluator.evaluate(value)
             evaluatedParams[name] = .real(evaluated)
         }
+        try validateEvaluatedParameters(
+            component.type,
+            parameters: evaluatedParams,
+            componentName: fullName
+        )
 
         if component.type == .coupledInductors {
             try addMutualInductanceInstance(
@@ -121,17 +126,26 @@ public struct SubcircuitExpander: Sendable {
 
         // Allocate branches for devices that need them (voltage sources, inductors, etc.)
         let branchCount = Self.branchesRequired(for: typeName)
+        var ownedBranches: [Branch] = []
+        ownedBranches.reserveCapacity(branchCount)
         for index in 0..<branchCount {
             let branchName = branchCount == 1 ? fullName : "\(fullName)#\(index)"
-            _ = builder.branch(name: branchName)
+            ownedBranches.append(builder.branch(name: branchName))
         }
+        let referencedBranchNames = try referencedBranchNames(
+            typeName: typeName,
+            parameters: evaluatedParams,
+            instanceName: fullName
+        )
 
         // Add the instance
         try builder.addInstance(
             name: fullName,
             typeName: typeName,
             nodes: nodeNames,
-            parameters: evaluatedParams
+            parameters: evaluatedParams,
+            ownedBranches: ownedBranches,
+            referencedBranchNames: referencedBranchNames
         )
     }
 
@@ -224,12 +238,50 @@ public struct SubcircuitExpander: Sendable {
             lowerBranchReferenceName(component.nodes[1].name, prefix: prefix, mapNames: mapNames)
         )
 
+        let referencedBranchNames = try [
+            "inductor_a",
+            "inductor_b",
+        ].map { parameterName -> String in
+            guard case .string(let branchName) = mutualParameters[parameterName] else {
+                throw LoweringError.invalidComponent(
+                    name: fullName,
+                    reason: "Could not resolve \(parameterName) branch reference"
+                )
+            }
+            return branchName
+        }
+
         try builder.addInstance(
             name: fullName,
             typeName: "mutual",
             nodes: [],
-            parameters: mutualParameters
+            parameters: mutualParameters,
+            referencedBranchNames: referencedBranchNames
         )
+    }
+
+    private func referencedBranchNames(
+        typeName: String,
+        parameters: [String: ParameterValue],
+        instanceName: String
+    ) throws -> [String] {
+        let parameterNames: [String]
+        switch typeName {
+        case "cccs_ref", "ccvs_ref", "cswitch_ref":
+            parameterNames = ["control_source"]
+        default:
+            parameterNames = []
+        }
+
+        return try parameterNames.map { parameterName in
+            guard case .string(let branchName) = parameters[parameterName] else {
+                throw LoweringError.invalidComponent(
+                    name: instanceName,
+                    reason: "Could not resolve \(parameterName) branch reference"
+                )
+            }
+            return branchName
+        }
     }
 
     private func lowerBranchReferenceName(_ name: String, prefix: String, mapNames: Bool) -> String {
@@ -452,6 +504,14 @@ public struct SubcircuitExpander: Sendable {
         return .string(resolvedName)
     }
 
+    // FIXME(INCOMPLETE_IMPLEMENTATION):
+    // Native SPICE lowering currently reaches this gate from SPICEIO.lower and
+    // the batch/REPL CLI for parsed B-sources, MESFETs, transmission lines,
+    // uniform-RC elements, unsupported JFET parameters, and unsupported compact
+    // models. These decks must continue to fail with a typed LoweringError and
+    // must not be reported as executable until each family has a descriptor,
+    // binding and matrix-stamp implementation, analysis-specific semantics,
+    // and independent success/failure correlation tests.
     private func validateExecutableComponent(
         _ component: ParsedComponent,
         fullName: String
@@ -522,6 +582,36 @@ public struct SubcircuitExpander: Sendable {
         default:
             return nil
         }
+    }
+
+    // FIXME(INCOMPLETE_IMPLEMENTATION):
+    // Production lowering currently reaches this branch for non-zero SW.VH and
+    // CSW.IH values. Keep returning a typed failure instead of treating the
+    // numeric transition as hysteresis until switch state ownership, initial
+    // state, Newton iteration rollback, transient commit, and DC/AC/transient
+    // hysteresis behavior are implemented and regression-tested.
+    private func validateEvaluatedParameters(
+        _ type: ComponentType,
+        parameters: [String: ParameterValue],
+        componentName: String
+    ) throws {
+        let parameterName: String
+        switch type {
+        case .switch_:
+            parameterName = "vh"
+        case .currentSwitch:
+            parameterName = "ih"
+        default:
+            return
+        }
+        guard case .real(let hysteresis)? = parameters[parameterName],
+              hysteresis != 0 else {
+            return
+        }
+        throw LoweringError.invalidComponent(
+            name: componentName,
+            reason: "Non-zero \(parameterName.uppercased()) requires stateful switch hysteresis and is not executable"
+        )
     }
 
     private func unsupportedModelReason(_ model: ParsedModel) -> String? {

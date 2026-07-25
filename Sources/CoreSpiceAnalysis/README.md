@@ -176,8 +176,8 @@ public struct DCResult: Sendable {
     public let variableMap: [MNAVariable: Int]
     public let iterations: Int
 
-    public func voltage(at node: Node) -> Double
-    public func current(through branch: Branch) -> Double
+    public func voltage(at node: Node) throws -> Double
+    public func current(through branch: Branch) throws -> Double
 }
 
 public struct ACResult: Sendable {
@@ -185,9 +185,9 @@ public struct ACResult: Sendable {
     public let solutions: [[ComplexPair]]
     public let variableMap: [MNAVariable: Int]
 
-    public func voltage(at node: Node, frequencyIndex: Int) -> ComplexPair
-    public func magnitudeDB(at node: Node, frequencyIndex: Int) -> Double
-    public func phase(at node: Node, frequencyIndex: Int) -> Double
+    public func voltage(at node: Node, frequencyIndex: Int) throws -> ComplexPair
+    public func magnitudeDB(at node: Node, frequencyIndex: Int) throws -> Double
+    public func phase(at node: Node, frequencyIndex: Int) throws -> Double
 }
 
 public struct TransientResult: Sendable {

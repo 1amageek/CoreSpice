@@ -284,9 +284,50 @@ private struct SPICEParserImpl {
             try parseMeasure(location: loc)
         case "func", "function":
             try parseFunction(location: loc)
+        case "alter":
+            try parseAlter(location: loc)
+        case "hdl":
+            try parseHDL(location: loc)
         default:
             throw ParserDiagnostic.error("Unsupported SPICE directive: .\(name)", at: loc)
         }
+    }
+
+    private mutating func parseAlter(location: SourceLocation?) throws {
+        guard case .identifier(let target) = currentToken else {
+            throw ParserDiagnostic.error("Expected alter target", at: currentLocation)
+        }
+        advance()
+        guard case .identifier(let parameter) = currentToken else {
+            throw ParserDiagnostic.error("Expected altered parameter name", at: currentLocation)
+        }
+        advance()
+        if case .equals = currentToken {
+            advance()
+        }
+        guard let value = try parseParameterValueIfPresent() else {
+            throw ParserDiagnostic.error("Expected altered parameter value", at: currentLocation)
+        }
+        controls.append(.alter(AlterSpec(
+            target: target,
+            parameter: parameter,
+            value: value,
+            location: location
+        )))
+        skipToEndOfLine()
+    }
+
+    private mutating func parseHDL(location: SourceLocation?) throws {
+        let path: String
+        switch currentToken {
+        case .string(let value), .identifier(let value):
+            path = value
+            advance()
+        default:
+            throw ParserDiagnostic.error("Expected HDL source path", at: currentLocation)
+        }
+        controls.append(.hdl(path: path, location: location))
+        skipToEndOfLine()
     }
 
     private mutating func parseComponent(name: String) throws {
@@ -1049,9 +1090,10 @@ private struct SPICEParserImpl {
 
             do {
                 let content = try await fileResolver.resolveInclude(path: path, relativeTo: fileName)
+                let childPath = try await resolvedChildPath(path, relativeTo: fileName)
                 try await parseIncludedContent(
                     content,
-                    fileName: resolvedChildPath(path, relativeTo: fileName)
+                    fileName: childPath
                 )
             } catch {
                 diagnostics.append(.error(
@@ -1143,9 +1185,10 @@ private struct SPICEParserImpl {
                     section: section,
                     relativeTo: fileName
                 )
+                let childPath = try await resolvedChildPath(path, relativeTo: fileName)
                 try await parseIncludedContent(
                     content,
-                    fileName: resolvedChildPath(path, relativeTo: fileName)
+                    fileName: childPath
                 )
             } catch {
                 diagnostics.append(.error(
@@ -1156,7 +1199,10 @@ private struct SPICEParserImpl {
         }
     }
 
-    private func resolvedChildPath(_ path: String, relativeTo base: String?) -> String {
+    private func resolvedChildPath(_ path: String, relativeTo base: String?) async throws -> String {
+        if let resolver = fileResolver as? any ResolvedPathProvidingFileResolver {
+            return try await resolver.resolvedPath(for: path, relativeTo: base)
+        }
         guard !path.hasPrefix("/"), let base else {
             return path
         }
@@ -1424,31 +1470,55 @@ private struct SPICEParserImpl {
         if case .identifier(let acId) = currentToken, acId.lowercased() == "ac" {
             advance()
 
-            var scaleType: ACScaleType = .decade
-            if case .identifier(let scale) = currentToken {
-                switch scale.lowercased() {
-                case "dec": scaleType = .decade
-                case "oct": scaleType = .octave
-                case "lin": scaleType = .linear
-                default: break
-                }
-                advance()
+            guard case .identifier(let scale) = currentToken else {
+                throw ParserDiagnostic.error(
+                    "Expected AC sensitivity scale dec, oct, or lin",
+                    at: currentLocation
+                )
             }
+            let scaleType: ACScaleType
+            switch scale.lowercased() {
+            case "dec": scaleType = .decade
+            case "oct": scaleType = .octave
+            case "lin": scaleType = .linear
+            default:
+                throw ParserDiagnostic.error(
+                    "Expected AC sensitivity scale dec, oct, or lin",
+                    at: currentLocation
+                )
+            }
+            advance()
 
-            var points = 10
-            if let n = try parseNumericTokenIfPresent() {
-                points = Int(n)
+            let pointsLocation = currentLocation
+            guard let rawPoints = try parseNumericTokenIfPresent() else {
+                throw ParserDiagnostic.error(
+                    "Expected AC sensitivity point count",
+                    at: pointsLocation
+                )
             }
+            let points = try parsePositiveInteger(
+                rawPoints,
+                label: "AC sensitivity point count",
+                at: pointsLocation
+            )
 
-            var startFreq: ParsedParameterValue = .numeric(1.0)
-            if let n = try parseNumericTokenIfPresent() {
-                startFreq = .numeric(n)
+            let startLocation = currentLocation
+            guard let rawStartFrequency = try parseNumericTokenIfPresent() else {
+                throw ParserDiagnostic.error(
+                    "Expected AC sensitivity start frequency",
+                    at: startLocation
+                )
             }
+            let startFreq: ParsedParameterValue = .numeric(rawStartFrequency)
 
-            var stopFreq: ParsedParameterValue = .numeric(1e6)
-            if let n = try parseNumericTokenIfPresent() {
-                stopFreq = .numeric(n)
+            let stopLocation = currentLocation
+            guard let rawStopFrequency = try parseNumericTokenIfPresent() else {
+                throw ParserDiagnostic.error(
+                    "Expected AC sensitivity stop frequency",
+                    at: stopLocation
+                )
             }
+            let stopFreq: ParsedParameterValue = .numeric(rawStopFrequency)
 
             acSpec = try ACAnalysisSpec(
                 scaleType: scaleType,
@@ -1542,9 +1612,18 @@ private struct SPICEParserImpl {
             switch typeStr.lowercased() {
             case "vol": transferType = .voltage
             case "cur": transferType = .current
-            default: break
+            default:
+                throw ParserDiagnostic.error(
+                    "Expected pole-zero transfer type vol or cur",
+                    at: currentLocation
+                )
             }
             advance()
+        } else {
+            throw ParserDiagnostic.error(
+                "Expected pole-zero transfer type vol or cur",
+                at: currentLocation
+            )
         }
 
         // Parse analysis type (pz, pol, or zer)
@@ -1554,9 +1633,18 @@ private struct SPICEParserImpl {
             case "pz": analysisType = .both
             case "pol": analysisType = .poles
             case "zer": analysisType = .zeros
-            default: break
+            default:
+                throw ParserDiagnostic.error(
+                    "Expected pole-zero analysis type pz, pol, or zer",
+                    at: currentLocation
+                )
             }
             advance()
+        } else {
+            throw ParserDiagnostic.error(
+                "Expected pole-zero analysis type pz, pol, or zer",
+                at: currentLocation
+            )
         }
 
         analyses.append(.poleZero(PoleZeroSpec(
@@ -2256,6 +2344,35 @@ private struct SPICEParserImpl {
 
         // Check for V(...) or I(...)
         let lower = name.lowercased()
+        if ["mag", "magnitude", "phase", "ph", "real", "re", "imag", "im", "db"].contains(lower) {
+            guard case .leftParen = currentToken else {
+                throw ParserDiagnostic.error(
+                    "Expected '(' after output modifier \(name)",
+                    at: currentLocation
+                )
+            }
+            advance()
+            let inner = try parseOutputVariable()
+            guard case .rightParen = currentToken else {
+                throw ParserDiagnostic.error(
+                    "Expected ')' after output modifier \(name)",
+                    at: currentLocation
+                )
+            }
+            advance()
+            switch lower {
+            case "mag", "magnitude":
+                return .magnitude(inner)
+            case "phase", "ph":
+                return .phase(inner)
+            case "real", "re":
+                return .real(inner)
+            case "imag", "im":
+                return .imaginary(inner)
+            default:
+                return .dB(inner)
+            }
+        }
         if lower == "v" {
             if case .leftParen = currentToken {
                 advance()

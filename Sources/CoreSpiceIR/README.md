@@ -96,6 +96,8 @@ public struct Instance: Sendable {
     public let typeName: String
     public let nodes: [Node]
     public let parameters: [String: ParameterValue]
+    public let ownedBranches: [Branch]
+    public let referencedBranches: [Branch]
 }
 ```
 
@@ -127,12 +129,14 @@ public struct CircuitTopology: Sendable {
 public struct Netlist: Sendable {
     public init()
     public mutating func node(_ name: String) -> Node
-    public mutating func branch() -> Branch
+    public mutating func branch(name: String? = nil) -> Branch
     public mutating func addInstance(
         name: String,
         typeName: String,
         nodes: [String],
-        parameters: [String: ParameterValue]
+        parameters: [String: ParameterValue],
+        ownedBranches: [Branch],
+        referencedBranches: [Branch]
     ) throws
     public func build() throws -> CircuitIR
 }
@@ -160,6 +164,7 @@ public enum NetlistError: Error, Sendable {
 - [x] Circuit IR with full topology
 - [x] CircuitTopology for MNA matrix setup
 - [x] Netlist builder with node resolution
+- [x] Canonical per-instance owned/referenced branch connectivity
 - [x] Typed errors for implemented netlist validation
 
 ### Incomplete/Missing Features

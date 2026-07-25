@@ -24,6 +24,7 @@ let package = Package(
     products: [
         .library(name: "CoreSpice", targets: ["CoreSpice"]),
         .library(name: "CoreSpiceIO", targets: ["CoreSpiceIO"]),
+        .library(name: "CoreSpiceProcessBackend", targets: ["CoreSpiceProcessBackend"]),
         .library(name: "PluginsPhotonic", targets: ["PluginsPhotonic"]),
         .executable(name: "corespice", targets: ["CoreSpiceCLI"]),
     ],
@@ -85,6 +86,15 @@ let package = Package(
                                "CoreSpiceAnalysis", "CoreSpiceBackend", "CoreSpiceEvent",
                                "CoreSpiceOptoelectronics",
                                .product(name: "CircuiteFoundation", package: "CircuiteFoundation")]),
+
+        // --- Production external-process simulation backend ---
+        .target(
+            name: "CoreSpiceProcessBackend",
+            dependencies: [
+                "CoreSpice",
+                .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
+            ]
+        ),
 
         // ==========================================================================
         // I/O Architecture Modules
@@ -184,6 +194,13 @@ let package = Package(
             dependencies: [
                 "CoreSpice",
                 .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+            ]
+        ),
+        .testTarget(
+            name: "CoreSpiceProcessBackendTests",
+            dependencies: [
+                "CoreSpiceProcessBackend",
+                .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
             ]
         ),
         .testTarget(name: "CoreSpiceOptoelectronicsTests",

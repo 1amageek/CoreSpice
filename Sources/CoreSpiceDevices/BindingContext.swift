@@ -9,7 +9,9 @@ public struct BindingContext: Sendable {
 
     public let variableMap: [MNAVariable: Int]
     public let matrixDimension: Int
-    private var nextBranchID: Int
+    public let operatingConditions: OperatingConditions
+    private let availableBranches: [Branch]
+    private var claimedBranches: Set<Branch>
     private let branchesByName: [String: Branch]
     private var inductanceByBranch: [Branch: Double]
 
@@ -25,11 +27,20 @@ public struct BindingContext: Sendable {
         nextBranchID: Int = 0,
         branchNames: [Branch: String] = [:],
         inductanceByBranch: [Branch: Double] = [:],
+        operatingConditions: OperatingConditions = .nominal,
         stampIndexResolver: (@Sendable (_ row: Int, _ col: Int) -> Int?)? = nil
     ) {
         self.variableMap = variableMap
         self.matrixDimension = matrixDimension
-        self.nextBranchID = nextBranchID
+        self.operatingConditions = operatingConditions
+        self.availableBranches = variableMap.keys.compactMap { variable -> Branch? in
+            guard case .branchCurrent(let branch) = variable,
+                  branch.id >= nextBranchID else {
+                return nil
+            }
+            return branch
+        }.sorted { $0.id < $1.id }
+        self.claimedBranches = []
         self.branchesByName = Dictionary(
             branchNames.map { branch, name in
                 (name.lowercased(), branch)
@@ -40,11 +51,48 @@ public struct BindingContext: Sendable {
         self.stampIndexResolver = stampIndexResolver
     }
 
-    /// Allocates a new branch variable for the MNA system.
-    public mutating func allocateBranch() -> Branch {
-        let b = Branch(id: nextBranchID)
-        nextBranchID += 1
-        return b
+    /// Claims the canonical branch owned by a device instance.
+    ///
+    /// Explicit ownership is preferred. Legacy programmatic IR without
+    /// ownership metadata consumes the next unclaimed compiled branch.
+    public mutating func claimBranch(
+        for instance: Instance,
+        ownedIndex: Int = 0
+    ) throws -> Branch {
+        let branch: Branch
+        if !instance.ownedBranches.isEmpty {
+            guard instance.ownedBranches.indices.contains(ownedIndex) else {
+                throw DeviceBindingError.missingBranchVariable(
+                    device: instance.name,
+                    ownedIndex: ownedIndex
+                )
+            }
+            branch = instance.ownedBranches[ownedIndex]
+            guard variableMap[.branchCurrent(branch)] != nil else {
+                throw DeviceBindingError.missingBranchVariable(
+                    device: instance.name,
+                    ownedIndex: ownedIndex
+                )
+            }
+        } else {
+            guard let next = availableBranches.first(where: {
+                !claimedBranches.contains($0)
+            }) else {
+                throw DeviceBindingError.missingBranchVariable(
+                    device: instance.name,
+                    ownedIndex: ownedIndex
+                )
+            }
+            branch = next
+        }
+
+        guard claimedBranches.insert(branch).inserted else {
+            throw DeviceBindingError.duplicateBranchOwnership(
+                device: instance.name,
+                branchID: branch.id
+            )
+        }
+        return branch
     }
 
     /// Returns the matrix index for a node voltage variable, or `nil` for ground.

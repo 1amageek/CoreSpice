@@ -66,7 +66,9 @@ public struct ComplexMatrixStamper {
         real: Double,
         imag: Double
     ) {
-        guard let bIdx = branchIndex(branch) else { return }
+        guard let bIdx = branchIndex(branch) else {
+            preconditionFailure("Missing bound branch current for branch \(branch.id)")
+        }
         let pIdx = nodeIndex(posNode)
         let nIdx = nodeIndex(negNode)
 
@@ -97,11 +99,17 @@ public struct ComplexMatrixStamper {
     /// Returns the matrix index for a node voltage variable, or `nil` for ground.
     public func nodeIndex(_ node: Node) -> Int? {
         if node == .ground { return nil }
-        return variableMap[.nodeVoltage(node)]
+        guard let index = variableMap[.nodeVoltage(node)] else {
+            preconditionFailure("Missing bound node voltage for node \(node.id)")
+        }
+        return index
     }
 
     /// Returns the matrix index for a branch current variable.
     public func branchIndex(_ branch: Branch) -> Int? {
-        variableMap[.branchCurrent(branch)]
+        guard let index = variableMap[.branchCurrent(branch)] else {
+            preconditionFailure("Missing bound branch current for branch \(branch.id)")
+        }
+        return index
     }
 }

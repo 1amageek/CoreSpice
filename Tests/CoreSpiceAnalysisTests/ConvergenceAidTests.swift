@@ -107,7 +107,7 @@ struct ConvergenceAidTests {
         )
 
         // Verify convergence
-        let vAnode = result.voltage(at: anode)
+        let vAnode = try result.voltage(at: anode)
         // Diode drop ≈ 0.6-0.7V
         #expect(vAnode > 0.4 && vAnode < 0.9,
                 "Diode anode voltage should be ~0.6-0.7V, got \(vAnode)")
@@ -144,9 +144,9 @@ struct ConvergenceAidTests {
         )
 
         // Verify convergence: 3 diodes ≈ 3×0.6V = 1.8V drop
-        let vn1 = result.voltage(at: n1)
-        let vn2 = result.voltage(at: n2)
-        let vn3 = result.voltage(at: n3)
+        let vn1 = try result.voltage(at: n1)
+        let vn2 = try result.voltage(at: n2)
+        let vn3 = try result.voltage(at: n3)
 
         #expect(vn1 > vn2 && vn2 > vn3,
                 "Voltages should decrease along diode chain: \(vn1) > \(vn2) > \(vn3)")
@@ -187,8 +187,8 @@ struct ConvergenceAidTests {
         )
 
         // Verify BJT is in active region
-        let vCol = result.voltage(at: col)
-        let vBase = result.voltage(at: base)
+        let vCol = try result.voltage(at: col)
+        let vBase = try result.voltage(at: base)
 
         #expect(vCol > 0 && vCol < 12.0,
                 "Collector should be between 0V and VCC, got \(vCol)")

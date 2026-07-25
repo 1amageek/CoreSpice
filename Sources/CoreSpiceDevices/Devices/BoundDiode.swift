@@ -216,7 +216,7 @@ public struct BoundDiode: BoundDevice, VoltageLimitingDevice, TransientStateComm
         let vd = diodeVoltage(state: state)
         let vt = parameters.thermalVoltage
         let n = parameters.emissionCoefficient
-        let isat = parameters.saturationCurrent
+        let isat = parameters.effectiveSaturationCurrent
 
         let nvt = n * vt
 
@@ -284,7 +284,7 @@ public struct BoundDiode: BoundDevice, VoltageLimitingDevice, TransientStateComm
 
     public func limitVoltages(solution: inout [Double], previousSolution: [Double]) {
         let vt = parameters.emissionCoefficient * parameters.thermalVoltage
-        let isat = parameters.saturationCurrent
+        let isat = parameters.effectiveSaturationCurrent
 
         let vaNew = anodeIdx.map { solution[$0] } ?? 0.0
         let vcNew = cathodeIdx.map { solution[$0] } ?? 0.0

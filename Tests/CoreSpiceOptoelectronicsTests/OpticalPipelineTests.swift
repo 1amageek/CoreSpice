@@ -289,7 +289,7 @@ struct OpticalPipelineTests {
         }
 
         // PD output voltage: photocurrent through R_load
-        let vPdOut = result.voltage(at: pdOut)
+        let vPdOut = try result.voltage(at: pdOut)
         #expect(abs(vPdOut) > 1e-6, "PD output should have measurable voltage from photocurrent")
     }
 
@@ -352,7 +352,7 @@ struct OpticalPipelineTests {
         }
 
         // Verify PD develops voltage across TIA resistor
-        let vPd = result.voltage(at: pdOut)
+        let vPd = try result.voltage(at: pdOut)
         #expect(abs(vPd) > 1e-6, "PD should develop voltage from photocurrent")
     }
 
@@ -405,8 +405,8 @@ struct OpticalPipelineTests {
         let wgResult = try await runDCWithOptics(netlistWG, config: config)
 
         // Waveguide should reduce PD voltage (less photocurrent)
-        let vDirect = abs(directResult.voltage(at: pdDirect))
-        let vWG = abs(wgResult.voltage(at: pdWG))
+        let vDirect = abs(try directResult.voltage(at: pdDirect))
+        let vWG = abs(try wgResult.voltage(at: pdWG))
         #expect(vDirect > 0, "Direct link PD should have voltage")
         #expect(vWG < vDirect, "Waveguide should attenuate, reducing PD voltage")
     }
@@ -572,7 +572,7 @@ struct OpticalPipelineTests {
         let result = try await runDCWithOptics(netlist)
 
         #expect(result.opticalState == nil, "No optical state for pure electrical")
-        let vMid = result.voltage(at: mid)
+        let vMid = try result.voltage(at: mid)
         #expect(abs(vMid - 2.5) < 1e-3, "Voltage divider should give 2.5V, got \(vMid)")
     }
 }

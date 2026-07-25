@@ -22,7 +22,11 @@ public struct NPNDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
-        let params = try extractBJTParameters(from: instance, polarity: .npn)
+        let params = try extractBJTParameters(
+            from: instance,
+            polarity: .npn,
+            operatingTemperature: context.operatingConditions.temperatureKelvin
+        )
 
         let collectorNode = instance.nodes[0]
         let baseNode = instance.nodes[1]
@@ -80,7 +84,11 @@ public struct PNPDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
-        let params = try extractBJTParameters(from: instance, polarity: .pnp)
+        let params = try extractBJTParameters(
+            from: instance,
+            polarity: .pnp,
+            operatingTemperature: context.operatingConditions.temperatureKelvin
+        )
 
         let collectorNode = instance.nodes[0]
         let baseNode = instance.nodes[1]
@@ -137,9 +145,15 @@ private let bjtParameterDescriptors: [ParameterDescriptor] = [
     ParameterDescriptor(name: "vjc", defaultValue: .real(0.75), description: "B-C junction potential (V)"),
     ParameterDescriptor(name: "mje", defaultValue: .real(0.33), description: "B-E grading coefficient"),
     ParameterDescriptor(name: "mjc", defaultValue: .real(0.33), description: "B-C grading coefficient"),
+    ParameterDescriptor(name: "tnom", defaultValue: .real(27), description: "Model nominal temperature (°C)"),
+    ParameterDescriptor(name: "tnom_k", defaultValue: .real(300.15), description: "Model nominal temperature (K)"),
 ]
 
-private func extractBJTParameters(from instance: Instance, polarity: BJTPolarity) throws -> BJTModelParameters {
+private func extractBJTParameters(
+    from instance: Instance,
+    polarity: BJTPolarity,
+    operatingTemperature: Double
+) throws -> BJTModelParameters {
     func extractReal(_ key: String, default defaultValue: Double) throws -> Double {
         guard let value = instance.parameters[key] else { return defaultValue }
         guard case .real(let v) = value else {
@@ -152,6 +166,16 @@ private func extractBJTParameters(from instance: Instance, polarity: BJTPolarity
         return v
     }
 
+    let nominalTemperature = try instance.parameters["tnom_k"].map {
+        guard case .real(let value) = $0 else {
+            throw DeviceBindingError.invalidParameterType(
+                device: instance.name,
+                parameter: "tnom_k",
+                expected: "real"
+            )
+        }
+        return value
+    } ?? (try extractReal("tnom", default: 27) + 273.15)
     let params = BJTModelParameters(
         polarity: polarity,
         saturationCurrent: try extractReal("is", default: 1e-16),
@@ -171,7 +195,9 @@ private func extractBJTParameters(from instance: Instance, polarity: BJTPolarity
         baseEmitterPotential: try extractReal("vje", default: 0.75),
         baseCollectorPotential: try extractReal("vjc", default: 0.75),
         baseEmitterGradingCoeff: try extractReal("mje", default: 0.33),
-        baseCollectorGradingCoeff: try extractReal("mjc", default: 0.33)
+        baseCollectorGradingCoeff: try extractReal("mjc", default: 0.33),
+        nominalTemperature: nominalTemperature,
+        operatingTemperature: operatingTemperature
     )
     try params.validate(device: instance.name)
     return params

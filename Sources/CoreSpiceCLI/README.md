@@ -28,6 +28,8 @@ corespice -b <deck.cir> [analysis] [export]
 | `-r` `<file>` | Export to RAW format (ngspice) |
 | `--csv` `<file>` | Export to CSV format |
 | `--psf` `<file>` | Export to PSF format (Cadence) |
+| `--coverage-json` `<file>` | Export structured deck coverage evidence |
+| `--seed` `<UInt64>` | Record the explicit random seed used by the invocation |
 | `--json` | Emit a deterministic machine-readable run record on stdout (see below) |
 | `-h`, `--help` | Show help |
 | `-v`, `--version` | Show version |
