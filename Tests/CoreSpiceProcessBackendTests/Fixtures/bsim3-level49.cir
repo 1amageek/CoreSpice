@@ -1,0 +1,8 @@
+BSIM3 level 49 external-backend correlation
+.option filetype=ascii
+VDS drain 0 1
+VGS gate 0 1
+M1 drain gate 0 0 nch W=10u L=1u
+.model nch nmos level=49 version=3.3.0 vth0=0.7 u0=500 tox=10n
+.op
+.end

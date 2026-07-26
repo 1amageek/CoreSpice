@@ -6,11 +6,9 @@ CoreSpice is complete for its declared native supported-model envelope. The
 items below are explicit typed failures on parsed but unsupported native
 capabilities; no silent fallback is present.
 
-## Remaining tasks
+## Remaining P1 tasks
 
-| ID | Priority | Owner | Task | Exit criteria |
-|---|---|---|---|---|
-| CSP-3 | P1 | CoreSpice | Add BSIM3/BSIM4 and other required compact-model execution through a qualified native or explicit external backend. | Model selection is capability-driven, unsupported models cannot be reported as native success, numerical fixtures cover operating regions and derivatives, and foundry production claims still require independent ToolQualification evidence. |
+None.
 
 ## Source markers
 
@@ -36,5 +34,9 @@ not owned by CoreSpice.
 - Ideal lossless T-line DC/AC equations, bounded interpolating transient history, delay-constrained timestep, and public parse-to-analysis tests
 - Behavioral voltage/current devices with canonical expression lowering, scalar
   automatic differentiation, DC/AC/transient and `.func` execution tests,
-  typed malformed/non-finite failures, and a release benchmark at 1.35x the
+  typed malformed/non-finite failures, and a release benchmark at 1.43x the
   specialized VCCS stamp on the reviewed machine
+- Explicit ngspice compact-model backend with digest-bound capability,
+  verified relative-path input staging, external invocation evidence, typed
+  seed limitations, live BSIM3 level 49 operating-point correlation, and live
+  BSIM4 level 54 operating-region/finite-difference derivative correlation

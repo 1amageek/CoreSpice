@@ -201,7 +201,8 @@ let package = Package(
             dependencies: [
                 "CoreSpiceProcessBackend",
                 .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
-            ]
+            ],
+            resources: [.copy("Fixtures")]
         ),
         .testTarget(name: "CoreSpiceOptoelectronicsTests",
                     dependencies: ["CoreSpiceOptoelectronics", "CoreSpiceDevices",

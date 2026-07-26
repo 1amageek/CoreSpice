@@ -25,6 +25,7 @@ Updated: 2026-07-26
 | Stateful switch hysteresis | Complete | SW and both CSW bindings implement non-zero `VH`/`IH`; Newton candidates read committed state without mutation, and only accepted DC/transient states commit threshold crossings. |
 | Independent numerical correlation | Verified | Regression-fixture and live-ngspice runs both pass 31/31; live evidence retains executable/input/output digests without rewriting the fixture. |
 | Behavioral source execution | Complete | Parsed B voltage/current outputs lower to canonical runtime expressions, execute in DC/AC/transient analyses, support `V()`, `I()`, `time`, deterministic functions and non-recursive `.func`, and fail malformed or non-finite paths explicitly. |
+| Explicit compact-model backend | Complete | `NgspiceExternalProcessBackend` exposes digest-bound model/analysis capability, preserves native/external identity, verifies and stages declared inputs, emits RAW/log evidence, and passes live BSIM3 level 49 and BSIM4 level 54 operating-region/derivative fixtures. |
 | Foundry compact-model production claim | Blocked by contract | Native Level 1/2/3 execution cannot issue production qualification; a qualified external foundry-model simulator is required. |
 
 ## Explicitly blocked native capabilities
@@ -47,6 +48,13 @@ lifecycle and physical signoff responsibilities remain outside CoreSpice.
 `CoreSpiceExternalProcessBackend` is a separate composition adapter. It owns
 process lifecycle and artifact verification but does not own SPICE parsing,
 analysis algorithms, project lifecycle, or release qualification.
+
+`NgspiceExternalProcessBackend` is the compact-model adapter. Its capability
+records the ngspice identity, executable digest, supported MOS levels, analyses,
+and reproducibility limitations. It stages only declared inputs and emits an
+external-process invocation; it does not weaken or bypass the native
+unsupported-model gate. `ToolQualification` remains the authority for
+foundry-production trust.
 
 ## Switch-state isolation review
 

@@ -33,6 +33,16 @@ requires a digest-bound external foundry-model simulator, an independent
 oracle, the exact PDK/model deck, and `ToolQualification` evidence before a
 production flow can accept simulation results.
 
+BSIM3 level 49 and BSIM4 level 54 remain outside the native device envelope.
+`NgspiceExternalProcessBackend` provides the explicit external execution path:
+it publishes a machine-readable model/analysis capability, binds that
+capability to the ngspice executable digest and tool identity, verifies and
+stages declared inputs, and returns RAW/stdout/stderr artifacts with an
+external-process invocation. Backend selection is explicit; a successful
+ngspice run is never reported as native CoreSpice execution. The adapter does
+not claim deterministic random-seed control or exact consumed-input reporting,
+so policies requiring either property must reject its capability.
+
 Uniform-RC (`U`) elements are lowered before device binding into the symmetric
 geometric resistor/capacitor ladder defined by SPICE3/ngspice. This keeps the
 SPICE source-format transformation in `CoreSpiceLowering`; device descriptors
@@ -286,6 +296,28 @@ unique run directory, validates the reported invocation and exact consumed
 input set, verifies every output, preserves stdout/stderr evidence, and
 terminates the child process on cancellation. Requests require `randomSeed`;
 when multiple SPICE inputs are declared they also require `primaryInputID`.
+
+For BSIM3/BSIM4 and other non-native model decks, construct
+`NgspiceExternalProcessBackend` with an explicit ngspice version:
+
+```swift
+let backend = try NgspiceExternalProcessBackend(
+    executableURL: URL(fileURLWithPath: "/opt/homebrew/bin/ngspice"),
+    toolVersion: "46",
+    runRootURL: runRootURL
+)
+
+let supportsBSIM4Transient = backend.capability.supports(
+    mosModelLevel: 54,
+    analysis: .transient
+)
+```
+
+The resolved executable is hashed during initialization. Inputs are copied to
+a unique run directory while preserving declared relative include paths, and
+the copied bytes are verified before launch. Foundry production acceptance
+still requires independent `ToolQualification` evidence for the exact
+executable, PDK, model deck, analysis, and operating envelope.
 
 **Post-hoc waveform measurement** (`measure`): evaluates `.measure`-grammar
 specs against a stored waveform CSV without re-simulating. Supported kinds:

@@ -668,11 +668,11 @@ public struct SubcircuitExpander: Sendable {
     // FIXME(INCOMPLETE_IMPLEMENTATION):
     // Native SPICE lowering currently reaches this gate from SPICEIO.lower and
     // the batch/REPL CLI for unsupported JFET parameters and compact models.
-    // These decks must
-    // continue to fail with a typed LoweringError and must not be reported as
-    // executable until each family has a descriptor, binding and matrix-stamp
-    // implementation, analysis-specific semantics, and independent
-    // success/failure correlation tests.
+    // These decks must continue to fail with a typed LoweringError and must
+    // not be reported as native executable until each family has a descriptor,
+    // binding and matrix-stamp implementation, analysis-specific semantics,
+    // and independent success/failure correlation tests. Explicit external
+    // backends remain separate and retain external invocation identity.
     private func validateExecutableComponent(
         _ component: ParsedComponent,
         fullName: String

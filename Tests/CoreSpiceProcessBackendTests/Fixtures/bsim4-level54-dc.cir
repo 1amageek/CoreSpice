@@ -1,0 +1,8 @@
+BSIM4 level 54 external-backend DC correlation
+.option filetype=ascii
+VDS drain 0 1
+VGS gate 0 0
+M1 drain gate 0 0 nch W=10u L=1u
+.model nch nmos level=54 version=4.8.1 vth0=0.7 u0=0.05 toxe=10n
+.dc VGS 0 1.2 0.1
+.end

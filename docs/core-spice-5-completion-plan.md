@@ -7,7 +7,7 @@ CoreSpice is a trust anchor for the local semiconductor design harness. A 5/5 Co
 | Axis | 5/5 requirement |
 |---|---|
 | Deck compatibility | Real SPICE decks can be parsed with `.include`, `.lib`, `.param`, `.func`, `.if/.elseif/.else/.endif`, `.options`, `.temp`, `.ic`, `.nodeset`, `.save`, `.probe`, and `.measure` preserved as structured IR or applied with audit evidence. |
-| PDK model fidelity | Foundry-style MOS/BJT/diode model cards are either executed by native compact models or rejected with typed unsupported-model diagnostics before simulation. |
+| PDK model fidelity | Foundry-style MOS/BJT/diode model cards are either executed by native models, routed through an explicitly selected digest-bound external capability, or rejected with typed unsupported-model diagnostics before native simulation. |
 | Numerical robustness | OP/DC/transient convergence uses damping, stepping, timestep control, and method fallback with residual evidence rather than silent divergence or false success. |
 | Post-layout scale | Large PEX RC/coupling decks run deterministically, with factorization reuse and explicit performance envelopes. |
 | Trust artifacts | Every verification run can emit inputs, options, model coverage, solver residuals, tolerances, and comparison results against external or golden references. |
@@ -27,7 +27,7 @@ flowchart TD
 |---|---|---|
 | M1 | Parser and lowering preserve deck intent and reject unsupported constructs explicitly. | Parser tests cover include/lib evidence, `.func`, `.probe`, `.save`, `.ic`, `.nodeset`, `.measure`, options, and expression lowering. |
 | M2 | Strengthen nonlinear and transient numerical behavior. | Golden ngspice/Xyce comparisons cover OP/DC/tran on nonlinear fixtures, with residual artifacts and no skipped convergence cases in harness tests. |
-| M3 | Add compact model path for PDK MOS/BJT/diode cards. | Sky130-style model decks either run through native/OSDI-backed devices or fail before simulation with coverage diagnostics. |
+| M3 | Add compact model path for PDK MOS/BJT/diode cards. | Sky130-style model decks either run through native/OSDI-backed devices, use an explicit qualified external backend, or fail before native simulation with coverage diagnostics. |
 | M4 | Support post-layout PEX scale. | Large RC/coupling decks run within documented time/memory envelopes and match reference transfer/transient metrics. |
 | M5 | Add future-facing analyses and co-simulation. | RF/AMS/behavioral APIs are stable, with PSS/HB/S-parameter/behavioral-source test fixtures. |
 
@@ -70,5 +70,5 @@ This slice adds:
 
 | Gap | Required behavior |
 |---|---|
-| compact model execution | Implement BSIM3/BSIM4 or an OSDI/plugin path for foundry MOS decks. Until then, coverage and lowering must keep rejecting these models before simulation. |
+| compact model production qualification | Qualify the digest-bound ngspice backend, exact PDK/model deck, operating envelope, and independent oracle in ToolQualification. Native coverage and lowering continue to reject BSIM3/BSIM4 so external success cannot be mislabeled. |
 | unsupported device execution | Implement lossy LTRA execution or keep it explicitly blocked. Behavioral sources, ideal lossless T-lines, MESFETs, and uniform-RC lines now execute natively. |
