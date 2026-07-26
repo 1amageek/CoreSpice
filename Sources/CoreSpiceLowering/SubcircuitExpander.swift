@@ -56,7 +56,8 @@ public struct SubcircuitExpander: Sendable {
         var evaluatedParams: [String: ParameterValue] = [:]
 
         // If expandModels is enabled and a model exists, copy model parameters as base
-        if configuration.expandModels, let modelName = component.modelName,
+        if (configuration.expandModels || component.type == .uniformRC),
+           let modelName = component.modelName,
            let model = context.model(modelName) {
             let modelParameters = try resolver.resolveInTemporaryScope(model.parameters)
             for (name, value) in modelParameters {
@@ -111,6 +112,15 @@ public struct SubcircuitExpander: Sendable {
             try addJFETInstances(
                 fullName: fullName,
                 typeName: typeName,
+                nodeNames: nodeNames,
+                parameters: evaluatedParams,
+                into: &builder
+            )
+            return
+        }
+        if component.type == .uniformRC {
+            try UniformRCExpander().expand(
+                name: fullName,
                 nodeNames: nodeNames,
                 parameters: evaluatedParams,
                 into: &builder
@@ -501,7 +511,7 @@ public struct SubcircuitExpander: Sendable {
     // FIXME(INCOMPLETE_IMPLEMENTATION):
     // Native SPICE lowering currently reaches this gate from SPICEIO.lower and
     // the batch/REPL CLI for parsed B-sources, MESFETs, transmission lines,
-    // uniform-RC elements, unsupported JFET parameters, and unsupported compact
+    // unsupported JFET parameters, and unsupported compact
     // models. These decks must continue to fail with a typed LoweringError and
     // must not be reported as executable until each family has a descriptor,
     // binding and matrix-stamp implementation, analysis-specific semantics,
@@ -558,8 +568,6 @@ public struct SubcircuitExpander: Sendable {
             return "MESFET execution is not implemented"
         case .transmissionLine:
             return "Transmission-line execution is not implemented"
-        case .uniformRC:
-            return "Uniform-RC execution is not implemented"
         default:
             return nil
         }
@@ -600,6 +608,8 @@ public struct SubcircuitExpander: Sendable {
             return "MESFET model execution is not implemented"
         case .ltra:
             return "LTRA model execution is not implemented"
+        case .urc:
+            return nil
         case .sw, .csw:
             return nil
         }
@@ -704,7 +714,7 @@ public struct SubcircuitExpander: Sendable {
 private extension ComponentType {
     var requiresModelForNativeExecution: Bool {
         switch self {
-        case .diode, .bjt, .jfet, .mosfet, .switch_, .currentSwitch:
+        case .diode, .bjt, .jfet, .mosfet, .uniformRC, .switch_, .currentSwitch:
             return true
         default:
             return false
@@ -729,6 +739,8 @@ private extension ComponentType {
             return model.type == .csw
         case .transmissionLine:
             return model.type == .ltra
+        case .uniformRC:
+            return model.type == .urc
         default:
             return true
         }

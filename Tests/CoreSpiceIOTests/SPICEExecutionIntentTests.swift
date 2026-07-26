@@ -120,6 +120,27 @@ struct SPICEExecutionIntentTests {
     }
 
     @Test
+    func deckCoverageAcceptsExecutableUniformRCIntent() async throws {
+        let source = """
+        uniform rc coverage
+        U1 in out 0 urc_model l=1 n=3
+        .model urc_model urc k=1.5 rperl=1k cperl=1p
+        .end
+        """
+
+        let parseResult = await SPICEIO.parse(source, fileName: "uniform-rc.cir")
+        let netlist = try parseResult.get()
+        let report = SPICEDeckCoverageReport.generate(from: netlist)
+        let component = try #require(
+            report.items.first { $0.kind == .component }
+        )
+
+        #expect(!report.hasBlockedItems)
+        #expect(component.name.lowercased() == "component:u1")
+        #expect(component.status == .supported)
+    }
+
+    @Test
     func evaluatesTransientMeasurementsFromWaveformData() throws {
         let waveform = WaveformData(
             metadata: SimulationMetadata(

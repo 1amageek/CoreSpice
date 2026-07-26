@@ -403,8 +403,9 @@ private struct SPICEParserImpl {
             }
 
             // For model-backed devices, parse model name
-            if type == .mosfet || type == .bjt || type == .jfet || type == .diode ||
-                type == .switch_ || type == .currentSwitch {
+            if type == .mosfet || type == .bjt || type == .jfet || type == .mesfet
+                || type == .diode || type == .uniformRC
+                || type == .switch_ || type == .currentSwitch {
                 if case .identifier(let model) = currentToken {
                     modelName = model
                     advance()

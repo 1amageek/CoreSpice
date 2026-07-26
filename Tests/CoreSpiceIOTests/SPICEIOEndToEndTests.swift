@@ -152,6 +152,85 @@ struct SPICEIOEndToEndTests {
         #expect(hypot(output.real, output.imag) > 1.0e-6)
     }
 
+    @Test("Uniform RC line executes through DC and AC analyses")
+    func uniformRCLineExecutesDCAndAC() async throws {
+        let source = """
+        uniform rc dc and ac
+        V1 in 0 dc 1 ac 1
+        U1 in out 0 urc_model l=1 n=3
+        RLOAD out 0 1k
+        .model urc_model urc k=1.5 rperl=1k cperl=1u fmax=1meg
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+
+        let dc = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+        let dcVoltage = try dc.voltage(at: outNode)
+        // The DC solver adds its documented 1 pS GMIN to every matrix
+        // diagonal, including the URC ladder's internal nodes.
+        #expect(approximately(dcVoltage, 0.5, tolerance: 2e-9))
+
+        let ac = try await ACAnalysis(
+            sweep: .linear(start: 1, stop: 1, points: 1)
+        ).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+        let output = try ac.voltage(at: outNode, frequencyIndex: 0)
+        #expect(approximately(output.real, 0.499995, tolerance: 2e-5))
+        #expect(output.imag < 0)
+    }
+
+    @Test("Uniform RC line contributes its dynamic state in transient analysis")
+    func uniformRCLineExecutesTransient() async throws {
+        let source = """
+        uniform rc transient
+        V1 in 0 pulse(0 1 0 1n 1n 10 20)
+        U1 in out 0 urc_model l=1 n=3
+        RLOAD out 0 1k
+        .model urc_model urc k=1.5 rperl=1k cperl=1u
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+        let result = try await TransientAnalysis(
+            config: TransientConfig(
+                stopTime: 5e-3,
+                maxTimeStep: 50e-6,
+                initialTimeStep: 1e-9
+            )
+        ).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        let finalVoltage = try result.voltage(
+            at: outNode,
+            timeIndex: result.timePoints.count - 1
+        )
+        #expect(finalVoltage > 0.49)
+        #expect(finalVoltage < 0.51)
+    }
+
     @Test("Voltage-controlled switch with hysteresis lowers and simulates")
     func voltageControlledSwitchWithHysteresisSimulates() async throws {
         let source = """

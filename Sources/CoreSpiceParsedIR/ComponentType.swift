@@ -60,9 +60,9 @@ public enum ComponentType: String, Sendable, Hashable, Codable {
             return 3
         case .mosfet:
             return 4
-        case .mesfet:
+        case .mesfet, .uniformRC:
             return 3
-        case .transmissionLine, .uniformRC:
+        case .transmissionLine:
             return 4
         case .coupledInductors, .behavioral, .subcircuitInstance:
             return nil

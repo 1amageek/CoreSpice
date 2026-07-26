@@ -535,8 +535,6 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             return "MESFET components are parsed, but native MESFET execution is not implemented"
         case .transmissionLine:
             return "Transmission-line components are parsed, but native transmission-line execution is not implemented"
-        case .uniformRC:
-            return "Uniform RC components are parsed, but native uniform-RC execution is not implemented"
         default:
             return nil
         }
@@ -577,6 +575,8 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             return "MESFET models are parsed, but native MESFET execution is not implemented"
         case .ltra:
             return "LTRA transmission-line models are parsed, but native LTRA execution is not implemented"
+        case .urc:
+            return nil
         case .sw, .csw:
             return nil
         }
@@ -931,7 +931,7 @@ private extension ParsedExpression {
 private extension ComponentType {
     var requiresModelForNativeExecution: Bool {
         switch self {
-        case .diode, .bjt, .jfet, .mosfet, .switch_, .currentSwitch:
+        case .diode, .bjt, .jfet, .mosfet, .uniformRC, .switch_, .currentSwitch:
             return true
         default:
             return false
@@ -956,6 +956,8 @@ private extension ComponentType {
             return model.type == .csw
         case .transmissionLine:
             return model.type == .ltra
+        case .uniformRC:
+            return model.type == .urc
         default:
             return true
         }

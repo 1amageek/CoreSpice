@@ -22,8 +22,9 @@ public enum ModelType: String, Sendable, Hashable, Codable {
     case nmf = "NMF"
     case pmf = "PMF"
 
-    // Transmission line
+    // Distributed lines
     case ltra = "LTRA"
+    case urc = "URC"
 
     // Switch models
     case sw = "SW"

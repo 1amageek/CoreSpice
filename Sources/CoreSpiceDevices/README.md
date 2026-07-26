@@ -216,6 +216,7 @@ optical nodes remain typed failures.
 - [x] Stateful voltage- and current-controlled switch hysteresis with accepted-step commit and retry rollback semantics
 - [x] Source-name current-controlled source/switch execution for standard SPICE `F`/`H`/`W` references to existing voltage-source branches
 - [x] Mutual inductance execution for standard SPICE `K` elements referencing inductor branches
+- [x] Uniform-RC execution through lowering-owned SPICE3-compatible resistor/capacitor/diode expansion
 - [x] Device registry with dynamic registration
 
 ### Incomplete/Missing Features

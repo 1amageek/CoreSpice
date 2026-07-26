@@ -33,6 +33,14 @@ requires a digest-bound external foundry-model simulator, an independent
 oracle, the exact PDK/model deck, and `ToolQualification` evidence before a
 production flow can accept simulation results.
 
+Uniform-RC (`U`) elements are lowered before device binding into the symmetric
+geometric resistor/capacitor ladder defined by SPICE3/ngspice. This keeps the
+SPICE source-format transformation in `CoreSpiceLowering`; device descriptors
+and numerical analyses continue to operate only on canonical resistor,
+capacitor, and optional diode instances. Expansion is linear in the requested
+lump count and rejects `N > 100` with a typed lowering error so untrusted decks
+cannot trigger unbounded circuit growth.
+
 **Requirements**: macOS 26+, Swift 6.3
 
 ## Xcircuite integration
@@ -69,6 +77,7 @@ numerical analysis, and waveform I/O.
 | Passive | Resistor, Capacitor, Inductor |
 | Sources | Voltage/Current (DC, Pulse, Sine, PWL) |
 | Controlled Sources | VCVS, VCCS, CCVS, CCCS |
+| Distributed RC | SPICE3-compatible uniform-RC geometric ladder lowering |
 | MOSFET | NMOS/PMOS Level 1 plus empirical Level 2/3 short-channel extensions |
 | BJT | NPN, PNP (Ebers-Moll with Early effect) |
 | Diode | PN junction with breakdown, capacitance, transit time |
