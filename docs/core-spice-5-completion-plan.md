@@ -60,8 +60,8 @@ This slice adds:
 | `.measure` execution bridge | Implemented through `SPICEMeasureEvaluator`, producing structured post-analysis measurement results from `WaveformData`. |
 | `.measure` expression support | Implemented for braced output expressions, expression-based `WHEN` crossings, constant expression range fields, and target-expression interpolation. |
 | Behavioral source intent | Implemented as parsed/preserved B-source component intent with coverage-blocked execution and explicit lowering failure. |
-| Model execution coverage | Implemented in `SPICEDeckCoverageReport` for top-level and subcircuit-local `.model` cards. Diode, BJT, JFET, switch, and MOS L1-L3 models are classified as executable; BSIM3/BSIM4, MESFET, and LTRA models are blocked with explicit reasons. |
-| Model-dependent lowering validation | Implemented before analysis binding. Missing model references, mismatched model families, unsupported compact-model levels, behavioral sources, transmission lines, MESFET, and uniform RC fail with typed lowering errors instead of falling through to device binding. |
+| Model execution coverage | Implemented in `SPICEDeckCoverageReport` for top-level and subcircuit-local `.model` cards. Diode, BJT, JFET, MESFET, switch, URC, and MOS L1-L3 models are classified as executable; BSIM3/BSIM4 and LTRA models are blocked with explicit reasons. |
+| Model-dependent lowering validation | Implemented before analysis binding. Missing model references, mismatched model families, unsupported compact-model levels, behavioral sources, and lossy LTRA models fail with typed lowering errors instead of falling through to device binding. Ideal lossless T-lines, MESFET, and uniform-RC lines execute natively. |
 | CLI execution intent wiring | Implemented: parsed options configure OP/DC/AC/tran runs and parsed measurements are evaluated after analysis. |
 | Deck coverage artifact | Implemented through `SPICEDeckCoverageReport` and CLI `--coverage-json`, classifying parsed items as preserved/applied/supported/warning/blocked. |
 | Conditional deck syntax | Implemented through a line-preserving `.if/.elseif/.else/.endif` preprocessor. Inactive branches are blanked before token parsing, invalid syntax in inactive branches cannot leak into parser diagnostics, invalid active conditions fail closed, and branch-selection evidence is recorded in `ParsedNetlist.controls` for coverage artifacts. |
@@ -72,4 +72,4 @@ This slice adds:
 |---|---|
 | behavioral source execution | Execute B-source and nonlinear E/G expressions, or keep blocked coverage / lowering diagnostics as the explicit unsupported path. |
 | compact model execution | Implement BSIM3/BSIM4 or an OSDI/plugin path for foundry MOS decks. Until then, coverage and lowering must keep rejecting these models before simulation. |
-| unsupported device execution | Implement or keep explicitly blocked MESFET, LTRA, transmission-line, uniform-RC, and behavioral-source execution paths. |
+| unsupported device execution | Implement behavioral-source and lossy LTRA execution, or keep each explicitly blocked. Ideal lossless T-lines, MESFET, and uniform-RC lines now execute natively. |

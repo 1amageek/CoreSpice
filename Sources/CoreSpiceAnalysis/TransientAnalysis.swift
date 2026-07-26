@@ -145,7 +145,14 @@ public struct TransientAnalysis: Analysis, Sendable {
             // Breakpoint management: collect from device waveforms
             var breakpointMgr = BreakpointManager()
             let breakpointInterval = 0.0...config.stopTime
+            var deviceMaximumTimeStep = Double.infinity
             for device in devices {
+                if let constrainedDevice = device as? any TransientTimeStepConstraintDevice {
+                    deviceMaximumTimeStep = min(
+                        deviceMaximumTimeStep,
+                        constrainedDevice.maximumTransientTimeStep
+                    )
+                }
                 let deviceBreakpoints = device.breakpoints(in: breakpointInterval)
                 if !deviceBreakpoints.isEmpty {
                     breakpointMgr.addBreakpoints(deviceBreakpoints)
@@ -172,7 +179,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                 }
 
                 // Constrain by maximum timestep
-                dt = min(dt, config.maxTimeStep)
+                dt = min(dt, config.maxTimeStep, deviceMaximumTimeStep)
 
                 // Constrain by breakpoints
                 dt = breakpointMgr.constrainTimeStep(

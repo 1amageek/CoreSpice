@@ -531,8 +531,6 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         switch type {
         case .behavioral:
             return "Behavioral B-source is parsed and preserved, but nonlinear behavioral source execution is not implemented"
-        case .transmissionLine:
-            return "Transmission-line components are parsed, but native transmission-line execution is not implemented"
         default:
             return nil
         }
@@ -550,6 +548,12 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             let supported = Set(["area", "m"])
             if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {
                 return "MESFET instance parameter '\(unsupported)' is parsed, but native execution is not implemented"
+            }
+            return nil
+        case .transmissionLine:
+            let supported = Set(["z0", "td", "f", "nl"])
+            if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {
+                return "Transmission-line instance parameter '\(unsupported)' is parsed, but native execution is not implemented"
             }
             return nil
         default:

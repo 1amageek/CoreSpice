@@ -494,6 +494,7 @@ public struct SubcircuitExpander: Sendable {
         case "ccvs":      return 2  // Current-controlled voltage source (sensing + output)
         case "ccvs_ref":  return 1  // Current-controlled voltage source output branch
         case "cswitch":   return 1  // Current-controlled switch sensing branch
+        case "tline":     return 2  // One current variable for each transmission-line port
         default:          return 0
         }
     }
@@ -527,7 +528,7 @@ public struct SubcircuitExpander: Sendable {
 
     // FIXME(INCOMPLETE_IMPLEMENTATION):
     // Native SPICE lowering currently reaches this gate from SPICEIO.lower and
-    // the batch/REPL CLI for parsed B-sources, transmission lines, unsupported
+    // the batch/REPL CLI for parsed B-sources, unsupported
     // JFET parameters, and unsupported compact models. These decks must
     // continue to fail with a typed LoweringError and must not be reported as
     // executable until each family has a descriptor, binding and matrix-stamp
@@ -581,8 +582,6 @@ public struct SubcircuitExpander: Sendable {
         switch type {
         case .behavioral:
             return "Behavioral B-source execution is not implemented"
-        case .transmissionLine:
-            return "Transmission-line execution is not implemented"
         default:
             return nil
         }
@@ -600,6 +599,12 @@ public struct SubcircuitExpander: Sendable {
             let supported = Set(["area", "m"])
             if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {
                 return "MESFET instance parameter '\(unsupported)' execution is not implemented"
+            }
+            return nil
+        case .transmissionLine:
+            let supported = Set(["z0", "td", "f", "nl"])
+            if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {
+                return "Transmission-line instance parameter '\(unsupported)' execution is not implemented"
             }
             return nil
         default:

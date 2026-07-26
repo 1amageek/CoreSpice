@@ -47,6 +47,7 @@ public struct DeviceRegistry: Sendable {
         registry.register(PJFETDescriptor())
         registry.register(NMESFETDescriptor())
         registry.register(PMESFETDescriptor())
+        registry.register(TransmissionLineDescriptor())
         registry.register(DiodeDescriptor())
         registry.register(NPNDescriptor())
         registry.register(PNPDescriptor())

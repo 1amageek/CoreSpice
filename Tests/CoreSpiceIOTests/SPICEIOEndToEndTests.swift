@@ -231,6 +231,87 @@ struct SPICEIOEndToEndTests {
         #expect(finalVoltage < 0.51)
     }
 
+    @Test("Lossless transmission line executes through DC and AC analyses")
+    func losslessTransmissionLineExecutesDCAndAC() async throws {
+        let source = """
+        lossless line dc and ac
+        V1 in 0 dc 1 ac 1
+        T1 in 0 out 0 z0=50 td=1n
+        RLOAD out 0 50
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+
+        let dc = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+        #expect(approximately(try dc.voltage(at: outNode), 1, tolerance: 1e-9))
+
+        let ac = try await ACAnalysis(
+            sweep: .linear(start: 250e6, stop: 250e6, points: 1)
+        ).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+        let output = try ac.voltage(at: outNode, frequencyIndex: 0)
+        #expect(abs(output.real) < 1e-8)
+        #expect(approximately(output.imag, -1, tolerance: 1e-8))
+    }
+
+    @Test("Lossless transmission line delays a matched pulse and constrains timesteps")
+    func losslessTransmissionLineExecutesTransient() async throws {
+        let source = """
+        lossless line transient
+        V1 in 0 pulse(0 1 0 0.1n 0.1n 10n 20n)
+        T1 in 0 out 0 z0=50 td=1n
+        RLOAD out 0 50
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+        let result = try await TransientAnalysis(
+            config: TransientConfig(
+                stopTime: 3e-9,
+                maxTimeStep: 5e-9,
+                initialTimeStep: 0.1e-9
+            )
+        ).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        let largestStep = zip(result.timePoints, result.timePoints.dropFirst())
+            .map { $1 - $0 }
+            .max() ?? 0
+        #expect(largestStep <= 1e-9 * (1 + 1e-12))
+
+        let beforeDelay = try #require(
+            result.timePoints.lastIndex { $0 <= 0.9e-9 }
+        )
+        let afterDelay = try #require(
+            result.timePoints.firstIndex { $0 >= 1.3e-9 }
+        )
+        #expect(abs(try result.voltage(at: outNode, timeIndex: beforeDelay)) < 1e-6)
+        #expect(try result.voltage(at: outNode, timeIndex: afterDelay) > 0.99)
+    }
+
     @Test("Voltage-controlled switch with hysteresis lowers and simulates")
     func voltageControlledSwitchWithHysteresisSimulates() async throws {
         let source = """

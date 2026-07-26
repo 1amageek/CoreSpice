@@ -141,6 +141,26 @@ struct SPICEExecutionIntentTests {
     }
 
     @Test
+    func deckCoverageAcceptsExecutableLosslessTransmissionLine() async throws {
+        let source = """
+        lossless transmission line coverage
+        T1 input 0 output 0 z0=50 td=1n
+        .end
+        """
+
+        let parseResult = await SPICEIO.parse(source, fileName: "lossless-line.cir")
+        let netlist = try parseResult.get()
+        let report = SPICEDeckCoverageReport.generate(from: netlist)
+        let component = try #require(
+            report.items.first { $0.kind == .component }
+        )
+
+        #expect(!report.hasBlockedItems)
+        #expect(component.name.lowercased() == "component:t1")
+        #expect(component.status == .supported)
+    }
+
+    @Test
     func evaluatesTransientMeasurementsFromWaveformData() throws {
         let waveform = WaveformData(
             metadata: SimulationMetadata(
