@@ -531,8 +531,6 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         switch type {
         case .behavioral:
             return "Behavioral B-source is parsed and preserved, but nonlinear behavioral source execution is not implemented"
-        case .mesfet:
-            return "MESFET components are parsed, but native MESFET execution is not implemented"
         case .transmissionLine:
             return "Transmission-line components are parsed, but native transmission-line execution is not implemented"
         default:
@@ -546,6 +544,12 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             let supported = Set(["area"])
             if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {
                 return "JFET instance parameter '\(unsupported)' is parsed, but native execution is not implemented"
+            }
+            return nil
+        case .mesfet:
+            let supported = Set(["area", "m"])
+            if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {
+                return "MESFET instance parameter '\(unsupported)' is parsed, but native execution is not implemented"
             }
             return nil
         default:
@@ -572,7 +576,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         case .njf, .pjf:
             return blockedJFETModelParameterReason(model)
         case .nmf, .pmf:
-            return "MESFET models are parsed, but native MESFET execution is not implemented"
+            return blockedMESFETModelParameterReason(model)
         case .ltra:
             return "LTRA transmission-line models are parsed, but native LTRA execution is not implemented"
         case .urc:
@@ -589,6 +593,17 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         ])
         if let unsupported = model.parameters.keys.first(where: { !supported.contains($0) }) {
             return "JFET model parameter '\(unsupported)' is parsed, but native execution is not implemented"
+        }
+        return nil
+    }
+
+    private static func blockedMESFETModelParameterReason(_ model: ParsedModel) -> String? {
+        let supported = Set([
+            "vto", "alpha", "beta", "lambda", "b", "rd", "rs", "cgs", "cgd",
+            "pb", "is", "fc", "kf", "af", "area", "m", "tnom", "tnom_k",
+        ])
+        if let unsupported = model.parameters.keys.first(where: { !supported.contains($0) }) {
+            return "MESFET model parameter '\(unsupported)' is parsed, but native execution is not implemented"
         }
         return nil
     }
@@ -931,7 +946,7 @@ private extension ParsedExpression {
 private extension ComponentType {
     var requiresModelForNativeExecution: Bool {
         switch self {
-        case .diode, .bjt, .jfet, .mosfet, .uniformRC, .switch_, .currentSwitch:
+        case .diode, .bjt, .jfet, .mosfet, .mesfet, .uniformRC, .switch_, .currentSwitch:
             return true
         default:
             return false

@@ -78,6 +78,7 @@ numerical analysis, and waveform I/O.
 | Sources | Voltage/Current (DC, Pulse, Sine, PWL) |
 | Controlled Sources | VCVS, VCCS, CCVS, CCCS |
 | Distributed RC | SPICE3-compatible uniform-RC geometric ladder lowering |
+| MESFET | NMF/PMF Curtice model with DC/AC/transient and noise |
 | MOSFET | NMOS/PMOS Level 1 plus empirical Level 2/3 short-channel extensions |
 | BJT | NPN, PNP (Ebers-Moll with Early effect) |
 | Diode | PN junction with breakdown, capacitance, transit time |

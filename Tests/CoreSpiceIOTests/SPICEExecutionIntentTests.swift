@@ -586,12 +586,14 @@ struct SPICEExecutionIntentTests {
         .model swmod sw
         .model cswmod csw
         .model jmod njf beta=1m vto=-2 lambda=0.01
+        .model zmod nmf beta=1m vto=-1 alpha=2
         D1 out 0 dmod
         M1 out in 0 0 nch w=1u l=1u
         M2 out in 0 0 sky w=1u l=1u
         S1 out 0 ctrl 0 swmod
         W1 out 0 sense 0 cswmod
         J1 out in 0 jmod
+        Z1 zout in 0 zmod
         .op
         .end
         """
@@ -610,12 +612,14 @@ struct SPICEExecutionIntentTests {
         #expect(item(named: "model:swmod", in: report)?.status == .supported)
         #expect(item(named: "model:cswmod", in: report)?.status == .supported)
         #expect(item(named: "model:jmod", in: report)?.status == .supported)
+        #expect(item(named: "model:zmod", in: report)?.status == .supported)
         #expect(item(named: "component:d1", in: report)?.status == .supported)
         #expect(item(named: "component:m1", in: report)?.status == .supported)
         #expect(item(named: "component:m2", in: report)?.status == .blocked)
         #expect(item(named: "component:s1", in: report)?.status == .supported)
         #expect(item(named: "component:w1", in: report)?.status == .supported)
         #expect(item(named: "component:j1", in: report)?.status == .supported)
+        #expect(item(named: "component:z1", in: report)?.status == .supported)
         #expect(report.hasBlockedItems)
     }
 

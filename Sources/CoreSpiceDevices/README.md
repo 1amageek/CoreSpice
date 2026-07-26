@@ -211,6 +211,7 @@ optical nodes remain typed failures.
 - [x] Diode DC/AC/transient stamping with junction capacitance and noise hooks
 - [x] BJT DC/AC/transient stamping with junction capacitance and noise hooks
 - [x] JFET DC/AC/transient stamping for `NJF`/`PJF` models with gate junction leakage, voltage-dependent `CGS`/`CGD`, `RD`/`RS` lowering, and noise hooks
+- [x] MESFET DC/AC/transient stamping for `NMF`/`PMF` Curtice models with gate junction leakage, voltage-dependent `CGS`/`CGD`, area-scaled `RD`/`RS` lowering, and noise hooks
 - [x] Voltage-controlled switch execution from SPICE `S` elements and `.model SW` parameters
 - [x] Current-controlled switch execution from explicit sense-terminal `W` elements and `.model CSW` parameters
 - [x] Stateful voltage- and current-controlled switch hysteresis with accepted-step commit and retry rollback semantics
@@ -222,7 +223,6 @@ optical nodes remain typed failures.
 ### Incomplete/Missing Features
 
 - [ ] **BSIM models**: No advanced MOSFET models
-- [ ] **MESFET execution**: Parsed components are not lowered to executable native devices
 - [ ] **Transmission lines**: Not implemented
 - [ ] **Behavioral source execution**: B-source expressions are not executable native devices
 - [ ] **Advanced parasitic capacitances**: MOSFET capacitance coverage remains limited compared with foundry-grade models

@@ -108,12 +108,13 @@ public struct SubcircuitExpander: Sendable {
             nodeNames = component.nodes.map { $0.name }
         }
 
-        if component.type == .jfet {
-            try addJFETInstances(
+        if component.type == .jfet || component.type == .mesfet {
+            try addSeriesResistanceFETInstances(
                 fullName: fullName,
                 typeName: typeName,
                 nodeNames: nodeNames,
                 parameters: evaluatedParams,
+                familyName: component.type == .jfet ? "JFET" : "MESFET",
                 into: &builder
             )
             return
@@ -153,27 +154,43 @@ public struct SubcircuitExpander: Sendable {
         )
     }
 
-    private func addJFETInstances(
+    private func addSeriesResistanceFETInstances(
         fullName: String,
         typeName: String,
         nodeNames: [String],
         parameters: [String: ParameterValue],
+        familyName: String,
         into builder: inout Netlist
     ) throws {
         guard nodeNames.count == 3 else {
             throw LoweringError.invalidComponent(
                 name: fullName,
-                reason: "JFET component requires drain, gate, and source nodes"
+                reason: "\(familyName) component requires drain, gate, and source nodes"
             )
         }
 
         let drainResistance = try realParameter(named: "rd", in: parameters, componentName: fullName) ?? 0.0
         let sourceResistance = try realParameter(named: "rs", in: parameters, componentName: fullName) ?? 0.0
+        let area = try realParameter(named: "area", in: parameters, componentName: fullName) ?? 1.0
+        let multiplier = try realParameter(named: "m", in: parameters, componentName: fullName) ?? 1.0
+        let scale = area * multiplier
         guard drainResistance >= 0 else {
-            throw LoweringError.invalidComponent(name: fullName, reason: "JFET rd must be non-negative")
+            throw LoweringError.invalidComponent(
+                name: fullName,
+                reason: "\(familyName) rd must be non-negative"
+            )
         }
         guard sourceResistance >= 0 else {
-            throw LoweringError.invalidComponent(name: fullName, reason: "JFET rs must be non-negative")
+            throw LoweringError.invalidComponent(
+                name: fullName,
+                reason: "\(familyName) rs must be non-negative"
+            )
+        }
+        guard scale.isFinite, scale > 0 else {
+            throw LoweringError.invalidComponent(
+                name: fullName,
+                reason: "\(familyName) area and multiplier must produce a positive finite scale"
+            )
         }
 
         var coreParameters = parameters
@@ -190,7 +207,7 @@ public struct SubcircuitExpander: Sendable {
                 name: "\(fullName).rd",
                 typeName: "resistor",
                 nodes: [nodeNames[0], coreDrain],
-                parameters: ["r": .real(drainResistance)]
+                parameters: ["r": .real(drainResistance / scale)]
             )
         }
 
@@ -200,7 +217,7 @@ public struct SubcircuitExpander: Sendable {
                 name: "\(fullName).rs",
                 typeName: "resistor",
                 nodes: [nodeNames[2], coreSource],
-                parameters: ["r": .real(sourceResistance)]
+                parameters: ["r": .real(sourceResistance / scale)]
             )
         }
 
@@ -510,12 +527,12 @@ public struct SubcircuitExpander: Sendable {
 
     // FIXME(INCOMPLETE_IMPLEMENTATION):
     // Native SPICE lowering currently reaches this gate from SPICEIO.lower and
-    // the batch/REPL CLI for parsed B-sources, MESFETs, transmission lines,
-    // unsupported JFET parameters, and unsupported compact
-    // models. These decks must continue to fail with a typed LoweringError and
-    // must not be reported as executable until each family has a descriptor,
-    // binding and matrix-stamp implementation, analysis-specific semantics,
-    // and independent success/failure correlation tests.
+    // the batch/REPL CLI for parsed B-sources, transmission lines, unsupported
+    // JFET parameters, and unsupported compact models. These decks must
+    // continue to fail with a typed LoweringError and must not be reported as
+    // executable until each family has a descriptor, binding and matrix-stamp
+    // implementation, analysis-specific semantics, and independent
+    // success/failure correlation tests.
     private func validateExecutableComponent(
         _ component: ParsedComponent,
         fullName: String
@@ -564,8 +581,6 @@ public struct SubcircuitExpander: Sendable {
         switch type {
         case .behavioral:
             return "Behavioral B-source execution is not implemented"
-        case .mesfet:
-            return "MESFET execution is not implemented"
         case .transmissionLine:
             return "Transmission-line execution is not implemented"
         default:
@@ -579,6 +594,12 @@ public struct SubcircuitExpander: Sendable {
             let supported = Set(["area"])
             if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {
                 return "JFET instance parameter '\(unsupported)' execution is not implemented"
+            }
+            return nil
+        case .mesfet:
+            let supported = Set(["area", "m"])
+            if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {
+                return "MESFET instance parameter '\(unsupported)' execution is not implemented"
             }
             return nil
         default:
@@ -605,7 +626,7 @@ public struct SubcircuitExpander: Sendable {
         case .njf, .pjf:
             return unsupportedJFETModelParameterReason(model)
         case .nmf, .pmf:
-            return "MESFET model execution is not implemented"
+            return unsupportedMESFETModelParameterReason(model)
         case .ltra:
             return "LTRA model execution is not implemented"
         case .urc:
@@ -622,6 +643,17 @@ public struct SubcircuitExpander: Sendable {
         ])
         if let unsupported = model.parameters.keys.first(where: { !supported.contains($0) }) {
             return "JFET model parameter '\(unsupported)' execution is not implemented"
+        }
+        return nil
+    }
+
+    private func unsupportedMESFETModelParameterReason(_ model: ParsedModel) -> String? {
+        let supported = Set([
+            "vto", "alpha", "beta", "lambda", "b", "rd", "rs", "cgs", "cgd",
+            "pb", "is", "fc", "kf", "af", "area", "m", "tnom", "tnom_k",
+        ])
+        if let unsupported = model.parameters.keys.first(where: { !supported.contains($0) }) {
+            return "MESFET model parameter '\(unsupported)' execution is not implemented"
         }
         return nil
     }
@@ -686,7 +718,13 @@ public struct SubcircuitExpander: Sendable {
             let level = model.level ?? 1
             return "\(prefix)_l\(level)"
         case .mesfet:
-            return "mesfet"
+            guard let name = modelName, let model = context.model(name) else {
+                throw LoweringError.invalidComponent(
+                    name: "",
+                    reason: "MESFET component requires a .model reference"
+                )
+            }
+            return model.type == .nmf ? "nmesfet" : "pmesfet"
         case .transmissionLine:
             return "tline"
         case .uniformRC:
@@ -714,7 +752,7 @@ public struct SubcircuitExpander: Sendable {
 private extension ComponentType {
     var requiresModelForNativeExecution: Bool {
         switch self {
-        case .diode, .bjt, .jfet, .mosfet, .uniformRC, .switch_, .currentSwitch:
+        case .diode, .bjt, .jfet, .mosfet, .mesfet, .uniformRC, .switch_, .currentSwitch:
             return true
         default:
             return false

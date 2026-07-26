@@ -762,7 +762,7 @@ private struct SPICEParserImpl {
         let keys = ["v1", "v2", "td", "tr", "tf", "pw", "per"]
         for key in keys {
             if case .rightParen = currentToken { break }
-            if let n = try parseNumericTokenIfPresent() {
+            if let n = try parseSignedNumericTokenIfPresent() {
                 params[key] = .numeric(n)
             }
         }
@@ -778,12 +778,35 @@ private struct SPICEParserImpl {
         let keys = ["vo", "va", "freq", "td", "phase"]
         for key in keys {
             if case .rightParen = currentToken { break }
-            if let n = try parseNumericTokenIfPresent() {
+            if let n = try parseSignedNumericTokenIfPresent() {
                 params[key] = .numeric(n)
             }
         }
 
         if case .rightParen = currentToken { advance() }
+    }
+
+    private mutating func parseSignedNumericTokenIfPresent() throws -> Double? {
+        let sign: Double
+        if case .minus = currentToken {
+            sign = -1
+            advance()
+        } else if case .plus = currentToken {
+            sign = 1
+            advance()
+        } else {
+            sign = 1
+        }
+        guard let value = try parseNumericTokenIfPresent() else {
+            if sign != 1 {
+                throw ParserDiagnostic.error(
+                    "Expected numeric waveform parameter after sign",
+                    at: currentLocation
+                )
+            }
+            return nil
+        }
+        return sign * value
     }
 
     private mutating func parseParameterValue() throws -> ParsedParameterValue {

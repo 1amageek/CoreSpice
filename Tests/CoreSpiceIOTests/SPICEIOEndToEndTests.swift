@@ -350,6 +350,118 @@ struct SPICEIOEndToEndTests {
         #expect(gain < 0.8)
     }
 
+    @Test("Public API executes NMF and PMF MESFET operating-point decks")
+    func publicAPIExecutesMESFETOperatingPointDecks() async throws {
+        let source = """
+        mesfet operating point decks
+        VDD vdd 0 dc 5
+        VG gate 0 dc 0
+        RD vdd nout 1k
+        ZN nout gate 0 nmodel
+        VSUP psup 0 dc 5
+        VPG pgate 0 dc 5
+        ZP pout pgate psup pmodel
+        RP pout 0 1k
+        .model nmodel nmf beta=1m vto=-1 alpha=2 b=0 lambda=0
+        .model pmodel pmf beta=1m vto=-1 alpha=2 b=0 lambda=0
+        .op
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let nout = try node(fromInstance: "zn", terminal: 0, in: circuit.ir)
+        let pout = try node(fromInstance: "zp", terminal: 0, in: circuit.ir)
+        let result = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        // In saturation with B=λ=0, the Curtice model gives
+        // Id = β(Vgs - Vto)^2 = 1 mA for both polarities.
+        #expect(approximately(try result.voltage(at: nout), 4, tolerance: 1e-3))
+        #expect(approximately(try result.voltage(at: pout), 1, tolerance: 1e-3))
+    }
+
+    @Test("MESFET contributes its Curtice transconductance in AC analysis")
+    func mesfetContributesCurticeTransconductanceInAC() async throws {
+        let source = """
+        mesfet ac common source
+        VDD vdd 0 dc 5
+        VG gate 0 dc 0 ac 1
+        RD vdd out 1k
+        Z1 out gate 0 model
+        .model model nmf beta=1m vto=-1 alpha=2 b=0 lambda=0 cgs=1p cgd=0
+        .ac lin 1 1k 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "z1", terminal: 0, in: circuit.ir)
+        let result = try await ACAnalysis(
+            sweep: .linear(start: 1e3, stop: 1e3, points: 1)
+        ).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+        let gain = try result.voltage(at: outNode, frequencyIndex: 0)
+
+        #expect(approximately(gain.real, -2, tolerance: 1e-3))
+        #expect(abs(gain.imag) < 1e-6)
+    }
+
+    @Test("MESFET gate capacitance participates in transient analysis")
+    func mesfetGateCapacitanceParticipatesInTransient() async throws {
+        let source = """
+        mesfet transient
+        VDD vdd 0 dc 5
+        VG gate 0 pulse(-2 0 0 1u 1u 20u 40u)
+        RD vdd out 1k
+        Z1 out gate 0 model
+        .model model nmf beta=4m vto=-1 alpha=2 b=0 lambda=0 cgs=1n cgd=1n
+        .tran 0.1u 5u
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "z1", terminal: 0, in: circuit.ir)
+        let gateNode = try node(fromInstance: "z1", terminal: 1, in: circuit.ir)
+        let result = try await TransientAnalysis(
+            config: TransientConfig(
+                stopTime: 5e-6,
+                maxTimeStep: 1e-7,
+                initialTimeStep: 1e-9
+            )
+        ).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        let initial = try result.voltage(at: outNode, timeIndex: 0)
+        let final = try result.voltage(at: outNode, timeIndex: result.timePoints.count - 1)
+        let finalGate = try result.voltage(
+            at: gateNode,
+            timeIndex: result.timePoints.count - 1
+        )
+        #expect(finalGate > -0.01)
+        #expect(initial > final)
+        #expect(final < 2)
+    }
+
     @Test("Public API executes source-name current-controlled source decks")
     func publicAPIExecutesSourceNameCurrentControlledSourceDecks() async throws {
         let source = """
