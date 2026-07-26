@@ -4,6 +4,10 @@ import Foundation
 
 /// Serializable coverage report for parsed SPICE deck intent.
 public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
+    private struct BehavioralFunctionDefinition {
+        let parameters: [String]
+        let body: ParsedExpression
+    }
 
     public let sourcePath: String?
     public let title: String?
@@ -73,11 +77,19 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         )
 
         let topLevelModels = modelLookup(netlist.models)
+        let behavioralFunctions = behavioralFunctionLookup(netlist.controls)
         for analysis in netlist.analyses {
             items.append(coverageItem(for: analysis))
         }
         for component in netlist.components {
-            items.append(componentCoverageItem(component, scope: nil, models: topLevelModels))
+            items.append(
+                componentCoverageItem(
+                    component,
+                    scope: nil,
+                    models: topLevelModels,
+                    behavioralFunctions: behavioralFunctions
+                )
+            )
         }
         for model in netlist.models {
             items.append(modelCoverageItem(model, scope: nil))
@@ -103,7 +115,12 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         }
         appendSubcircuitParameterCoverage(netlist.subcircuits, into: &items)
         appendSubcircuitModelCoverage(netlist.subcircuits, parentModels: topLevelModels, into: &items)
-        appendSubcircuitComponentCoverage(netlist.subcircuits, parentModels: topLevelModels, into: &items)
+        appendSubcircuitComponentCoverage(
+            netlist.subcircuits,
+            parentModels: topLevelModels,
+            behavioralFunctions: behavioralFunctions,
+            into: &items
+        )
         for control in orderedControls(netlist.controls) {
             items.append(coverageItem(for: control, netlist: netlist))
         }
@@ -308,10 +325,15 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
     private static func componentCoverageItem(
         _ component: ParsedComponent,
         scope: String?,
-        models: [String: ParsedModel]
+        models: [String: ParsedModel],
+        behavioralFunctions: [String: BehavioralFunctionDefinition]
     ) -> SPICEDeckCoverageItem {
         let itemName = scope.map { "\($0)/component:\(component.name)" } ?? "component:\(component.name)"
-        if let blockedReason = blockedComponentReason(component, models: models) {
+        if let blockedReason = blockedComponentReason(
+            component,
+            models: models,
+            behavioralFunctions: behavioralFunctions
+        ) {
             return SPICEDeckCoverageItem(
                 kind: .component,
                 name: itemName,
@@ -384,6 +406,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
     private static func appendSubcircuitComponentCoverage(
         _ subcircuits: [ParsedSubcircuit],
         parentModels: [String: ParsedModel],
+        behavioralFunctions: [String: BehavioralFunctionDefinition],
         into items: inout [SPICEDeckCoverageItem]
     ) {
         for subcircuit in subcircuits {
@@ -391,6 +414,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
                 subcircuit.body,
                 scope: "subckt:\(subcircuit.name)",
                 parentModels: parentModels,
+                behavioralFunctions: behavioralFunctions,
                 into: &items
             )
         }
@@ -449,11 +473,19 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         _ body: ParsedNetlistBody,
         scope: String,
         parentModels: [String: ParsedModel],
+        behavioralFunctions: [String: BehavioralFunctionDefinition],
         into items: inout [SPICEDeckCoverageItem]
     ) {
         let scopedModels = mergedModelLookup(parentModels, body.models)
         for component in body.components {
-            items.append(componentCoverageItem(component, scope: scope, models: scopedModels))
+            items.append(
+                componentCoverageItem(
+                    component,
+                    scope: scope,
+                    models: scopedModels,
+                    behavioralFunctions: behavioralFunctions
+                )
+            )
         }
 
         for nested in body.subcircuits {
@@ -461,6 +493,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
                 nested.body,
                 scope: "\(scope)/subckt:\(nested.name)",
                 parentModels: scopedModels,
+                behavioralFunctions: behavioralFunctions,
                 into: &items
             )
         }
@@ -498,14 +531,33 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         parentModels.merging(modelLookup(localModels)) { _, local in local }
     }
 
+    private static func behavioralFunctionLookup(
+        _ controls: [ParsedControlStatement]
+    ) -> [String: BehavioralFunctionDefinition] {
+        var functions: [String: BehavioralFunctionDefinition] = [:]
+        for control in controls {
+            if case .function(let name, let parameters, let body, _) = control {
+                functions[name.lowercased()] = BehavioralFunctionDefinition(
+                    parameters: parameters,
+                    body: body
+                )
+            }
+        }
+        return functions
+    }
+
     private static func blockedComponentReason(
         _ component: ParsedComponent,
-        models: [String: ParsedModel]
+        models: [String: ParsedModel],
+        behavioralFunctions: [String: BehavioralFunctionDefinition]
     ) -> String? {
         if let reason = unsupportedComponentTypeReason(component.type) {
             return reason
         }
-        if let reason = unsupportedComponentParameterReason(component) {
+        if let reason = unsupportedComponentParameterReason(
+            component,
+            behavioralFunctions: behavioralFunctions
+        ) {
             return reason
         }
 
@@ -529,15 +581,32 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
 
     private static func unsupportedComponentTypeReason(_ type: ComponentType) -> String? {
         switch type {
-        case .behavioral:
-            return "Behavioral B-source is parsed and preserved, but nonlinear behavioral source execution is not implemented"
         default:
             return nil
         }
     }
 
-    private static func unsupportedComponentParameterReason(_ component: ParsedComponent) -> String? {
+    private static func unsupportedComponentParameterReason(
+        _ component: ParsedComponent,
+        behavioralFunctions: [String: BehavioralFunctionDefinition]
+    ) -> String? {
         switch component.type {
+        case .behavioral:
+            let outputKeys = component.parameters.keys.filter { $0 == "v" || $0 == "i" }
+            guard outputKeys.count == 1, component.parameters.count == 1 else {
+                return "Behavioral source requires exactly one V={...} or I={...} output expression"
+            }
+            guard let output = component.parameters[outputKeys[0]],
+                  case .expression(let expression) = output else {
+                return "Behavioral source output must be a braced expression"
+            }
+            if let reason = blockedBehavioralExpressionReason(
+                expression,
+                behavioralFunctions: behavioralFunctions
+            ) {
+                return reason
+            }
+            return nil
         case .jfet:
             let supported = Set(["area"])
             if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {
@@ -610,6 +679,143 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             return "MESFET model parameter '\(unsupported)' is parsed, but native execution is not implemented"
         }
         return nil
+    }
+
+    private static func blockedBehavioralExpressionReason(
+        _ expression: ParsedExpression,
+        behavioralFunctions: [String: BehavioralFunctionDefinition],
+        evaluatingFunctions: Set<String> = []
+    ) -> String? {
+        switch expression {
+        case .literal, .identifier:
+            return nil
+        case .unaryOperation(_, let operand):
+            return blockedBehavioralExpressionReason(
+                operand,
+                behavioralFunctions: behavioralFunctions,
+                evaluatingFunctions: evaluatingFunctions
+            )
+        case .binaryOperation(_, let lhs, let rhs):
+            return blockedBehavioralExpressionReason(
+                lhs,
+                behavioralFunctions: behavioralFunctions,
+                evaluatingFunctions: evaluatingFunctions
+            ) ?? blockedBehavioralExpressionReason(
+                rhs,
+                behavioralFunctions: behavioralFunctions,
+                evaluatingFunctions: evaluatingFunctions
+            )
+        case .conditional(let condition, let then, let `else`):
+            return blockedBehavioralExpressionReason(
+                condition,
+                behavioralFunctions: behavioralFunctions,
+                evaluatingFunctions: evaluatingFunctions
+            ) ?? blockedBehavioralExpressionReason(
+                then,
+                behavioralFunctions: behavioralFunctions,
+                evaluatingFunctions: evaluatingFunctions
+            ) ?? blockedBehavioralExpressionReason(
+                `else`,
+                behavioralFunctions: behavioralFunctions,
+                evaluatingFunctions: evaluatingFunctions
+            )
+        case .functionCall(let name, let arguments):
+            let loweredName = name.lowercased()
+            if loweredName == "v" {
+                guard arguments.count == 1 || arguments.count == 2,
+                      arguments.allSatisfy(isBehavioralReferenceName) else {
+                    return "Behavioral V() requires one or two node names"
+                }
+            } else if loweredName == "i" {
+                guard arguments.count == 1,
+                      arguments.allSatisfy(isBehavioralReferenceName) else {
+                    return "Behavioral I() requires one voltage-source instance name"
+                }
+            } else if let definition = behavioralFunctions[loweredName] {
+                guard definition.parameters.count == arguments.count else {
+                    return "Behavioral function '\(name)' requires \(definition.parameters.count) arguments"
+                }
+                guard !evaluatingFunctions.contains(loweredName) else {
+                    return "Recursive behavioral function '\(name)' is not executable"
+                }
+                var nestedFunctions = evaluatingFunctions
+                nestedFunctions.insert(loweredName)
+                if let reason = blockedBehavioralExpressionReason(
+                    definition.body,
+                    behavioralFunctions: behavioralFunctions,
+                    evaluatingFunctions: nestedFunctions
+                ) {
+                    return reason
+                }
+            } else if let expectation = behavioralFunctionArgumentExpectation(
+                loweredName
+            ), !expectation.accepts(arguments.count) {
+                return "Behavioral function '\(name)' requires \(expectation.description) arguments"
+            }
+            let supported = Set([
+                "v", "i", "if", "sin", "cos", "tan", "asin", "acos", "atan",
+                "atan2", "sinh", "cosh", "tanh", "exp", "log", "ln", "log10",
+                "sqrt", "abs", "sgn", "sign", "floor", "ceil", "round", "nint",
+                "int", "min", "max", "limit", "pow", "pwr", "pwrs",
+            ])
+            guard supported.contains(loweredName)
+                    || behavioralFunctions[loweredName] != nil else {
+                return "Behavioral function '\(name)' is parsed, but native execution is not implemented"
+            }
+            for argument in arguments {
+                if let reason = blockedBehavioralExpressionReason(
+                    argument,
+                    behavioralFunctions: behavioralFunctions,
+                    evaluatingFunctions: evaluatingFunctions
+                ) {
+                    return reason
+                }
+            }
+            return nil
+        }
+    }
+
+    private static func isBehavioralReferenceName(
+        _ expression: ParsedExpression
+    ) -> Bool {
+        switch expression {
+        case .identifier:
+            true
+        case .literal(let value):
+            value == 0
+        default:
+            false
+        }
+    }
+
+    private struct BehavioralArgumentExpectation {
+        let description: String
+        let accepts: (Int) -> Bool
+    }
+
+    private static func behavioralFunctionArgumentExpectation(
+        _ name: String
+    ) -> BehavioralArgumentExpectation? {
+        switch name {
+        case "v":
+            BehavioralArgumentExpectation(description: "one or two") {
+                $0 == 1 || $0 == 2
+            }
+        case "i", "sin", "cos", "tan", "asin", "acos", "atan", "sinh",
+             "cosh", "tanh", "exp", "log", "ln", "log10", "sqrt", "abs",
+             "sgn", "sign", "floor", "ceil", "round", "nint", "int":
+            BehavioralArgumentExpectation(description: "one") { $0 == 1 }
+        case "atan2", "pow", "pwr", "pwrs":
+            BehavioralArgumentExpectation(description: "two") { $0 == 2 }
+        case "if", "limit":
+            BehavioralArgumentExpectation(description: "three") { $0 == 3 }
+        case "min", "max":
+            BehavioralArgumentExpectation(description: "at least two") {
+                $0 >= 2
+            }
+        default:
+            nil
+        }
     }
 
     private static func coverageItem(

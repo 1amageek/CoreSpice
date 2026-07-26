@@ -42,7 +42,7 @@ public struct MatrixTopology: Sendable {
         for instance in ir.instances {
             // Collect non-ground node indices for this device.
             var nodeIndices: [Int] = []
-            for node in instance.nodes {
+            for node in instance.nodes + instance.referencedNodes {
                 if node != ir.groundNode {
                     if let idx = topology.variableMap[.nodeVoltage(node)] {
                         nodeIndices.append(idx)
@@ -75,7 +75,7 @@ public struct MatrixTopology: Sendable {
         // instead of coupling every branch to every circuit variable.
         var associatedBranches: Set<Branch> = []
         for instance in ir.instances {
-            let nodeIndices = instance.nodes.compactMap { node -> Int? in
+            let nodeIndices = (instance.nodes + instance.referencedNodes).compactMap { node -> Int? in
                 guard node != ir.groundNode else { return nil }
                 return topology.variableMap[.nodeVoltage(node)]
             }

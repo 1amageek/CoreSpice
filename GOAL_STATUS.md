@@ -24,13 +24,14 @@ Updated: 2026-07-26
 | Optical/electrical execution boundary | Complete | Optical-network analyses pass evaluated optical state explicitly; intentional electrical-only device calls use a zero-power state sized to the device's declared optical nodes, without out-of-bounds fallback. |
 | Stateful switch hysteresis | Complete | SW and both CSW bindings implement non-zero `VH`/`IH`; Newton candidates read committed state without mutation, and only accepted DC/transient states commit threshold crossings. |
 | Independent numerical correlation | Verified | Regression-fixture and live-ngspice runs both pass 31/31; live evidence retains executable/input/output digests without rewriting the fixture. |
+| Behavioral source execution | Complete | Parsed B voltage/current outputs lower to canonical runtime expressions, execute in DC/AC/transient analyses, support `V()`, `I()`, `time`, deterministic functions and non-recursive `.func`, and fail malformed or non-finite paths explicitly. |
 | Foundry compact-model production claim | Blocked by contract | Native Level 1/2/3 execution cannot issue production qualification; a qualified external foundry-model simulator is required. |
 
 ## Explicitly blocked native capabilities
 
 The supported-model envelope is complete for the capabilities marked complete
-above. Parsed B-sources, MESFETs, transmission-line and uniform-RC elements,
-BSIM3/4 and other unsupported compact models remain typed failures. Their
+above. BSIM3/4, lossy LTRA, unsupported JFET parameters, and other unsupported
+compact models remain typed failures. Their
 production call paths and implementation completion
 conditions are marked with `FIXME(INCOMPLETE_IMPLEMENTATION)` in the lowering
 or binding boundary; they are not silently accepted and are not part of the

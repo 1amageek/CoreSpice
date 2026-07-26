@@ -1029,7 +1029,7 @@ struct SubcircuitExpansionTests {
     }
 
     @Test
-    func behavioralSourceLoweringFailsLoudly() throws {
+    func behavioralSourceLowersToCanonicalRuntimeExpression() throws {
         let behavioral = ParsedComponent(
             name: "Bgain",
             type: .behavioral,
@@ -1040,16 +1040,15 @@ struct SubcircuitExpansionTests {
         )
         let netlist = ParsedNetlist(components: [behavioral])
 
-        do {
-            _ = try NetlistLowering().lower(netlist)
-            Issue.record("Expected behavioral source lowering to fail.")
-        } catch let error as LoweringError {
-            guard case .invalidComponent(let name, let reason) = error else {
-                Issue.record("Unexpected lowering error: \(error)")
-                return
-            }
-            #expect(name == "Bgain")
-            #expect(reason.contains("Behavioral B-source"))
+        let circuit = try NetlistLowering().lower(netlist)
+        let instance = try #require(circuit.instances.first)
+
+        #expect(instance.typeName == "behavioral_vsource")
+        #expect(instance.ownedBranches.count == 1)
+        #expect(instance.referencedNodes.count == 1)
+        guard case .behavioralExpression = instance.parameters["v"] else {
+            Issue.record("Expected a canonical behavioral expression")
+            return
         }
     }
 

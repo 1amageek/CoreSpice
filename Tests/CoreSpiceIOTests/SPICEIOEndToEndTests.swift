@@ -312,6 +312,215 @@ struct SPICEIOEndToEndTests {
         #expect(try result.voltage(at: outNode, timeIndex: afterDelay) > 0.99)
     }
 
+    @Test("Behavioral voltage source executes nonlinear DC and linearized AC")
+    func behavioralVoltageSourceExecutesDCAndAC() async throws {
+        let source = """
+        behavioral voltage source
+        V1 in 0 dc 2 ac 1
+        B1 out 0 v={V(in) * V(in)}
+        RLOAD out 0 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+
+        let dc = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+        #expect(approximately(try dc.voltage(at: outNode), 4, tolerance: 1e-9))
+
+        let ac = try await ACAnalysis(
+            sweep: .linear(start: 1e3, stop: 1e3, points: 1)
+        ).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+        let output = try ac.voltage(at: outNode, frequencyIndex: 0)
+        #expect(approximately(output.real, 4, tolerance: 1e-8))
+        #expect(abs(output.imag) < 1e-10)
+    }
+
+    @Test("Behavioral current source executes and preserves SPICE current direction")
+    func behavioralCurrentSourceExecutesDC() async throws {
+        let source = """
+        behavioral current source
+        V1 control 0 dc 1
+        B1 out 0 i={V(control) / 1k}
+        RLOAD out 0 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+        let dc = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        let output = try dc.voltage(at: outNode)
+        #expect(
+            approximately(output, -1, tolerance: 2e-9),
+            "Expected the behavioral source to draw 1 mA, got \(output) V"
+        )
+    }
+
+    @Test("Behavioral source reads canonical branch current references")
+    func behavioralSourceReadsBranchCurrent() async throws {
+        let source = """
+        behavioral branch current
+        B1 out 0 v={I(V1) * 1k}
+        V1 in 0 dc 1
+        RIN in 0 1k
+        RLOAD out 0 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+        let dc = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        let output = try dc.voltage(at: outNode)
+        #expect(
+            approximately(output, -1, tolerance: 2e-9),
+            "Expected -1 V from the referenced source current, got \(output) V"
+        )
+    }
+
+    @Test("Behavioral time expression drives transient output")
+    func behavioralTimeExpressionExecutesTransient() async throws {
+        let source = """
+        behavioral transient time
+        B1 out 0 v={time * 1e9}
+        RLOAD out 0 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+        let result = try await TransientAnalysis(
+            config: TransientConfig(
+                stopTime: 2e-9,
+                maxTimeStep: 0.1e-9,
+                initialTimeStep: 0.1e-9
+            )
+        ).run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        let final = try result.voltage(
+            at: outNode,
+            timeIndex: result.timePoints.count - 1
+        )
+        #expect(approximately(final, 2, tolerance: 1e-8))
+    }
+
+    @Test("Behavioral voltage references are remapped inside subcircuits")
+    func behavioralSourceExecutesInsideSubcircuit() async throws {
+        let source = """
+        behavioral subcircuit
+        .subckt gain input output
+        B1 output 0 v={V(input) * 2}
+        .ends gain
+        V1 source 0 dc 1
+        X1 source out gain
+        RLOAD out 0 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+        let dc = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        #expect(approximately(try dc.voltage(at: outNode), 2, tolerance: 1e-9))
+    }
+
+    @Test("Behavioral source executes a user-defined function")
+    func behavioralSourceExecutesUserFunction() async throws {
+        let source = """
+        behavioral user function
+        .func scale(x, gain) {x * gain}
+        V1 input 0 dc 1.5
+        B1 output 0 v={scale(V(input), 4)}
+        RLOAD output 0 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+        let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
+        let dc = try await DCAnalysis().run(
+            plan: circuit.plan,
+            devices: circuit.devices,
+            solver: SparseLUSolver(),
+            observer: nil,
+            cancellation: CancellationToken()
+        )
+
+        #expect(approximately(try dc.voltage(at: outNode), 6, tolerance: 1e-9))
+    }
+
+    @Test("Non-finite behavioral evaluation fails analysis instead of returning success")
+    func nonFiniteBehavioralEvaluationFails() async throws {
+        let source = """
+        invalid behavioral runtime
+        B1 out 0 v={1 / 0}
+        RLOAD out 0 1k
+        .end
+        """
+
+        let circuit = try compileAndBindElectricalCircuit(
+            try await SPICEIO.parseAndLower(source)
+        )
+
+        await #expect(throws: Error.self) {
+            _ = try await DCAnalysis().run(
+                plan: circuit.plan,
+                devices: circuit.devices,
+                solver: SparseLUSolver(),
+                observer: nil,
+                cancellation: CancellationToken()
+            )
+        }
+    }
+
     @Test("Voltage-controlled switch with hysteresis lowers and simulates")
     func voltageControlledSwitchWithHysteresisSimulates() async throws {
         let source = """

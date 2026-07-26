@@ -85,7 +85,8 @@ public struct Netlist: Sendable {
         parameters: [String: ParameterValue] = [:],
         ownedBranches: [Branch] = [],
         referencedBranches: [Branch] = [],
-        referencedBranchNames: [String] = []
+        referencedBranchNames: [String] = [],
+        referencedNodeNames: [String] = []
     ) throws {
         // Check for duplicate instance name
         guard !instanceNames.contains(name) else {
@@ -128,6 +129,7 @@ public struct Netlist: Sendable {
         instanceNames.insert(name)
         referencedBranchNamesByInstance[name] = referencedBranchNames
         let resolvedNodes = nodeNames.map { self.node($0) }
+        let resolvedReferencedNodes = referencedNodeNames.map { self.node($0) }
         instances.append(
             Instance(
                 name: name,
@@ -135,7 +137,8 @@ public struct Netlist: Sendable {
                 nodes: resolvedNodes,
                 parameters: parameters,
                 ownedBranches: ownedBranches,
-                referencedBranches: referencedBranches
+                referencedBranches: referencedBranches,
+                referencedNodes: resolvedReferencedNodes
             )
         )
     }
@@ -157,7 +160,8 @@ public struct Netlist: Sendable {
         parameters: [String: ParameterValue] = [:],
         ownedBranches: [Branch] = [],
         referencedBranches: [Branch] = [],
-        referencedBranchNames: [String] = []
+        referencedBranchNames: [String] = [],
+        referencedNodeNames: [String] = []
     ) throws {
         guard !instanceNames.contains(name) else {
             throw NetlistError.duplicateInstanceName(name)
@@ -193,6 +197,7 @@ public struct Netlist: Sendable {
         instanceNames.insert(name)
         referencedBranchNamesByInstance[name] = referencedBranchNames
         let resolvedNodes = nodeNames.map { self.node($0) }
+        let resolvedReferencedNodes = referencedNodeNames.map { self.node($0) }
         let resolvedOpticalNodes = opticalNodeNames.map { self.opticalNode($0) }
         instances.append(
             Instance(
@@ -202,6 +207,7 @@ public struct Netlist: Sendable {
                 parameters: parameters,
                 ownedBranches: ownedBranches,
                 referencedBranches: referencedBranches,
+                referencedNodes: resolvedReferencedNodes,
                 opticalNodes: resolvedOpticalNodes
             )
         )
@@ -235,6 +241,7 @@ public struct Netlist: Sendable {
                 parameters: instance.parameters,
                 ownedBranches: instance.ownedBranches,
                 referencedBranches: instance.referencedBranches + namedReferences,
+                referencedNodes: instance.referencedNodes,
                 opticalNodes: instance.opticalNodes
             )
         }

@@ -37,6 +37,8 @@ public struct DeviceRegistry: Sendable {
         registry.register(VoltageControlledSwitchDescriptor())
         registry.register(CurrentControlledSwitchDescriptor())
         registry.register(BranchReferencedCurrentControlledSwitchDescriptor())
+        registry.register(BehavioralVoltageSourceDescriptor())
+        registry.register(BehavioralCurrentSourceDescriptor())
         registry.register(NMOSL1Descriptor())
         registry.register(PMOSL1Descriptor())
         registry.register(NMOSL2Descriptor())

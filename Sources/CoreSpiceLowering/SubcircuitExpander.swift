@@ -1,5 +1,6 @@
 import CoreSpiceParsedIR
 import CoreSpiceIR
+import Foundation
 
 /// Expands subcircuit instances into their component parts.
 public struct SubcircuitExpander: Sendable {
@@ -44,11 +45,35 @@ public struct SubcircuitExpander: Sendable {
         let usesControlSourceReference = component.parameters["control_source"] != nil
 
         // Map component type to device type name
-        let typeName = try mapComponentType(
-            component.type,
-            modelName: component.modelName,
-            usesControlSourceReference: usesControlSourceReference
-        )
+        let typeName: String
+        if component.type == .behavioral {
+            typeName = component.parameters["v"] != nil
+                ? "behavioral_vsource"
+                : "behavioral_isource"
+        } else {
+            typeName = try mapComponentType(
+                component.type,
+                modelName: component.modelName,
+                usesControlSourceReference: usesControlSourceReference
+            )
+        }
+
+        // Map nodes before behavioral-expression lowering so V() references
+        // resolve to the same canonical node identities as component ports.
+        let nodeNames: [String]
+        if mapNodes {
+            nodeNames = component.nodes.map { node -> String in
+                if prefix.isEmpty {
+                    return node.name
+                }
+                if node.isGround {
+                    return node.name
+                }
+                return "\(prefix).\(node.name)"
+            }
+        } else {
+            nodeNames = component.nodes.map { $0.name }
+        }
 
         // Evaluate parameters: merge model parameters first, then override with instance parameters
         let resolver = ParameterExpressionResolver(context: context, randomUniform: randomUniform)
@@ -65,6 +90,9 @@ public struct SubcircuitExpander: Sendable {
             }
         }
 
+        var behavioralReferencedNodeNames: [String] = []
+        var behavioralReferencedBranchNames: [String] = []
+
         // Instance parameters override model parameters
         for (name, value) in component.parameters {
             if name == "control_source" {
@@ -73,6 +101,23 @@ public struct SubcircuitExpander: Sendable {
                     fullName: fullName,
                     prefix: prefix
                 )
+                continue
+            }
+            if component.type == .behavioral {
+                guard case .expression(let parsedExpression) = value else {
+                    throw LoweringError.invalidComponent(
+                        name: fullName,
+                        reason: "Behavioral output must be a braced expression"
+                    )
+                }
+                let result = try BehavioralExpressionLowerer(
+                    context: context,
+                    prefix: prefix,
+                    mapNodes: mapNodes
+                ).lower(parsedExpression, into: &builder)
+                evaluatedParams[name] = .behavioralExpression(result.expression)
+                behavioralReferencedNodeNames = result.referencedNodeNames
+                behavioralReferencedBranchNames = result.referencedBranchNames
                 continue
             }
             let evaluated = try evaluator.evaluate(value)
@@ -88,24 +133,6 @@ public struct SubcircuitExpander: Sendable {
                 into: &builder
             )
             return
-        }
-
-        // Map nodes. When the caller has already resolved node names (subcircuit
-        // body expansion), use them as-is to avoid prefixing the ports twice.
-        let nodeNames: [String]
-        if mapNodes {
-            nodeNames = component.nodes.map { node -> String in
-                if prefix.isEmpty {
-                    return node.name
-                }
-                // Keep global nodes as-is
-                if node.isGround {
-                    return node.name
-                }
-                return "\(prefix).\(node.name)"
-            }
-        } else {
-            nodeNames = component.nodes.map { $0.name }
         }
 
         if component.type == .jfet || component.type == .mesfet {
@@ -150,7 +177,8 @@ public struct SubcircuitExpander: Sendable {
             nodes: nodeNames,
             parameters: evaluatedParams,
             ownedBranches: ownedBranches,
-            referencedBranchNames: referencedBranchNames
+            referencedBranchNames: referencedBranchNames + behavioralReferencedBranchNames,
+            referencedNodeNames: behavioralReferencedNodeNames
         )
     }
 
@@ -413,12 +441,30 @@ public struct SubcircuitExpander: Sendable {
                     )
                 }
 
+                let mappedParameters: [String: ParsedParameterValue]
+                if bodyComponent.type == .behavioral {
+                    mappedParameters = bodyComponent.parameters.mapValues { value in
+                        guard case .expression(let expression) = value else {
+                            return value
+                        }
+                        return .expression(
+                            mapBehavioralVoltageReferences(
+                                expression,
+                                portMapping: portMapping,
+                                instancePrefix: instancePrefix
+                            )
+                        )
+                    }
+                } else {
+                    mappedParameters = bodyComponent.parameters
+                }
+
                 mappedComponent = ParsedComponent(
                     name: bodyComponent.name,
                     type: bodyComponent.type,
                     nodes: mappedNodes,
                     modelName: bodyComponent.modelName,
-                    parameters: bodyComponent.parameters,
+                    parameters: mappedParameters,
                     location: bodyComponent.location
                 )
 
@@ -433,6 +479,98 @@ public struct SubcircuitExpander: Sendable {
         let deferred = components.filter { $0.type == .coupledInductors }
         guard !deferred.isEmpty else { return components }
         return components.filter { $0.type != .coupledInductors } + deferred
+    }
+
+    private func mapBehavioralVoltageReferences(
+        _ expression: ParsedExpression,
+        portMapping: [String: String],
+        instancePrefix: String
+    ) -> ParsedExpression {
+        switch expression {
+        case .literal, .identifier:
+            return expression
+        case .unaryOperation(let operation, let operand):
+            return .unaryOperation(
+                operation,
+                mapBehavioralVoltageReferences(
+                    operand,
+                    portMapping: portMapping,
+                    instancePrefix: instancePrefix
+                )
+            )
+        case .binaryOperation(let operation, let lhs, let rhs):
+            return .binaryOperation(
+                operation,
+                mapBehavioralVoltageReferences(
+                    lhs,
+                    portMapping: portMapping,
+                    instancePrefix: instancePrefix
+                ),
+                mapBehavioralVoltageReferences(
+                    rhs,
+                    portMapping: portMapping,
+                    instancePrefix: instancePrefix
+                )
+            )
+        case .functionCall(let name, let arguments):
+            if name.caseInsensitiveCompare("v") == .orderedSame {
+                return .functionCall(
+                    name: name,
+                    arguments: arguments.map {
+                        mapBehavioralNodeArgument(
+                            $0,
+                            portMapping: portMapping,
+                            instancePrefix: instancePrefix
+                        )
+                    }
+                )
+            }
+            return .functionCall(
+                name: name,
+                arguments: arguments.map {
+                    mapBehavioralVoltageReferences(
+                        $0,
+                        portMapping: portMapping,
+                        instancePrefix: instancePrefix
+                    )
+                }
+            )
+        case .conditional(let condition, let then, let `else`):
+            return .conditional(
+                condition: mapBehavioralVoltageReferences(
+                    condition,
+                    portMapping: portMapping,
+                    instancePrefix: instancePrefix
+                ),
+                then: mapBehavioralVoltageReferences(
+                    then,
+                    portMapping: portMapping,
+                    instancePrefix: instancePrefix
+                ),
+                else: mapBehavioralVoltageReferences(
+                    `else`,
+                    portMapping: portMapping,
+                    instancePrefix: instancePrefix
+                )
+            )
+        }
+    }
+
+    private func mapBehavioralNodeArgument(
+        _ expression: ParsedExpression,
+        portMapping: [String: String],
+        instancePrefix: String
+    ) -> ParsedExpression {
+        guard case .identifier(let name) = expression else {
+            return expression
+        }
+        if let mapped = portMapping[name] {
+            return .identifier(mapped)
+        }
+        if name == "0" || name.caseInsensitiveCompare("gnd") == .orderedSame {
+            return expression
+        }
+        return .identifier("\(instancePrefix).\(name)")
     }
 
     private func applyBodyParameters(
@@ -495,6 +633,7 @@ public struct SubcircuitExpander: Sendable {
         case "ccvs_ref":  return 1  // Current-controlled voltage source output branch
         case "cswitch":   return 1  // Current-controlled switch sensing branch
         case "tline":     return 2  // One current variable for each transmission-line port
+        case "behavioral_vsource": return 1
         default:          return 0
         }
     }
@@ -528,8 +667,8 @@ public struct SubcircuitExpander: Sendable {
 
     // FIXME(INCOMPLETE_IMPLEMENTATION):
     // Native SPICE lowering currently reaches this gate from SPICEIO.lower and
-    // the batch/REPL CLI for parsed B-sources, unsupported
-    // JFET parameters, and unsupported compact models. These decks must
+    // the batch/REPL CLI for unsupported JFET parameters and compact models.
+    // These decks must
     // continue to fail with a typed LoweringError and must not be reported as
     // executable until each family has a descriptor, binding and matrix-stamp
     // implementation, analysis-specific semantics, and independent
@@ -580,8 +719,6 @@ public struct SubcircuitExpander: Sendable {
 
     private func unsupportedComponentTypeReason(_ type: ComponentType) -> String? {
         switch type {
-        case .behavioral:
-            return "Behavioral B-source execution is not implemented"
         default:
             return nil
         }
@@ -589,6 +726,16 @@ public struct SubcircuitExpander: Sendable {
 
     private func unsupportedComponentParameterReason(_ component: ParsedComponent) -> String? {
         switch component.type {
+        case .behavioral:
+            let outputKeys = component.parameters.keys.filter { $0 == "v" || $0 == "i" }
+            guard outputKeys.count == 1, component.parameters.count == 1 else {
+                return "Behavioral source requires exactly one V={...} or I={...} output expression"
+            }
+            guard let output = component.parameters[outputKeys[0]],
+                  case .expression = output else {
+                return "Behavioral source output must be a braced expression"
+            }
+            return nil
         case .jfet:
             let supported = Set(["area"])
             if let unsupported = component.parameters.keys.first(where: { !supported.contains($0) }) {

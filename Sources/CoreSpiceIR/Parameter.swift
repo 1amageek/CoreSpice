@@ -5,6 +5,7 @@ public enum ParameterValue: Sendable {
     case string(String)
     case complex(ComplexValue)
     case expression(Expression)
+    case behavioralExpression(BehavioralExpression)
 }
 
 /// A complex number value with real and imaginary parts.

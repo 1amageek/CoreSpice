@@ -219,13 +219,13 @@ optical nodes remain typed failures.
 - [x] Mutual inductance execution for standard SPICE `K` elements referencing inductor branches
 - [x] Uniform-RC execution through lowering-owned SPICE3-compatible resistor/capacitor/diode expansion
 - [x] Ideal lossless transmission-line execution with DC limit, complex AC propagation, bounded interpolating transient history, and delay-constrained timesteps
+- [x] Behavioral voltage/current source execution with canonical expressions, scalar automatic differentiation, and DC/AC/transient stamping
 - [x] Device registry with dynamic registration
 
 ### Incomplete/Missing Features
 
 - [ ] **BSIM models**: No advanced MOSFET models
 - [ ] **Lossy LTRA models**: Parsed model cards remain explicitly blocked; ideal lossless `T` elements are executable
-- [ ] **Behavioral source execution**: B-source expressions are not executable native devices
 - [ ] **Advanced parasitic capacitances**: MOSFET capacitance coverage remains limited compared with foundry-grade models
 - [ ] **Foundry temperature fidelity**: Operating temperature is propagated to built-in device models, but foundry-grade temperature coefficients and self-heating are not implemented
 - [ ] **Advanced noise fidelity**: Thermal, shot, and supported flicker hooks feed native noise analysis; foundry compact-model noise remains unavailable

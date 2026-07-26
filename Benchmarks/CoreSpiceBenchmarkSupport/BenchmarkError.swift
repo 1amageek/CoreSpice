@@ -7,6 +7,7 @@ public enum BenchmarkError: Error, CustomStringConvertible {
     case missingPointBuffer(String)
     case referenceMismatch(name: String, lhs: Double, rhs: Double)
     case storageNotShared(String)
+    case missingDeviceDescriptor
 
     public var description: String {
         switch self {
@@ -26,6 +27,8 @@ public enum BenchmarkError: Error, CustomStringConvertible {
             return "\(name) reference mismatch: \(lhs) vs \(rhs)."
         case .storageNotShared(let name):
             return "\(name) did not preserve storage sharing."
+        case .missingDeviceDescriptor:
+            return "The benchmark device descriptor is not registered."
         }
     }
 }

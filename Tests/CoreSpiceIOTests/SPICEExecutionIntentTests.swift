@@ -572,7 +572,7 @@ struct SPICEExecutionIntentTests {
     }
 
     @Test
-    func deckCoverageBlocksBehavioralSourcesAsUnsupportedIntent() async throws {
+    func deckCoverageAcceptsExecutableBehavioralSourceIntent() async throws {
         let source = """
         behavioral source coverage deck
         Vin in 0 dc 1
@@ -591,8 +591,53 @@ struct SPICEExecutionIntentTests {
         let behavioral = try #require(netlist.components.first { $0.name == "bgain" })
         #expect(behavioral.type == .behavioral)
         #expect(behavioral.parameters["v"] != nil)
-        #expect(item(named: "component:bgain", in: report)?.status == .blocked)
-        #expect(item(named: "component:bgain", in: report)?.message.contains("not implemented") == true)
+        #expect(item(named: "component:bgain", in: report)?.status == .supported)
+        #expect(!report.hasBlockedItems)
+    }
+
+    @Test
+    func deckCoverageAcceptsBehavioralUserFunctions() async throws {
+        let source = """
+        behavioral user function coverage
+        .func scale(x, gain) {x * gain}
+        Vin in 0 dc 1
+        Bgain out 0 v={scale(V(in), 2)}
+        .end
+        """
+
+        let parseResult = await SPICEIO.parse(
+            source,
+            fileName: "behavioral-user-function-coverage.cir"
+        )
+        let netlist = try parseResult.get()
+        let report = SPICEDeckCoverageReport.generate(
+            from: netlist,
+            parserDiagnostics: parseResult.diagnostics
+        )
+
+        #expect(item(named: "component:bgain", in: report)?.status == .supported)
+        #expect(!report.hasBlockedItems)
+    }
+
+    @Test
+    func deckCoverageBlocksUnsupportedBehavioralFunctions() async throws {
+        let source = """
+        unsupported behavioral function
+        B1 out 0 v={random(1)}
+        .end
+        """
+
+        let parseResult = await SPICEIO.parse(
+            source,
+            fileName: "unsupported-behavioral-function.cir"
+        )
+        let netlist = try parseResult.get()
+        let report = SPICEDeckCoverageReport.generate(
+            from: netlist,
+            parserDiagnostics: parseResult.diagnostics
+        )
+
+        #expect(item(named: "component:b1", in: report)?.status == .blocked)
         #expect(report.hasBlockedItems)
     }
 

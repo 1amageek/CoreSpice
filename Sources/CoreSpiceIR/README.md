@@ -194,13 +194,19 @@ public enum NetlistError: Error, Sendable {
 
 1. **Missing Hashable Conformance**: `ParameterValue` and `ParameterDescriptor` lack `Hashable` conformance, limiting their use in collections as keys. `Instance` also lacks `Hashable` and `Equatable`.
 
-2. **Expression Evaluation**: Expressions are stored as raw text strings with no parsing or evaluation capability. Evaluation belongs in the parsing or simulation layer.
+2. **Expression Evaluation**: Source syntax remains in ParsedIR. Behavioral
+   sources cross into this module as `BehavioralExpression`, a canonical
+   simulation-time expression that references canonical nodes and branch
+   slots without retaining parser types. Numerical evaluation belongs to the
+   device layer.
 
 3. **Descriptor Boundary**: Port-count, required-parameter, and value validation are provided by device descriptors rather than duplicated in the structural IR builder.
 
 ### Recommendations
 
-1. Add `Hashable` and `Equatable` conformance to `ParameterValue`, `ParameterDescriptor`, and `Instance`.
+1. Add `Hashable` and `Equatable` conformance only where a concrete collection
+   or identity requirement justifies it; canonical node and branch identity
+   should remain explicit.
 
 2. Use the device descriptor registry when semantic validation is required:
    - Instance node count matches device port count

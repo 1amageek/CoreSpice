@@ -75,7 +75,7 @@ numerical analysis, and waveform I/O.
 | Type | Devices |
 |------|---------|
 | Passive | Resistor, Capacitor, Inductor |
-| Sources | Voltage/Current (DC, Pulse, Sine, PWL) |
+| Sources | Voltage/Current (DC, Pulse, Sine, PWL) and nonlinear behavioral B voltage/current sources |
 | Controlled Sources | VCVS, VCCS, CCVS, CCCS |
 | Transmission Line | Ideal lossless T-line with `Z0` and `TD` or `F`/`NL`, including DC/AC/transient delay |
 | Distributed RC | SPICE3-compatible uniform-RC geometric ladder lowering |
@@ -83,6 +83,14 @@ numerical analysis, and waveform I/O.
 | MOSFET | NMOS/PMOS Level 1 plus empirical Level 2/3 short-channel extensions |
 | BJT | NPN, PNP (Ebers-Moll with Early effect) |
 | Diode | PN junction with breakdown, capacitance, transit time |
+
+Behavioral sources lower parsed expressions into a canonical runtime IR before
+device binding. Native execution supports node-voltage and source-current
+references, `time`, arithmetic, conditionals, standard deterministic numeric
+functions, and non-recursive `.func` definitions in DC, linearized AC, and
+transient analyses. Random functions are rejected because repeated Newton
+evaluations cannot treat a changing expression as a deterministic residual.
+Non-finite values and derivatives fail analysis instead of being stamped.
 
 **Optoelectronic**
 
