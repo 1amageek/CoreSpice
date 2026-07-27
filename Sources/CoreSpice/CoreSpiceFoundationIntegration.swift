@@ -13,20 +13,20 @@ public struct CoreSpiceSimulationRequest: Sendable, Hashable, Codable {
   /// netlist input is present.
   public let primaryInputID: ArtifactID?
   public let configurationDigest: ContentDigest?
-  public let designRevision: ContentDigest?
+  public let inputDesignRevision: DesignRevisionReference?
   public let randomSeed: UInt64?
 
   public init(
     inputs: [ArtifactReference] = [],
     primaryInputID: ArtifactID? = nil,
     configurationDigest: ContentDigest? = nil,
-    designRevision: ContentDigest? = nil,
+    inputDesignRevision: DesignRevisionReference? = nil,
     randomSeed: UInt64? = nil
   ) {
     self.inputs = inputs
     self.primaryInputID = primaryInputID
     self.configurationDigest = configurationDigest
-    self.designRevision = designRevision
+    self.inputDesignRevision = inputDesignRevision
     self.randomSeed = randomSeed
   }
 
@@ -39,9 +39,9 @@ public struct CoreSpiceSimulationRequest: Sendable, Hashable, Codable {
         ContentDigest.self,
         forKey: .configurationDigest
       ),
-      designRevision: try container.decodeIfPresent(
-        ContentDigest.self,
-        forKey: .designRevision
+      inputDesignRevision: try container.decodeIfPresent(
+        DesignRevisionReference.self,
+        forKey: .inputDesignRevision
       ),
       randomSeed: try container.decodeIfPresent(UInt64.self, forKey: .randomSeed)
     )
@@ -51,7 +51,7 @@ public struct CoreSpiceSimulationRequest: Sendable, Hashable, Codable {
     case inputs
     case primaryInputID
     case configurationDigest
-    case designRevision
+    case inputDesignRevision
     case randomSeed
   }
 }
@@ -95,7 +95,7 @@ public struct CoreSpiceSimulationResult: Sendable, Hashable, Codable, ArtifactPr
         invocation: execution.invocation,
         environment: execution.environment,
         configurationDigest: request.configurationDigest,
-        designRevision: request.designRevision,
+        inputDesignRevision: request.inputDesignRevision,
         randomSeed: request.randomSeed,
         startedAt: execution.startedAt,
         completedAt: execution.completedAt
