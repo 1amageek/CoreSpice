@@ -1,4 +1,6 @@
 import CircuiteFoundation
+import CircuiteFoundationFoundation
+import CircuiteFoundationFileSystem
 import CoreSpice
 @testable import CoreSpiceProcessBackend
 import Foundation
@@ -82,11 +84,16 @@ struct NgspiceExternalProcessBackendTests {
                 format: .spice
             )
             let runner = StagingProcessRunner()
+            let runRoot = directory.appendingPathComponent("runs")
             let backend = try NgspiceExternalProcessBackend(
                 executableURL: URL(fileURLWithPath: "/usr/bin/true"),
                 toolVersion: "test",
-                runRootURL: directory.appendingPathComponent("runs"),
-                processRunner: runner
+                runRootURL: runRoot,
+                processRunner: runner,
+                artifactLocator: try artifactLocator([
+                    (deck, deckURL),
+                    (model, modelURL),
+                ])
             )
 
             let execution = try await backend.execute(
@@ -101,11 +108,7 @@ struct NgspiceExternalProcessBackendTests {
             #expect(await runner.sawPrimaryInput)
             #expect(await runner.sawRelativeInclude)
             for artifact in execution.artifacts {
-                #expect(
-                    LocalArtifactVerifier()
-                        .verify(artifact, relativeTo: nil)
-                        .isVerified
-                )
+                _ = try outputURL(for: artifact, under: runRoot)
             }
         }
     }
@@ -126,7 +129,8 @@ struct NgspiceExternalProcessBackendTests {
                 executableURL: URL(fileURLWithPath: "/usr/bin/true"),
                 toolVersion: "test",
                 runRootURL: directory.appendingPathComponent("runs"),
-                processRunner: runner
+                processRunner: runner,
+                artifactLocator: try artifactLocator([(deck, deckURL)])
             )
 
             await #expect(
@@ -167,10 +171,12 @@ struct NgspiceExternalProcessBackendTests {
                 kind: .netlist,
                 format: .spice
             )
+            let runRoot = directory.appendingPathComponent("runs")
             let backend = try NgspiceExternalProcessBackend(
                 executableURL: ngspiceURL,
                 toolVersion: "46",
-                runRootURL: directory.appendingPathComponent("runs")
+                runRootURL: runRoot,
+                artifactLocator: try artifactLocator([(input, fixtureURL)])
             )
 
             let execution = try await backend.execute(
@@ -182,10 +188,10 @@ struct NgspiceExternalProcessBackendTests {
 
             let waveform = try #require(
                 execution.artifacts.first {
-                    $0.locator.kind == .waveform
+                    $0.descriptor.kind == .waveform
                 }
             )
-            let waveformURL = try waveform.locator.location.resolvedFileURL()
+            let waveformURL = try outputURL(for: waveform, under: runRoot)
             let rawText = try String(
                 contentsOf: waveformURL,
                 encoding: .utf8
@@ -195,22 +201,11 @@ struct NgspiceExternalProcessBackendTests {
             #expect(
                 abs(drainSupplyCurrent - (-1.160437367488753e-5)) < 1e-12
             )
-            let qualifiedExecutableURL = try backend.capability
-                .executable
-                .locator
-                .location
-                .resolvedFileURL()
             #expect(
-                execution.invocation.executable == qualifiedExecutableURL.path
+                execution.invocation.executable
+                    == ngspiceURL.standardizedFileURL.resolvingSymlinksInPath().path
             )
-            #expect(waveform.producer == backend.capability.simulator)
-            #expect(
-                execution.artifacts.contains { artifact in
-                    artifact.locator.location.value.hasSuffix(
-                        "b3v33check.log"
-                    )
-                }
-            )
+            #expect(try containsOutput(named: "b3v33check.log", under: runRoot))
         }
     }
 
@@ -237,10 +232,12 @@ struct NgspiceExternalProcessBackendTests {
                 kind: .netlist,
                 format: .spice
             )
+            let runRoot = directory.appendingPathComponent("runs")
             let backend = try NgspiceExternalProcessBackend(
                 executableURL: ngspiceURL,
                 toolVersion: "46",
-                runRootURL: directory.appendingPathComponent("runs")
+                runRootURL: runRoot,
+                artifactLocator: try artifactLocator([(input, fixtureURL)])
             )
 
             let execution = try await backend.execute(
@@ -251,10 +248,10 @@ struct NgspiceExternalProcessBackendTests {
             )
             let waveform = try #require(
                 execution.artifacts.first {
-                    $0.locator.kind == .waveform
+                    $0.descriptor.kind == .waveform
                 }
             )
-            let waveformURL = try waveform.locator.location.resolvedFileURL()
+            let waveformURL = try outputURL(for: waveform, under: runRoot)
             let rawText = try String(
                 contentsOf: waveformURL,
                 encoding: .utf8
@@ -290,16 +287,99 @@ struct NgspiceExternalProcessBackendTests {
         kind: ArtifactKind,
         format: ArtifactFormat
     ) throws -> ArtifactReference {
-        try LocalArtifactReferencer().reference(
-            ArtifactLocator(
-                location: try ArtifactLocation(fileURL: url),
-                role: role,
-                kind: kind,
-                format: format
-            ),
-            relativeTo: nil,
-            producer: nil
+        let locator = try artifactLocator(
+            url,
+            role: role,
+            kind: kind,
+            format: format
         )
+        return try LocalArtifactReferencer().reference(locator, relativeTo: nil)
+    }
+
+    private func artifactLocator(
+        _ bindings: [(ArtifactReference, URL)]
+    ) throws -> CoreSpiceArtifactLocatorRegistry {
+        var locators: [ArtifactID: ArtifactLocator] = [:]
+        for (reference, url) in bindings {
+            locators[reference.id] = try artifactLocator(
+                url,
+                role: reference.descriptor.role,
+                kind: reference.descriptor.kind,
+                format: reference.descriptor.format
+            )
+        }
+        return CoreSpiceArtifactLocatorRegistry(locatorsByArtifactID: locators)
+    }
+
+    private func artifactLocator(
+        _ url: URL,
+        role: ArtifactRole,
+        kind: ArtifactKind,
+        format: ArtifactFormat
+    ) throws -> ArtifactLocator {
+        ArtifactLocator(
+            location: try ArtifactLocation(fileURL: url),
+            role: role,
+            kind: kind,
+            format: format
+        )
+    }
+
+    private func outputURL(
+        for artifact: ArtifactReference,
+        under root: URL
+    ) throws -> URL {
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            throw NgspiceTestError.missingOutputDirectory
+        }
+        let referencer = LocalArtifactReferencer()
+        var matches: [URL] = []
+        for case let url as URL in enumerator {
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+            guard values.isRegularFile == true else { continue }
+            let locator = try artifactLocator(
+                url,
+                role: artifact.descriptor.role,
+                kind: artifact.descriptor.kind,
+                format: artifact.descriptor.format
+            )
+            if try referencer.reference(locator, relativeTo: nil) == artifact {
+                matches.append(url)
+            }
+        }
+        guard matches.count == 1, let match = matches.first else {
+            throw NgspiceTestError.outputIdentityMismatch(artifact.id)
+        }
+        let locator = try artifactLocator(
+            match,
+            role: artifact.descriptor.role,
+            kind: artifact.descriptor.kind,
+            format: artifact.descriptor.format
+        )
+        guard LocalArtifactVerifier()
+            .verify(artifact, at: locator, relativeTo: nil)
+            .isVerified else {
+            throw NgspiceTestError.outputIntegrityFailure(artifact.id)
+        }
+        return match
+    }
+
+    private func containsOutput(named name: String, under root: URL) throws -> Bool {
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            throw NgspiceTestError.missingOutputDirectory
+        }
+        for case let url as URL in enumerator where url.lastPathComponent == name {
+            return true
+        }
+        return false
     }
 
     private func lastNumericLine(in rawText: String) throws -> Double {
@@ -414,7 +494,10 @@ private actor StagingProcessRunner: CoreSpiceProcessRunning {
 
 private enum NgspiceTestError: Error {
     case missingNumericValue
+    case missingOutputDirectory
     case missingProcessArgument
     case missingValuesSection
     case malformedValuesSection
+    case outputIdentityMismatch(ArtifactID)
+    case outputIntegrityFailure(ArtifactID)
 }

@@ -147,6 +147,7 @@ waveform through `CircuiteFoundation.ArtifactReference`:
 {
   "schemaVersion": { "major": 1, "minor": 0, "patch": 0 },
   "status": "succeeded",
+  "producer": { "kind": "tool", "identifier": "CoreSpiceCLI", "version": "0.1.0" },
   "invocation": {
     "mode": "externalProcess",
     "executable": "corespice",
@@ -154,15 +155,8 @@ waveform through `CircuiteFoundation.ArtifactReference`:
     "workingDirectory": "/workspace"
   },
   "inputArtifact": {
-    "id": "derived-...",
-    "locator": {
-      "location": { "storage": "absoluteFileURL", "value": "file:///workspace/out.csv" },
-      "role": "input",
-      "kind": "waveform",
-      "format": "csv"
-    },
-    "digest": { "algorithm": "sha256", "hexadecimalValue": "..." },
-    "byteCount": 4096
+    "id": "<canonical-content-identity>",
+    "descriptor": { "role": "input", "kind": "waveform", "format": "csv" }
   },
   "measurements": [
     { "analysis": "tran", "name": "vfinal", "value": 4.999999995, "unit": "V" }
@@ -265,6 +259,7 @@ Emitted when a `-b` batch run completes with `--json`:
 {
   "status": "succeeded",
   "schemaVersion": { "major": 1, "minor": 0, "patch": 0 },
+  "producer": { "kind": "tool", "identifier": "CoreSpiceCLI", "version": "0.1.0" },
   "invocation": {
     "mode": "externalProcess",
     "executable": "corespice",
@@ -274,29 +269,14 @@ Emitted when a `-b` batch run completes with `--json`:
   "analyses": ["tran"],
   "inputArtifacts": [
     {
-      "id": "derived-...",
-      "locator": {
-        "location": { "storage": "absoluteFileURL", "value": "file:///workspace/deck.cir" },
-        "role": "input",
-        "kind": "netlist",
-        "format": "spice"
-      },
-      "digest": { "algorithm": "sha256", "hexadecimalValue": "..." },
-      "byteCount": 1024
+      "id": "<canonical-content-identity>",
+      "descriptor": { "role": "input", "kind": "netlist", "format": "spice" }
     }
   ],
   "outputArtifacts": [
     {
-      "id": "derived-...",
-      "locator": {
-        "location": { "storage": "absoluteFileURL", "value": "file:///workspace/out.raw" },
-        "role": "output",
-        "kind": "waveform",
-        "format": "raw"
-      },
-      "digest": { "algorithm": "sha256", "hexadecimalValue": "..." },
-      "byteCount": 8192,
-      "producer": { "kind": "tool", "identifier": "CoreSpiceCLI", "version": "0.1.0" }
+      "id": "<canonical-content-identity>",
+      "descriptor": { "role": "output", "kind": "waveform", "format": "raw" }
     }
   ],
   "measurements": [

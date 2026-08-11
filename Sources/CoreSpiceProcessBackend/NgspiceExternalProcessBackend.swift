@@ -1,4 +1,6 @@
 import CircuiteFoundation
+import CircuiteFoundationFoundation
+import CircuiteFoundationFileSystem
 import CoreSpice
 import Foundation
 
@@ -17,6 +19,7 @@ public struct NgspiceExternalProcessBackend: CoreSpiceExternalSimulatorBackend {
     private let processRunner: any CoreSpiceProcessRunning
     private let verifier: any ArtifactVerifying
     private let referencer: any ArtifactReferencing
+    private let artifactLocator: any CoreSpiceArtifactLocating
     private let environment: ExecutionEnvironmentFingerprint
 
     public init(
@@ -26,6 +29,7 @@ public struct NgspiceExternalProcessBackend: CoreSpiceExternalSimulatorBackend {
         processRunner: any CoreSpiceProcessRunning = FoundationCoreSpiceProcessRunner(),
         verifier: any ArtifactVerifying = LocalArtifactVerifier(),
         referencer: any ArtifactReferencing = LocalArtifactReferencer(),
+        artifactLocator: any CoreSpiceArtifactLocating = CoreSpiceArtifactLocatorRegistry(),
         environment: ExecutionEnvironmentFingerprint? = nil
     ) throws {
         let fileManager = FileManager.default
@@ -62,8 +66,7 @@ public struct NgspiceExternalProcessBackend: CoreSpiceExternalSimulatorBackend {
                     kind: try ArtifactKind(rawValue: "executable"),
                     format: .unknown
                 ),
-                relativeTo: nil,
-                producer: simulator
+                relativeTo: nil
             )
         } catch {
             throw NgspiceExternalProcessBackendError.artifactReferenceFailed(
@@ -76,6 +79,7 @@ public struct NgspiceExternalProcessBackend: CoreSpiceExternalSimulatorBackend {
         self.processRunner = processRunner
         self.verifier = verifier
         self.referencer = referencer
+        self.artifactLocator = artifactLocator
         self.environment = try environment ?? Self.defaultEnvironment(
             toolVersion: toolVersion,
             executableDigest: executableReference.digest
@@ -233,7 +237,16 @@ public struct NgspiceExternalProcessBackend: CoreSpiceExternalSimulatorBackend {
         _ inputs: [ArtifactReference]
     ) throws -> [VerifiedInput] {
         try inputs.map { input in
-            let integrity = verifier.verify(input, relativeTo: nil)
+            let locator: ArtifactLocator
+            do {
+                locator = try artifactLocator.locator(for: input)
+            } catch {
+                throw NgspiceExternalProcessBackendError.inputLocationInvalid(
+                    input.id,
+                    reason: String(describing: error)
+                )
+            }
+            let integrity = verifier.verify(input, at: locator, relativeTo: nil)
             guard integrity.isVerified else {
                 throw NgspiceExternalProcessBackendError.inputIntegrityFailed(
                     input.id,
@@ -243,7 +256,7 @@ public struct NgspiceExternalProcessBackend: CoreSpiceExternalSimulatorBackend {
             do {
                 return VerifiedInput(
                     reference: input,
-                    sourceURL: try input.locator.location.resolvedFileURL()
+                    sourceURL: try locator.location.resolvedFileURL()
                         .resolvingSymlinksInPath()
                 )
             } catch {
@@ -269,7 +282,7 @@ public struct NgspiceExternalProcessBackend: CoreSpiceExternalSimulatorBackend {
             return input
         }
         let candidates = request.inputs.filter {
-            $0.locator.kind == .netlist && $0.locator.format == .spice
+            $0.descriptor.kind == .netlist && $0.descriptor.format == .spice
         }
         guard candidates.count == 1, let candidate = candidates.first else {
             throw NgspiceExternalProcessBackendError.ambiguousPrimaryInput(
@@ -325,11 +338,10 @@ public struct NgspiceExternalProcessBackend: CoreSpiceExternalSimulatorBackend {
                     ArtifactLocator(
                         location: try ArtifactLocation(fileURL: destination),
                         role: .input,
-                        kind: input.reference.locator.kind,
-                        format: input.reference.locator.format
+                        kind: input.reference.descriptor.kind,
+                        format: input.reference.descriptor.format
                     ),
-                    relativeTo: nil,
-                    producer: input.reference.producer
+                    relativeTo: nil
                 )
                 guard stagedReference.digest == input.reference.digest,
                       stagedReference.byteCount == input.reference.byteCount else {
@@ -386,11 +398,10 @@ public struct NgspiceExternalProcessBackend: CoreSpiceExternalSimulatorBackend {
                     ArtifactLocator(
                         location: try ArtifactLocation(fileURL: stagedURL),
                         role: .input,
-                        kind: input.reference.locator.kind,
-                        format: input.reference.locator.format
+                        kind: input.reference.descriptor.kind,
+                        format: input.reference.descriptor.format
                     ),
-                    relativeTo: nil,
-                    producer: input.reference.producer
+                    relativeTo: nil
                 )
                 guard stagedReference.digest == input.reference.digest,
                       stagedReference.byteCount == input.reference.byteCount else {
@@ -483,8 +494,7 @@ public struct NgspiceExternalProcessBackend: CoreSpiceExternalSimulatorBackend {
                     kind: kind,
                     format: format
                 ),
-                relativeTo: nil,
-                producer: capability.simulator
+                relativeTo: nil
             )
         } catch {
             throw NgspiceExternalProcessBackendError.artifactReferenceFailed(

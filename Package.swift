@@ -23,6 +23,7 @@ let package = Package(
     platforms: [.macOS(.v26)],
     products: [
         .library(name: "CoreSpice", targets: ["CoreSpice"]),
+        .library(name: "CoreSpiceIR", targets: ["CoreSpiceIR"]),
         .library(name: "CoreSpiceIO", targets: ["CoreSpiceIO"]),
         .library(name: "CoreSpiceProcessBackend", targets: ["CoreSpiceProcessBackend"]),
         .library(name: "PluginsPhotonic", targets: ["PluginsPhotonic"]),
@@ -85,14 +86,18 @@ let package = Package(
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
                                "CoreSpiceAnalysis", "CoreSpiceBackend", "CoreSpiceEvent",
                                "CoreSpiceOptoelectronics",
-                               .product(name: "CircuiteFoundation", package: "CircuiteFoundation")]),
+                               .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+                               .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation"),
+                               .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation")]),
 
         // --- Production external-process simulation backend ---
         .target(
             name: "CoreSpiceProcessBackend",
             dependencies: [
                 "CoreSpice",
-                .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
+                .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+                .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation"),
+                .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation")
             ]
         ),
 
@@ -159,7 +164,9 @@ let package = Package(
                 "CoreSpiceExporterCSV",
                 "CoreSpiceExporterPSF",
                 "CoreSpiceBackend",
-                .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
+                .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+                .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation"),
+                .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation")
             ],
             path: "Sources/CoreSpiceCLI",
             exclude: ["README.md"]
@@ -200,7 +207,9 @@ let package = Package(
             name: "CoreSpiceProcessBackendTests",
             dependencies: [
                 "CoreSpiceProcessBackend",
-                .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
+                .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+                .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation"),
+                .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation")
             ],
             resources: [.copy("Fixtures")]
         ),

@@ -200,6 +200,7 @@ struct CLI {
       )
     }
     return CoreSpiceCLIBatchRunRecord(
+      producer: artifactReferencer.producer,
       invocation: try ExecutionInvocation.externalProcess(
         executable: "corespice",
         arguments: args,

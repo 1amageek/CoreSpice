@@ -4,6 +4,7 @@ import CircuiteFoundation
 public struct CoreSpiceCLIBatchRunRecord: Codable, Sendable, Hashable {
   public let schemaVersion: SchemaVersion
   public let status: String
+  public let producer: ProducerIdentity
   public let invocation: ExecutionInvocation
   public let inputArtifacts: [ArtifactReference]
   public let outputArtifacts: [ArtifactReference]
@@ -12,6 +13,7 @@ public struct CoreSpiceCLIBatchRunRecord: Codable, Sendable, Hashable {
   public let waveform: CoreSpiceCLIWaveformSummary?
 
   public init(
+    producer: ProducerIdentity,
     invocation: ExecutionInvocation,
     inputArtifacts: [ArtifactReference],
     outputArtifacts: [ArtifactReference],
@@ -21,6 +23,7 @@ public struct CoreSpiceCLIBatchRunRecord: Codable, Sendable, Hashable {
   ) {
     self.schemaVersion = .v1
     self.status = "succeeded"
+    self.producer = producer
     self.invocation = invocation
     self.inputArtifacts = inputArtifacts
     self.outputArtifacts = outputArtifacts

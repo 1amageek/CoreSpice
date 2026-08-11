@@ -1,4 +1,6 @@
 import CircuiteFoundation
+import CircuiteFoundationFoundation
+import CircuiteFoundationFileSystem
 import CoreSpice
 @testable import CoreSpiceProcessBackend
 import Foundation
@@ -68,6 +70,7 @@ struct CoreSpiceProcessBackendTests {
                 executableURL: URL(fileURLWithPath: "/usr/bin/true"),
                 runRootURL: runRoot,
                 processRunner: runner,
+                artifactLocator: try artifactLocator([(input, inputURL)]),
                 environment: try ExecutionEnvironmentFingerprint(
                     platform: "test",
                     architecture: "test",
@@ -86,9 +89,7 @@ struct CoreSpiceProcessBackendTests {
             #expect(execution.invocation.mode == .externalProcess)
             #expect(execution.invocation.arguments.suffix(2) == ["--seed", "17"])
             #expect(execution.artifacts.count == 4)
-            for artifact in execution.artifacts {
-                #expect(LocalArtifactVerifier().verify(artifact, relativeTo: nil).isVerified)
-            }
+            try verifyOutputArtifacts(execution.artifacts, under: runRoot)
             #expect(await runner.invocationCount == 1)
         }
     }
@@ -120,7 +121,8 @@ struct CoreSpiceProcessBackendTests {
             )
             let backend = try CoreSpiceExternalProcessBackend(
                 executableURL: executableURL,
-                runRootURL: directory.appendingPathComponent("runs")
+                runRootURL: directory.appendingPathComponent("runs"),
+                artifactLocator: try artifactLocator([(input, inputURL)])
             )
 
             let execution = try await backend.execute(
@@ -131,11 +133,12 @@ struct CoreSpiceProcessBackendTests {
                 )
             )
 
-            #expect(execution.artifacts.contains { $0.locator.format == .raw })
-            #expect(execution.artifacts.contains { $0.locator.format == .json })
-            for artifact in execution.artifacts {
-                #expect(LocalArtifactVerifier().verify(artifact, relativeTo: nil).isVerified)
-            }
+            #expect(execution.artifacts.contains { $0.descriptor.format == .raw })
+            #expect(execution.artifacts.contains { $0.descriptor.format == .json })
+            try verifyOutputArtifacts(
+                execution.artifacts,
+                under: directory.appendingPathComponent("runs")
+            )
         }
     }
 
@@ -155,7 +158,8 @@ struct CoreSpiceProcessBackendTests {
             let backend = try CoreSpiceExternalProcessBackend(
                 executableURL: URL(fileURLWithPath: "/usr/bin/true"),
                 runRootURL: directory.appendingPathComponent("runs"),
-                processRunner: runner
+                processRunner: runner,
+                artifactLocator: try artifactLocator([(input, inputURL)])
             )
 
             await #expect(throws: CoreSpiceProcessBackendError.self) {
@@ -186,7 +190,8 @@ struct CoreSpiceProcessBackendTests {
             let backend = try CoreSpiceExternalProcessBackend(
                 executableURL: URL(fileURLWithPath: "/usr/bin/true"),
                 runRootURL: directory.appendingPathComponent("runs"),
-                processRunner: runner
+                processRunner: runner,
+                artifactLocator: try artifactLocator([(input, inputURL)])
             )
 
             await #expect(
@@ -228,7 +233,8 @@ struct CoreSpiceProcessBackendTests {
                 runRootURL: directory.appendingPathComponent("runs"),
                 processRunner: RecordingProcessRunner(
                     mode: .succeed(inputs: [input, include])
-                )
+                ),
+                artifactLocator: try artifactLocator([(input, inputURL)])
             )
 
             await #expect(
@@ -266,7 +272,8 @@ struct CoreSpiceProcessBackendTests {
                         message: "Newton iteration did not converge.",
                         stage: "analysis"
                     )
-                )
+                ),
+                artifactLocator: try artifactLocator([(input, inputURL)])
             )
 
             do {
@@ -297,16 +304,83 @@ struct CoreSpiceProcessBackendTests {
         kind: ArtifactKind,
         format: ArtifactFormat
     ) throws -> ArtifactReference {
-        try LocalArtifactReferencer().reference(
-            ArtifactLocator(
-                location: try ArtifactLocation(fileURL: url),
-                role: role,
-                kind: kind,
-                format: format
-            ),
-            relativeTo: nil,
-            producer: nil
+        let locator = try artifactLocator(
+            url,
+            role: role,
+            kind: kind,
+            format: format
         )
+        return try LocalArtifactReferencer().reference(locator, relativeTo: nil)
+    }
+
+    private func artifactLocator(
+        _ bindings: [(ArtifactReference, URL)]
+    ) throws -> CoreSpiceArtifactLocatorRegistry {
+        var locators: [ArtifactID: ArtifactLocator] = [:]
+        for (reference, url) in bindings {
+            locators[reference.id] = try artifactLocator(
+                url,
+                role: reference.descriptor.role,
+                kind: reference.descriptor.kind,
+                format: reference.descriptor.format
+            )
+        }
+        return CoreSpiceArtifactLocatorRegistry(locatorsByArtifactID: locators)
+    }
+
+    private func artifactLocator(
+        _ url: URL,
+        role: ArtifactRole,
+        kind: ArtifactKind,
+        format: ArtifactFormat
+    ) throws -> ArtifactLocator {
+        ArtifactLocator(
+            location: try ArtifactLocation(fileURL: url),
+            role: role,
+            kind: kind,
+            format: format
+        )
+    }
+
+    private func verifyOutputArtifacts(
+        _ artifacts: [ArtifactReference],
+        under root: URL
+    ) throws {
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            Issue.record("Expected an output directory enumerator.")
+            return
+        }
+        let outputURLs = try enumerator.compactMap { element -> URL? in
+            guard let url = element as? URL else { return nil }
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+            return values.isRegularFile == true ? url : nil
+        }
+        let referencer = LocalArtifactReferencer()
+        let verifier = LocalArtifactVerifier()
+        for artifact in artifacts {
+            let matches = try outputURLs.filter { url in
+                let locator = try artifactLocator(
+                    url,
+                    role: artifact.descriptor.role,
+                    kind: artifact.descriptor.kind,
+                    format: artifact.descriptor.format
+                )
+                return try referencer.reference(locator, relativeTo: nil) == artifact
+            }
+            #expect(matches.count == 1)
+            let outputURL = try #require(matches.first)
+            let locator = try artifactLocator(
+                outputURL,
+                role: artifact.descriptor.role,
+                kind: artifact.descriptor.kind,
+                format: artifact.descriptor.format
+            )
+            #expect(verifier.verify(artifact, at: locator, relativeTo: nil).isVerified)
+        }
     }
 
     private func withTemporaryDirectory<Result>(
@@ -443,8 +517,7 @@ private actor RecordingProcessRunner: CoreSpiceProcessRunning {
                 kind: kind,
                 format: format
             ),
-            relativeTo: nil,
-            producer: nil
+            relativeTo: nil
         )
     }
 }

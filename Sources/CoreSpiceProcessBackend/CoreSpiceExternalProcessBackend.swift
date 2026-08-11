@@ -1,4 +1,6 @@
 import CircuiteFoundation
+import CircuiteFoundationFoundation
+import CircuiteFoundationFileSystem
 import CoreSpice
 import Foundation
 
@@ -17,17 +19,12 @@ public struct CoreSpiceExternalProcessBackend: CoreSpiceSimulationBackend {
         let stage: String?
     }
 
-    private struct ArtifactSignature: Hashable {
-        let path: String
-        let digest: ContentDigest
-        let byteCount: UInt64
-    }
-
     private let executableURL: URL
     private let runRootURL: URL
     private let processRunner: any CoreSpiceProcessRunning
     private let verifier: any ArtifactVerifying
     private let referencer: any ArtifactReferencing
+    private let artifactLocator: any CoreSpiceArtifactLocating
     private let environment: ExecutionEnvironmentFingerprint
 
     public init(
@@ -36,6 +33,7 @@ public struct CoreSpiceExternalProcessBackend: CoreSpiceSimulationBackend {
         processRunner: any CoreSpiceProcessRunning = FoundationCoreSpiceProcessRunner(),
         verifier: any ArtifactVerifying = LocalArtifactVerifier(),
         referencer: any ArtifactReferencing = LocalArtifactReferencer(),
+        artifactLocator: any CoreSpiceArtifactLocating = CoreSpiceArtifactLocatorRegistry(),
         environment: ExecutionEnvironmentFingerprint? = nil
     ) throws {
         guard runRootURL.isFileURL, runRootURL.path.hasPrefix("/") else {
@@ -54,6 +52,7 @@ public struct CoreSpiceExternalProcessBackend: CoreSpiceSimulationBackend {
         self.processRunner = processRunner
         self.verifier = verifier
         self.referencer = referencer
+        self.artifactLocator = artifactLocator
         self.environment = try environment ?? Self.defaultEnvironment()
     }
 
@@ -128,6 +127,20 @@ public struct CoreSpiceExternalProcessBackend: CoreSpiceSimulationBackend {
 
         var artifacts = try verifyOutputs(
             record.outputArtifacts,
+            expectedLocators: [
+                ArtifactLocator(
+                    location: try ArtifactLocation(fileURL: rawURL),
+                    role: .output,
+                    kind: .waveform,
+                    format: .raw
+                ),
+                ArtifactLocator(
+                    location: try ArtifactLocation(fileURL: coverageURL),
+                    role: .output,
+                    kind: .report,
+                    format: .json
+                ),
+            ],
             within: runDirectoryURL
         )
         artifacts.append(
@@ -157,7 +170,16 @@ public struct CoreSpiceExternalProcessBackend: CoreSpiceSimulationBackend {
     ) throws -> [ArtifactID: URL] {
         var result: [ArtifactID: URL] = [:]
         for input in inputs {
-            let integrity = verifier.verify(input, relativeTo: nil)
+            let locator: ArtifactLocator
+            do {
+                locator = try artifactLocator.locator(for: input)
+            } catch {
+                throw CoreSpiceProcessBackendError.inputLocationInvalid(
+                    input.id,
+                    reason: String(describing: error)
+                )
+            }
+            let integrity = verifier.verify(input, at: locator, relativeTo: nil)
             guard integrity.isVerified else {
                 throw CoreSpiceProcessBackendError.inputIntegrityFailed(
                     input.id,
@@ -165,7 +187,7 @@ public struct CoreSpiceExternalProcessBackend: CoreSpiceSimulationBackend {
                 )
             }
             do {
-                result[input.id] = try input.locator.location.resolvedFileURL()
+                result[input.id] = try locator.location.resolvedFileURL()
             } catch {
                 throw CoreSpiceProcessBackendError.inputLocationInvalid(
                     input.id,
@@ -186,7 +208,7 @@ public struct CoreSpiceExternalProcessBackend: CoreSpiceSimulationBackend {
             return input
         }
         let candidates = request.inputs.filter {
-            $0.locator.kind == .netlist && $0.locator.format == .spice
+            $0.descriptor.kind == .netlist && $0.descriptor.format == .spice
         }
         guard candidates.count == 1, let candidate = candidates.first else {
             throw CoreSpiceProcessBackendError.ambiguousPrimaryInput(
@@ -235,43 +257,26 @@ public struct CoreSpiceExternalProcessBackend: CoreSpiceSimulationBackend {
         _ reported: [ArtifactReference],
         declared: [ArtifactReference]
     ) throws {
-        let reportedSignatures = try Set(reported.map(artifactSignature))
-        let declaredSignatures = try Set(declared.map(artifactSignature))
-        guard reportedSignatures == declaredSignatures else {
+        guard Set(reported) == Set(declared) else {
             throw CoreSpiceProcessBackendError.unexpectedInputArtifacts
-        }
-    }
-
-    private func artifactSignature(
-        _ artifact: ArtifactReference
-    ) throws -> ArtifactSignature {
-        do {
-            return ArtifactSignature(
-                path: try artifact.locator.location.resolvedFileURL().path,
-                digest: artifact.digest,
-                byteCount: artifact.byteCount
-            )
-        } catch {
-            throw CoreSpiceProcessBackendError.inputLocationInvalid(
-                artifact.id,
-                reason: error.localizedDescription
-            )
         }
     }
 
     private func verifyOutputs(
         _ outputs: [ArtifactReference],
+        expectedLocators: [ArtifactLocator],
         within runDirectoryURL: URL
     ) throws -> [ArtifactReference] {
         let rootPath = runDirectoryURL.resolvingSymlinksInPath().path + "/"
-        for output in outputs {
+        var verifiedOutputs: [ArtifactReference] = []
+        for locator in expectedLocators {
             let outputURL: URL
             do {
-                outputURL = try output.locator.location.resolvedFileURL()
+                outputURL = try locator.location.resolvedFileURL()
                     .resolvingSymlinksInPath()
             } catch {
                 throw CoreSpiceProcessBackendError.outputOutsideRunDirectory(
-                    output.locator.location.value
+                    locator.location.value
                 )
             }
             guard outputURL.path.hasPrefix(rootPath) else {
@@ -279,15 +284,29 @@ public struct CoreSpiceExternalProcessBackend: CoreSpiceSimulationBackend {
                     outputURL.path
                 )
             }
-            let integrity = verifier.verify(output, relativeTo: nil)
+            let output: ArtifactReference
+            do {
+                output = try referencer.reference(locator, relativeTo: nil)
+            } catch {
+                throw CoreSpiceProcessBackendError.artifactReferenceFailed(
+                    error.localizedDescription
+                )
+            }
+            let integrity = verifier.verify(output, at: locator, relativeTo: nil)
             guard integrity.isVerified else {
                 throw CoreSpiceProcessBackendError.outputIntegrityFailed(
                     output.id,
                     issues: integrity.issues
                 )
             }
+            verifiedOutputs.append(output)
         }
-        return outputs
+        guard Set(outputs) == Set(verifiedOutputs) else {
+            throw CoreSpiceProcessBackendError.malformedProcessOutput(
+                "The reported output identities do not match the requested output locations."
+            )
+        }
+        return verifiedOutputs
     }
 
     private func referenceLog(
@@ -302,8 +321,7 @@ public struct CoreSpiceExternalProcessBackend: CoreSpiceSimulationBackend {
                     kind: .log,
                     format: format
                 ),
-                relativeTo: nil,
-                producer: nil
+                relativeTo: nil
             )
         } catch {
             throw CoreSpiceProcessBackendError.artifactReferenceFailed(

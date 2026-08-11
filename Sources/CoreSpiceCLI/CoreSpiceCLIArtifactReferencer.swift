@@ -1,10 +1,12 @@
 import CircuiteFoundation
+import CircuiteFoundationFoundation
+import CircuiteFoundationFileSystem
 import Foundation
 
 /// Creates integrity-backed Foundation references for CLI inputs and outputs.
 struct CoreSpiceCLIArtifactReferencer: Sendable {
   private let referencer: LocalArtifactReferencer
-  private let producer: ProducerIdentity
+  let producer: ProducerIdentity
 
   init(referencer: LocalArtifactReferencer = LocalArtifactReferencer()) throws {
     self.referencer = referencer
@@ -20,7 +22,7 @@ struct CoreSpiceCLIArtifactReferencer: Sendable {
     kind: ArtifactKind,
     format: ArtifactFormat
   ) throws -> ArtifactReference {
-    try reference(path: path, role: .input, kind: kind, format: format, producer: nil)
+    try reference(path: path, role: .input, kind: kind, format: format)
   }
 
   func output(
@@ -28,15 +30,14 @@ struct CoreSpiceCLIArtifactReferencer: Sendable {
     kind: ArtifactKind,
     format: ArtifactFormat
   ) throws -> ArtifactReference {
-    try reference(path: path, role: .output, kind: kind, format: format, producer: producer)
+    try reference(path: path, role: .output, kind: kind, format: format)
   }
 
   private func reference(
     path: String,
     role: ArtifactRole,
     kind: ArtifactKind,
-    format: ArtifactFormat,
-    producer: ProducerIdentity?
+    format: ArtifactFormat
   ) throws -> ArtifactReference {
     let url = URL(fileURLWithPath: path).standardizedFileURL
     let locator = ArtifactLocator(
@@ -45,6 +46,6 @@ struct CoreSpiceCLIArtifactReferencer: Sendable {
       kind: kind,
       format: format
     )
-    return try referencer.reference(locator, producer: producer)
+    return try referencer.reference(locator, relativeTo: nil)
   }
 }

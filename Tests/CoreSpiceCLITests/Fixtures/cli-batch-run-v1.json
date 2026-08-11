@@ -4,21 +4,12 @@
   ],
   "inputArtifacts" : [
     {
-      "byteCount" : 128,
-      "digest" : {
-        "algorithm" : "sha256",
-        "hexadecimalValue" : "1111111111111111111111111111111111111111111111111111111111111111"
-      },
-      "id" : "fixture-input",
-      "locator" : {
+      "descriptor" : {
         "format" : "spice",
         "kind" : "netlist",
-        "location" : {
-          "storage" : "workspaceRelative",
-          "value" : "inputs/fixture.cir"
-        },
         "role" : "input"
-      }
+      },
+      "id" : "43697263756974654172746966616374436f6e74656e740000010006736861323536002011111111111111111111111111111111111111111111111111111111111111110000000000000080"
     }
   ],
   "invocation" : {
@@ -43,28 +34,19 @@
   ],
   "outputArtifacts" : [
     {
-      "byteCount" : 512,
-      "digest" : {
-        "algorithm" : "sha256",
-        "hexadecimalValue" : "2222222222222222222222222222222222222222222222222222222222222222"
-      },
-      "id" : "fixture-output",
-      "locator" : {
+      "descriptor" : {
         "format" : "raw",
         "kind" : "waveform",
-        "location" : {
-          "storage" : "workspaceRelative",
-          "value" : "outputs/fixture.raw"
-        },
         "role" : "output"
       },
-      "producer" : {
-        "identifier" : "CoreSpiceCLI",
-        "kind" : "tool",
-        "version" : "0.1.0"
-      }
+      "id" : "43697263756974654172746966616374436f6e74656e740000010006736861323536002022222222222222222222222222222222222222222222222222222222222222220000000000000200"
     }
   ],
+  "producer" : {
+    "identifier" : "CoreSpiceCLI",
+    "kind" : "tool",
+    "version" : "0.1.0"
+  },
   "schemaVersion" : {
     "major" : 1,
     "minor" : 0,

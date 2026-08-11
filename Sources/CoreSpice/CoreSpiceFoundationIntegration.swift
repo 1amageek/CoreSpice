@@ -1,4 +1,6 @@
 import CircuiteFoundation
+import CircuiteFoundationCrypto
+import CircuiteFoundationFoundation
 
 /// Canonical inputs for a CoreSpice execution.
 ///
@@ -70,12 +72,13 @@ public struct CoreSpiceSimulationResult: Sendable, Hashable, Codable, ArtifactPr
     artifacts: [ArtifactReference],
     diagnostics: [DesignDiagnostic] = [],
     provenance: ExecutionProvenance
-  ) {
+  ) throws {
     self.artifacts = artifacts
     self.diagnostics = diagnostics
-    self.evidence = EvidenceManifest(
+    self.evidence = try EvidenceManifest.contentAddressed(
       provenance: provenance,
-      artifacts: artifacts
+      artifacts: artifacts,
+      digester: SHA256ContentDigester()
     )
   }
 

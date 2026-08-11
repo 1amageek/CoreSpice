@@ -49,8 +49,14 @@ struct CircuiteFoundationIntegrationTests {
         #expect(result.evidence.provenance.invocation == invocation)
         #expect(result.evidence.provenance.environment == environment)
         #expect(result.evidence.provenance.randomSeed == 7)
-        #expect(result.evidence.provenance.startedAt == startedAt)
-        #expect(result.evidence.provenance.completedAt == completedAt)
+        #expect(
+            result.evidence.provenance.startedAt.secondsSinceUnixEpoch
+                == startedAt.timeIntervalSince1970
+        )
+        #expect(
+            result.evidence.provenance.completedAt.secondsSinceUnixEpoch
+                == completedAt.timeIntervalSince1970
+        )
     }
 
     @Test
@@ -75,19 +81,17 @@ struct CircuiteFoundationIntegrationTests {
         role: ArtifactRole,
         byteCount: UInt64
     ) throws -> ArtifactReference {
-        ArtifactReference(
-            id: ArtifactID(rawValue: try #require(UUID(uuidString: "AF43165C-EC65-449D-868E-D26EB9C25A3F"))),
-            locator: ArtifactLocator(
-                location: try ArtifactLocation(workspaceRelativePath: path),
-                role: role,
-                kind: .waveform,
-                format: .json
-            ),
+        try ArtifactReference(
             digest: try ContentDigest(
                 algorithm: .sha256,
                 hexadecimalValue: String(repeating: "a", count: 64)
             ),
-            byteCount: byteCount
+            byteCount: byteCount,
+            descriptor: ArtifactDescriptor(
+                role: role,
+                kind: .waveform,
+                format: .json
+            )
         )
     }
 }

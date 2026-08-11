@@ -36,7 +36,8 @@ struct CoreSpiceMeasureCommand: Sendable {
   /// is skipped.
   func execute() async throws -> CoreSpiceCLIMeasurementRunRecord {
     let waveform = try CSVWaveformReader().read(contentsOfFile: options.waveformPath)
-    let inputArtifact = try CoreSpiceCLIArtifactReferencer().input(
+    let artifactReferencer = try CoreSpiceCLIArtifactReferencer()
+    let inputArtifact = try artifactReferencer.input(
       path: options.waveformPath,
       kind: .waveform,
       format: .csv
@@ -67,6 +68,7 @@ struct CoreSpiceMeasureCommand: Sendable {
     }
 
     return CoreSpiceCLIMeasurementRunRecord(
+      producer: artifactReferencer.producer,
       invocation: try ExecutionInvocation.externalProcess(
         executable: "corespice",
         arguments: options.invocationArguments,
