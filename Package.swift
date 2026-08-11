@@ -1,22 +1,15 @@
 // swift-tools-version: 6.3
 import PackageDescription
-import Foundation
 
-let workspaceRoot = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent()
-    .deletingLastPathComponent()
-let isLSIWorkspace = FileManager.default.fileExists(
-    atPath: workspaceRoot.appendingPathComponent("docs/workspace-packages.json").path
+let circuiteFoundationDependency: Package.Dependency = .package(
+    url: "https://github.com/1amageek/CircuiteFoundation.git",
+    exact: "26.812.0"
 )
 
-let circuiteFoundationDependency: Package.Dependency = isLSIWorkspace && FileManager.default.fileExists(
-    atPath: workspaceRoot.appendingPathComponent("CircuiteFoundation/Package.swift").path
+let signoffToolSupportDependency: Package.Dependency = .package(
+    url: "https://github.com/1amageek/SignoffToolSupport.git",
+    exact: "26.812.0"
 )
-    ? .package(path: "../CircuiteFoundation")
-    : .package(
-        url: "https://github.com/1amageek/CircuiteFoundation.git",
-        revision: "1dd75ecf2b8758c54c4e008ff5fd59e263cce0e6"
-    )
 
 let package = Package(
     name: "CoreSpice",
@@ -31,6 +24,7 @@ let package = Package(
     ],
     dependencies: [
         circuiteFoundationDependency,
+        signoffToolSupportDependency,
     ],
     targets: [
         // --- C module: Metal-compatible types ---
@@ -97,7 +91,8 @@ let package = Package(
                 "CoreSpice",
                 .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
                 .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation"),
-                .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation")
+                .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation"),
+                .product(name: "SignoffToolSupport", package: "SignoffToolSupport")
             ]
         ),
 

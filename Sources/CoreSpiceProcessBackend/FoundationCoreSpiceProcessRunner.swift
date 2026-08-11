@@ -1,85 +1,66 @@
 import Foundation
+import SignoffToolSupport
 
 public actor FoundationCoreSpiceProcessRunner: CoreSpiceProcessRunning {
-    private var activeProcess: Process?
+    private let processRunner: any TimedProcessRunning
+    private var isRunning = false
 
-    public init() {}
+    public init(
+        processRunner: any TimedProcessRunning = TimedProcessRunner()
+    ) {
+        self.processRunner = processRunner
+    }
 
     public func run(
         _ invocation: CoreSpiceProcessInvocation
     ) async throws -> CoreSpiceProcessOutput {
-        guard activeProcess == nil else {
+        guard !isRunning else {
             throw CoreSpiceProcessBackendError.concurrentProcessExecution
         }
+        isRunning = true
+        defer { isRunning = false }
         try Task.checkCancellation()
-
-        let fileManager = FileManager.default
-        guard fileManager.createFile(atPath: invocation.standardOutputURL.path, contents: nil) else {
-            throw CoreSpiceProcessBackendError.processLaunchFailed(
-                "Could not create \(invocation.standardOutputURL.path)."
-            )
-        }
-        guard fileManager.createFile(atPath: invocation.standardErrorURL.path, contents: nil) else {
-            throw CoreSpiceProcessBackendError.processLaunchFailed(
-                "Could not create \(invocation.standardErrorURL.path)."
-            )
-        }
-
-        let standardOutputHandle: FileHandle
-        let standardErrorHandle: FileHandle
-        do {
-            standardOutputHandle = try FileHandle(forWritingTo: invocation.standardOutputURL)
-            standardErrorHandle = try FileHandle(forWritingTo: invocation.standardErrorURL)
-        } catch {
-            throw CoreSpiceProcessBackendError.processLaunchFailed(error.localizedDescription)
-        }
 
         let process = Process()
         process.executableURL = invocation.executableURL
         process.arguments = invocation.arguments
         process.currentDirectoryURL = invocation.workingDirectoryURL
-        process.standardOutput = standardOutputHandle
-        process.standardError = standardErrorHandle
-        activeProcess = process
-
-        let terminationStatus: Int32
-        do {
-            terminationStatus = try await withTaskCancellationHandler {
-                try await withCheckedThrowingContinuation { continuation in
-                    process.terminationHandler = { terminatedProcess in
-                        continuation.resume(returning: terminatedProcess.terminationStatus)
-                    }
-                    do {
-                        try process.run()
-                    } catch {
-                        continuation.resume(
-                            throwing: CoreSpiceProcessBackendError.processLaunchFailed(
-                                error.localizedDescription
-                            )
-                        )
-                    }
-                }
-            } onCancel: {
-                Task {
-                    await self.terminateActiveProcess()
-                }
-            }
-        } catch {
-            activeProcess = nil
-            try close(standardOutputHandle, standardErrorHandle)
-            throw error
-        }
-
-        activeProcess = nil
-        try close(standardOutputHandle, standardErrorHandle)
-        try Task.checkCancellation()
 
         do {
-            return CoreSpiceProcessOutput(
-                terminationStatus: terminationStatus,
-                standardOutput: try Data(contentsOf: invocation.standardOutputURL),
-                standardError: try Data(contentsOf: invocation.standardErrorURL)
+            let result = try await processRunner.run(
+                process: process,
+                cancellationCheck: nil
             )
+            try persist(
+                standardOutput: result.standardOutputData,
+                standardError: result.standardErrorData,
+                invocation: invocation
+            )
+            return CoreSpiceProcessOutput(
+                terminationStatus: result.exitCode,
+                standardOutput: result.standardOutputData,
+                standardError: result.standardErrorData
+            )
+        } catch let error as TimedProcessError {
+            try persist(error: error, invocation: invocation)
+            switch error {
+            case .cancelled:
+                throw CancellationError()
+            case .launchFailed(_, let message):
+                throw CoreSpiceProcessBackendError.processLaunchFailed(message)
+            case .invalidConfiguration(let message):
+                throw CoreSpiceProcessBackendError.processLaunchFailed(message)
+            case .cancellationCheckFailed(_, let message, _, _):
+                throw CoreSpiceProcessBackendError.processTerminationFailed(message)
+            case .timedOut(_, let timeoutSeconds, _, _):
+                throw CoreSpiceProcessBackendError.processTerminationFailed(
+                    "Process timed out after \(timeoutSeconds) seconds."
+                )
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as CoreSpiceProcessBackendError {
+            throw error
         } catch {
             throw CoreSpiceProcessBackendError.processTerminationFailed(
                 error.localizedDescription
@@ -87,17 +68,43 @@ public actor FoundationCoreSpiceProcessRunner: CoreSpiceProcessRunning {
         }
     }
 
-    private func terminateActiveProcess() {
-        guard let activeProcess, activeProcess.isRunning else {
-            return
+    private func persist(
+        error: TimedProcessError,
+        invocation: CoreSpiceProcessInvocation
+    ) throws {
+        let output: String
+        let standardError: String
+        switch error {
+        case .cancelled(_, let capturedOutput, let capturedError),
+             .timedOut(_, _, let capturedOutput, let capturedError),
+             .cancellationCheckFailed(_, _, let capturedOutput, let capturedError):
+            output = capturedOutput
+            standardError = capturedError
+        case .invalidConfiguration, .launchFailed:
+            output = ""
+            standardError = ""
         }
-        activeProcess.terminate()
+        try persist(
+            standardOutput: Data(output.utf8),
+            standardError: Data(standardError.utf8),
+            invocation: invocation
+        )
     }
 
-    private func close(_ first: FileHandle, _ second: FileHandle) throws {
+    private func persist(
+        standardOutput: Data,
+        standardError: Data,
+        invocation: CoreSpiceProcessInvocation
+    ) throws {
         do {
-            try first.close()
-            try second.close()
+            try standardOutput.write(
+                to: invocation.standardOutputURL,
+                options: .atomic
+            )
+            try standardError.write(
+                to: invocation.standardErrorURL,
+                options: .atomic
+            )
         } catch {
             throw CoreSpiceProcessBackendError.processTerminationFailed(
                 error.localizedDescription
