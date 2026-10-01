@@ -87,3 +87,15 @@ output references identify CoreSpiceCLI as their producer, and every reference
 is created only after the file exists so its digest and byte count describe the
 materialized bytes. Both records include `ExecutionInvocation`, preserving the
 executable, arguments, and working directory needed to replay the operation.
+
+## Metal execution verification
+
+[MetalBackendExecutionTests](Tests/CoreSpiceBackendTests/MetalBackendExecutionTests.swift)
+requires an actual Metal device, compiles the production photonic library, dispatches
+the production even-layer kernel and checks its swapped complex amplitudes plus
+untouched state. Device absence fails qualification rather than skipping it. Run
+this owner through `xcodebuild test-without-building` after `build-for-testing`,
+with the exact `CoreSpiceBackendTests/MetalBackendExecutionTests/dispatchesProductionEvenLayer()`
+selector and a bounded process. CPU-only, compile and kernel-load checks do not
+prove GPU execution. Test-owned shared buffers remain alive until the awaited
+dispatch completes and are returned to the backend pool on all exit paths.
