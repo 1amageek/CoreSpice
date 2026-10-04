@@ -2,7 +2,8 @@
 
 From the CoreSpice package directory, run `python3 Sources/CoreSpiceBSIM4/Proof/verify_kernel.py <evidence-directory>`.
 Each compile/run has a 30-second timeout. It compiles only this kernel, exercises
-cold admission, all-node current/charge and transient finite differences, complex
+cold admission, all-node current/charge and transient finite differences, unequal
+charge/current scaling with initialized steady charge and NQS coupling, complex
 AC/NQS, history failure and unchanged-output failure, under ASAN and UBSAN.
 
 `generate_reference.py <libKernel.dylib> <isolated-ngspice-bsim4> <evidence-directory>`
@@ -24,5 +25,9 @@ An oracle is comparison evidence, not authority for replacing Berkeley 4.8.3.
 Swift host verification uses the registered `CoreSpiceBSIM4KernelTests` product,
 existing `.build-l3`, a bounded test command and schema-0 events. Runtime method
 IDs are matched with the compiled registry by workspace verification helpers.
-The production Level54 gate remains closed. Metal, WASM/Embedded and correlated
+Production Level54 requires separate composition evidence. Metal, WASM/Embedded and correlated
 noise composition are not proven by these host kernel tests.
+
+The original archive hash stays unchanged. `Kernel/upstream.json` records the
+explicit body/NQS charge-multiplicity correction. NG46 is an independent corrected
+implementation for these settings; it is not a pristine original-source oracle.

@@ -42,6 +42,24 @@ for name in files:
     s,count=re.subn(pat,r'\1CKTcircuit *ckt;\n',s)
     assert count==1,(function,count)
  if name=='b4ld.c':
+  # Preserve independently scaled current I and charge Q laws. Original
+  # body RHS and physical NQS q couplings omitted the charge multiplier.
+  corrections={
+   'mult_i * (ceqjd + ceqqjd)': 'mult_i * ceqjd + mult_q * ceqqjd',
+   'mult_i * (ceqjs + ceqqjs)': 'mult_i * ceqjs + mult_q * ceqqjs',
+   '(*(here->BSIM4DPqPtr) += dxpart * here->BSIM4gtau)': '(*(here->BSIM4DPqPtr) += mult_q * dxpart * here->BSIM4gtau)',
+   '(*(here->BSIM4SPqPtr) += sxpart * here->BSIM4gtau)': '(*(here->BSIM4SPqPtr) += mult_q * sxpart * here->BSIM4gtau)',
+   '(*(here->BSIM4GPqPtr) -= here->BSIM4gtau)': '(*(here->BSIM4GPqPtr) -= mult_q * here->BSIM4gtau)'
+  }
+  for before,after in corrections.items():
+   assert s.count(before)==1,(name,before,s.count(before))
+   s=s.replace(before,after)
+  manifest['chargeMultiplicityCorrection']={
+   'source':'b4ld.c','reason':'Current law mult_i*I and charge law mult_q*Q require matching equivalent RHS and analytic derivatives; original body and physical NQS couplings violate this when factors differ.',
+   'expressions':[{'original':before,'corrected':after}for before,after in corrections.items()],
+   'independentCorrectedImplementation':'ngspice-46 b4ld.c SHA256 cdff60297be2153763cdea198a0edda17c60d6cc659a78024b3e1c9eb0a91672'
+  }
+  s='/* Modified for CoreSpice: correct body/NQS charge multiplicity; Kernel/DESIGN.md owns the derivation. */\n'+s
   s=s.replace('DEVfetlim(','cs_exact_fet_bias(').replace('DEVlimvds(','cs_exact_drain_bias(').replace('DEVpnjlim(','cs_exact_junction_bias(')
  s='/* Modified for CoreSpice: context-local simulator isolation; see adapt_upstream.py. */\n'+s
  s='\n'.join(line.expandtabs(8).rstrip()for line in s.splitlines()).rstrip()+'\n'

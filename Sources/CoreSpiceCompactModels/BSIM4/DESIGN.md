@@ -17,7 +17,7 @@ belongs to [the C kernel](../../CoreSpiceBSIM4/DESIGN.md).
 
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
-| [Compact models](../DESIGN.md) | parent | Evaluator composition | Safe public values | Level 54 production remains closed |
+| [Compact models](../DESIGN.md) | parent | Evaluator composition | Safe public values | Production has separate composition proof |
 | [C kernel](../../CoreSpiceBSIM4/DESIGN.md) | depends on | Exclusive opaque owner, fixed buffers | Exact original physics | Lifetime and every access share one lock |
 
 ## Architecture
@@ -65,3 +65,11 @@ review matrix is identical by source: all targets store `Mutex<State>`, read and
 mutate through its closure, and release in locked deinit. Host CPU compile/link/
 runtime is the verified platform; WASM/Embedded runtime is explicitly unverified.
 Metal and production Level54 DC/AC/transient require separate composition proof.
+
+## Charge Multiplicity Correction
+
+The [kernel adaptation contract](../../CoreSpiceBSIM4/Kernel/DESIGN.md) owns the independently derived body/NQS
+charge-multiplicity correction and immutable original-source provenance. This
+composition assumes the corrected `mult_i * I`, `mult_q * Q` contract; affected
+transient evidence must be rerun. The historical unit-factor evidence remains
+limited to its original conditions. No selector, history or resource ABI changes.

@@ -21,7 +21,7 @@ ABI never retains input/output buffers. No SPICE frontend or simulator is public
 
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
-| [CoreSpice](../../DESIGN.md) | parent | Package composition | Registered standalone target | Production gate stays closed |
+| [CoreSpice](../../DESIGN.md) | parent | Package composition | Registered standalone target | Production owns separate composition proof |
 | [Safe evaluator](../CoreSpiceCompactModels/BSIM4/DESIGN.md) | used by | Exclusive opaque ABI | Synchronized Swift composition | Host evidence only |
 | [Physics](Kernel/DESIGN.md) | child | Exact original equations | Isolated simulator ABI | Reproducible source adaptation |
 | [BSIM3 kernel](../CoreSpiceBSIM3/DESIGN.md) | coordinates with | Ownership pattern only | Separate model contexts | Physics and eight-slot ABI are not reused |
@@ -94,3 +94,11 @@ archive and all adapted hashes.
 Only selected BSIM4 oracle sources may be compiled. Runtime evidence is host
 CPU only. Swift production DC/AC/transient, Metal, WASM and Embedded remain
 separate required proofs before claiming their capabilities.
+
+## Charge Multiplicity Correction
+
+The [kernel adaptation contract](Kernel/DESIGN.md) owns the independently derived body/NQS
+charge-multiplicity correction and immutable original-source provenance. This
+composition assumes the corrected `mult_i * I`, `mult_q * Q` contract; affected
+transient evidence must be rerun. The historical unit-factor evidence remains
+limited to its original conditions. No selector, history or resource ABI changes.

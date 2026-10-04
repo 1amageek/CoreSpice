@@ -33,7 +33,7 @@
     },
     "b4ld.c": {
       "originalSHA256": "610f79c04c6dc7b05fca9c2773b2f47a7ee12f2215253e210617619d051c87c0",
-      "adaptedSHA256": "ae54675c14f35f1147d7b8de72bd00eb8f4b5ac7aa761f4968fca8bfd85b7fce"
+      "adaptedSHA256": "118cd1a7430c4e97c687896f716944c25201fd57af755a526ea233268434451e"
     },
     "b4acld.c": {
       "originalSHA256": "a9cce09ae3dce4d0c76a969539760034442ab7d7745d61c206bb473ff623e5f1",
@@ -47,5 +47,32 @@
       "originalSHA256": "617496050dc5dede2c77ab6dfea20ceaf1701f02e099aa4cff95d086b4a800c4",
       "adaptedSHA256": "42809a08032093a0fc65bb8a2c6a9a347b553af301fbc40ed18f2c82ca63929c"
     }
+  },
+  "chargeMultiplicityCorrection": {
+    "source": "b4ld.c",
+    "reason": "Current law mult_i*I and charge law mult_q*Q require matching equivalent RHS and analytic derivatives; original body and physical NQS couplings violate this when factors differ.",
+    "expressions": [
+      {
+        "original": "mult_i * (ceqjd + ceqqjd)",
+        "corrected": "mult_i * ceqjd + mult_q * ceqqjd"
+      },
+      {
+        "original": "mult_i * (ceqjs + ceqqjs)",
+        "corrected": "mult_i * ceqjs + mult_q * ceqqjs"
+      },
+      {
+        "original": "(*(here->BSIM4DPqPtr) += dxpart * here->BSIM4gtau)",
+        "corrected": "(*(here->BSIM4DPqPtr) += mult_q * dxpart * here->BSIM4gtau)"
+      },
+      {
+        "original": "(*(here->BSIM4SPqPtr) += sxpart * here->BSIM4gtau)",
+        "corrected": "(*(here->BSIM4SPqPtr) += mult_q * sxpart * here->BSIM4gtau)"
+      },
+      {
+        "original": "(*(here->BSIM4GPqPtr) -= here->BSIM4gtau)",
+        "corrected": "(*(here->BSIM4GPqPtr) -= mult_q * here->BSIM4gtau)"
+      }
+    ],
+    "independentCorrectedImplementation": "ngspice-46 b4ld.c SHA256 cdff60297be2153763cdea198a0edda17c60d6cc659a78024b3e1c9eb0a91672"
   }
 }

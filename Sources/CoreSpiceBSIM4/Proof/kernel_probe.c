@@ -9,15 +9,19 @@
 static int checkCount;
 #define CHECK(x) do {checkCount++;if(!(x)){fprintf(stderr,"FAIL %s:%d: %s\n",__FILE__,__LINE__,#x);exit(1);}}while(0)
 static void parameter(CSBSIM4Handle *h,int model,const char *n,double v){CHECK(cs_bsim4_parameter(h,model,n,v)==0);}
-static CSBSIM4Handle *make(int polarity,int kind,double temp,CSBSIM4Topology *topology) {
+static CSBSIM4Handle *makeScaled(int polarity,int kind,double temp,double currentScale,double chargeScale,CSBSIM4Topology *topology) {
  CSBSIM4Handle *h=NULL;CHECK(cs_bsim4_create(polarity,"4.8.3",temp,1,&h)==0);
  CHECK(cs_bsim4_set_stress_budget(h,8)==0);
+ parameter(h,0,"mult_i",currentScale);parameter(h,0,"mult_q",chargeScale);
  parameter(h,0,"l",1e-6);parameter(h,0,"w",10e-6);
  parameter(h,1,"toxe",10e-9);parameter(h,1,"vth0",polarity*.7);parameter(h,1,"u0",.05);
  if(kind){parameter(h,1,"rsh",20);parameter(h,0,"nrd",1);parameter(h,0,"nrs",1);}
  if(kind>=2){parameter(h,0,"rbodymod",1);parameter(h,0,"rgatemod",3);parameter(h,0,"ad",1e-12);parameter(h,0,"as",1e-12);parameter(h,0,"pd",4e-6);parameter(h,0,"ps",4e-6);parameter(h,1,"cgso",1e-10);parameter(h,1,"cgdo",1e-10);parameter(h,1,"cgbo",1e-10);}
  if(kind==3){parameter(h,0,"trnqsmod",1);parameter(h,0,"acnqsmod",1);}
  CHECK(cs_bsim4_prepare(h,topology)==0);return h;
+}
+static CSBSIM4Handle *make(int polarity,int kind,double temp,CSBSIM4Topology *topology) {
+ return makeScaled(polarity,kind,temp,1,1,topology);
 }
 static void bias(const CSBSIM4Topology *t,double b[13],int p,double d,double g,double bulk) {
  memset(b,0,13*sizeof(double));b[1]=p*d;b[2]=p*g;b[4]=p*bulk;
@@ -94,4 +98,29 @@ static void historyAndNumerics(void) {
  }
  puts("PASS CSBSIM4KernelProof/historyAndACNQS");
 }
-int main(void){coldAdmission();derivatives();transientDerivatives();historyAndNumerics();printf("PASS checks=%d\n",checkCount);}
+static void chargeMultiplicity(void) {
+ for(int p=-1;p<=1;p+=2)for(int direction=0;direction<2;direction++)for(int kind=2;kind<=3;kind++)for(int mode=2;mode<=3;mode++) {
+  CSBSIM4Topology t;CSBSIM4Handle *h=makeScaled(p,kind,300.15,1.3,.8,&t);
+  double b[13];bias(&t,b,p,direction?-.3:1,direction?.9:1.2,direction?.12:-.1);
+  CHECK(cs_bsim4_initialize_history(h,b)==0);double accepted[29],after[29];CHECK(cs_bsim4_accepted_states(h,accepted)==0);
+  CSBSIM4Result dc,center,hi,lo;CHECK(cs_bsim4_evaluate(h,b,0,0,0,0,&dc)==0);CHECK(cs_bsim4_evaluate(h,b,mode,0,1e-9,0,&center)==0);
+  // Initialized constant bias has dQ/dt=0 at every physical terminal.
+  for(int row=1;row<=t.nodeCount;row++)if(row!=t.chargeNode) {
+   double difference=fabs(center.residual[row]-dc.residual[row]);
+   if(difference>1e-12){fprintf(stderr,"STEADY p%d kind%d mode%d row%d residualDifference%.12g\n",p,kind,mode,row,difference);CHECK(0);}
+  }
+  for(int col=1;col<=t.nodeCount;col++) {
+   double up[13],dn[13],step=1e-6;memcpy(up,b,sizeof(b));memcpy(dn,b,sizeof(b));up[col]+=step;dn[col]-=step;
+   CHECK(cs_bsim4_evaluate(h,up,mode,0,1e-9,0,&hi)==0);CHECK(cs_bsim4_evaluate(h,dn,mode,0,1e-9,0,&lo)==0);
+   for(int row=1;row<=t.nodeCount;row++) {
+    double fd=(hi.residual[row]-lo.residual[row])/(2*step),jac=center.real[row*13+col];
+    double products=fabs(hi.rhs[row])+fabs(lo.rhs[row]);for(int term=0;term<13;term++)products+=fabs(hi.real[row*13+term]*up[term])+fabs(lo.real[row*13+term]*dn[term]);
+    double roundoff=(32*DBL_EPSILON/(1-32*DBL_EPSILON))*products/(2*step);
+    if(fabs(fd-jac)>roundoff+1e-10+2e-4*fmax(fabs(fd),fabs(jac))){fprintf(stderr,"MULT p%d kind%d mode%d dir%d row%d col%d fd%.12g jac%.12g\n",p,kind,mode,direction,row,col,fd,jac);CHECK(0);}
+   }
+  }
+  CHECK(cs_bsim4_accepted_states(h,after)==0);CHECK(!memcmp(accepted,after,sizeof(after)));cs_bsim4_destroy(h);
+ }
+ puts("PASS CSBSIM4KernelProof/chargeMultiplicity");
+}
+int main(void){coldAdmission();derivatives();transientDerivatives();historyAndNumerics();chargeMultiplicity();printf("PASS checks=%d\n",checkCount);}

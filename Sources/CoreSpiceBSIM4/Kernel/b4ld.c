@@ -1,4 +1,5 @@
 /* Modified for CoreSpice: context-local simulator isolation; see adapt_upstream.py. */
+/* Modified for CoreSpice: correct body/NQS charge multiplicity; Kernel/DESIGN.md owns the derivation. */
 /* ******************************************************************************
    *  BSIM4 4.8.3 released on 05/19/2025                                        *
    *  BSIM4 Model Equations                                                     *
@@ -4966,9 +4967,9 @@ line900:
                               - ceqgstot + Istoteq) + mult_q * (ceqqg + ceqqb + ceqqd + ceqqgmid)));
            }
            else
-           {   (*(ckt->CKTrhs + here->BSIM4dbNode) -= mult_i * (ceqjd + ceqqjd));
+           {   (*(ckt->CKTrhs + here->BSIM4dbNode) -= mult_i * ceqjd + mult_q * ceqqjd);
                (*(ckt->CKTrhs + here->BSIM4bNodePrime) += (mult_i * (ceqbd + ceqbs + Ibtoteq) - mult_q * ceqqb));
-               (*(ckt->CKTrhs + here->BSIM4sbNode) -= mult_i * (ceqjs + ceqqjs));
+               (*(ckt->CKTrhs + here->BSIM4sbNode) -= mult_i * ceqjs + mult_q * ceqqjs);
                (*(ckt->CKTrhs + here->BSIM4sNodePrime) += (mult_i * (ceqdrn - ceqbs + ceqjs - ceqgstot + Istoteq) + mult_q * (ceqqd
                 + ceqqg + ceqqb + ceqqjd + ceqqjs + ceqqgmid)));
            }
@@ -5154,9 +5155,9 @@ line900:
                (*(here->BSIM4QspPtr) += ggts - gcqsb);
                (*(here->BSIM4QbpPtr) += ggtb - gcqbb);
 
-               (*(here->BSIM4DPqPtr) += dxpart * here->BSIM4gtau);
-               (*(here->BSIM4SPqPtr) += sxpart * here->BSIM4gtau);
-               (*(here->BSIM4GPqPtr) -= here->BSIM4gtau);
+               (*(here->BSIM4DPqPtr) += mult_q * dxpart * here->BSIM4gtau);
+               (*(here->BSIM4SPqPtr) += mult_q * sxpart * here->BSIM4gtau);
+               (*(here->BSIM4GPqPtr) -= mult_q * here->BSIM4gtau);
            }
 
 line1000:  ;
