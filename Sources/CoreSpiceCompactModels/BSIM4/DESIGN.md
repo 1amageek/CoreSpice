@@ -76,3 +76,13 @@ charge-multiplicity correction and immutable original-source provenance. This
 composition assumes the corrected `mult_i * I`, `mult_q * Q` contract; affected
 transient evidence must be rerun. The historical unit-factor evidence remains
 limited to its original conditions. No selector, history or resource ABI changes.
+
+## Noise Spectrum Owner
+
+BSIM4Evaluating.noiseSpectrum accepts padded SIMD16 bias and real/imaginary
+full-node transfer gains, positive finite Hz and nonnegative finite junction gmin.
+It returns fourteen output PSDs in independently owned SIMD16 storage. Inactive
+slots including local ground are zero. Evaluation and destruction use the same
+existing Mutex<State> on every source target; accepted history is unchanged.
+Numerical/non-noise-prepared failures propagate and do not become zero spectra.
+The immutable mode1 maintainer limitation persists independently of paramchk.

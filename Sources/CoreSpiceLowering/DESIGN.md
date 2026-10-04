@@ -53,3 +53,10 @@ caller policy from Configuration. Missing policy fails before cold evaluation.
 Exact version and separate model/instance values remain in resolved provenance;
 all original auxiliary requirements become fresh owned nodes. Policy does not
 enter physical model/instance parameters. The same caller policy must reach binding.
+
+## Noise-Dependent BSIM4 Topology
+
+Configuration carries the caller noisePreparationRequested choice to the same
+BSIM4 preparation contract used at binding. Original tnoimod1 noise-only D/S
+nodes are allocated only when requested; full CSR ownership remains unchanged.
+Noise capability and resource policy are separate from physical model parameters.

@@ -70,4 +70,4 @@ and behavior are defined by the [BSIM3 component](BSIM3/DESIGN.md).
 
 [BSIM4](BSIM4/DESIGN.md) owns exact Level54 preparation, explicit work policy,
 full auxiliary mapping and checked DC/AC/transient sessions. Its correlated-noise
-admission remains closed. Registry policy is runtime configuration, not physical IR.
+uses the [output-referred contract](OutputReferredNoise/DESIGN.md). Registry policy is runtime configuration, not physical IR.

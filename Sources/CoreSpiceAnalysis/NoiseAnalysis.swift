@@ -14,7 +14,8 @@ import Foundation
 /// 3. For each device noise source, computes the transfer function
 ///    from the noise source to the output by solving the AC system
 ///    with a unit current injection.
-/// 4. Accumulates the output noise: `S_out(f) = Σ |H_i(f)|² × S_n_i(f)`.
+/// 4. Accumulates independent `|H_i|² S_i` and device output-referred channels,
+///    including correlated complex amplitudes. Each device follows one path.
 /// 5. Optionally computes input-referred noise and integrated RMS noise.
 public struct NoiseAnalysis: Analysis, Sendable {
 
@@ -115,7 +116,14 @@ public struct NoiseAnalysis: Analysis, Sendable {
             }
 
             // Collect noisy devices
-            let noisyDevices = devices.compactMap { $0 as? any NoisyDevice }
+            let outputNoisyDevices = devices.compactMap { $0 as? any OutputReferredNoisyDevice }
+            // A correlated device is counted through its output-referred path once.
+            let noisyDevices = devices.filter { !($0 is any OutputReferredNoisyDevice) }
+                .compactMap { $0 as? any NoisyDevice }
+            let transferNodes = Set(outputNoisyDevices.flatMap(\.noiseTransferNodes)).sorted { $0.id < $1.id }
+            for node in transferNodes where node != plan.ir.groundNode {
+                guard variableMap[.nodeVoltage(node)] != nil else { throw NoiseTransferError.unknownNode(node) }
+            }
 
             // Initialize per-source contribution tracking
             struct SourceTracker {
@@ -126,6 +134,9 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 var spectralDensity: [Double] = []
             }
             var sourceTrackers: [SourceTracker] = []
+            var outputTrackers: [SourceTracker] = []
+            var transferValues: [Node: NoiseTransferGain] = [:]
+            transferValues.reserveCapacity(transferNodes.count)
 
             var outputNoiseDensity: [Double] = []
             var inputReferredNoiseDensity: [Double] = []
@@ -253,6 +264,51 @@ public struct NoiseAnalysis: Analysis, Sendable {
                     }
                 }
 
+                // Original correlated models consume full complex H(node), retaining
+                // relative phase. One factorization serves every unit injection.
+                transferValues.removeAll(keepingCapacity: true)
+                for node in transferNodes {
+                    if cancellation.isCancelled { throw AnalysisError.cancelled }
+                    if node == plan.ir.groundNode { continue }
+                    guard let nodeIndex = variableMap[.nodeVoltage(node)] else { throw NoiseTransferError.unknownNode(node) }
+                    for index in 0..<dim { noiseRHS[index] = ComplexPair() }
+                    noiseRHS[nodeIndex].real = 1
+                    try complexSolver.solve(rhs: noiseRHS, into: &noiseSolutionBuf)
+                    let reference = outputReferenceIndex.map { noiseSolutionBuf[$0] } ?? ComplexPair()
+                    transferValues[node] = NoiseTransferGain(real: noiseSolutionBuf[outputIndex].real - reference.real,
+                        imaginary: noiseSolutionBuf[outputIndex].imag - reference.imag)
+                }
+                let gains = try NoiseTransferGains(values: transferValues)
+                var outputTrackerIndex = 0
+                for device in outputNoisyDevices {
+                    if cancellation.isCancelled { throw AnalysisError.cancelled }
+                    let channels = try device.outputNoiseContributions(state: dcState, frequency: freq, gains: gains)
+                    guard Set(channels.map(\.name)).count == channels.count else {
+                        throw AnalysisError.invalidConfiguration("Duplicate output noise channel from \(device.instance.name)")
+                    }
+                    for channel in channels {
+                        let contribution = channel.outputSpectralDensity
+                        guard contribution.isFinite, contribution >= 0 else {
+                            throw AnalysisError.invalidConfiguration("Invalid output noise PSD from \(device.instance.name)/\(channel.name)")
+                        }
+                        if freqIdx == 0 {
+                            outputTrackers.append(SourceTracker(deviceName: device.instance.name, noiseName: channel.name,
+                                positiveNode: plan.ir.groundNode, negativeNode: plan.ir.groundNode))
+                        }
+                        guard outputTrackerIndex < outputTrackers.count,
+                              outputTrackers[outputTrackerIndex].deviceName == device.instance.name,
+                              outputTrackers[outputTrackerIndex].noiseName == channel.name else {
+                            throw AnalysisError.invalidConfiguration("Output noise channel identity changed during sweep")
+                        }
+                        outputTrackers[outputTrackerIndex].spectralDensity.append(contribution)
+                        outputTrackerIndex += 1
+                        totalNoisePSD += contribution
+                    }
+                }
+                guard outputTrackerIndex == outputTrackers.count else {
+                    throw AnalysisError.invalidConfiguration("Output noise channel count changed during sweep")
+                }
+
                 guard trackerIdx == sourceTrackers.count else {
                     throw AnalysisError.invalidConfiguration("Noise source count changed during sweep")
                 }
@@ -305,7 +361,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
             )
 
             // Build device contributions
-            let deviceContributions = sourceTrackers.map { tracker in
+            let deviceContributions = (sourceTrackers + outputTrackers).map { tracker in
                 NoiseResult.DeviceNoiseContribution(
                     deviceName: tracker.deviceName,
                     noiseName: tracker.noiseName,
@@ -313,6 +369,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 )
             }
 
+            if cancellation.isCancelled { throw AnalysisError.cancelled }
             let result = try NoiseResult(
                 frequencies: frequencies,
                 outputNoiseDensity: outputNoiseDensity,

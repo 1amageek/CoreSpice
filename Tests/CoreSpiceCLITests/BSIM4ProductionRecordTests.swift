@@ -57,7 +57,7 @@ struct BSIM4ProductionRecordTests {
             #expect(record.bsim4PreparationPolicy?.maximumStressIterations == 8)
             #expect(record.bsim4Models.count == 1)
             #expect((record.waveform?.points ?? 0) > 0)
-            if analysis.hasPrefix(".mc") { #expect(record.waveform?.runs == 2) }
+            if analysis.contains(".mc") { #expect(record.waveform?.runs == 2) }
         }
     }
     @Test func actualBatchTypedFailuresDoNotBecomeSuccess() async throws {
@@ -65,7 +65,7 @@ struct BSIM4ProductionRecordTests {
             (source(policy: ""), "device.bsim4.missing-preparation-policy"),
             (source(policy: ".options bsim4stressiterations=0"), "deck.blocked-intent"),
             (source().replacingOccurrences(of: "version=4.8.3", with: "version=4.8.2"), "deck.blocked-intent"),
-            (source(analysis: ".noise V(d) VG dec 1 1k 1Meg"), "device.bsim4.unsupported-analysis")
+            (source(analysis: ".noise V(d) VG dec 1 1k 1Meg").replacingOccurrences(of: "toxe=10n", with: "toxe=10n fnoimod=0 kf=-1").replacingOccurrences(of: "VD d 0 1", with: "VD supply 0 1\nRL supply d 1k"), "device.bsim4.non-finite")
         ] {
             do { _ = try await run(text); Issue.record("Failed input produced success") }
             catch {
@@ -75,4 +75,24 @@ struct BSIM4ProductionRecordTests {
             }
         }
     }
+    @Test func actualNoiseAndMonteCarloBindingRetainTopologyIntent() async throws {
+        for analysis in [".noise V(d) VG dec 1 1k 1Meg", ".noise V(d) VG dec 1 1k 1Meg\n.mc 2 dc VG 1.0 1.2 0.1"] {
+            for paramchk in [0, 1] {
+                let text = source(paramchk: paramchk, analysis: analysis)
+                    .replacingOccurrences(of: "VD d 0 1", with: "VD supply 0 1\nRL supply d 1k")
+                let record = try await run(text)
+                #expect(record.status == "succeeded")
+                #expect(record.bsim4NoisePreparationRequested)
+                #expect(record.bsim4PreparationPolicy?.maximumStressIterations == 8)
+                let model = try #require(record.bsim4Models.first)
+                #expect(model.maintainerUnsupportedNoiseMode)
+                #expect(model.diagnostics.contains { $0.code == .maintainerNoiseModeLimitation } == (paramchk == 1))
+                #expect((record.waveform?.points ?? 0) == (analysis.contains(".mc") ? 3 : 4))
+                if analysis.contains(".mc") { #expect(record.waveform?.runs == 2) }
+                let data = try JSONEncoder().encode(record)
+                #expect(try JSONDecoder().decode(CoreSpiceCLIBatchRunRecord.self, from: data).bsim4NoisePreparationRequested)
+            }
+        }
+    }
+
 }

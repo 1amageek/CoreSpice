@@ -540,5 +540,8 @@ Native BSIM4 Level54 uses exact version 4.8.3 and requires an explicit deck
 `.options bsim4stressiterations=<positive UInt32>` work budget. The same resolved
 policy reaches lowering and all bindings; its effective value and original
 qualification diagnostics appear in batch JSON. Missing/invalid policy fails
-explicitly. Native BSIM4 noise remains unsupported until its independent
-correlated-noise composition is implemented.
+explicitly. A parsed `.noise` directive requests the original noise-dependent
+private topology before lowering/binding; this choice is also recorded. Noise
+uses the original correlated gate/drain equations and public sampled trapezoidal
+band integration on the actual CPU AC transfer. Mode1 retains its original
+conditional warning and immutable maintainer qualification limitation.

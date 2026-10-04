@@ -12,6 +12,7 @@ import Foundation
 /// not applied.
 public struct SPICEAnalysisOptions: Sendable {
 
+    public var bsim4NoisePreparationRequested: Bool
     public var bsim4PreparationPolicy: BSIM4PreparationPolicy?
     public var executionLimits: TransientExecutionLimits?
     /// Whether the source deck declares any execution-limit option, including a partial policy.
@@ -24,11 +25,13 @@ public struct SPICEAnalysisOptions: Sendable {
     public init(
         executionLimits: TransientExecutionLimits? = nil,
         bsim4PreparationPolicy: BSIM4PreparationPolicy? = nil,
+        bsim4NoisePreparationRequested: Bool = false,
         convergence: ConvergenceConfig = ConvergenceConfig(),
         transient: SPICETransientOptions = SPICETransientOptions(),
         temperatureCelsius: Double? = nil,
         diagnostics: [SPICEAnalysisOptionDiagnostic] = []
     ) {
+        self.bsim4NoisePreparationRequested = bsim4NoisePreparationRequested
         self.bsim4PreparationPolicy = bsim4PreparationPolicy
         self.executionLimits = executionLimits
         self.convergence = convergence
@@ -44,7 +47,7 @@ public struct SPICEAnalysisOptions: Sendable {
         let context = try makeEvaluationContext(from: netlist)
         let evaluator = ExpressionEvaluator(context: context)
 
-        var options = SPICEAnalysisOptions()
+        var options = SPICEAnalysisOptions(bsim4NoisePreparationRequested: netlist.analyses.contains(where: requestsNoise))
         var diagnostics: [SPICEAnalysisOptionDiagnostic] = []
         let budgetKeys = ["tranmaxaccepted", "tranmaxattempts", "tranmaxiterations", "tranmaxscalars", "tranmaxdimension", "tranmaxwork", "tranmaxbreakpoints"]
         var budgetValues: [String: Int] = [:]
@@ -114,13 +117,22 @@ public struct SPICEAnalysisOptions: Sendable {
         NetlistLowering.Configuration(
             temperature: temperatureCelsius ?? NetlistLowering.Configuration.default.temperature,
             randomSeed: randomSeed,
-            bsim4PreparationPolicy: bsim4PreparationPolicy
+            bsim4PreparationPolicy: bsim4PreparationPolicy,
+            bsim4NoisePreparationRequested: bsim4NoisePreparationRequested
         )
     }
 
     /// Uses the same resolved policy as lowering; physical model IR remains unchanged.
     public func deviceRegistry() -> DeviceRegistry {
-        .standard(bsim4PreparationPolicy: bsim4PreparationPolicy)
+        .standard(bsim4PreparationPolicy: bsim4PreparationPolicy, bsim4NoisePreparationRequested: bsim4NoisePreparationRequested)
+    }
+
+    private static func requestsNoise(_ analysis: ParsedAnalysisCommand) -> Bool {
+        switch analysis {
+        case .noise: true
+        case .monteCarlo(let specification): requestsNoise(specification.analysis)
+        default: false
+        }
     }
 
     /// Resolves validated device operating conditions for binding.

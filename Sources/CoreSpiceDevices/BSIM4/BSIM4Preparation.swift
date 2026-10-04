@@ -4,7 +4,7 @@ import CoreSpiceIR
 /// One authority for cold admission and original auxiliary-node requirements.
 public enum BSIM4Preparation {
     public static func prepare(model: ResolvedDeviceModel, instanceParameters: [String: ParameterValue],
-                               temperature: Double = 300.15, policy: BSIM4PreparationPolicy?) throws -> BSIM4PreparedDevice {
+                               temperature: Double = 300.15, policy: BSIM4PreparationPolicy?, noisePreparationRequested: Bool) throws -> BSIM4PreparedDevice {
         guard let policy else { throw BSIM4DeviceError.missingPreparationPolicy(model.name) }
         let polarity: BSIM4Configuration.Polarity
         switch model.typeName {
@@ -48,7 +48,7 @@ public enum BSIM4Preparation {
             throw BSIM4Error.invalidParameter(name: "m", model: false)
         }
         let configuration = BSIM4Configuration(polarity: polarity, version: version, temperature: temperature,
-            noiseRequested: true, maximumStressIterations: policy.maximumStressIterations,
+            noiseRequested: noisePreparationRequested, maximumStressIterations: policy.maximumStressIterations,
             modelParameters: modelParameters, instanceParameters: parameters,
             initialConditions: hasInitial ? initial : nil)
         return try BSIM4PreparedDevice(evaluator: BSIM4Evaluator(configuration: configuration),

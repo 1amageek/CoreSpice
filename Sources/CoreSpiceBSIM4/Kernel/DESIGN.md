@@ -10,7 +10,7 @@ current/charge equations and complex AC load. Parent: [C kernel](../DESIGN.md).
 Original physics is authoritative. Adaptation owns only simulator isolation,
 exact-bias evaluation, bounded allocation, diagnostics and symbol names.
 No coefficient fit, release substitution or simpler compact-model fallback is
-allowed. Noise-spectrum composition is outside this kernel sprint.
+allowed. Noise-spectrum composition follows the contract below.
 
 ## Related Designs
 
@@ -73,3 +73,32 @@ both polarities, forward/reverse bias, unequal factors, steady initialized charg
 full-node BE/trapezoidal derivatives including q couplings, and preserved history.
 The old 1898-check proof remains evidence only for its unaffected unit-factor
 conditions; the new sanitizer and reference run owns affected verification.
+
+## Original Noise Spectrum
+
+The original archive's b4noi.c N_DENS equations and Eval1ovFNoise are extracted
+without simulator traversal, plot registration, integration history or total
+channel duplication. The adaptation manifest retains raw/adapted hashes and
+license notices. Thermal modes 0/1/2 and flicker modes 0/1 keep their exact
+4.8.3 branches. Fourteen output-referred channels retain original source order.
+Private NevalSrc uses |H(a)-H(b)|² times 4kTG or 2q|I|. NevalSrc2 uses
+4kT |sqrt(p1)(H(a)-H(b)) + exp(j phi21)sqrt(p2)(H(c)-H(d))|². The original
+phase is pi/2 and reversed bias retains the original node swaps. This is a
+correlated complex amplitude, not the sum of two uncorrelated PSDs. Host k and q
+use SI2019 values as in the existing native noise primitive.
+
+The ABI receives synchronously borrowed 13-element real/imaginary gain buffers;
+private noise primitives run synchronously in a stack-local context with node
+range/error guards. No external callback, global state or gain pointer is retained.
+The owner refreshes exact OP at the supplied bias before spectrum evaluation,
+invalidates any transient trial token, and never changes accepted history.
+Noise-unprepared contexts fail explicitly. Frequency/geometry/finite intermediate
+guards prevent NaN from becoming the original branch's successful zero; physical
+clamps and finite valid equations are unchanged. Outer m belongs to Devices;
+mult_i and mult_fn stay in original equations, mult_q affects AC transfer.
+
+Independent fixtures compare each channel against the isolated ngspice-46 BSIM4
+implementation. Its body/NQS charge correction provenance remains explicit.
+The public Analysis owns trapezoidal integration; original simulator Nintegrate
+is not part of this spectrum ABI. C sanitizer/lifecycle and complex-interference
+proof verify the new noise boundary, without re-auditing unchanged model physics.

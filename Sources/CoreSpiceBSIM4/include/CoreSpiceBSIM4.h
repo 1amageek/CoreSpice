@@ -16,7 +16,7 @@ typedef struct {
  uint64_t token;
 } CSBSIM4Result;
 enum {CS_BSIM4_OK=0,CS_BSIM4_PARAMETER=1,CS_BSIM4_MEMORY=2,CS_BSIM4_NUMERICAL=3,
-      CS_BSIM4_HISTORY=4,CS_BSIM4_DIAGNOSTICS=5,CS_BSIM4_VERSION=6,CS_BSIM4_RESOURCE=7};
+      CS_BSIM4_HISTORY=4,CS_BSIM4_DIAGNOSTICS=5,CS_BSIM4_VERSION=6,CS_BSIM4_RESOURCE=7,CS_BSIM4_NOISE_UNPREPARED=8};
 int cs_bsim4_create(int polarity,const char *version,double temperature,int noiseRequested,CSBSIM4Handle **);
 void cs_bsim4_destroy(CSBSIM4Handle *);
 int cs_bsim4_parameter(CSBSIM4Handle *,int model,const char *name,double value);
@@ -32,4 +32,9 @@ int cs_bsim4_evaluate(CSBSIM4Handle *,const double bias[13],int mode,double omeg
 void cs_bsim4_invalidate_trial(CSBSIM4Handle *);
 int cs_bsim4_commit(CSBSIM4Handle *,uint64_t token);
 int cs_bsim4_accepted_states(const CSBSIM4Handle *,double states[29]);
+/* Synchronous full-node H=Vout/I gains; no input is retained. Fourteen original
+   output PSD channels in V^2/Hz, excluding duplicated total. No partial output
+   on failure. Accepted transient history is preserved; trial token invalidated. */
+int cs_bsim4_noise_spectrum(CSBSIM4Handle *,const double bias[13],double frequency,double gmin,
+                          const double gainReal[13],const double gainImaginary[13],double densities[14]);
 #endif

@@ -4,10 +4,12 @@ import CoreSpiceIR
 public struct BSIM4Descriptor: DeviceDescriptor {
     public let typeName: String
     public let portNames = ["drain", "gate", "source", "bulk"]
+    public let noisePreparationRequested: Bool
     public let preparationPolicy: BSIM4PreparationPolicy?
     public let parameterDescriptors: [ParameterDescriptor] = []
 
-    public init(pmos: Bool = false, preparationPolicy: BSIM4PreparationPolicy? = nil) {
+    public init(pmos: Bool = false, preparationPolicy: BSIM4PreparationPolicy? = nil, noisePreparationRequested: Bool = false) {
+        self.noisePreparationRequested = noisePreparationRequested
         typeName = pmos ? "pmos_l54" : "nmos_l54"; self.preparationPolicy = preparationPolicy
     }
 
@@ -18,7 +20,7 @@ public struct BSIM4Descriptor: DeviceDescriptor {
         guard let model = instance.model else { throw BSIM4DeviceError.missingModel(instance.name) }
         guard model.typeName == typeName else { throw BSIM4DeviceError.modelTypeMismatch(model.typeName) }
         let prepared = try BSIM4Preparation.prepare(model: model, instanceParameters: instance.parameters,
-            temperature: context.operatingConditions.temperatureKelvin, policy: preparationPolicy)
+            temperature: context.operatingConditions.temperatureKelvin, policy: preparationPolicy, noisePreparationRequested: noisePreparationRequested)
         guard instance.ownedNodes.count == prepared.auxiliaryNodeCount else {
             throw BSIM4DeviceError.invalidAuxiliaryTopology(instance.name)
         }

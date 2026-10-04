@@ -3,7 +3,7 @@ import CoreSpiceIR
 import Synchronization
 
 /// Original BSIM4 equations mapped to the compiled physical and private nodes.
-public final class BoundBSIM4: TransientSessionDevice, TerminalInitialConditionDevice, NoiseAnalysisAdmissionDevice {
+public final class BoundBSIM4: TransientSessionDevice, TerminalInitialConditionDevice, NoiseAnalysisAdmissionDevice, OutputReferredNoisyDevice {
     public let instance: Instance
     public let initialNodeVoltages: [Node: Double]
     public let diagnostics: [BSIM4Diagnostic]
@@ -116,12 +116,30 @@ public final class BoundBSIM4: TransientSessionDevice, TerminalInitialConditionD
         }
     }
 
-    // FIXME(INCOMPLETE_IMPLEMENTATION):
-    // NoiseAnalysis reaches this admission hook before OP/spectrum. Original
-    // BSIM4 scalar/correlated noise must have independent transfer/integration
-    // proof before this branch may admit noise or return successful sources.
+    public var noiseTransferNodes: [Node] { instance.nodes + instance.ownedNodes }
+
     public func validateNoiseAnalysis() throws {
-        throw BSIM4DeviceError.unsupportedAnalysis(device: instance.name, analysis: "noise")
+        guard topology.noiseRequested else { throw BSIM4Error.noiseNotPrepared }
+    }
+
+    public func outputNoiseContributions(state solution: SolutionState, frequency: Double,
+                                         gains: NoiseTransferGains) throws -> [OutputNoiseSource] {
+        let bias = try biases(solution)
+        var real = SIMD16<Double>(repeating: 0), imaginary = SIMD16<Double>(repeating: 0)
+        for (index, node) in noiseTransferNodes.enumerated() {
+            let gain = try gains.gain(at: node)
+            real[index + 1] = gain.real; imaginary[index + 1] = gain.imaginary
+        }
+        let spectrum = try state.withLock { owner in
+            try owner.evaluator.noiseSpectrum(bias: bias, frequency: frequency, gainReal: real,
+                gainImaginary: imaginary, minimumJunctionConductance: 1e-12)
+        }.outputSpectralDensities
+        let names = ["rd", "rs", "rg", "rbps", "rbpd", "rbpb", "rbsb", "rbdb", "id", "1overf", "igs", "igd", "igb", "corl"]
+        return try names.enumerated().map { index, name in
+            let value = spectrum[index] * multiplier
+            guard value.isFinite, value >= 0 else { throw BSIM4Error.nonFiniteEvaluation }
+            return OutputNoiseSource(name: "\(instance.name)_\(name)", outputSpectralDensity: value)
+        }
     }
 
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {

@@ -65,3 +65,12 @@ values fail; no fallback selects a budget. The same options value supplies both
 loweringConfiguration and deviceRegistry, including every CLI rebind. Runtime
 policy and kernel qualification diagnostics belong to execution provenance,
 not physical model IR. Other model families do not require this policy.
+
+## BSIM4 Noise Preparation Intent
+
+SPICEAnalysisOptions resolves parsed .noise intent into one explicit
+bsim4NoisePreparationRequested choice. The same options owner supplies lowering
+Configuration and deviceRegistry, including CLI source overrides/Monte Carlo/
+sensitivity rebinds. The choice is execution provenance, not model IR. Direct
+API callers may request noise capability before lowering/binding; late requests
+on electrical-only topology fail explicitly.

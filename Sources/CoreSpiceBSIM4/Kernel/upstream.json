@@ -46,6 +46,11 @@
     "bsim4ext.h": {
       "originalSHA256": "617496050dc5dede2c77ab6dfea20ceaf1701f02e099aa4cff95d086b4a800c4",
       "adaptedSHA256": "42809a08032093a0fc65bb8a2c6a9a347b553af301fbc40ed18f2c82ca63929c"
+    },
+    "b4noi.c": {
+      "originalSHA256": "2c0bfbe2b1ca4cac9c0b23b5584e9195d4bd0c3de948d83b8e1f10e14d4dd78f",
+      "adaptedSHA256": "a1bbd0d7dfd6b69014c775af8f4fd65650890f64f44d951a008ead07c99a65e7",
+      "adaptation": "Exact local N_DENS and Eval1ovFNoise; scoped full-node complex gain primitives, SI2019 host constants, numerical guards; simulator traversal and integration excluded."
     }
   },
   "chargeMultiplicityCorrection": {
@@ -74,5 +79,11 @@
       }
     ],
     "independentCorrectedImplementation": "ngspice-46 b4ld.c SHA256 cdff60297be2153763cdea198a0edda17c60d6cc659a78024b3e1c9eb0a91672"
+  },
+  "noisePrimitiveProvenance": {
+    "source": "ngspice-46 src/spicelib/analysis/nevalsrc.c",
+    "sourceSHA256": "ce85b15a7f30479f51d4f9bf38c7c581a0949dee3613bbd59a806c59930398cc",
+    "license": "Modified BSD, retained in NOISE_PRIMITIVE_LICENSE",
+    "modifiedPrimitiveSHA256": "c0a47d8684efa34dea7e8009843505f8c6bab20d55ae46dc2afeb9a275efa910"
   }
 }

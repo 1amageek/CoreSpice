@@ -118,6 +118,7 @@ extension CoreSpiceCLIFailure {
       case .resourceBudgetExceeded: suffix = "preparation-budget"
       case .allocationFailure, .diagnosticCapacityExceeded: suffix = "resources"
       case .invalidHistory: suffix = "history"
+      case .noiseNotPrepared: suffix = "noise-not-prepared"
       }
       self.init(code: "device.bsim4." + suffix, message: Self.describe(modelError), stage: "device")
 

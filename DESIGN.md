@@ -143,5 +143,4 @@ dispatch completes and are returned to the backend pool on all exit paths.
 
 [BSIM4 standalone kernel](Sources/CoreSpiceBSIM4/DESIGN.md) owns exact Berkeley 4.8.3 host CPU evaluation. This lower
 contract is composed by [BSIM4 Devices](Sources/CoreSpiceDevices/BSIM4/DESIGN.md)
-under explicit caller preparation policy. Correlated-noise composition remains
-incomplete. [CLI](Sources/CoreSpiceCLI/DESIGN.md) owns execution provenance.
+under explicit caller preparation policy and noise-dependent topology intent. [CLI](Sources/CoreSpiceCLI/DESIGN.md) owns execution provenance.

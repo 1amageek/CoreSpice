@@ -167,3 +167,17 @@ int cs_bsim4_commit(CSBSIM4Handle *h,uint64_t token) {
 int cs_bsim4_accepted_states(const CSBSIM4Handle *h,double out[29]) {
  if(!h||!out||!h->historyReady)return CS_BSIM4_HISTORY;memcpy(out,h->accepted,sizeof(h->accepted));return CS_BSIM4_OK;
 }
+extern int cs_bsim4_noise_density(BSIM4model *,BSIM4instance *,CKTcircuit *,double,const double[13],const double[13],double[14]);
+int cs_bsim4_noise_spectrum(CSBSIM4Handle *h,const double bias[13],double frequency,double gmin,
+                          const double real[13],const double imaginary[13],double out[14]) {
+ if(!h)return CS_BSIM4_PARAMETER;h->trialTransient=0;
+ if(h->prepared!=1||!out||!real||!imaginary||!isfinite(frequency)||frequency<=0)return CS_BSIM4_PARAMETER;
+ if(!h->circuit.noiseRequested)return CS_BSIM4_NOISE_UNPREPARED;
+ for(int n=0;n<13;n++)if(!isfinite(real[n])||!isfinite(imaginary[n])||
+  ((n==0||n>h->circuit.nodeCount)&&(real[n]!=0||imaginary[n]!=0)))return CS_BSIM4_PARAMETER;
+ CSBSIM4Result operatingPoint;int status=cs_bsim4_evaluate(h,bias,0,0,0,gmin,&operatingPoint);
+ if(status)return status;
+ double values[14]={0};status=cs_bsim4_noise_density(&h->model,&h->instance,&h->circuit,frequency,real,imaginary,values);
+ if(status)return status;
+ memcpy(out,values,sizeof(values));return CS_BSIM4_OK;
+}

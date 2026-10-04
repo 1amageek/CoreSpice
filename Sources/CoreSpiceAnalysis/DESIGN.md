@@ -127,6 +127,22 @@ unverified; native evidence does not qualify those targets or Metal.
 [BSIM4](../CoreSpiceDevices/BSIM4/DESIGN.md) participates through existing throwing
 BoundDevice and transient-session protocols. The unchanged analysis run owns
 begin/defer-end and accepted-step commits. Complex AC uses the device's original
-frequency response and reserved-q constraint. Noise admission rejects this model
-before OP while its correlated-noise implementation is incomplete. Actual host
-CPU public DC/AC/transient evidence is required before Level54 admission opens.
+frequency response and reserved-q constraint. Noise admission requires caller-owned
+noise-capable preparation before OP; correlated composition follows the contract
+below. Actual host CPU public DC/AC/transient and noise evidence bounds admission.
+
+## Correlated Output-Referred Noise
+
+[Output-referred device noise](../CoreSpiceDevices/OutputReferredNoise/DESIGN.md)
+is accumulated separately from independent current sources. After actual OP and
+original complex AC factorization at each frequency, the analysis solves one unit
+injection per unique requested node and forms output-minus-reference transfer.
+Ground gain is zero; requested private nodes must be compiled in the variable map.
+Factorization and solve buffers are reused; no callback runs under a device lock.
+
+Device-returned channels must remain finite, nonnegative and stable by name.
+Validation precedes completed; failure/cancellation propagates and does not emit
+a successful waveform. Cancellation is checked during added node solves and
+before completion. Public integration remains trapezoidal on output V²/Hz,
+with zero bandwidth for one frequency; independent oracle spectra are integrated
+with that same documented method, not original ngspice Nintegrate.

@@ -14,6 +14,7 @@ public struct NetlistLowering: Sendable {
     public struct Configuration: Sendable {
 
         /// Explicit work policy for original Level54 preprocessing.
+        public var bsim4NoisePreparationRequested: Bool
         public var bsim4PreparationPolicy: BSIM4PreparationPolicy?
 
         /// Maximum subcircuit expansion depth.
@@ -56,8 +57,10 @@ public struct NetlistLowering: Sendable {
             temperature: Double = 27.0,
             parameterOverrides: [String: Double] = [:],
             randomSeed: UInt64? = nil,
-            bsim4PreparationPolicy: BSIM4PreparationPolicy? = nil
+            bsim4PreparationPolicy: BSIM4PreparationPolicy? = nil,
+            bsim4NoisePreparationRequested: Bool = false
         ) {
+            self.bsim4NoisePreparationRequested = bsim4NoisePreparationRequested
             self.bsim4PreparationPolicy = bsim4PreparationPolicy
             self.maxExpansionDepth = maxExpansionDepth
             self.flattenSubcircuits = flattenSubcircuits

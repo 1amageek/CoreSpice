@@ -34,7 +34,8 @@ initial-binding structured diagnostics and immutable maintainer qualification
 limitations. Each model record names its initial-binding phase; Monte Carlo
 rebindings share the policy but their varying diagnostics are not claimed by that
 initial snapshot.
-Missing/invalid policy and unsupported noise remain failed JSON records.
+Missing/invalid policy, unprepared noise topology and invalid noise numerics remain
+failed JSON records.
 
 ## State, Ownership, and Lifecycle
 
@@ -53,3 +54,12 @@ merely importing Backend does not execute Metal. This evidence is host CPU only.
 CoreSpiceCLITests owns actual batch success/effective-policy records and typed
 missing/invalid/version/noise failures. CoreSpiceBSIM4IntegrationTests owns public
 analysis/session proof. Revalidate existing options/CLI consumers after convergence.
+
+## BSIM4 Noise Execution Provenance
+
+The same resolved SPICEAnalysisOptions noise-preparation choice reaches lowering
+and every bind, and is recorded in the batch execution record. Parsed .noise
+executes actual public NoiseAnalysis and publishes output/input densities and
+integrated output RMS through the existing waveform conversion. Typed refusal
+for late unprepared topology, invalid modes/gains/numerics and cancellation
+remains failure. Mode1 qualification metadata is never promoted by execution.

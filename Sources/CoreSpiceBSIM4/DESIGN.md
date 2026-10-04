@@ -57,7 +57,7 @@ strict parameter admission -> original setup -> temperature/check
 - Original noise selector 1 is executable preprocessing, with the original
   `paramchk=1` nonfatal warning retained. Immutable topology metadata always
   records its maintainer qualification limitation, even with `paramchk=0`.
-  No noise-spectrum ABI or production-noise support is declared by this sprint.
+  The spectrum ABI below preserves this execution/qualification distinction.
 - The caller explicitly selects noise-capable topology before preparation.
   This replaces original global task-job inspection; topology never changes
   after preparation. Original documented regularization remains diagnostic.
@@ -102,3 +102,11 @@ charge-multiplicity correction and immutable original-source provenance. This
 composition assumes the corrected `mult_i * I`, `mult_q * Q` contract; affected
 transient evidence must be rerun. The historical unit-factor evidence remains
 limited to its original conditions. No selector, history or resource ABI changes.
+
+## Noise ABI Composition
+
+[Kernel](Kernel/DESIGN.md) owns exact local spectrum equations and synchronized
+borrowed full-node gain semantics. The opaque owner accepts 13 complex node gains
+and returns fourteen output PSDs. Accepted transient history is unchanged and
+trial tokens are invalidated. A non-noise-prepared handle rejects spectrum.
+No C-to-Swift callback or stored borrow is needed.

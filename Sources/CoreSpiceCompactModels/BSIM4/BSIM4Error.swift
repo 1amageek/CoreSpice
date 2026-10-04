@@ -7,5 +7,6 @@ public enum BSIM4Error: Error, Sendable, Equatable {
     case resourceBudgetExceeded
     case allocationFailure
     case diagnosticCapacityExceeded
+    case noiseNotPrepared
     case invalidHistory
 }

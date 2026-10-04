@@ -57,10 +57,9 @@ exact model + separate instance + explicit policy
   rejected/failed evaluations preserve accepted history. Acceptance re-evaluates
   and commits atomically under the owner lock. Concurrent acquisition fails before
   mutation; Analysis releases acquired sessions on every exit and partial failure.
-- Noise admission is explicitly unsupported until independent correlated-noise
-  composition is implemented. It fails before OP/spectrum; absence of NoisyDevice
-  must not silently yield successful zero noise. Mode1 warning and immutable
-  maintainer limitation remain observable even when paramchk suppresses warnings.
+- Noise follows the explicit preparation and correlated composition contract below.
+  Mode1 warning and immutable maintainer limitation remain observable even when
+  paramchk suppresses warnings.
 
 ## State, Ownership, and Lifecycle
 
@@ -93,3 +92,22 @@ finite-derivative/sanitizer proof replaces affected historical transient evidenc
 Revalidate
 changed Lowering, IO, CLI and Devices consumers once after convergence. Metal,
 WASM/Embedded and foundry qualification are not established by host CPU proof.
+
+## Noise Composition
+
+[Output-referred noise](../OutputReferredNoise/DESIGN.md) carries all physical
+port/owned-node complex transfer values into the original safe noise evaluator.
+BoundBSIM4 applies outer m once to the fourteen V²/Hz channels, retaining original
+mult_i/mult_fn semantics and AC mult_q/NQS behavior. It consumes immutable gains
+inside its existing owner lock; no solver/callback is retained or called there.
+
+Preparation receives an explicit caller noisePreparationRequested Bool before
+topology allocation. Electrical-only and noise-capable contexts follow original
+b4set semantics, including noise-only series nodes for tnoimod1. Lowering and
+binding must receive the same choice. A later NoiseAnalysis on electrical-only
+preparation fails before OP. Mode1 execution keeps its conditional warning and
+immutable unqualified maintainer limitation; execution is not trust qualification.
+
+[CoreSpiceBSIM4NoiseTests](../../../Tests/CoreSpiceBSIM4NoiseTests) owns original
+mode/scaler/temperature/topology/NQS spectra and integration, complex interference,
+history/concurrency, typed numerical/admission failures, cancellation and CLI.

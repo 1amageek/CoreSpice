@@ -219,6 +219,7 @@ struct CLI {
       },
       waveform: waveformSummary,
       bsim4PreparationPolicy: session.analysisOptions.bsim4PreparationPolicy,
+      bsim4NoisePreparationRequested: session.analysisOptions.bsim4NoisePreparationRequested,
       bsim4Models: session.devices.compactMap { device in
         guard let model = device as? BoundBSIM4 else { return nil }
         return CoreSpiceCLIBSIM4Record(device: model.instance.name,
@@ -387,6 +388,7 @@ struct CLI {
       Native BSIM4 preparation policy:
         Level 54 exact 4.8.3 requires .options bsim4stressiterations=<positive UInt32>.
         This bounds original stress preprocessing and is retained in JSON run records.
+        Parsed .noise intent prepares the original noise-dependent private topology.
 
       JSON records:
         Batch success records contain a replayable ExecutionInvocation plus

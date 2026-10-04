@@ -65,4 +65,42 @@ for name in files:
  s='\n'.join(line.expandtabs(8).rstrip()for line in s.splitlines()).rstrip()+'\n'
  (target/name).write_text(s)
  manifest['files'][name]={'originalSHA256':hashlib.sha256(original).hexdigest(),'adaptedSHA256':hashlib.sha256(s.encode()).hexdigest()}
+
+
+# Extract the exact local spectrum, excluding simulator traversal/integration.
+noise=(source/'b4noi.c').read_text()
+strong=noise[noise.index('double\nEval1ovFNoise'):noise.index('\nint\nBSIM4noise')]
+strong=strong.replace('double\nEval1ovFNoise', 'static double\nEval1ovFNoise')
+start=noise.index('if (model->BSIM4tnoiMod == 0)')
+end=noise.index('noizDens[BSIM4TOTNOIZ] =',start)
+density=noise[start:end].replace('data->freq','frequency')
+# Reject invalid intermediate values before original conditional/clamp branches.
+density=density.replace('T1 = Swi + Ssi;', 'T1 = Swi + Ssi;\n if (!isfinite(Ssi) || !isfinite(Swi) || !isfinite(T1)) return CS_BSIM4_NUMERICAL;')
+density=density.replace('T9 = gamma * delta ;', 'T9 = gamma * delta ;\n if (!isfinite(gamma) || !isfinite(delta) || !isfinite(epsilon) || !isfinite(T9)) return CS_BSIM4_NUMERICAL;')
+header=noise[:noise.index('#include "spice.h"')]
+wrapper=(target/'noise_primitives.inc').read_text()
+entry="""
+int cs_bsim4_noise_density(BSIM4model *model, BSIM4instance *here,
+ CKTcircuit *ckt, double frequency, const double real[13], const double imag[13], double noizDens[14]) {
+ struct bsim4SizeDependParam *pParam=here->pParam;
+ CSBSIM4NoiseContext context={ckt,real,imag,0};
+ double lnNdens[14];
+ double T0,T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13;
+ double Vds,n,ExpArg,Ssi,Swi,tmp,gdpr,gspr,npart_theta,npart_beta,igsquare,bodymode;
+ double eta,Leff,Lvsat,gamma,delta,epsilon,GammaGd0,npart_c,sigrat,C0,omega,ctnoi,tau;
+ double mult_i=here->BSIM4mult_i,mult_fn=here->BSIM4mult_fn;
+ double frequencyPower=pow(frequency,model->BSIM4ef);
+ if (!isfinite(frequencyPower) || frequencyPower<=0 || (model->BSIM4fnoiMod==1 && pParam->BSIM4leff-2*model->BSIM4lintnoi<=0)) return CS_BSIM4_NUMERICAL;
+"""
+ending="""
+ if(context.failed) return CS_BSIM4_NUMERICAL;
+ for(int index=0;index<14;index++) if(!isfinite(noizDens[index])||noizDens[index]<0) return CS_BSIM4_NUMERICAL;
+ return CS_BSIM4_OK;
+}
+"""
+spectrum='/* Modified for CoreSpice: local original spectrum and scoped complex transfer primitive; no simulator noise history. */\n'+header+'\n'+wrapper+'\n'+strong+'\n'+entry+density+ending
+spectrum='\n'.join(line.expandtabs(8).rstrip()for line in spectrum.splitlines()).rstrip()+'\n'
+(target/'b4noi.c').write_text(spectrum)
+manifest['noisePrimitiveProvenance']={'source':'ngspice-46 src/spicelib/analysis/nevalsrc.c','sourceSHA256':'ce85b15a7f30479f51d4f9bf38c7c581a0949dee3613bbd59a806c59930398cc','license':'Modified BSD, retained in NOISE_PRIMITIVE_LICENSE','modifiedPrimitiveSHA256':hashlib.sha256(wrapper.encode()).hexdigest()}
+manifest['files']['b4noi.c']={'originalSHA256':hashlib.sha256(noise.encode()).hexdigest(),'adaptedSHA256':hashlib.sha256(spectrum.encode()).hexdigest(),'adaptation':'Exact local N_DENS and Eval1ovFNoise; scoped full-node complex gain primitives, SI2019 host constants, numerical guards; simulator traversal and integration excluded.'}
 (target/'upstream.json').write_text(json.dumps(manifest,indent=2)+'\n')

@@ -93,6 +93,31 @@ public final class BSIM4Evaluator: BSIM4Evaluating {
             operatingPoint: Self.vector(result.operatingPoint, count: 8),
             intrinsicCharges: Self.vector(result.intrinsicCharges, count: 4), token: result.token)
     }
+    public func noiseSpectrum(bias: SIMD16<Double>, frequency: Double,
+                              gainReal: SIMD16<Double>, gainImaginary: SIMD16<Double>,
+                              minimumJunctionConductance: Double = 1e-12) throws -> BSIM4NoiseSpectrum {
+        var input = bias, real = gainReal, imaginary = gainImaginary
+        var output = SIMD16<Double>(repeating: 0)
+        try state.withLock { owner in
+            cs_bsim4_invalidate_trial(owner.handle)
+            try Self.validatePadding(input)
+            try Self.validatePadding(real)
+            try Self.validatePadding(imaginary)
+            let status = withUnsafeBytes(of: &input) { biasBytes in
+                withUnsafeBytes(of: &real) { realBytes in
+                    withUnsafeBytes(of: &imaginary) { imaginaryBytes in
+                        withUnsafeMutableBytes(of: &output) { outputBytes in
+                            cs_bsim4_noise_spectrum(owner.handle, biasBytes.bindMemory(to: Double.self).baseAddress!,
+                                frequency, minimumJunctionConductance, realBytes.bindMemory(to: Double.self).baseAddress!,
+                                imaginaryBytes.bindMemory(to: Double.self).baseAddress!, outputBytes.bindMemory(to: Double.self).baseAddress!)
+                        }
+                    }
+                }
+            }
+            guard status == CS_BSIM4_OK else { throw Self.error(status, "Invalid original noise spectrum input") }
+        }
+        return BSIM4NoiseSpectrum(outputSpectralDensities: output)
+    }
     public func initializeHistory(at bias: SIMD16<Double>) throws {
         var input = bias
         try state.withLock { owner in
@@ -127,6 +152,7 @@ public final class BSIM4Evaluator: BSIM4Evaluating {
     }
     private static func error(_ status: Int32, _ message: String) -> BSIM4Error {
         switch Int(status) {
+        case CS_BSIM4_NOISE_UNPREPARED: .noiseNotPrepared
         case CS_BSIM4_RESOURCE: .resourceBudgetExceeded
         case CS_BSIM4_MEMORY: .allocationFailure
         case CS_BSIM4_NUMERICAL: .nonFiniteEvaluation

@@ -415,7 +415,7 @@ struct BSIM4IntegrationTests {
             _ = try await NoiseAnalysis(outputNode: try mos(failingNoise).instance.nodes[0], sweep: .linear(start: 1e3, stop: 1e3, points: 1))
                 .run(circuit: failingNoise, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
             Issue.record("Invalid BSIM noise produced successful evidence")
-        } catch let error as BSIM4DeviceError { #expect(error == .unsupportedAnalysis(device: "m1", analysis: "noise")) }
+        } catch let error as BSIM4Error { #expect(error == .noiseNotPrepared) }
         let failing = try await prepared(source().replacingOccurrences(of: "VB b 0 -0.1", with: "VB b 0 sin(-0.1 1e200 100Meg)"))
         do {
             _ = try await TransientAnalysis(config: .init(stopTime: 2e-12, executionLimits: .validationFixture, maxTimeStep: 1e-12, initialTimeStep: 1e-12))

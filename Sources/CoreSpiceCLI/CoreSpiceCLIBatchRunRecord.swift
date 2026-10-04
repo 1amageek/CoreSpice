@@ -11,6 +11,7 @@ public struct CoreSpiceCLIBatchRunRecord: Codable, Sendable, Hashable {
   public let outputArtifacts: [ArtifactReference]
   public let analyses: [String]
   public let measurements: [CoreSpiceCLIMeasurement]
+  public let bsim4NoisePreparationRequested: Bool
   public let bsim4PreparationPolicy: BSIM4PreparationPolicy?
   public let bsim4Models: [CoreSpiceCLIBSIM4Record]
   public let waveform: CoreSpiceCLIWaveformSummary?
@@ -24,8 +25,10 @@ public struct CoreSpiceCLIBatchRunRecord: Codable, Sendable, Hashable {
     measurements: [CoreSpiceCLIMeasurement],
     waveform: CoreSpiceCLIWaveformSummary?,
     bsim4PreparationPolicy: BSIM4PreparationPolicy? = nil,
+    bsim4NoisePreparationRequested: Bool = false,
     bsim4Models: [CoreSpiceCLIBSIM4Record] = []
   ) {
+    self.bsim4NoisePreparationRequested = bsim4NoisePreparationRequested
     self.bsim4PreparationPolicy = bsim4PreparationPolicy
     self.bsim4Models = bsim4Models
     self.schemaVersion = .v1

@@ -186,7 +186,7 @@ public struct SubcircuitExpander: Sendable {
             guard let deviceModel else { throw BSIM4DeviceError.missingModel(fullName) }
             auxiliaryNodeCount = try BSIM4Preparation.prepare(model: deviceModel,
                 instanceParameters: evaluatedParams, temperature: context.temperature + 273.15,
-                policy: configuration.bsim4PreparationPolicy).auxiliaryNodeCount
+                policy: configuration.bsim4PreparationPolicy, noisePreparationRequested: configuration.bsim4NoisePreparationRequested).auxiliaryNodeCount
         }
 
         // Allocate branches for devices that need them (voltage sources, inductors, etc.)
