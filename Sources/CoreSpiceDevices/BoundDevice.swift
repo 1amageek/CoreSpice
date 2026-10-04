@@ -9,13 +9,13 @@ public protocol BoundDevice: Sendable {
     var instance: Instance { get }
 
     /// Stamp the device's DC operating-point equations.
-    func stampDC(into stamper: inout MatrixStamper, state: SolutionState)
+    func stampDC(into stamper: inout MatrixStamper, state: SolutionState) throws
 
     /// Stamp the device's AC small-signal model.
-    func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double)
+    func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) throws
 
     /// Stamp the device's transient companion model.
-    func stampTransient(into stamper: inout MatrixStamper, state: SolutionState, integration: IntegrationState)
+    func stampTransient(into stamper: inout MatrixStamper, state: SolutionState, integration: IntegrationState) throws
 
     /// Check whether the device has converged between Newton iterations.
     func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult

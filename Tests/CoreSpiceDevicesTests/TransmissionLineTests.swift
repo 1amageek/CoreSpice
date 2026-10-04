@@ -35,7 +35,7 @@ struct TransmissionLineTests {
         let collector = RealCollector()
         var stamper = fixture.realStamper(collector: collector)
 
-        device.stampDC(into: &stamper, state: fixture.zeroState())
+        try device.stampDC(into: &stamper, state: fixture.zeroState())
 
         #expect(collector.matrix(row: 2, column: 0) == 1)
         #expect(collector.matrix(row: 2, column: 1) == -1)
@@ -53,7 +53,7 @@ struct TransmissionLineTests {
         let collector = ComplexCollector()
         var stamper = fixture.complexStamper(collector: collector)
 
-        device.stampAC(
+        try device.stampAC(
             into: &stamper,
             state: fixture.zeroState(),
             omega: .pi / (2 * delay)
@@ -78,7 +78,7 @@ struct TransmissionLineTests {
             variableMap: fixture.variableMap
         )
         var initialStamper = fixture.realStamper(collector: RealCollector())
-        bound.stampTransient(
+        try bound.stampTransient(
             into: &initialStamper,
             state: initial,
             integration: IntegrationState(
@@ -93,7 +93,7 @@ struct TransmissionLineTests {
             previousVariables: initial.variables,
             variableMap: fixture.variableMap
         )
-        committing.commitTransientStep(
+        try committing.commitTransientStep(
             state: accepted,
             integration: IntegrationState(
                 method: .backwardEuler,
@@ -104,7 +104,7 @@ struct TransmissionLineTests {
 
         let collector = RealCollector()
         var stamper = fixture.realStamper(collector: collector)
-        bound.stampTransient(
+        try bound.stampTransient(
             into: &stamper,
             state: accepted,
             integration: IntegrationState(

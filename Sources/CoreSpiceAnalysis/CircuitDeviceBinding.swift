@@ -51,6 +51,9 @@ public struct StandardCircuitDeviceBinding: CircuitDeviceBinding, Sendable {
             guard instance.name == expected.name,
                   instance.typeName == expected.typeName,
                   instance.nodes == expected.nodes,
+                  instance.ownedNodes == expected.ownedNodes,
+                  instance.model?.name == expected.model?.name,
+                  instance.model?.typeName == expected.model?.typeName,
                   instance.opticalNodes == expected.opticalNodes else {
                 throw PreparedCircuitError.boundDeviceIdentityMismatch(
                     index: index,

@@ -93,7 +93,7 @@ struct ReactiveDeviceCompanionModelTests {
             currentTime: dt
         )
 
-        bound.stampTransient(into: &stamper, state: state, integration: integration)
+        try bound.stampTransient(into: &stamper, state: state, integration: integration)
 
         // Check diagonal stamp (Geq at (0,0) and (1,1))
         let geq00 = collector.matrixSum(row: 0, col: 0)
@@ -162,7 +162,7 @@ struct ReactiveDeviceCompanionModelTests {
             currentTime: dt
         )
 
-        bound.stampTransient(into: &stamper, state: state, integration: integration)
+        try bound.stampTransient(into: &stamper, state: state, integration: integration)
 
         // Check diagonal stamp (Geq at (0,0))
         let geq00 = collector.matrixSum(row: 0, col: 0)

@@ -23,6 +23,7 @@ acceptance remain outside this component. Noise analysis is not exposed.
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [CompactModels](../DESIGN.md) | parent | Safe independent model API | Public evaluator | No frontend gate is opened by kernel evidence |
+| [Production device](../../CoreSpiceDevices/BSIM3/DESIGN.md) | used by | Safe evaluator protocol | Native MNA composition | Production qualification is separately owned |
 | [C kernel](../../CoreSpiceBSIM3/DESIGN.md) | depends on | Fixed local ABI | Official equations and bounded storage | Published calls and destruction use the same Mutex |
 
 ## Architecture

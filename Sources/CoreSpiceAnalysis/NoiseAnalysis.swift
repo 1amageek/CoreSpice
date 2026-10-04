@@ -72,6 +72,11 @@ public struct NoiseAnalysis: Analysis, Sendable {
         )))
 
         do {
+            for device in devices {
+                if let admission = device as? any NoiseAnalysisAdmissionDevice {
+                    try admission.validateNoiseAnalysis()
+                }
+            }
             // Phase 1: DC operating point
             let dcAnalysis = DCAnalysis(config: dcConfig)
             let dcResult = try await dcAnalysis.run(
@@ -175,7 +180,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                     if let optoDevice = device as? OptoelectronicDevice {
                         optoDevice.stampAC(into: &stamper, state: dcState, opticalState: dcOpticalState, omega: omega)
                     } else {
-                        device.stampAC(into: &stamper, state: dcState, omega: omega)
+                        try device.stampAC(into: &stamper, state: dcState, omega: omega)
                     }
                 }
 

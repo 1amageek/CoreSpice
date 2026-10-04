@@ -640,7 +640,12 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             case 1, 2, 3:
                 return nil
             case 49:
-                return "BSIM3 MOS level 49 models are parsed, but native BSIM3 execution is not implemented"
+                if let value = model.parameters["version"] {
+                    guard case .string("3.3.0") = value else {
+                        return "Native BSIM3 level 49 requires exact version 3.3.0"
+                    }
+                }
+                return nil
             case 54:
                 return "BSIM4 MOS level 54 models are parsed, but native BSIM4 execution is not implemented"
             default:

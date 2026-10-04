@@ -4,7 +4,7 @@
 
 This SwiftPM module owns native electrical device binding and stamping. Its
 parent is the [CoreSpice package](../../DESIGN.md), and its device implementation
-child is [Devices](Devices/DESIGN.md).
+children are [Devices](Devices/DESIGN.md) and [BSIM3](BSIM3/DESIGN.md).
 
 ## Responsibilities and Boundaries
 
@@ -53,3 +53,12 @@ The [L3 behavioral suite](../../Tests/CoreSpiceDevicesTests/MOSL3ConsistencyTest
 owns current, derivative, polarity, capacitance, registry, and analysis evidence.
 Changes to stamping require revalidation of DC/AC/transient analyses and the
 parent contract; parser/lowering model-level selection remains unchanged.
+
+## Fallible execution and transient sessions
+
+BoundDevice DC/AC/transient stamps and accepted-step commits are throwing protocol
+requirements. Existing nonthrowing implementations satisfy those requirements.
+TransientSessionDevice begins history from an initial SolutionState and ends it
+on every analysis-scope exit. NoiseAnalysisAdmissionDevice rejects unsupported
+noise before a result can be labeled successful. Their BSIM3 ownership, lifecycle
+and behavior are defined by the [BSIM3 component](BSIM3/DESIGN.md).

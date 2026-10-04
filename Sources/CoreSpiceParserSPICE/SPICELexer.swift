@@ -11,6 +11,7 @@ public struct SPICELexer: Sendable {
     private let fileName: String?
     private let configuration: ParserConfiguration
     private var index: String.Index
+    private var lineStart: String.Index
     private var line: Int = 1
     private var column: Int = 1
 
@@ -23,6 +24,7 @@ public struct SPICELexer: Sendable {
         self.fileName = fileName
         self.configuration = configuration
         self.index = source.startIndex
+        self.lineStart = source.startIndex
     }
 
     /// Tokenizes the entire source.
@@ -31,7 +33,9 @@ public struct SPICELexer: Sendable {
 
         while !isAtEnd {
             if let token = nextToken() {
-                tokens.append(token)
+                if case .continuation = token.token, let last = tokens.last, case .newline = last.token {
+                    tokens.removeLast()
+                } else { tokens.append(token) }
             }
         }
 
@@ -61,7 +65,7 @@ public struct SPICELexer: Sendable {
         }
 
         // Handle continuation at start of line (after newline)
-        if char == "+" && column == 1 {
+        if char == "+" && source[lineStart..<index].allSatisfy({ $0.isWhitespace }) {
             advance()
             return SPICEToken.Located(token: .continuation, location: startLocation)
         }
@@ -225,6 +229,15 @@ public struct SPICELexer: Sendable {
                 numberStr.append(current)
                 advance()
             }
+        }
+
+        // Preserve semantic version identity rather than emitting two numbers.
+        if !isAtEnd && current == "." {
+            while !isAtEnd && (current.isNumber || current == ".") {
+                numberStr.append(current)
+                advance()
+            }
+            return SPICEToken.Located(token: .dottedLiteral(numberStr), location: startLocation)
         }
 
         // Exponent part
@@ -404,6 +417,7 @@ public struct SPICELexer: Sendable {
         if current == "\n" {
             line += 1
             column = 1
+            lineStart = source.index(after: index)
         } else {
             column += 1
         }

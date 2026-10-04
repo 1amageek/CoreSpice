@@ -104,7 +104,7 @@ struct CoreSpiceDevicesTests {
             stampRHS: { r, v in collector.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // Resistor stamps conductance g = 1/1000 = 0.001
         // Should have stamps at (0,0)+=g, (1,1)+=g, (0,1)-=g, (1,0)-=g
@@ -196,7 +196,7 @@ struct CoreSpiceDevicesTests {
             },
             stampRHS: { row, value in collector.addRHS(row, value) }
         )
-        bound.stampDC(
+        try bound.stampDC(
             into: &stamper,
             state: SolutionState(
                 variables: [0.0, 0.0],
@@ -269,7 +269,7 @@ struct CoreSpiceDevicesTests {
         let stateful = try #require(bound as? any AcceptedStateCommittingDevice)
         let variableMap = context.variableMap
 
-        func conductance(controlVoltage: Double) -> Double {
+        func conductance(controlVoltage: Double) throws -> Double {
             let collector = StampCollector()
             var stamper = MatrixStamper(
                 variableMap: variableMap,
@@ -280,7 +280,7 @@ struct CoreSpiceDevicesTests {
                     collector.addRHS(row, value)
                 }
             )
-            bound.stampDC(
+            try bound.stampDC(
                 into: &stamper,
                 state: SolutionState(
                     variables: [1.0, controlVoltage],
@@ -290,19 +290,19 @@ struct CoreSpiceDevicesTests {
             return collector.matrixSum(row: 0, col: 0)
         }
 
-        #expect(abs(conductance(controlVoltage: 0.5) - 1.0e-9) < 1.0e-12)
-        #expect(abs(conductance(controlVoltage: 0.7) - 1.0) < 1.0e-12)
-        #expect(abs(conductance(controlVoltage: 0.5) - 1.0e-9) < 1.0e-12)
+        #expect(abs(try conductance(controlVoltage: 0.5) - 1.0e-9) < 1.0e-12)
+        #expect(abs(try conductance(controlVoltage: 0.7) - 1.0) < 1.0e-12)
+        #expect(abs(try conductance(controlVoltage: 0.5) - 1.0e-9) < 1.0e-12)
 
         stateful.commitAcceptedState(
             SolutionState(variables: [1.0, 0.7], variableMap: variableMap)
         )
-        #expect(abs(conductance(controlVoltage: 0.5) - 1.0) < 1.0e-12)
+        #expect(abs(try conductance(controlVoltage: 0.5) - 1.0) < 1.0e-12)
 
         stateful.commitAcceptedState(
             SolutionState(variables: [1.0, 0.3], variableMap: variableMap)
         )
-        #expect(abs(conductance(controlVoltage: 0.5) - 1.0e-9) < 1.0e-12)
+        #expect(abs(try conductance(controlVoltage: 0.5) - 1.0e-9) < 1.0e-12)
     }
 
     @Test func voltageSwitchRejectsNegativeHysteresis() {
@@ -391,7 +391,7 @@ struct CoreSpiceDevicesTests {
             }
         )
 
-        bound.stampAC(into: &complexStamper, state: state, omega: 1_000.0)
+        try bound.stampAC(into: &complexStamper, state: state, omega: 1_000.0)
 
         let acAB = complexCollector.matrixSum(row: 2, col: 3)
         let acBA = complexCollector.matrixSum(row: 3, col: 2)
@@ -408,7 +408,7 @@ struct CoreSpiceDevicesTests {
         )
         let integration = IntegrationState(method: .backwardEuler, timeStep: 1.0, currentTime: 1.0)
 
-        bound.stampTransient(into: &stamper, state: state, integration: integration)
+        try bound.stampTransient(into: &stamper, state: state, integration: integration)
 
         #expect(abs(collector.matrixSum(row: 2, col: 3) + expectedMutualInductance) < 1.0e-15)
         #expect(abs(collector.matrixSum(row: 3, col: 2) + expectedMutualInductance) < 1.0e-15)

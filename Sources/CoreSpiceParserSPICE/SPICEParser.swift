@@ -415,13 +415,31 @@ private struct SPICEParserImpl {
 
         // Parse parameters
         while !isAtEnd && !isNewline {
+            if case .dottedLiteral(let text) = currentToken {
+                throw ParserDiagnostic.error("Version literal '\(text)' is not a numerical component value", at: currentLocation)
+            }
             if case .identifier(let paramName) = currentToken {
                 let lower = paramName.lowercased()
                 advance()
                 if case .equals = currentToken {
                     advance()
-                    let value = try parseParameterValue()
-                    params[lower] = value
+                    if type == .mosfet && lower == "ic" {
+                        let keys = ["ic_vds", "ic_vgs", "ic_vbs"]
+                        for key in keys { params[key] = .numeric(0) }
+                        for index in 0..<3 {
+                            params[keys[index]] = try parseParameterValue()
+                            guard case .comma = currentToken else { break }
+                            if index == 2 {
+                                throw ParserDiagnostic.error("MOS IC requires one to three values", at: currentLocation)
+                            }
+                            advance()
+                        }
+                    } else {
+                        let value = try parseParameterValue()
+                        params[lower] = value
+                    }
+                } else if type == .mosfet && lower == "off" {
+                    params[lower] = .boolean(true)
                 } else if (type == .voltageSource || type == .currentSource),
                           lower == "dc" || lower == "ac" {
                     // SPICE source syntax: V1 n1 n2 dc <value> ac <value>
@@ -1029,7 +1047,21 @@ private struct SPICEParserImpl {
                 advance()
                 if case .equals = currentToken {
                     advance()
-                    let value = try parseParameterValue()
+                    let value: ParsedParameterValue
+                    if pname.lowercased() == "version" {
+                        switch currentToken {
+                        case .dottedLiteral(let text), .string(let text), .identifier(let text):
+                            value = .string(text)
+                            advance()
+                        case .number(let number):
+                            value = .string(String(number))
+                            advance()
+                        default:
+                            throw ParserDiagnostic.error("Expected exact model version", at: currentLocation)
+                        }
+                    } else {
+                        value = try parseParameterValue()
+                    }
                     if pname.lowercased() == "level" {
                         if case .numeric(let n) = value {
                             level = Int(n)

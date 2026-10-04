@@ -221,7 +221,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
         // Stamp at ω = 1 so that imaginary parts equal the C coefficients
         let omega = 1.0
         for device in devices {
-            device.stampAC(into: &stamper, state: dcState, omega: omega)
+            try device.stampAC(into: &stamper, state: dcState, omega: omega)
         }
         guard matrix.structuralMisses.isEmpty else {
             let first = matrix.structuralMisses[0]

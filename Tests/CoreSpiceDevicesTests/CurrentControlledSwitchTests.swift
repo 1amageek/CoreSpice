@@ -31,7 +31,7 @@ struct CurrentControlledSwitchTests {
         )
         let stateful = try #require(bound as? any AcceptedStateCommittingDevice)
 
-        func conductance(controlCurrent: Double) -> Double {
+        func conductance(controlCurrent: Double) throws -> Double {
             let value = Mutex(0.0)
             var stamper = MatrixStamper(
                 variableMap: variableMap,
@@ -42,7 +42,7 @@ struct CurrentControlledSwitchTests {
                 },
                 stampRHS: { _, _ in }
             )
-            bound.stampDC(
+            try bound.stampDC(
                 into: &stamper,
                 state: SolutionState(
                     variables: [1.0, controlCurrent],
@@ -52,19 +52,19 @@ struct CurrentControlledSwitchTests {
             return value.withLock { $0 }
         }
 
-        #expect(abs(conductance(controlCurrent: 1.0e-3) - 1.0e-9) < 1.0e-12)
-        #expect(abs(conductance(controlCurrent: 1.2e-3) - 0.1) < 1.0e-12)
-        #expect(abs(conductance(controlCurrent: 1.0e-3) - 1.0e-9) < 1.0e-12)
+        #expect(abs(try conductance(controlCurrent: 1.0e-3) - 1.0e-9) < 1.0e-12)
+        #expect(abs(try conductance(controlCurrent: 1.2e-3) - 0.1) < 1.0e-12)
+        #expect(abs(try conductance(controlCurrent: 1.0e-3) - 1.0e-9) < 1.0e-12)
 
         stateful.commitAcceptedState(
             SolutionState(variables: [1.0, 1.2e-3], variableMap: variableMap)
         )
-        #expect(abs(conductance(controlCurrent: 1.0e-3) - 0.1) < 1.0e-12)
+        #expect(abs(try conductance(controlCurrent: 1.0e-3) - 0.1) < 1.0e-12)
 
         stateful.commitAcceptedState(
             SolutionState(variables: [1.0, 0.8e-3], variableMap: variableMap)
         )
-        #expect(abs(conductance(controlCurrent: 1.0e-3) - 1.0e-9) < 1.0e-12)
+        #expect(abs(try conductance(controlCurrent: 1.0e-3) - 1.0e-9) < 1.0e-12)
     }
 
     @Test("Explicit current-controlled switch rejects unindexed sense branch")
@@ -141,7 +141,7 @@ struct CurrentControlledSwitchTests {
             stampRHS: { _, _ in }
         )
 
-        bound.stampDC(
+        try bound.stampDC(
             into: &stamper,
             state: SolutionState(variables: [1.0, 1.0e-3], variableMap: variableMap)
         )

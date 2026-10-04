@@ -1,6 +1,7 @@
 import CoreSpiceCompile
 import CoreSpiceDevices
 import CoreSpiceEvent
+import CoreSpiceIR
 import Foundation
 
 /// A compiled plan and its bound devices after identity and topology validation.
@@ -41,6 +42,17 @@ public struct PreparedCircuit: Sendable {
             )
         }
 
+        let publicNodes = Set(plan.ir.instances.flatMap { $0.nodes + $0.referencedNodes })
+        var ownedNodes = Set<CoreSpiceIR.Node>()
+        for instance in plan.ir.instances {
+            for node in instance.ownedNodes {
+                guard node != .ground, !publicNodes.contains(node),
+                      plan.ir.nodes.contains(node), ownedNodes.insert(node).inserted else {
+                    throw PreparedCircuitError.invalidAuxiliaryOwnership(nodeID: node.id)
+                }
+            }
+        }
+
         for index in 0..<instanceCount {
             let expected = plan.ir.instances[index]
             let name = plan.deviceNames[index]
@@ -55,6 +67,9 @@ public struct PreparedCircuit: Sendable {
             guard actual.name == expected.name,
                   actual.typeName == expected.typeName,
                   actual.nodes == expected.nodes,
+                  actual.ownedNodes == expected.ownedNodes,
+                  actual.model?.name == expected.model?.name,
+                  actual.model?.typeName == expected.model?.typeName,
                   actual.opticalNodes == expected.opticalNodes else {
                 throw PreparedCircuitError.boundDeviceIdentityMismatch(
                     index: index,
@@ -89,6 +104,7 @@ public struct PreparedCircuit: Sendable {
 }
 
 public enum PreparedCircuitError: Error, Sendable, Equatable {
+    case invalidAuxiliaryOwnership(nodeID: Int)
     case deviceNameCountMismatch(expected: Int, actual: Int)
     case boundDeviceCountMismatch(expected: Int, actual: Int)
     case planIdentityMismatch(index: Int, expected: String, actual: String)
@@ -101,6 +117,8 @@ public enum PreparedCircuitError: Error, Sendable, Equatable {
 extension PreparedCircuitError: LocalizedError {
     public var errorDescription: String? {
         switch self {
+        case .invalidAuxiliaryOwnership(let nodeID):
+            return "Auxiliary node \(nodeID) is absent, exposed as a port or multiply owned"
         case .deviceNameCountMismatch(let expected, let actual):
             return "Execution plan contains \(actual) device names for \(expected) instances"
         case .boundDeviceCountMismatch(let expected, let actual):

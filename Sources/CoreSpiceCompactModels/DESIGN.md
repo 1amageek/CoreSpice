@@ -15,7 +15,7 @@ provides no circuit solver, frontend model selection, or foundry qualification.
 
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
-| [CoreSpice](../../DESIGN.md) | parent | Native simulation domain | Independent evaluator product | Level 49 remains rejected until production composition is proven |
+| [CoreSpice](../../DESIGN.md) | parent | Native simulation domain | Independent evaluator product | Selector qualification is owned by Devices BSIM3 |
 | [BSIM3](BSIM3/DESIGN.md) | child | Safe model evaluation | Berkeley 3.3.0 physics | Preserve full NQS and series-node semantics |
 
 ## Architecture

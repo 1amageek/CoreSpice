@@ -647,7 +647,7 @@ struct SPICEExecutionIntentTests {
         model coverage deck
         .model dmod d
         .model nch nmos level=1
-        .model sky nmos level=49
+        .model sky nmos level=54
         .model swmod sw
         .model cswmod csw
         .model jmod njf beta=1m vto=-2 lambda=0.01
@@ -673,7 +673,7 @@ struct SPICEExecutionIntentTests {
         #expect(item(named: "model:dmod", in: report)?.status == .supported)
         #expect(item(named: "model:nch", in: report)?.status == .supported)
         #expect(item(named: "model:sky", in: report)?.status == .blocked)
-        #expect(item(named: "model:sky", in: report)?.message.contains("level 49") == true)
+        #expect(item(named: "model:sky", in: report)?.message.contains("level 54") == true)
         #expect(item(named: "model:swmod", in: report)?.status == .supported)
         #expect(item(named: "model:cswmod", in: report)?.status == .supported)
         #expect(item(named: "model:jmod", in: report)?.status == .supported)

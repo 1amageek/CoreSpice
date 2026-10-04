@@ -104,7 +104,7 @@ struct DiodeTests {
             stampRHS: { r, v in collector.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // Should have conductance stamps at all four positions
         #expect(collector.matrixEntries.count >= 4)
@@ -150,7 +150,7 @@ struct DiodeTests {
             stampRHS: { r, v in collector.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // Should still have stamps (for gmin and small reverse conductance)
         #expect(collector.matrixEntries.count >= 4)
@@ -225,7 +225,7 @@ struct DiodeTests {
             stampMatrix: { r, c, v in collector1.addMatrix(r, c, v) },
             stampRHS: { r, v in collector1.addRHS(r, v) }
         )
-        bound.stampDC(into: &stamper1, state: state1)
+        try bound.stampDC(into: &stamper1, state: state1)
         let gd1 = collector1.matrixSum(row: 0, col: 0)
 
         // At Vd = 0.7V, conductance should be higher (exponential increase)
@@ -236,7 +236,7 @@ struct DiodeTests {
             stampMatrix: { r, c, v in collector2.addMatrix(r, c, v) },
             stampRHS: { r, v in collector2.addRHS(r, v) }
         )
-        bound.stampDC(into: &stamper2, state: state2)
+        try bound.stampDC(into: &stamper2, state: state2)
         let gd2 = collector2.matrixSum(row: 0, col: 0)
 
         // Conductance should increase with voltage (exponential)
@@ -269,7 +269,7 @@ struct DiodeTests {
             stampRHS: { r, v in collector.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // Only anode index should be stamped (cathode is ground)
         let g00 = collector.matrixSum(row: 0, col: 0)

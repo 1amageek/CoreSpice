@@ -2,7 +2,7 @@ import CoreSpiceIR
 import Synchronization
 
 public protocol TransientStateCommittingDevice: BoundDevice {
-    func commitTransientStep(state: SolutionState, integration: IntegrationState)
+    func commitTransientStep(state: SolutionState, integration: IntegrationState) throws
 }
 
 public final class TransientCapacitanceStore: Sendable {

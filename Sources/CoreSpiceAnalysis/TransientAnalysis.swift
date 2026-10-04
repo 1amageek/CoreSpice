@@ -105,6 +105,16 @@ public struct TransientAnalysis: Analysis, Sendable {
                 initialSolution = dcResult.variables
             }
 
+            var acquiredSessions: [any TransientSessionDevice] = []
+            defer { for device in acquiredSessions.reversed() { device.endTransientSession() } }
+            let initialState = SolutionState(variables: initialSolution, variableMap: variableMap)
+            for device in devices {
+                if let session = device as? any TransientSessionDevice {
+                    try session.beginTransientSession(initialState: initialState)
+                    acquiredSessions.append(session)
+                }
+            }
+
             // Initialize state
             var currentTime: Double = 0.0
 
@@ -246,7 +256,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                                             integration: currentIntegration
                                         )
                                     } else {
-                                        device.stampTransient(
+                                        try device.stampTransient(
                                             into: &stamper,
                                             state: transientState,
                                             integration: currentIntegration
@@ -258,7 +268,8 @@ public struct TransientAnalysis: Analysis, Sendable {
                             analysisID: analysisID,
                             cancellation: cancellation
                         )
-                    } catch is AnalysisError {
+                    } catch let error as AnalysisError {
+                        if case .cancelled = error { throw error }
                         // Newton failed: try GMIN stepping before reducing timestep
                         reductions += 1
 
@@ -283,7 +294,8 @@ public struct TransientAnalysis: Analysis, Sendable {
                                 )
                                 // GMIN stepping succeeded — use this solution
                                 newtonIterations = gminResult
-                            } catch {
+                            } catch let error as AnalysisError {
+                                if case .cancelled = error { throw error }
                                 // GMIN stepping failed — fall through to timestep reduction
                                 let oldDt = dt
                                 dt *= config.shrinkFactor
@@ -398,7 +410,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         )
                         for device in devices {
                             if let committingDevice = device as? any TransientStateCommittingDevice {
-                                committingDevice.commitTransientStep(state: commitState, integration: commitIntegration)
+                                try committingDevice.commitTransientStep(state: commitState, integration: commitIntegration)
                             }
                         }
 
@@ -462,7 +474,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         )
                         for device in devices {
                             if let committingDevice = device as? any TransientStateCommittingDevice {
-                                committingDevice.commitTransientStep(state: commitState, integration: commitIntegration)
+                                try committingDevice.commitTransientStep(state: commitState, integration: commitIntegration)
                             }
                         }
 
@@ -615,7 +627,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                                     integration: integration
                                 )
                             } else {
-                                device.stampTransient(
+                                try device.stampTransient(
                                     into: &stamper,
                                     state: transientState,
                                     integration: integration
@@ -630,7 +642,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                 swap(&guess, &solution)
                 totalIterations += iterations
             } catch {
-                throw AnalysisError.internalError("GMIN stepping failed at gmin \(gmin): \(error)")
+                throw error
             }
         }
 
@@ -652,6 +664,11 @@ public struct TransientAnalysis: Analysis, Sendable {
         var solution = [Double](repeating: 0.0, count: dimension)
 
         for device in devices {
+            if let terminalDevice = device as? any TerminalInitialConditionDevice {
+                for (node, voltage) in terminalDevice.initialNodeVoltages {
+                    if let index = variableMap[.nodeVoltage(node)] { solution[index] = voltage }
+                }
+            }
             if let vicDevice = device as? VoltageInitialConditionDevice,
                vicDevice.hasInitialCondition {
                 let posNode = vicDevice.positiveNode

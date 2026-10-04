@@ -1399,7 +1399,13 @@ struct Session {
           name: instance.name,
           typeName: instance.typeName,
           nodes: instance.nodes,
-          parameters: params
+          parameters: params,
+          model: instance.model,
+          ownedNodes: instance.ownedNodes,
+          ownedBranches: instance.ownedBranches,
+          referencedBranches: instance.referencedBranches,
+          referencedNodes: instance.referencedNodes,
+          opticalNodes: instance.opticalNodes
         )
       } else {
         inst = instance

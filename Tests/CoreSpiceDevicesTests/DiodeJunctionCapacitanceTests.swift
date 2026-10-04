@@ -93,7 +93,7 @@ struct DiodeJunctionCapacitanceTests {
         )
 
         let omega = 2 * Double.pi * 1e6  // 1 MHz
-        bound.stampAC(into: &stamper, state: state, omega: omega)
+        try bound.stampAC(into: &stamper, state: state, omega: omega)
 
         // Susceptance B = ωC should appear on diagonal
         // At zero bias, Cj = Cjo
@@ -154,7 +154,7 @@ struct DiodeJunctionCapacitanceTests {
         )
 
         let omega = 2 * Double.pi * 1e6
-        bound.stampAC(into: &stamper, state: state, omega: omega)
+        try bound.stampAC(into: &stamper, state: state, omega: omega)
 
         // Expected: Cj = Cjo / (1 - Vd/Vj)^m = 10pF / (1 + 2/0.7)^0.5
         let expectedCj = cjo / pow(1.0 - vd / vj, m)
@@ -213,7 +213,7 @@ struct DiodeJunctionCapacitanceTests {
             stampMatrix: { r, c, re, im in collector.addMatrix(r, c, re, im) },
             stampRHS: { _, _, _ in }
         )
-        bound.stampAC(into: &stamper, state: state, omega: omega)
+        try bound.stampAC(into: &stamper, state: state, omega: omega)
 
         let actualB = collector.imaginarySum(row: 0, col: 0)
         let actualC = actualB / omega
@@ -273,7 +273,7 @@ struct DiodeJunctionCapacitanceTests {
             stampMatrix: { r, c, re, im in collector.addMatrix(r, c, re, im) },
             stampRHS: { _, _, _ in }
         )
-        bound.stampAC(into: &stamper, state: state, omega: omega)
+        try bound.stampAC(into: &stamper, state: state, omega: omega)
 
         // Expected gd = Is/Vt × exp(Vd/Vt)
         let expArg = min(vd / vt, 40.0)  // Limit to prevent overflow
@@ -335,7 +335,7 @@ struct DiodeJunctionCapacitanceTests {
             stampMatrix: { r, c, re, im in collector.addMatrix(r, c, re, im) },
             stampRHS: { _, _, _ in }
         )
-        bound.stampAC(into: &stamper, state: state, omega: omega)
+        try bound.stampAC(into: &stamper, state: state, omega: omega)
 
         // Expected depletion capacitance
         let expectedCj = cjo / pow(1.0 - vd / vj, m)
@@ -406,7 +406,7 @@ struct DiodeJunctionCapacitanceTests {
             stampMatrix: { r, c, re, im in collector1.addMatrix(r, c, re, im) },
             stampRHS: { _, _, _ in }
         )
-        bound.stampAC(into: &stamper1, state: state, omega: omega1)
+        try bound.stampAC(into: &stamper1, state: state, omega: omega1)
         let B1 = collector1.imaginarySum(row: 0, col: 0)
         let C1 = B1 / omega1
 
@@ -417,7 +417,7 @@ struct DiodeJunctionCapacitanceTests {
             stampMatrix: { r, c, re, im in collector2.addMatrix(r, c, re, im) },
             stampRHS: { _, _, _ in }
         )
-        bound.stampAC(into: &stamper2, state: state, omega: omega2)
+        try bound.stampAC(into: &stamper2, state: state, omega: omega2)
         let B2 = collector2.imaginarySum(row: 0, col: 0)
         let C2 = B2 / omega2
 

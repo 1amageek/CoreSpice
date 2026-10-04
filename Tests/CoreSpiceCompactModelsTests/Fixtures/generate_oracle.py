@@ -25,6 +25,7 @@ m1 d g s b reference w=10u l=1u ad=2p as=3p pd=12u ps=14u
 set numdgt=17
 op
 print @m1[id] @m1[gm] @m1[gds] @m1[gmbs] @m1[qg] @m1[qd] @m1[qb]
+print i(vd) i(vg) i(vs) i(vb)
 quit
 .endc
 .end
@@ -34,6 +35,7 @@ quit
    output=process.stdout+process.stderr
    values={key:float(value) for key,value in re.findall(r'@m1\[(\w+)\]\s*=\s*([\d.eE+\-]+)',output)}
    assert len(values)==7 and 'Fatal' not in output
+   values.update({f'{terminal}Current':float(re.search(r'i\(v'+terminal+r'\)\s*=\s*([\d.eE+\-]+)',output).group(1)) for terminal in ['d','g','s','b']})
    (out/f'{stem}.cir').write_text(deck);(out/f'{stem}.log').write_text(output)
    cases.append({'name':stem,'polarity':polarity,'bias':bias,'temperature':temperature+273.15,'capmod':capmod,'expected':values})
 (out/'oracle.json').write_text(json.dumps({'source':'ngspice independent BSIM3 level49/version3.3.0',

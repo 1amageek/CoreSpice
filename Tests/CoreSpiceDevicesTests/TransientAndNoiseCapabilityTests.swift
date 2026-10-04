@@ -129,7 +129,7 @@ struct TransientAndNoiseCapabilityTests {
             previousVariables: [0.0, 0.0],
             variableMap: variableMap
         )
-        committingDevice.commitTransientStep(state: forwardState, integration: integration)
+        try committingDevice.commitTransientStep(state: forwardState, integration: integration)
 
         let collector = CapabilityStampCollector()
         var stamper = MatrixStamper(
@@ -142,7 +142,7 @@ struct TransientAndNoiseCapabilityTests {
             previousVariables: [1.0, 4.0],
             variableMap: variableMap
         )
-        device.stampTransient(into: &stamper, state: reversedState, integration: integration)
+        try device.stampTransient(into: &stamper, state: reversedState, integration: integration)
 
         #expect(collector.rhsSum(row: 0) < -20.0)
     }

@@ -118,7 +118,7 @@ public struct ACAnalysis: Analysis, Sendable {
                     if let optoDevice = device as? OptoelectronicDevice {
                         optoDevice.stampAC(into: &stamper, state: dcState, opticalState: dcOpticalState, omega: omega)
                     } else {
-                        device.stampAC(into: &stamper, state: dcState, omega: omega)
+                        try device.stampAC(into: &stamper, state: dcState, omega: omega)
                     }
                 }
 

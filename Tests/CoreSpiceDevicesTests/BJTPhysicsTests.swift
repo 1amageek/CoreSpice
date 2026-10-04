@@ -104,7 +104,7 @@ struct BJTPhysicsTests {
             stampRHS: { r, v in collector_.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // In cutoff, gpi ≈ gmin (both junctions reverse biased)
         // Check (B,E) position which has only -gpi
@@ -176,7 +176,7 @@ struct BJTPhysicsTests {
             stampRHS: { r, v in collector_.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // Calculate expected gm and gpi from Ebers-Moll:
         // gm = Is/(nf*Vt) * exp(Vbe/(nf*Vt))
@@ -259,7 +259,7 @@ struct BJTPhysicsTests {
             stampRHS: { r, v in collectorSat.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamperSat, state: stateSat)
+        try bound.stampDC(into: &stamperSat, state: stateSat)
 
         // gmu = Is/(br*nr*Vt) * exp(Vbc/(nr*Vt))
         let expBC = exp(vbc / vt)
@@ -286,7 +286,7 @@ struct BJTPhysicsTests {
             stampRHS: { r, v in collectorFA.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamperFA, state: stateFA)
+        try bound.stampDC(into: &stamperFA, state: stateFA)
 
         let gmuFA = -collectorFA.matrixSum(row: 1, col: 0)
         let gmuSat = gmu
@@ -340,7 +340,7 @@ struct BJTPhysicsTests {
             stampRHS: { r, v in collectorHighVce.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamperHighVce, state: stateHighVce)
+        try bound.stampDC(into: &stamperHighVce, state: stateHighVce)
 
         // --- Low Vce case ---
         let collectorLowVce = BJTPhysicsStampCollector()
@@ -352,7 +352,7 @@ struct BJTPhysicsTests {
             stampRHS: { r, v in collectorLowVce.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamperLowVce, state: stateLowVce)
+        try bound.stampDC(into: &stamperLowVce, state: stateLowVce)
 
         // Extract gpi from (B,E) position (same for both - no Early effect on gpi)
         let gpi_high = -collectorHighVce.matrixSum(row: 1, col: 2)
@@ -434,7 +434,7 @@ struct BJTPhysicsTests {
             stampRHS: { r, v in collectorPNP.addRHS(r, v) }
         )
 
-        boundPNP.stampDC(into: &stamperPNP, state: statePNP)
+        try boundPNP.stampDC(into: &stamperPNP, state: statePNP)
 
         // --- Compare with NPN at equivalent bias ---
         let descNPN = NPNDescriptor()
@@ -459,7 +459,7 @@ struct BJTPhysicsTests {
             stampRHS: { r, v in collectorNPN.addRHS(r, v) }
         )
 
-        boundNPN.stampDC(into: &stamperNPN, state: stateNPN)
+        try boundNPN.stampDC(into: &stamperNPN, state: stateNPN)
 
         // Extract gpi from (B,E) for both
         let gpiPNP = -collectorPNP.matrixSum(row: 1, col: 2)

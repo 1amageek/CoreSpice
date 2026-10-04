@@ -45,6 +45,8 @@ public struct DeviceRegistry: Sendable {
         registry.register(PMOSL2Descriptor())
         registry.register(NMOSL3Descriptor())
         registry.register(PMOSL3Descriptor())
+        registry.register(BSIM3Descriptor())
+        registry.register(BSIM3Descriptor(pmos: true))
         registry.register(NJFETDescriptor())
         registry.register(PJFETDescriptor())
         registry.register(NMESFETDescriptor())

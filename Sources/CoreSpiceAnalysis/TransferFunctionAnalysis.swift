@@ -108,7 +108,7 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
             )
 
             for device in devices {
-                device.stampDC(into: &stamper, state: dcState)
+                try device.stampDC(into: &stamper, state: dcState)
             }
 
             // Add Gmin to diagonal for numerical stability

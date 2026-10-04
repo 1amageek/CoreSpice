@@ -1,5 +1,6 @@
 import CoreSpiceParsedIR
 import CoreSpiceIR
+import CoreSpiceDevices
 import Foundation
 
 /// Expands subcircuit instances into their component parts.
@@ -79,14 +80,27 @@ public struct SubcircuitExpander: Sendable {
         let resolver = ParameterExpressionResolver(context: context, randomUniform: randomUniform)
         let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
         var evaluatedParams: [String: ParameterValue] = [:]
+        var deviceModel: ResolvedDeviceModel?
+        let nativeBSIM3 = typeName == "nmos_l49" || typeName == "pmos_l49"
 
         // If expandModels is enabled and a model exists, copy model parameters as base
-        if (configuration.expandModels || component.type == .uniformRC),
+        if (nativeBSIM3 || configuration.expandModels || component.type == .uniformRC),
            let modelName = component.modelName,
            let model = context.model(modelName) {
-            let modelParameters = try resolver.resolveInTemporaryScope(model.parameters)
-            for (name, value) in modelParameters {
-                evaluatedParams[name] = .real(value)
+            var numeric = model.parameters
+            let version = nativeBSIM3 ? numeric.removeValue(forKey: "version") : nil
+            let modelParameters = try resolver.resolveInTemporaryScope(numeric)
+            if nativeBSIM3 {
+                var resolved = modelParameters.mapValues { ParameterValue.real($0) }
+                if let version {
+                    guard case .string(let identity) = version else {
+                        throw LoweringError.invalidComponent(name: fullName, reason: "BSIM3 version must be an exact string")
+                    }
+                    resolved["version"] = .string(identity)
+                }
+                deviceModel = ResolvedDeviceModel(name: model.name, typeName: typeName, parameters: resolved)
+            } else {
+                for (name, value) in modelParameters { evaluatedParams[name] = .real(value) }
             }
         }
 
@@ -156,6 +170,13 @@ public struct SubcircuitExpander: Sendable {
             return
         }
 
+        var auxiliaryNodeCount = 0
+        if nativeBSIM3 {
+            guard let deviceModel else { throw BSIM3DeviceError.missingModel(fullName) }
+            auxiliaryNodeCount = try BSIM3Preparation.prepare(model: deviceModel,
+                instanceParameters: evaluatedParams, temperature: context.temperature + 273.15).auxiliaryNodeCount
+        }
+
         // Allocate branches for devices that need them (voltage sources, inductors, etc.)
         let branchCount = Self.branchesRequired(for: typeName)
         var ownedBranches: [Branch] = []
@@ -176,6 +197,8 @@ public struct SubcircuitExpander: Sendable {
             typeName: typeName,
             nodes: nodeNames,
             parameters: evaluatedParams,
+            model: deviceModel,
+            ownedNodeCount: auxiliaryNodeCount,
             ownedBranches: ownedBranches,
             referencedBranchNames: referencedBranchNames + behavioralReferencedBranchNames,
             referencedNodeNames: behavioralReferencedNodeNames
@@ -769,7 +792,7 @@ public struct SubcircuitExpander: Sendable {
             case 1, 2, 3:
                 return nil
             case 49:
-                return "BSIM3 MOS level 49 execution is not implemented"
+                return nil
             case 54:
                 return "BSIM4 MOS level 54 execution is not implemented"
             default:

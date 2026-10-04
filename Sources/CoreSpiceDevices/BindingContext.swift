@@ -11,6 +11,7 @@ public struct BindingContext: Sendable {
     public let matrixDimension: Int
     public let operatingConditions: OperatingConditions
     private let availableBranches: [Branch]
+    private var claimedOwnedNodes: Set<Node>
     private var claimedBranches: Set<Branch>
     private let branchesByName: [String: Branch]
     private var inductanceByBranch: [Branch: Double]
@@ -41,6 +42,7 @@ public struct BindingContext: Sendable {
             return branch
         }.sorted { $0.id < $1.id }
         self.claimedBranches = []
+        self.claimedOwnedNodes = []
         self.branchesByName = Dictionary(
             branchNames.map { branch, name in
                 (name.lowercased(), branch)
@@ -93,6 +95,18 @@ public struct BindingContext: Sendable {
             )
         }
         return branch
+    }
+
+    /// Validates private node ownership once before a device is published.
+    public mutating func claimOwnedNodes(for instance: Instance) throws {
+        for node in instance.ownedNodes {
+            guard node != .ground, !instance.nodes.contains(node),
+                  variableMap[.nodeVoltage(node)] != nil,
+                  claimedOwnedNodes.insert(node).inserted else {
+                throw DeviceBindingError.invalidParameterValue(device: instance.name,
+                    parameter: "ownedNodes", message: "Auxiliary node is absent, aliased or multiply owned")
+            }
+        }
     }
 
     /// Returns the matrix index for a node voltage variable, or `nil` for ground.

@@ -68,7 +68,7 @@ struct MESFETTests {
             stampRHS: { _, _ in }
         )
 
-        device.stampDC(into: &stamper, state: state)
+        try device.stampDC(into: &stamper, state: state)
 
         #expect(
             abs(drainGateTransconductance.withLock { $0 } - 0.012) < 1e-9

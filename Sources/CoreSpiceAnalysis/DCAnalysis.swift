@@ -99,7 +99,8 @@ public struct DCAnalysis: Analysis, Sendable {
                         cancellation: cancellation
                     )
                     result = stepped
-                } catch {
+                } catch let error as AnalysisError {
+                    if case .cancelled = error { throw error }
                     // Phase 3: Source stepping
                     result = try await solveWithSourceStepping(
                         plan: plan,
@@ -206,7 +207,7 @@ public struct DCAnalysis: Analysis, Sendable {
                     if let optoDevice = device as? OptoelectronicDevice {
                         optoDevice.stampDC(into: &stamper, state: state, opticalState: opticalState)
                     } else {
-                        device.stampDC(into: &stamper, state: state)
+                        try device.stampDC(into: &stamper, state: state)
                     }
                 }
             },
@@ -314,7 +315,7 @@ public struct DCAnalysis: Analysis, Sendable {
                         } else if let optoDevice = device as? OptoelectronicDevice {
                             optoDevice.stampDC(into: &stamper, state: state, opticalState: opticalState)
                         } else {
-                            device.stampDC(into: &stamper, state: state)
+                            try device.stampDC(into: &stamper, state: state)
                         }
                     }
                 },

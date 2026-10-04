@@ -129,7 +129,7 @@ struct BJTTests {
             stampRHS: { r, v in collector_.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // Should have stamps at various positions
         #expect(collector_.matrixEntries.count > 0)
@@ -171,7 +171,7 @@ struct BJTTests {
             stampRHS: { r, v in collector_.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // Should still have stamps (gmin conductances)
         #expect(collector_.matrixEntries.count > 0)
@@ -246,7 +246,7 @@ struct BJTTests {
             stampRHS: { r, v in collector_.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // Should have stamps
         #expect(collector_.matrixEntries.count > 0)
@@ -280,7 +280,7 @@ struct BJTTests {
             stampRHS: { r, v in collector_.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // Should have stamps (ground emitter means some indices will be nil)
         #expect(collector_.matrixEntries.count > 0)
@@ -317,7 +317,7 @@ struct BJTTests {
             stampRHS: { r, v in collector_.addRHS(r, v) }
         )
 
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // Output conductance go should contribute to (collector, collector) stamp
         let goCont = collector_.matrixSum(row: 0, col: 0)

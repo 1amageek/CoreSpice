@@ -8,6 +8,11 @@ public struct Instance: Sendable {
     public let name: String
     public let typeName: String
     public let nodes: [Node]
+    public let model: ResolvedDeviceModel?
+
+    /// Private auxiliary nodes allocated by this instance, in model-defined order.
+    public let ownedNodes: [Node]
+
     public let parameters: [String: ParameterValue]
 
     /// MNA branch variables introduced by this instance.
@@ -27,6 +32,8 @@ public struct Instance: Sendable {
         typeName: String,
         nodes: [Node],
         parameters: [String: ParameterValue],
+        model: ResolvedDeviceModel? = nil,
+        ownedNodes: [Node] = [],
         ownedBranches: [Branch] = [],
         referencedBranches: [Branch] = [],
         referencedNodes: [Node] = [],
@@ -36,6 +43,8 @@ public struct Instance: Sendable {
         self.typeName = typeName
         self.nodes = nodes
         self.parameters = parameters
+        self.model = model
+        self.ownedNodes = ownedNodes
         self.ownedBranches = ownedBranches
         self.referencedBranches = referencedBranches
         self.referencedNodes = referencedNodes

@@ -35,7 +35,7 @@ let package = Package(
         .target(name: "CoreSpiceEvent", exclude: ["README.md"]),
 
         // --- IR ---
-        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent"], exclude: ["README.md"]),
+        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent"], exclude: ["README.md", "DESIGN.md"]),
 
         // --- LAPACK ABI boundary ---
         .target(
@@ -52,14 +52,14 @@ let package = Package(
             exclude: ["DESIGN.md", "BSIM3/DESIGN.md"]),
 
         // --- Devices ---
-        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent"],
-                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md"]),
+        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels"],
+                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md", "BSIM3/DESIGN.md"]),
 
         // --- Compile ---
         .target(
             name: "CoreSpiceCompile",
             dependencies: ["CoreSpiceIR", "CoreSpiceLAPACK"],
-            exclude: ["README.md"]
+            exclude: ["README.md", "DESIGN.md"]
         ),
 
         // --- Backend ---
@@ -71,7 +71,7 @@ let package = Package(
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
                                "CoreSpiceLAPACK",
                                "CoreSpiceBackend", "CoreSpiceEvent"],
-                exclude: ["README.md"]),
+                exclude: ["README.md", "DESIGN.md"]),
 
         // --- Photonic Plugin ---
         // Note: Photonic shaders are provided by CoreSpiceBackend
@@ -122,11 +122,11 @@ let package = Package(
 
         // --- ParserSPICE: SPICE netlist parser ---
         .target(name: "CoreSpiceParserSPICE",
-                dependencies: ["CoreSpiceParsedIR", "CoreSpiceParser"]),
+                dependencies: ["CoreSpiceParsedIR", "CoreSpiceParser"], exclude: ["DESIGN.md"]),
 
         // --- Lowering: ParsedNetlist → CircuitIR conversion ---
         .target(name: "CoreSpiceLowering",
-                dependencies: ["CoreSpiceParsedIR", "CoreSpiceIR"]),
+                dependencies: ["CoreSpiceParsedIR", "CoreSpiceIR", "CoreSpiceDevices"], exclude: ["DESIGN.md"]),
 
         // --- Exporter: Exporter protocols and registry ---
         .target(name: "CoreSpiceExporter",
@@ -185,6 +185,7 @@ let package = Package(
         // Tests
         // ==========================================================================
 
+        .testTarget(name: "CoreSpiceBSIM3IntegrationTests", dependencies: ["CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceCompactModelsTests", dependencies: ["CoreSpiceCompactModels"],
             resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceIRTests", dependencies: ["CoreSpiceIR"]),

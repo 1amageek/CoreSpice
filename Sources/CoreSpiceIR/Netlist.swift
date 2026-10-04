@@ -83,6 +83,8 @@ public struct Netlist: Sendable {
         typeName: String,
         nodes nodeNames: [String],
         parameters: [String: ParameterValue] = [:],
+        model: ResolvedDeviceModel? = nil,
+        ownedNodeCount: Int = 0,
         ownedBranches: [Branch] = [],
         referencedBranches: [Branch] = [],
         referencedBranchNames: [String] = [],
@@ -126,6 +128,17 @@ public struct Netlist: Sendable {
             }
         }
 
+        guard (0...8).contains(ownedNodeCount), nextNodeID <= Int.max - ownedNodeCount else {
+            throw NetlistError.invalidParameterValue(instance: name, parameter: "ownedNodes",
+                message: "A device may allocate at most eight private auxiliary nodes")
+        }
+        var ownedNodes: [Node] = []
+        for index in 0..<ownedNodeCount {
+            let privateNode = Node(id: nextNodeID)
+            nextNodeID += 1
+            ownedNodes.append(privateNode)
+            self.nodeNames[privateNode] = "\(name)#internal:\(index)"
+        }
         instanceNames.insert(name)
         referencedBranchNamesByInstance[name] = referencedBranchNames
         let resolvedNodes = nodeNames.map { self.node($0) }
@@ -136,6 +149,8 @@ public struct Netlist: Sendable {
                 typeName: typeName,
                 nodes: resolvedNodes,
                 parameters: parameters,
+                model: model,
+                ownedNodes: ownedNodes,
                 ownedBranches: ownedBranches,
                 referencedBranches: referencedBranches,
                 referencedNodes: resolvedReferencedNodes
@@ -158,6 +173,8 @@ public struct Netlist: Sendable {
         nodes nodeNames: [String],
         opticalNodes opticalNodeNames: [String],
         parameters: [String: ParameterValue] = [:],
+        model: ResolvedDeviceModel? = nil,
+        ownedNodeCount: Int = 0,
         ownedBranches: [Branch] = [],
         referencedBranches: [Branch] = [],
         referencedBranchNames: [String] = [],
@@ -194,6 +211,17 @@ public struct Netlist: Sendable {
             }
         }
 
+        guard (0...8).contains(ownedNodeCount), nextNodeID <= Int.max - ownedNodeCount else {
+            throw NetlistError.invalidParameterValue(instance: name, parameter: "ownedNodes",
+                message: "A device may allocate at most eight private auxiliary nodes")
+        }
+        var ownedNodes: [Node] = []
+        for index in 0..<ownedNodeCount {
+            let privateNode = Node(id: nextNodeID)
+            nextNodeID += 1
+            ownedNodes.append(privateNode)
+            self.nodeNames[privateNode] = "\(name)#internal:\(index)"
+        }
         instanceNames.insert(name)
         referencedBranchNamesByInstance[name] = referencedBranchNames
         let resolvedNodes = nodeNames.map { self.node($0) }
@@ -205,6 +233,8 @@ public struct Netlist: Sendable {
                 typeName: typeName,
                 nodes: resolvedNodes,
                 parameters: parameters,
+                model: model,
+                ownedNodes: ownedNodes,
                 ownedBranches: ownedBranches,
                 referencedBranches: referencedBranches,
                 referencedNodes: resolvedReferencedNodes,
@@ -220,7 +250,11 @@ public struct Netlist: Sendable {
         guard !instances.isEmpty else {
             throw NetlistError.emptyNetlist
         }
-        let allNodes = Array(Set(nodes.values)).sorted { $0.id < $1.id }
+        let allNodes = Array(Set(nodes.values).union(instances.flatMap(\.ownedNodes))).sorted { $0.id < $1.id }
+        guard Set(nodeNames.values).count == nodeNames.count else {
+            throw NetlistError.invalidParameterValue(instance: "(circuit)", parameter: "nodeNames",
+                message: "A source node name conflicts with a private auxiliary diagnostic name")
+        }
         let allOpticalNodes = Array(opticalNodeMap.values).sorted { $0.id < $1.id }
         let resolvedInstances = try instances.map { instance -> Instance in
             let referenceNames = referencedBranchNamesByInstance[instance.name] ?? []
@@ -239,6 +273,8 @@ public struct Netlist: Sendable {
                 typeName: instance.typeName,
                 nodes: instance.nodes,
                 parameters: instance.parameters,
+                model: instance.model,
+                ownedNodes: instance.ownedNodes,
                 ownedBranches: instance.ownedBranches,
                 referencedBranches: instance.referencedBranches + namedReferences,
                 referencedNodes: instance.referencedNodes,

@@ -47,13 +47,13 @@ struct MOSL3ConsistencyTests {
                                                       parameters: parameters ?? self.parameters(polarity: polarity)),
                                    context: &context)
     }
-    private func dc(_ device: any BoundDevice, _ voltage: [Double], csr: Bool = false) -> L3Stamps.Values {
+    private func dc(_ device: any BoundDevice, _ voltage: [Double], csr: Bool = false) throws -> L3Stamps.Values {
         let collector = L3Stamps()
         var stamper = MatrixStamper(variableMap: variableMap,
                                    stampMatrix: { collector.matrix($0, $1, $2) },
                                    stampRHS: { collector.rhs($0, $1) },
                                    stampValue: csr ? { collector.matrix($0 / 4, $0 % 4, $1) } : nil)
-        device.stampDC(into: &stamper, state: SolutionState(variables: voltage, variableMap: variableMap))
+        try device.stampDC(into: &stamper, state: SolutionState(variables: voltage, variableMap: variableMap))
         return collector.values
     }
     private func currents(_ stamp: L3Stamps.Values, _ voltage: [Double]) -> [Double] {
@@ -75,7 +75,7 @@ struct MOSL3ConsistencyTests {
             let device = try bind(polarity: polarity)
             for canonical in biases {
                 let voltage = canonical.map { polarity * $0 }
-                let stamp = dc(device, voltage)
+                let stamp = try dc(device, voltage)
                 let current = currents(stamp, voltage)
                 close(current.reduce(0, +), 0)
                 close(current[1], 0)
@@ -85,8 +85,8 @@ struct MOSL3ConsistencyTests {
                     var minus = voltage
                     plus[column] += 1e-6
                     minus[column] -= 1e-6
-                    let ip = currents(dc(device, plus), plus)
-                    let im = currents(dc(device, minus), minus)
+                    let ip = currents(try dc(device, plus), plus)
+                    let im = currents(try dc(device, minus), minus)
                     for row in 0..<4 {
                         close(stamp.real[row * 4 + column], (ip[row] - im[row]) / 2e-6)
                     }
@@ -100,12 +100,12 @@ struct MOSL3ConsistencyTests {
         let n = try bind(polarity: 1)
         let p = try bind(polarity: -1)
         for v in [[0.2, 2.0, 0, -0.4], [2, 2, 0, -0.4], [-1, 1, 0, -1.4]] {
-            let iv = currents(dc(n, v), v)
+            let iv = currents(try dc(n, v), v)
             let pv = v.map { -$0 }
-            let ip = currents(dc(p, pv), pv)
+            let ip = currents(try dc(p, pv), pv)
             for row in 0..<4 { close(iv[row], -ip[row]) }
             let reversed = [v[2], v[1], v[0], v[3]]
-            let ir = currents(dc(n, reversed), reversed)
+            let ir = currents(try dc(n, reversed), reversed)
             close(iv[0], ir[2])
         }
     }
@@ -115,7 +115,7 @@ struct MOSL3ConsistencyTests {
         for polarity in [1.0, -1.0] {
             let device = try bind(polarity: polarity, parameters: ["kp": .real(0)])
             let v = [0.2, 0.0, 0, 0].map { polarity * $0 }
-            let stamp = dc(device, v)
+            let stamp = try dc(device, v)
             close(currents(stamp, v)[0], polarity * 2e-13, absolute: 1e-25)
             close(stamp.real[0], 1e-12, absolute: 1e-25)
         }
@@ -170,12 +170,12 @@ struct MOSL3ConsistencyTests {
             let device = try bind(polarity: polarity, parameters: p, csr: true)
             for canonical in [[0.2, 2.0, 0, -0.4], [2, 2, 0, -0.4], [-1, 1, 0, -1.4]] {
                 let voltage = canonical.map { polarity * $0 }
-                let coordinate = dc(device, voltage)
-                let csr = dc(device, voltage, csr: true)
+                let coordinate = try dc(device, voltage)
+                let csr = try dc(device, voltage, csr: true)
                 let collector = L3Stamps()
                 var stamper = ComplexMatrixStamper(variableMap: variableMap,
                     stampMatrix: { collector.matrix($0, $1, $2, $3) }, stampRHS: { _, _, _ in })
-                device.stampAC(into: &stamper,
+                try device.stampAC(into: &stamper,
                     state: SolutionState(variables: voltage, variableMap: variableMap), omega: 1e6)
                 let ac = collector.values
                 for i in 0..<16 {
@@ -207,7 +207,7 @@ struct MOSL3ConsistencyTests {
                 let collector = L3Stamps()
                 var stamper = ComplexMatrixStamper(variableMap: variableMap,
                     stampMatrix: { collector.matrix($0, $1, $2, $3) }, stampRHS: { _, _, _ in })
-                device.stampAC(into: &stamper,
+                try device.stampAC(into: &stamper,
                     state: SolutionState(variables: voltage, variableMap: variableMap), omega: 1)
                 let stamp = collector.values
                 close(stamp.imag[4], -3e-12, absolute: 1e-25)
@@ -230,16 +230,16 @@ struct MOSL3ConsistencyTests {
             let accepted = SolutionState(variables: first, previousVariables: [0, 0, 0, 0],
                                          variableMap: variableMap)
             let committing = try #require(device as? any TransientStateCommittingDevice)
-            committing.commitTransientStep(state: accepted, integration: integration)
+            try committing.commitTransientStep(state: accepted, integration: integration)
             let next = [-1.0, 4, 0, 0].map { polarity * $0 }
             let collector = L3Stamps()
             var stamper = MatrixStamper(variableMap: variableMap,
                 stampMatrix: { collector.matrix($0, $1, $2) }, stampRHS: { collector.rhs($0, $1) })
-            device.stampTransient(into: &stamper,
+            try device.stampTransient(into: &stamper,
                 state: SolutionState(variables: next, previousVariables: first, variableMap: variableMap),
                 integration: integration)
             let stamp = collector.values
-            let channel = dc(device, next)
+            let channel = try dc(device, next)
             close(stamp.real[5] - channel.real[5], 8e-12, absolute: 1e-25)
             close(stamp.rhs[1] - channel.rhs[1], polarity * 52e-12, absolute: 1e-25)
             close(stamp.rhs[0] - channel.rhs[0], -polarity * 36e-12, absolute: 1e-25)
@@ -288,7 +288,7 @@ struct MOSL3ConsistencyTests {
             var p = parameters(polarity: polarity)
             p["cgso"] = .real(1e-10)
             let local = try bind(polarity: polarity, parameters: p)
-            let stamp = dc(local, voltage)
+            let stamp = try dc(local, voltage)
             let current = currents(stamp, voltage)
             for row in 0..<4 {
                 let nodeIndex = try #require(circuit.plan.topology.variableMap[.nodeVoltage(device.instance.nodes[row])])

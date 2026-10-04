@@ -61,7 +61,7 @@ struct JFETTests {
             stampRHS: { row, value in collector.addRHS(row, value) }
         )
 
-        device.stampDC(into: &stamper, state: state)
+        try device.stampDC(into: &stamper, state: state)
 
         #expect(collector.matrixSum(row: 0, column: 0) > 1.99e-3)
         #expect(collector.matrixSum(row: 0, column: 1) > 1.99e-3)
@@ -98,7 +98,7 @@ struct JFETTests {
             stampRHS: { row, value in collector.addRHS(row, value) }
         )
 
-        device.stampDC(into: &stamper, state: state)
+        try device.stampDC(into: &stamper, state: state)
 
         #expect(collector.matrixSum(row: 0, column: 0) > 1.99e-3)
         #expect(collector.rhsSum(row: 0) > 9.9e-4)
@@ -133,7 +133,7 @@ struct JFETTests {
             stampRHS: { row, value in collector.addRHS(row, value) }
         )
 
-        device.stampDC(into: &stamper, state: state)
+        try device.stampDC(into: &stamper, state: state)
 
         #expect(collector.matrixSum(row: 0, column: 0) > 1.99e-3)
         #expect(collector.rhsSum(row: 0) > 9.9e-4)
@@ -169,7 +169,7 @@ struct JFETTests {
             stampRHS: { row, value in collector.addRHS(row, value) }
         )
 
-        device.stampDC(into: &stamper, state: state)
+        try device.stampDC(into: &stamper, state: state)
 
         #expect(collector.matrixSum(row: 0, column: 1) > 3.99e-3)
         #expect(collector.rhsSum(row: 0) < -1.99e-3)
@@ -198,7 +198,7 @@ struct JFETTests {
             stampRHS: { _, _ in }
         )
 
-        device.stampDC(into: &stamper, state: state)
+        try device.stampDC(into: &stamper, state: state)
 
         #expect(collector.matrixSum(row: 0, column: 0) < 1000.0)
     }

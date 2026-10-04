@@ -5,6 +5,7 @@ public enum SPICEToken: Sendable, Hashable {
 
     // Literals
     case number(Double)
+    case dottedLiteral(String)
     case identifier(String)
     case string(String)
     case invalidNumericLiteral(String)
@@ -59,6 +60,8 @@ extension SPICEToken: CustomStringConvertible {
         switch self {
         case .number(let value):
             return "number(\(value))"
+        case .dottedLiteral(let text):
+            return "dottedLiteral(\(text))"
         case .identifier(let name):
             return "identifier(\(name))"
         case .string(let value):

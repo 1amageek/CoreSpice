@@ -98,7 +98,7 @@ struct MOSFETPhysicsTests {
             stampMatrix: { r, c, v in collector.addMatrix(r, c, v) },
             stampRHS: { r, v in collector.addRHS(r, v) }
         )
-        bound.stampDC(into: &stamperCutoff, state: stateCutoff)
+        try bound.stampDC(into: &stamperCutoff, state: stateCutoff)
 
         // In cutoff, gds should be near gmin (1e-12)
         let gdsCutoff = collector.matrixSum(row: 0, col: 0)
@@ -117,7 +117,7 @@ struct MOSFETPhysicsTests {
             stampMatrix: { r, c, v in collector.addMatrix(r, c, v) },
             stampRHS: { r, v in collector.addRHS(r, v) }
         )
-        bound.stampDC(into: &stamperLinear, state: stateLinear)
+        try bound.stampDC(into: &stamperLinear, state: stateLinear)
 
         // In linear: vgst = 1.5 - 0.7 = 0.8V
         // gds = beta * (vgst - vds) = 1.1e-3 * 0.7 = 7.7e-4 S
@@ -196,7 +196,7 @@ struct MOSFETPhysicsTests {
             stampMatrix: { r, c, v in collector.addMatrix(r, c, v) },
             stampRHS: { r, v in collector.addRHS(r, v) }
         )
-        bound.stampDC(into: &stamperSat, state: stateSat)
+        try bound.stampDC(into: &stamperSat, state: stateSat)
 
         // In saturation without CLM, gds should be near gmin (1e-12)
         let gdsSat = collector.matrixSum(row: 0, col: 0)
@@ -273,7 +273,7 @@ struct MOSFETPhysicsTests {
             stampMatrix: { r, c, v in collector0.addMatrix(r, c, v) },
             stampRHS: { r, v in collector0.addRHS(r, v) }
         )
-        bound.stampDC(into: &stamper0, state: state0)
+        try bound.stampDC(into: &stamper0, state: state0)
         let gm0 = collector0.matrixSum(row: 0, col: 1)
 
         // --- Vbs = -2V: Vth increases ---
@@ -293,7 +293,7 @@ struct MOSFETPhysicsTests {
             stampMatrix: { r, c, v in collectorBody.addMatrix(r, c, v) },
             stampRHS: { r, v in collectorBody.addRHS(r, v) }
         )
-        bound.stampDC(into: &stamperBody, state: stateBody)
+        try bound.stampDC(into: &stamperBody, state: stateBody)
         let gmBody = collectorBody.matrixSum(row: 0, col: 1)
 
         // With body effect, vgst is smaller, so gm should decrease
@@ -377,7 +377,7 @@ struct MOSFETPhysicsTests {
             stampMatrix: { r, c, v in collector.addMatrix(r, c, v) },
             stampRHS: { r, v in collector.addRHS(r, v) }
         )
-        bound.stampDC(into: &stamper, state: state)
+        try bound.stampDC(into: &stamper, state: state)
 
         // Expected values in saturation with CLM:
         // gm = beta * vgst * (1 + lambda * vds)

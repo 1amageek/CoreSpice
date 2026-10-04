@@ -46,7 +46,7 @@ public struct NewtonRaphsonSolver: Sendable {
         devices: [any BoundDevice],
         variableMap: [MNAVariable: Int],
         solver: inout any LinearSolver,
-        stampFunction: (_ stamper: inout MatrixStamper, _ state: SolutionState) -> Void,
+        stampFunction: (_ stamper: inout MatrixStamper, _ state: SolutionState) throws -> Void,
         observer: EventDispatcher?,
         analysisID: AnalysisID,
         cancellation: CancellationToken
@@ -82,7 +82,7 @@ public struct NewtonRaphsonSolver: Sendable {
         devices: [any BoundDevice],
         variableMap: [MNAVariable: Int],
         solver: inout any LinearSolver,
-        stampFunction: (_ stamper: inout MatrixStamper, _ state: SolutionState) -> Void,
+        stampFunction: (_ stamper: inout MatrixStamper, _ state: SolutionState) throws -> Void,
         observer: EventDispatcher?,
         analysisID: AnalysisID,
         cancellation: CancellationToken
@@ -160,7 +160,7 @@ public struct NewtonRaphsonSolver: Sendable {
                 }
             )
 
-            stampFunction(&stamper, state)
+            try stampFunction(&stamper, state)
 
             // Add Gmin to diagonal for numerical stability
             for i in 0..<n {
@@ -285,7 +285,7 @@ public struct NewtonRaphsonSolver: Sendable {
                     }
                 )
                 let residualState = SolutionState(variables: solution, variableMap: variableMap)
-                stampFunction(&residualStamper, residualState)
+                try stampFunction(&residualStamper, residualState)
                 for i in 0..<n {
                     residualMatrix.addValue(row: i, col: i, value: config.gmin)
                 }
@@ -344,7 +344,7 @@ public struct NewtonRaphsonSolver: Sendable {
                 residualMatrix.addValueDirect(at: index, value: value)
             }
         )
-        stampFunction(
+        try stampFunction(
             &finalResidualStamper,
             SolutionState(variables: solution, variableMap: variableMap)
         )

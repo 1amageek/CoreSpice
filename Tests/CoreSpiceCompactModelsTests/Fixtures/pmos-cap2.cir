@@ -11,6 +11,7 @@ m1 d g s b reference w=10u l=1u ad=2p as=3p pd=12u ps=14u
 set numdgt=17
 op
 print @m1[id] @m1[gm] @m1[gds] @m1[gmbs] @m1[qg] @m1[qd] @m1[qb]
+print i(vd) i(vg) i(vs) i(vb)
 quit
 .endc
 .end
