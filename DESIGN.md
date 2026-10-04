@@ -138,3 +138,9 @@ with the exact `CoreSpiceBackendTests/MetalBackendExecutionTests/dispatchesProdu
 selector and a bounded process. CPU-only, compile and kernel-load checks do not
 prove GPU execution. Test-owned shared buffers remain alive until the awaited
 dispatch completes and are returned to the backend pool on all exit paths.
+
+## BSIM4 Kernel Composition
+
+[BSIM4 standalone kernel](Sources/CoreSpiceBSIM4/DESIGN.md) owns exact Berkeley 4.8.3 host CPU evaluation. This lower
+contract does not open the native Level 54 frontend/binding gate; production
+integration and correlated noise composition remain incomplete.

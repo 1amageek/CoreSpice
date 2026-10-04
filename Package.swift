@@ -48,8 +48,11 @@ let package = Package(
         .target(name: "CoreSpiceBSIM3", exclude: ["DESIGN.md", "NOTICE.md", "Kernel/DESIGN.md",
             "Kernel/B3TERMS_OF_USE", "Kernel/upstream.json", "Kernel/adapt_upstream.py"],
             publicHeadersPath: "include"),
-        .target(name: "CoreSpiceCompactModels", dependencies: ["CoreSpiceBSIM3"],
-            exclude: ["DESIGN.md", "BSIM3/DESIGN.md"]),
+        .target(name: "CoreSpiceBSIM4", exclude: ["DESIGN.md", "NOTICE.md", "LICENSE.txt", "ECL-2.0.txt", "Proof",
+            "Kernel/DESIGN.md", "Kernel/upstream.json", "Kernel/adapt_upstream.py"],
+            publicHeadersPath: "include"),
+        .target(name: "CoreSpiceCompactModels", dependencies: ["CoreSpiceBSIM3", "CoreSpiceBSIM4"],
+            exclude: ["DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md"]),
 
         // --- Devices ---
         .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels"],
@@ -187,6 +190,7 @@ let package = Package(
 
         .testTarget(name: "CoreSpiceBSIM3IntegrationTests", dependencies: ["CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceBSIM3NoiseTests", dependencies: ["CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
+        .testTarget(name: "CoreSpiceBSIM4KernelTests", dependencies: ["CoreSpiceCompactModels"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceCompactModelsTests", dependencies: ["CoreSpiceCompactModels"],
             resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceIRTests", dependencies: ["CoreSpiceIR"]),

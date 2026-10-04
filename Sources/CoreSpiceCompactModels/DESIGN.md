@@ -3,7 +3,7 @@
 ## Purpose and Scope
 
 This SwiftPM module is an independently usable native compact-model evaluator.
-Its parent is [CoreSpice](../../DESIGN.md); its child is [BSIM3](BSIM3/DESIGN.md).
+Its parent is [CoreSpice](../../DESIGN.md); its children are [BSIM3](BSIM3/DESIGN.md) and [BSIM4](BSIM4/DESIGN.md).
 
 ## Responsibilities and Boundaries
 
@@ -17,6 +17,7 @@ provides no circuit solver, frontend model selection, or foundry qualification.
 |---|---|---|---|---|
 | [CoreSpice](../../DESIGN.md) | parent | Native simulation domain | Independent evaluator product | Selector qualification is owned by Devices BSIM3 |
 | [BSIM3](BSIM3/DESIGN.md) | child | Safe model evaluation | Berkeley 3.3.0 physics | Preserve full NQS and series-node semantics |
+| [BSIM4](BSIM4/DESIGN.md) | child | Safe original evaluator | Independent host kernel | Production Level54 gate stays closed |
 
 ## Architecture
 
@@ -40,3 +41,9 @@ never a zero stamp, substituted model, or falsely accepted timestep.
 [Kernel tests](../../Tests/CoreSpiceCompactModelsTests/BSIM3KernelTests.swift)
 prove the evaluator contract. Solver composition has a separate owner and must
 verify actual DC/AC/transient before model selection can advertise support.
+
+## BSIM4 Kernel Composition
+
+[BSIM4 evaluator](BSIM4/DESIGN.md) owns exact Berkeley 4.8.3 host CPU evaluation. This lower
+contract does not open the native Level 54 frontend/binding gate; production
+integration and correlated noise composition remain incomplete.
