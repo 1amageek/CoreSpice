@@ -125,7 +125,7 @@ struct TransientAccuracyTests {
                                 parameters: ["c": .real(C)])
 
         let config = TransientConfig(
-            stopTime: 2e-3,
+            stopTime: 2e-3, executionLimits: .validationFixture,
             maxTimeStep: 1e-6
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
@@ -181,7 +181,7 @@ struct TransientAccuracyTests {
                                 parameters: ["c": .real(C_val)])
 
         let config = TransientConfig(
-            stopTime: 4e-3,  // 4*tau
+            stopTime: 4e-3, executionLimits: .validationFixture,  // 4*tau
             maxTimeStep: 10e-6
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
@@ -243,7 +243,7 @@ struct TransientAccuracyTests {
                                     parameters: ["c": .real(C_val)])
 
             let config = TransientConfig(
-                stopTime: 3e-3,  // 3*tau
+                stopTime: 3e-3, executionLimits: .validationFixture,  // 3*tau
                 maxTimeStep: maxStep,
                 lteTolerance: 1e6  // Disable adaptive step control
             )
@@ -324,7 +324,7 @@ struct TransientAccuracyTests {
                                 parameters: ["c": .real(C)])
 
         let config = TransientConfig(
-            stopTime: 2e-3,
+            stopTime: 2e-3, executionLimits: .validationFixture,
             maxTimeStep: 1e-6
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
@@ -394,7 +394,7 @@ struct TransientAccuracyTests {
                                 parameters: ["l": .real(L)])
 
         let config = TransientConfig(
-            stopTime: 300e-6,
+            stopTime: 300e-6, executionLimits: .validationFixture,
             maxTimeStep: 1e-6
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
@@ -445,7 +445,7 @@ struct TransientAccuracyTests {
                                 parameters: ["c": .real(C_val)])
 
         let config = TransientConfig(
-            stopTime: 5e-3,  // 5 periods
+            stopTime: 5e-3, executionLimits: .validationFixture,  // 5 periods
             maxTimeStep: 20e-6
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)

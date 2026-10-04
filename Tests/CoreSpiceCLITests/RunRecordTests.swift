@@ -149,6 +149,7 @@ struct RunRecordTests {
       V1 in 0 dc 5
       R1 in out 1k
       C1 out 0 100n
+      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
       .tran 10u 500u
       .meas tran vfinal find V(out) at=400u
       .end
@@ -246,6 +247,7 @@ struct RunRecordTests {
       V1 in 0 dc 5
       R1 in out 1k
       C1 out 0 100n
+      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
       .tran 10u 100u
       .end
       """

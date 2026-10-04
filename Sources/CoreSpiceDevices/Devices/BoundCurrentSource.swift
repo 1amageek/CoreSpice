@@ -76,8 +76,8 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
         .converged
     }
 
-    public func breakpoints(in interval: ClosedRange<Double>) -> [Double] {
-        waveform.breakpoints(in: interval)
+    public func breakpoints(in interval: ClosedRange<Double>, maximumCount: Int) throws -> [Double] {
+        try waveform.breakpoints(in: interval, maximumCount: maximumCount)
     }
 
     /// Stamp with a scaling factor for source stepping convergence aid.

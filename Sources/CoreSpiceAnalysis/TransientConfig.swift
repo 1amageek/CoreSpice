@@ -7,6 +7,9 @@ import CoreSpiceIR
 /// method, and local truncation error (LTE) tolerance.
 public struct TransientConfig: Sendable {
 
+    /// Whole-run resource policy; applications should supply their explicit unattended limits.
+    public var executionLimits: TransientExecutionLimits?
+
     /// Simulation end time (seconds).
     public var stopTime: Double
 
@@ -53,6 +56,7 @@ public struct TransientConfig: Sendable {
 
     public init(
         stopTime: Double,
+        executionLimits: TransientExecutionLimits? = nil,
         maxTimeStep: Double? = nil,
         initialTimeStep: Double? = nil,
         minTimeStep: Double = 1e-18,
@@ -71,6 +75,7 @@ public struct TransientConfig: Sendable {
             maxSteps: 5
         )
     ) {
+        self.executionLimits = executionLimits
         self.stopTime = stopTime
         self.maxTimeStep = maxTimeStep ?? stopTime / 50.0
         self.initialTimeStep = initialTimeStep
@@ -119,6 +124,13 @@ public struct TransientConfig: Sendable {
         try validateFiniteNodeVoltages(nodeVoltageGuesses, name: "nodeVoltageGuesses")
 
         try validateGminStepping()
+        try requiredExecutionLimits().validate()
+    }
+
+    /// Rejects missing resource policy before any analysis allocation or execution.
+    public func requiredExecutionLimits() throws -> TransientExecutionLimits {
+        guard let executionLimits else { throw TransientExecutionError.missingExecutionLimits }
+        return executionLimits
     }
 
     public func effectiveInitialTimeStep() throws -> Double {

@@ -17,27 +17,27 @@ struct WaveformTests {
 
     // MARK: - DC Waveform Tests
 
-    @Test func dcWaveformValue() {
+    @Test func dcWaveformValue() throws {
         let waveform = Waveform.dc(5.0)
         #expect(waveform.value(at: 0.0) == 5.0)
         #expect(waveform.value(at: 1.0) == 5.0)
         #expect(waveform.value(at: 100.0) == 5.0)
     }
 
-    @Test func dcWaveformDCValue() {
+    @Test func dcWaveformDCValue() throws {
         let waveform = Waveform.dc(3.3)
         #expect(waveform.dcValue == 3.3)
     }
 
-    @Test func dcWaveformBreakpoints() {
+    @Test func dcWaveformBreakpoints() throws {
         let waveform = Waveform.dc(5.0)
-        let breakpoints = waveform.breakpoints(in: 0.0...1.0)
+        let breakpoints = try waveform.breakpoints(in: 0.0...1.0, maximumCount: 64)
         #expect(breakpoints.isEmpty)
     }
 
     // MARK: - Pulse Waveform Tests
 
-    @Test func pulseWaveformBeforeDelay() {
+    @Test func pulseWaveformBeforeDelay() throws {
         let waveform = Waveform.pulse(
             v1: 0.0, v2: 5.0, delay: 1e-6,
             rise: 1e-9, fall: 1e-9, width: 1e-6, period: 2e-6
@@ -46,7 +46,7 @@ struct WaveformTests {
         #expect(waveform.value(at: 0.5e-6) == 0.0)
     }
 
-    @Test func pulseWaveformRisingEdge() {
+    @Test func pulseWaveformRisingEdge() throws {
         let waveform = Waveform.pulse(
             v1: 0.0, v2: 5.0, delay: 0.0,
             rise: 1e-6, fall: 1e-6, width: 2e-6, period: 5e-6
@@ -57,7 +57,7 @@ struct WaveformTests {
         #expect(abs(midRise - 2.5) < 0.01)
     }
 
-    @Test func pulseWaveformHighLevel() {
+    @Test func pulseWaveformHighLevel() throws {
         let waveform = Waveform.pulse(
             v1: 0.0, v2: 5.0, delay: 0.0,
             rise: 1e-9, fall: 1e-9, width: 1e-6, period: 2e-6
@@ -66,7 +66,7 @@ struct WaveformTests {
         #expect(waveform.value(at: 0.5e-6) == 5.0)
     }
 
-    @Test func pulseWaveformFallingEdge() {
+    @Test func pulseWaveformFallingEdge() throws {
         let waveform = Waveform.pulse(
             v1: 0.0, v2: 5.0, delay: 0.0,
             rise: 1e-6, fall: 1e-6, width: 2e-6, period: 5e-6
@@ -76,7 +76,7 @@ struct WaveformTests {
         #expect(abs(midFall - 2.5) < 0.01)
     }
 
-    @Test func pulseWaveformPeriodic() {
+    @Test func pulseWaveformPeriodic() throws {
         let waveform = Waveform.pulse(
             v1: 0.0, v2: 5.0, delay: 0.0,
             rise: 0.0, fall: 0.0, width: 1e-6, period: 2e-6
@@ -87,12 +87,12 @@ struct WaveformTests {
         #expect(waveform.value(at: 2.5e-6) == 5.0)
     }
 
-    @Test func pulseWaveformBreakpoints() {
+    @Test func pulseWaveformBreakpoints() throws {
         let waveform = Waveform.pulse(
             v1: 0.0, v2: 5.0, delay: 0.0,
             rise: 1e-6, fall: 1e-6, width: 2e-6, period: 5e-6
         )
-        let breakpoints = waveform.breakpoints(in: 0.0...5e-6)
+        let breakpoints = try waveform.breakpoints(in: 0.0...5e-6, maximumCount: 64)
         // Expected breakpoints: 0, rise, rise+width, rise+width+fall
         // = 0, 1e-6, 3e-6, 4e-6
         #expect(breakpoints.count >= 4)
@@ -100,7 +100,7 @@ struct WaveformTests {
         #expect(breakpoints.contains(1e-6))
     }
 
-    @Test func pulseWaveformDCValue() {
+    @Test func pulseWaveformDCValue() throws {
         let waveform = Waveform.pulse(
             v1: 1.0, v2: 5.0, delay: 0.0,
             rise: 0.0, fall: 0.0, width: 1e-6, period: 2e-6
@@ -111,7 +111,7 @@ struct WaveformTests {
 
     // MARK: - Sine Waveform Tests
 
-    @Test func sineWaveformOffset() {
+    @Test func sineWaveformOffset() throws {
         let waveform = Waveform.sine(
             offset: 2.5, amplitude: 1.0, frequency: 1000.0, delay: 0.0, phase: 0.0
         )
@@ -119,7 +119,7 @@ struct WaveformTests {
         #expect(abs(waveform.value(at: 0.0) - 2.5) < 0.01)
     }
 
-    @Test func sineWaveformPeak() {
+    @Test func sineWaveformPeak() throws {
         let waveform = Waveform.sine(
             offset: 0.0, amplitude: 1.0, frequency: 1000.0, delay: 0.0, phase: 0.0
         )
@@ -128,7 +128,7 @@ struct WaveformTests {
         #expect(abs(peak - 1.0) < 0.01)
     }
 
-    @Test func sineWaveformDelay() {
+    @Test func sineWaveformDelay() throws {
         let waveform = Waveform.sine(
             offset: 2.5, amplitude: 1.0, frequency: 1000.0, delay: 1e-3, phase: 0.0
         )
@@ -136,7 +136,7 @@ struct WaveformTests {
         #expect(waveform.value(at: 0.5e-3) == 2.5)
     }
 
-    @Test func sineWaveformPhase() {
+    @Test func sineWaveformPhase() throws {
         let waveform = Waveform.sine(
             offset: 0.0, amplitude: 1.0, frequency: 1000.0, delay: 0.0, phase: 90.0
         )
@@ -145,24 +145,24 @@ struct WaveformTests {
         #expect(abs(value - 1.0) < 0.01)
     }
 
-    @Test func sineWaveformDCValue() {
+    @Test func sineWaveformDCValue() throws {
         let waveform = Waveform.sine(
             offset: 2.5, amplitude: 1.0, frequency: 1000.0, delay: 0.0, phase: 0.0
         )
         #expect(abs(waveform.dcValue - 2.5) < 0.01)
     }
 
-    @Test func sineWaveformNoBreakpoints() {
+    @Test func sineWaveformNoBreakpoints() throws {
         let waveform = Waveform.sine(
             offset: 0.0, amplitude: 1.0, frequency: 1000.0, delay: 0.0, phase: 0.0
         )
-        let breakpoints = waveform.breakpoints(in: 0.0...1e-3)
+        let breakpoints = try waveform.breakpoints(in: 0.0...1e-3, maximumCount: 64)
         #expect(breakpoints.isEmpty)
     }
 
     // MARK: - PWL Waveform Tests
 
-    @Test func pwlWaveformInterpolation() {
+    @Test func pwlWaveformInterpolation() throws {
         let waveform = Waveform.pwl(points: [
             PWLPoint(time: 0.0, value: 0.0),
             PWLPoint(time: 1e-3, value: 5.0),
@@ -175,7 +175,7 @@ struct WaveformTests {
         #expect(abs(mid - 2.5) < 0.01)
     }
 
-    @Test func pwlWaveformHold() {
+    @Test func pwlWaveformHold() throws {
         let waveform = Waveform.pwl(points: [
             PWLPoint(time: 0.0, value: 0.0),
             PWLPoint(time: 1e-3, value: 5.0),
@@ -186,14 +186,14 @@ struct WaveformTests {
         #expect(waveform.value(at: 1.5e-3) == 5.0)
     }
 
-    @Test func pwlWaveformBreakpoints() {
+    @Test func pwlWaveformBreakpoints() throws {
         let waveform = Waveform.pwl(points: [
             PWLPoint(time: 0.0, value: 0.0),
             PWLPoint(time: 1e-3, value: 5.0),
             PWLPoint(time: 2e-3, value: 5.0)
         ])
 
-        let breakpoints = waveform.breakpoints(in: 0.0...3e-3)
+        let breakpoints = try waveform.breakpoints(in: 0.0...3e-3, maximumCount: 64)
         #expect(breakpoints.count == 3)
     }
 
@@ -213,7 +213,7 @@ struct WaveformTests {
 
         #expect(bound.instance.name == "V1")
         // DC value should be 5.0
-        let breakpoints = bound.breakpoints(in: 0.0...1.0)
+        let breakpoints = try bound.breakpoints(in: 0.0...1.0, maximumCount: 64)
         #expect(breakpoints.isEmpty) // DC has no breakpoints
     }
 
@@ -238,7 +238,7 @@ struct WaveformTests {
         let bound = try descriptor.bind(instance: instance, context: &context)
 
         // Should have breakpoints
-        let breakpoints = bound.breakpoints(in: 0.0...5e-6)
+        let breakpoints = try bound.breakpoints(in: 0.0...5e-6, maximumCount: 64)
         #expect(!breakpoints.isEmpty)
     }
 
@@ -261,7 +261,7 @@ struct WaveformTests {
 
         #expect(bound.instance.name == "V1")
         // Sine has no breakpoints
-        let breakpoints = bound.breakpoints(in: 0.0...1.0)
+        let breakpoints = try bound.breakpoints(in: 0.0...1.0, maximumCount: 64)
         #expect(breakpoints.isEmpty)
     }
 
@@ -321,7 +321,7 @@ struct WaveformTests {
         var context = branchContext()
         let bound = try descriptor.bind(instance: instance, context: &context)
 
-        #expect(!bound.breakpoints(in: 0.0...5e-6).isEmpty)
+        #expect(try !bound.breakpoints(in: 0.0...5e-6, maximumCount: 64).isEmpty)
     }
 
     @Test func currentSourceParseSine() throws {

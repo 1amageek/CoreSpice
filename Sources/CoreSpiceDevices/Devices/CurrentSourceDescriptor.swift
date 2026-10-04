@@ -12,6 +12,8 @@ public struct CurrentSourceDescriptor: DeviceDescriptor, Sendable {
     public let typeName = "isource"
     public let portNames = ["pos", "neg"]
     public let parameterDescriptors = [
+        ParameterDescriptor(name: "pwl", defaultValue: nil, description: "Alternating finite time/value pairs"),
+        ParameterDescriptor(name: "ac", defaultValue: .real(0), description: "AC small-signal magnitude"),
         // DC
         ParameterDescriptor(name: "i", defaultValue: .real(0.0), description: "DC current in amperes"),
         // Pulse waveform
@@ -38,9 +40,9 @@ public struct CurrentSourceDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
-        let waveform = try parseWaveform(from: instance)
+        let waveform = try IndependentSourceWaveformParser.parse(instance, current: true)
         let dcCurrent = waveform.dcValue
-        let acMagnitude = extractReal(instance.parameters["ac"]) ?? 0.0
+        let acMagnitude = try IndependentSourceWaveformParser.real("ac", instance: instance, defaultValue: 0)
 
         return BoundCurrentSource(
             instance: instance,
@@ -54,73 +56,4 @@ public struct CurrentSourceDescriptor: DeviceDescriptor, Sendable {
         )
     }
 
-    // MARK: - Waveform Parsing
-
-    private func parseWaveform(from instance: Instance) throws -> Waveform {
-        let params = instance.parameters
-
-        // Check for pulse parameters (i1 and i2 are required)
-        if let i1Param = params["i1"], let i2Param = params["i2"] {
-            guard case .real(let i1) = i1Param else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "i1", expected: "real"
-                )
-            }
-            guard case .real(let i2) = i2Param else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "i2", expected: "real"
-                )
-            }
-            let td = extractReal(params["td"]) ?? 0.0
-            let tr = extractReal(params["tr"]) ?? 0.0
-            let tf = extractReal(params["tf"]) ?? 0.0
-            let pw = extractReal(params["pw"]) ?? 0.0
-            let per = extractReal(params["per"]) ?? 0.0
-
-            // Validate period
-            guard per > 0 else {
-                throw DeviceBindingError.invalidParameterValue(
-                    device: instance.name, parameter: "per",
-                    message: "Period must be positive for pulse waveform"
-                )
-            }
-
-            return .pulse(v1: i1, v2: i2, delay: td, rise: tr, fall: tf, width: pw, period: per)
-        }
-
-        // Check for sine parameters (io, ia, freq are required)
-        if let ioParam = params["io"], let iaParam = params["ia"], let freqParam = params["freq"] {
-            guard case .real(let io) = ioParam else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "io", expected: "real"
-                )
-            }
-            guard case .real(let ia) = iaParam else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "ia", expected: "real"
-                )
-            }
-            guard case .real(let freq) = freqParam else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "freq", expected: "real"
-                )
-            }
-            let td = extractReal(params["td"]) ?? 0.0
-            let phase = extractReal(params["phase"]) ?? 0.0
-
-            return .sine(offset: io, amplitude: ia, frequency: freq, delay: td, phase: phase)
-        }
-
-        // Default: DC waveform
-        let i = extractReal(params["i"]) ?? 0.0
-        return .dc(i)
-    }
-
-    private func extractReal(_ value: ParameterValue?) -> Double? {
-        guard let value else { return nil }
-        if case .real(let v) = value {
-            return v
-        }
-        return nil
-    }
 }

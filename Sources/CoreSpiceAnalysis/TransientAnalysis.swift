@@ -58,14 +58,6 @@ public struct TransientAnalysis: Analysis, Sendable {
         let dim = plan.topology.dimension
         let variableMap = plan.topology.variableMap
 
-        // Extract branch current indices for LTE normalization
-        let branchCurrentIndices: Set<Int> = Set(
-            variableMap.compactMap { key, value in
-                if case .branchCurrent = key { return value }
-                return nil
-            }
-        )
-
         await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
             type: .tran,
@@ -77,6 +69,21 @@ public struct TransientAnalysis: Analysis, Sendable {
         do {
             try config.validate()
             try validate(convergenceConfig: convergenceConfig)
+
+            if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
+            let executionLimits = try config.requiredExecutionLimits()
+            let budget = try TransientExecutionBudget(limits: executionLimits, dimension: dim,
+                nonZeroCount: plan.matrixStructure.nonZeroCount, deviceCount: devices.count)
+            try budget.admitSavedPoint(accepted: false)
+            // Extract branch current indices for LTE normalization
+            let branchCurrentIndices: Set<Int> = Set(
+                variableMap.compactMap { key, value in
+                    if case .branchCurrent = key { return value }
+                    return nil
+                }
+            )
+
+
 
             // Phase 1: Initial solution for t = 0
             let initialSolution: [Double]
@@ -91,10 +98,11 @@ public struct TransientAnalysis: Analysis, Sendable {
                 )
             } else {
                 // Standard mode: DC operating point
-                let dcAnalysis = DCAnalysis(
+                var dcAnalysis = DCAnalysis(
                     config: convergenceConfig,
                     nodeInitialGuess: config.nodeVoltageGuesses
                 )
+                dcAnalysis.executionBudget = budget
                 let dcResult = try await dcAnalysis.run(
                     plan: plan,
                     devices: devices,
@@ -105,6 +113,9 @@ public struct TransientAnalysis: Analysis, Sendable {
                 initialSolution = dcResult.variables
             }
 
+            if let index = initialSolution.firstIndex(where: { !$0.isFinite }) {
+                throw AnalysisError.nonFiniteSolution(iteration: 0, variableIndex: index, value: initialSolution[index])
+            }
             var acquiredSessions: [any TransientSessionDevice] = []
             defer { for device in acquiredSessions.reversed() { device.endTransientSession() } }
             let initialState = SolutionState(variables: initialSolution, variableMap: variableMap)
@@ -136,10 +147,12 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             // Saved results (pre-allocate estimated capacity)
             let initialDt = try config.effectiveInitialTimeStep()
-            let estimatedSteps = Self.estimatedPointCapacity(
+            let estimatedSteps = min(executionLimits.maximumSavedScalars / (dim + 1),
+                executionLimits.maximumAcceptedSteps,
+                Self.estimatedPointCapacity(
                 stopTime: config.stopTime,
                 initialTimeStep: initialDt
-            )
+            ))
             var timePoints: [Double] = [0.0]
             timePoints.reserveCapacity(estimatedSteps)
             var solutionTrace = try SolutionTrace(variableCount: dim, estimatedPointCapacity: estimatedSteps)
@@ -156,14 +169,25 @@ public struct TransientAnalysis: Analysis, Sendable {
             var breakpointMgr = BreakpointManager()
             let breakpointInterval = 0.0...config.stopTime
             var deviceMaximumTimeStep = Double.infinity
+            var breakpointCount = 0
             for device in devices {
                 if let constrainedDevice = device as? any TransientTimeStepConstraintDevice {
+                    guard constrainedDevice.maximumTransientTimeStep.isFinite,
+                          constrainedDevice.maximumTransientTimeStep > 0 else {
+                        throw TransientExecutionError.invalidTimeStep(constrainedDevice.maximumTransientTimeStep)
+                    }
                     deviceMaximumTimeStep = min(
                         deviceMaximumTimeStep,
                         constrainedDevice.maximumTransientTimeStep
                     )
                 }
-                let deviceBreakpoints = device.breakpoints(in: breakpointInterval)
+                let remaining = executionLimits.maximumBreakpoints - breakpointCount
+                let deviceBreakpoints = try device.breakpoints(in: breakpointInterval, maximumCount: remaining)
+                guard deviceBreakpoints.count <= remaining,
+                      deviceBreakpoints.allSatisfy({ $0.isFinite && breakpointInterval.contains($0) }) else {
+                    throw AnalysisError.invalidConfiguration("Device returned invalid or excess breakpoints")
+                }
+                breakpointCount += deviceBreakpoints.count
                 if !deviceBreakpoints.isEmpty {
                     breakpointMgr.addBreakpoints(deviceBreakpoints)
                 }
@@ -179,7 +203,7 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             // Phase 2: Time-stepping loop
             while currentTime < config.stopTime {
-                if cancellation.isCancelled {
+                if cancellation.isCancelled || Task.isCancelled {
                     throw AnalysisError.cancelled
                 }
 
@@ -198,8 +222,10 @@ public struct TransientAnalysis: Analysis, Sendable {
                 )
 
                 // Guard against zero or negative timestep
-                if dt <= 0 {
-                    break
+                try Self.validateAdvance(time: currentTime, step: dt)
+                if dt < config.minTimeStep, currentTime + dt != config.stopTime,
+                   !breakpointMgr.isAtBreakpoint(currentTime + dt) {
+                    throw AnalysisError.timestepTooSmall(dt)
                 }
 
                 // Attempt Newton-Raphson for this timestep
@@ -207,10 +233,11 @@ public struct TransientAnalysis: Analysis, Sendable {
                 var reductions = 0
 
                 while !stepAccepted && reductions <= config.maxTimeStepReductions {
-                    if cancellation.isCancelled {
+                    if cancellation.isCancelled || Task.isCancelled {
                         throw AnalysisError.cancelled
                     }
 
+                    try Self.validateAdvance(time: currentTime, step: dt)
                     let currentIntegration = IntegrationState(
                         method: method,
                         timeStep: dt,
@@ -219,7 +246,8 @@ public struct TransientAnalysis: Analysis, Sendable {
                     )
 
                     // Newton-Raphson solve
-                    let nr = NewtonRaphsonSolver(config: convergenceConfig)
+                    var nr = NewtonRaphsonSolver(config: convergenceConfig)
+                    nr.executionBudget = budget
                     var newtonIterations: Int
 
                     do {
@@ -269,9 +297,9 @@ public struct TransientAnalysis: Analysis, Sendable {
                             cancellation: cancellation
                         )
                     } catch let error as AnalysisError {
-                        if case .cancelled = error { throw error }
+                        guard case .convergenceFailure = error else { throw error }
                         // Newton failed: try GMIN stepping before reducing timestep
-                        reductions += 1
+                        reductions = try TransientExecutionBudget.add(reductions, 1, "timeStepReductions")
 
                         if reductions == config.gminSteppingThreshold {
                             do {
@@ -290,16 +318,18 @@ public struct TransientAnalysis: Analysis, Sendable {
                                     integration: currentIntegration,
                                     observer: observer,
                                     analysisID: analysisID,
-                                    cancellation: cancellation
+                                    cancellation: cancellation,
+                                    executionBudget: budget
                                 )
                                 // GMIN stepping succeeded — use this solution
                                 newtonIterations = gminResult
                             } catch let error as AnalysisError {
-                                if case .cancelled = error { throw error }
+                                guard case .convergenceFailure = error else { throw error }
                                 // GMIN stepping failed — fall through to timestep reduction
                                 let oldDt = dt
                                 dt *= config.shrinkFactor
-                                rejectedSteps += 1
+                                try budget.rejectStep()
+                                rejectedSteps = try TransientExecutionBudget.add(rejectedSteps, 1, "rejectedSteps")
 
                                 await observer?.emit(.timeStepRejected(TimeStepRejectInfo(
                                     id: analysisID,
@@ -318,7 +348,8 @@ public struct TransientAnalysis: Analysis, Sendable {
                             // Normal timestep reduction
                             let oldDt = dt
                             dt *= config.shrinkFactor
-                            rejectedSteps += 1
+                            try budget.rejectStep()
+                            rejectedSteps = try TransientExecutionBudget.add(rejectedSteps, 1, "rejectedSteps")
 
                             await observer?.emit(.timeStepRejected(TimeStepRejectInfo(
                                 id: analysisID,
@@ -350,6 +381,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                             abstol: convergenceConfig.abstol
                         )
 
+                        guard lte.isFinite else { throw TransientExecutionError.nonFiniteLTE(lte) }
                         if lte > config.lteTolerance {
                             // LTE too large: reduce timestep and reject
                             let optDt = lteEstimator.optimalTimeStep(
@@ -359,9 +391,11 @@ public struct TransientAnalysis: Analysis, Sendable {
                                 method: method
                             )
                             let oldDt = dt
+                            guard dt > config.minTimeStep else { throw AnalysisError.timestepTooSmall(dt) }
                             dt = max(optDt, config.minTimeStep)
-                            reductions += 1
-                            rejectedSteps += 1
+                            reductions = try TransientExecutionBudget.add(reductions, 1, "timeStepReductions")
+                            try budget.rejectStep()
+                            rejectedSteps = try TransientExecutionBudget.add(rejectedSteps, 1, "rejectedSteps")
 
                             await observer?.emit(.timeStepRejected(TimeStepRejectInfo(
                                 id: analysisID,
@@ -388,6 +422,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         // Update dt for the next step (will be clamped by maxTimeStep later)
                         let nextDt = min(optimalNext, config.maxTimeStep)
 
+                        try budget.admitSavedPoint(accepted: true)
                         // Accept this step — O(1) buffer rotation
                         stepAccepted = true
                         swap(&twoPreviousBuf, &previousBuf)
@@ -454,6 +489,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                         // Update dt for next iteration
                         dt = nextDt
                     } else {
+                        try budget.admitSavedPoint(accepted: true)
                         // First step: no LTE check, just accept — O(1) buffer rotation
                         stepAccepted = true
                         swap(&previousBuf, &currentBuf)
@@ -508,12 +544,14 @@ public struct TransientAnalysis: Analysis, Sendable {
                 }
             }
 
+            if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
             let result = try TransientResult(
                 timePoints: timePoints,
                 solutionTrace: solutionTrace,
                 variableMap: variableMap,
                 timeSteps: acceptedSteps,
-                rejectedSteps: rejectedSteps
+                rejectedSteps: rejectedSteps,
+                executionStatistics: budget.statistics
             )
 
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
@@ -573,7 +611,8 @@ public struct TransientAnalysis: Analysis, Sendable {
         integration: IntegrationState,
         observer: EventDispatcher?,
         analysisID: AnalysisID,
-        cancellation: CancellationToken
+        cancellation: CancellationToken,
+        executionBudget: TransientExecutionBudget
     ) async throws -> Int {
         var guess = [Double](repeating: 0.0, count: currentBuf.count)
         currentBuf.withUnsafeBufferPointer { src in
@@ -588,11 +627,12 @@ public struct TransientAnalysis: Analysis, Sendable {
         }
         var totalIterations = 0
 
-        for gmin in config.gminStepping.gminValues() {
+        for gmin in config.gminStepping.lazyValues() {
             var stepConfig = convergenceConfig
             stepConfig.gmin = gmin
 
-            let nr = NewtonRaphsonSolver(config: stepConfig)
+            var nr = NewtonRaphsonSolver(config: stepConfig)
+            nr.executionBudget = executionBudget
             do {
                 let iterations = try await nr.solve(
                     initialGuess: guess,
@@ -716,6 +756,13 @@ public struct TransientAnalysis: Analysis, Sendable {
         }
 
         return solution
+    }
+
+    static func validateAdvance(time: Double, step: Double) throws {
+        guard step.isFinite, step > 0 else { throw TransientExecutionError.invalidTimeStep(step) }
+        guard (time + step).isFinite, time + step > time else {
+            throw TransientExecutionError.nonProgressingTime(time: time, timeStep: step)
+        }
     }
 
     static func estimatedPointCapacity(stopTime: Double, initialTimeStep: Double) -> Int {

@@ -301,7 +301,7 @@ struct MOSL3ConsistencyTests {
                      cancellation: CancellationToken())
             let drainBranch = try #require(circuit.plan.topology.variableMap[.branchCurrent(branches[0])])
             close(ac.solutions[0][drainBranch].real, -polarity * stamp.real[1])
-            let config = TransientConfig(stopTime: 3e-9, maxTimeStep: 1e-9, initialTimeStep: 1e-9)
+            let config = TransientConfig(stopTime: 3e-9, executionLimits: .validationFixture, maxTimeStep: 1e-9, initialTimeStep: 1e-9)
             let transient = try await TransientAnalysis(config: config).run(circuit: circuit,
                 solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
             #expect(transient.timeSteps >= 3)

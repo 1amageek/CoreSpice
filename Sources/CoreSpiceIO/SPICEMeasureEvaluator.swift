@@ -743,6 +743,8 @@ public struct SPICEMeasureEvaluator: Sendable {
             return numeric
         case .boolean(let flag):
             return flag ? 1.0 : 0.0
+        case .numericVector:
+            throw SPICEMeasurementError.invalidNumericValue(measure: measure, field: field, value: value.description)
         case .string(let text):
             throw SPICEMeasurementError.invalidNumericValue(
                 measure: measure,

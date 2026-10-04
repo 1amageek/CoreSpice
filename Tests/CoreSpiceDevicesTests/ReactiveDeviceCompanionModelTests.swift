@@ -283,7 +283,7 @@ struct ReactiveDeviceCompanionModelTests {
         }
 
         // Run transient for 5τ
-        let config = TransientConfig(stopTime: 5 * tau, maxTimeStep: tau / 50)
+        let config = TransientConfig(stopTime: 5 * tau, executionLimits: .validationFixture, maxTimeStep: tau / 50)
         let analysis = TransientAnalysis(config: config)
         let solver = SparseLUSolver()
         let token = CancellationToken()

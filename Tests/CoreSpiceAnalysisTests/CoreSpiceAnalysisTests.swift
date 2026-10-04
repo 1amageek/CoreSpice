@@ -229,7 +229,7 @@ struct CoreSpiceAnalysisTests {
     }
 
     @Test func transientConfigDefaults() {
-        let config = TransientConfig(stopTime: 1e-3)
+        let config = TransientConfig(stopTime: 1e-3, executionLimits: .validationFixture)
         #expect(config.stopTime == 1e-3)
         #expect(config.maxTimeStep > 0)
         #expect(config.minTimeStep > 0)
@@ -412,7 +412,7 @@ struct CoreSpiceAnalysisTests {
 
         // Simulate for 1ms
         let transientConfig = TransientConfig(
-            stopTime: 1e-3,
+            stopTime: 1e-3, executionLimits: .validationFixture,
             maxTimeStep: 1e-4,
             initialTimeStep: 1e-5
         )
@@ -482,7 +482,7 @@ struct CoreSpiceAnalysisTests {
 
         // Simulate for 50µs (2.5 periods)
         let transientConfig = TransientConfig(
-            stopTime: 50e-6,
+            stopTime: 50e-6, executionLimits: .validationFixture,
             maxTimeStep: 1e-6,
             initialTimeStep: 0.1e-6
         )

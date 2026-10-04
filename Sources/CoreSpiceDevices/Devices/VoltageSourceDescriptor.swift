@@ -13,6 +13,8 @@ public struct VoltageSourceDescriptor: DeviceDescriptor, Sendable {
     public let typeName = "vsource"
     public let portNames = ["pos", "neg"]
     public let parameterDescriptors = [
+        ParameterDescriptor(name: "pwl", defaultValue: nil, description: "Alternating finite time/value pairs"),
+        ParameterDescriptor(name: "ac", defaultValue: .real(0), description: "AC small-signal magnitude"),
         // DC
         ParameterDescriptor(name: "v", defaultValue: .real(0.0), description: "DC voltage in volts"),
         // Pulse waveform
@@ -39,9 +41,9 @@ public struct VoltageSourceDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
-        let waveform = try parseWaveform(from: instance)
+        let waveform = try IndependentSourceWaveformParser.parse(instance, current: false)
         let dcVoltage = waveform.dcValue
-        let acMagnitude = extractReal(instance.parameters["ac"]) ?? 0.0
+        let acMagnitude = try IndependentSourceWaveformParser.real("ac", instance: instance, defaultValue: 0)
 
         let branch = try context.claimBranch(for: instance)
 
@@ -75,73 +77,4 @@ public struct VoltageSourceDescriptor: DeviceDescriptor, Sendable {
         )
     }
 
-    // MARK: - Waveform Parsing
-
-    private func parseWaveform(from instance: Instance) throws -> Waveform {
-        let params = instance.parameters
-
-        // Check for pulse parameters (v1 and v2 are required)
-        if let v1Param = params["v1"], let v2Param = params["v2"] {
-            guard case .real(let v1) = v1Param else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "v1", expected: "real"
-                )
-            }
-            guard case .real(let v2) = v2Param else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "v2", expected: "real"
-                )
-            }
-            let td = extractReal(params["td"]) ?? 0.0
-            let tr = extractReal(params["tr"]) ?? 0.0
-            let tf = extractReal(params["tf"]) ?? 0.0
-            let pw = extractReal(params["pw"]) ?? 0.0
-            let per = extractReal(params["per"]) ?? 0.0
-
-            // Validate period (must be positive for periodic waveform)
-            guard per > 0 else {
-                throw DeviceBindingError.invalidParameterValue(
-                    device: instance.name, parameter: "per",
-                    message: "Period must be positive for pulse waveform"
-                )
-            }
-
-            return .pulse(v1: v1, v2: v2, delay: td, rise: tr, fall: tf, width: pw, period: per)
-        }
-
-        // Check for sine parameters (vo, va, freq are required)
-        if let voParam = params["vo"], let vaParam = params["va"], let freqParam = params["freq"] {
-            guard case .real(let vo) = voParam else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "vo", expected: "real"
-                )
-            }
-            guard case .real(let va) = vaParam else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "va", expected: "real"
-                )
-            }
-            guard case .real(let freq) = freqParam else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "freq", expected: "real"
-                )
-            }
-            let td = extractReal(params["td"]) ?? 0.0
-            let phase = extractReal(params["phase"]) ?? 0.0
-
-            return .sine(offset: vo, amplitude: va, frequency: freq, delay: td, phase: phase)
-        }
-
-        // Default: DC waveform
-        let v = extractReal(params["v"]) ?? 0.0
-        return .dc(v)
-    }
-
-    private func extractReal(_ value: ParameterValue?) -> Double? {
-        guard let value else { return nil }
-        if case .real(let v) = value {
-            return v
-        }
-        return nil
-    }
 }

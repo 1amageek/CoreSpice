@@ -59,40 +59,43 @@ public enum Waveform: Sendable {
     ///
     /// The breakpoint manager uses these to place integration steps
     /// precisely at waveform transitions.
-    public func breakpoints(in interval: ClosedRange<Double>) -> [Double] {
-        switch self {
-        case .dc:
-            return []
-
-        case .pulse(_, _, let delay, let rise, let fall, let width, let period):
-            var result: [Double] = []
-            guard period > 0 else { return [] }
-            var cycleStart = delay
-            while cycleStart <= interval.upperBound {
-                let edges = [
-                    cycleStart,
-                    cycleStart + rise,
-                    cycleStart + rise + width,
-                    cycleStart + rise + width + fall,
-                ]
-                for edge in edges {
-                    if interval.contains(edge) {
-                        result.append(edge)
-                    }
-                }
-                cycleStart += period
-            }
-            return result
-
-        case .sine:
-            // Sinusoids are smooth; no breakpoints needed.
-            return []
-
-        case .pwl(let points):
-            return points
-                .map(\.time)
-                .filter { interval.contains($0) }
+    public func breakpoints(in interval: ClosedRange<Double>, maximumCount: Int) throws -> [Double] {
+        guard maximumCount >= 0, interval.lowerBound.isFinite, interval.upperBound.isFinite else {
+            throw WaveformError.invalidDomain
         }
+        var result: [Double] = []
+        func append(_ point: Double) throws {
+            guard point.isFinite else { throw WaveformError.invalidDomain }
+            if interval.contains(point) {
+                guard result.count < maximumCount else { throw WaveformError.breakpointLimitExceeded(maximumCount) }
+                result.append(point)
+            }
+        }
+        switch self {
+        case .dc, .sine:
+            return []
+        case .pwl(let points):
+            for point in points { try append(point.time) }
+        case .pulse(_, _, let delay, let rise, let fall, let width, let period):
+            guard delay.isFinite, rise.isFinite, fall.isFinite, width.isFinite, period.isFinite,
+                  delay >= 0, rise >= 0, fall >= 0, width >= 0, period > 0 else {
+                throw WaveformError.invalidDomain
+            }
+            var cycle = delay
+            if interval.lowerBound > delay + period {
+                cycle = delay + floor((interval.lowerBound - delay) / period) * period
+            }
+            while cycle <= interval.upperBound {
+                try append(cycle)
+                try append(cycle + rise)
+                try append(cycle + rise + width)
+                try append(cycle + rise + width + fall)
+                let next = cycle + period
+                guard next.isFinite, next > cycle else { throw WaveformError.nonProgressingCycle }
+                cycle = next
+            }
+        }
+        return result
     }
 
     // MARK: - Private Evaluation Helpers

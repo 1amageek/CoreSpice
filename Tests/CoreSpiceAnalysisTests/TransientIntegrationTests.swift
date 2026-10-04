@@ -59,7 +59,7 @@ struct TransientIntegrationTests {
 
         let tau = 1e-3 / 1000.0 // L/R = 1µs
         let config = TransientConfig(
-            stopTime: 10e-6,
+            stopTime: 10e-6, executionLimits: .validationFixture,
             maxTimeStep: 10e-9
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
@@ -114,7 +114,7 @@ struct TransientIntegrationTests {
                                 parameters: ["c": .real(1e-6)])
 
         let config = TransientConfig(
-            stopTime: 2e-3,
+            stopTime: 2e-3, executionLimits: .validationFixture,
             maxTimeStep: 1e-6
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
@@ -171,7 +171,7 @@ struct TransientIntegrationTests {
                                 parameters: ["c": .real(1e-6)])
 
         let config = TransientConfig(
-            stopTime: 0.5e-3,
+            stopTime: 0.5e-3, executionLimits: .validationFixture,
             maxTimeStep: 0.5e-6
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
@@ -217,7 +217,7 @@ struct TransientIntegrationTests {
                                 parameters: ["c": .real(1e-6)])
 
         let config = TransientConfig(
-            stopTime: 2e-3,
+            stopTime: 2e-3, executionLimits: .validationFixture,
             maxTimeStep: 1e-6
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
@@ -268,7 +268,7 @@ struct TransientIntegrationTests {
                                 parameters: ["c": .real(1e-6)])
 
         let config = TransientConfig(
-            stopTime: 50e-3, // 5 periods at 100Hz
+            stopTime: 50e-3, executionLimits: .validationFixture, // 5 periods at 100Hz
             maxTimeStep: 200e-6,
             lteTolerance: 0.5
         )
@@ -311,7 +311,7 @@ struct TransientIntegrationTests {
                                 parameters: ["r": .real(1000)])
 
         let config = TransientConfig(
-            stopTime: 3e-3,
+            stopTime: 3e-3, executionLimits: .validationFixture,
             maxTimeStep: 50e-6,
             lteTolerance: 0.5
         )
@@ -361,7 +361,7 @@ struct TransientIntegrationTests {
                                 parameters: ["r": .real(1000)])
 
         let config = TransientConfig(
-            stopTime: 2e-3,
+            stopTime: 2e-3, executionLimits: .validationFixture,
             maxTimeStep: 1e-6,
             lteTolerance: 0.5
         )
@@ -417,7 +417,7 @@ struct TransientIntegrationTests {
                                 parameters: ["r": .real(1000)])
 
         let config = TransientConfig(
-            stopTime: 2e-3,
+            stopTime: 2e-3, executionLimits: .validationFixture,
             maxTimeStep: 5e-6,
             lteTolerance: 0.5
         )
@@ -469,7 +469,7 @@ struct TransientIntegrationTests {
                                 parameters: [:])
 
         let config = TransientConfig(
-            stopTime: 100e-6,
+            stopTime: 100e-6, executionLimits: .validationFixture,
             maxTimeStep: 1e-6,
             lteTolerance: 0.5
         )
@@ -513,7 +513,7 @@ struct TransientIntegrationTests {
                                              "w": .real(10e-6), "l": .real(1e-6)])
 
         let config = TransientConfig(
-            stopTime: 100e-6,
+            stopTime: 100e-6, executionLimits: .validationFixture,
             maxTimeStep: 1e-6,
             lteTolerance: 0.5
         )
@@ -555,7 +555,7 @@ struct TransientIntegrationTests {
 
         let tau = 1000.0 * 1e-6 // RC = 1ms
         let config = TransientConfig(
-            stopTime: 5e-3,
+            stopTime: 5e-3, executionLimits: .validationFixture,
             maxTimeStep: 10e-6,
             lteTolerance: 0.5
         )
@@ -605,7 +605,7 @@ struct TransientIntegrationTests {
 
         let tau = 10e-3 / 100.0 // L/R = 100µs
         let config = TransientConfig(
-            stopTime: 500e-6,
+            stopTime: 500e-6, executionLimits: .validationFixture,
             maxTimeStep: 1e-6
         )
         let result = try await CircuitFactory.runTransient(netlist, config: config)
@@ -653,7 +653,7 @@ struct TransientIntegrationTests {
                                 parameters: ["c": .real(1e-9)])
 
         let config = TransientConfig(
-            stopTime: 100e-6,
+            stopTime: 100e-6, executionLimits: .validationFixture,
             maxTimeStep: 100e-9,
             lteTolerance: 0.5
         )
@@ -698,7 +698,7 @@ struct TransientIntegrationTests {
                                 parameters: ["r": .real(50)])
 
         let config = TransientConfig(
-            stopTime: 500e-9, // 5 periods
+            stopTime: 500e-9, executionLimits: .validationFixture, // 5 periods
             maxTimeStep: 1e-9,
             lteTolerance: 0.5
         )
@@ -739,7 +739,7 @@ struct TransientIntegrationTests {
                                 parameters: ["c": .real(100e-9)])
 
         let config = TransientConfig(
-            stopTime: 5e-3, // 5 periods
+            stopTime: 5e-3, executionLimits: .validationFixture, // 5 periods
             maxTimeStep: 20e-6,
             lteTolerance: 0.5
         )
@@ -779,7 +779,7 @@ struct TransientIntegrationTests {
                                 parameters: ["r": .real(1000)])
 
         let config = TransientConfig(
-            stopTime: 2e-3, // 2 periods
+            stopTime: 2e-3, executionLimits: .validationFixture, // 2 periods
             maxTimeStep: 10e-6,
             lteTolerance: 0.5
         )
@@ -846,7 +846,7 @@ struct TransientIntegrationTests {
                                 parameters: ["c": .real(100e-15)])
 
         let config = TransientConfig(
-            stopTime: 100e-9,
+            stopTime: 100e-9, executionLimits: .validationFixture,
             maxTimeStep: 0.1e-9,
             lteTolerance: 0.5
         )
@@ -946,7 +946,7 @@ struct TransientIntegrationTests {
                                     parameters: ["c": .real(100e-15)])
 
             let config = TransientConfig(
-                stopTime: 50e-9,
+                stopTime: 50e-9, executionLimits: .validationFixture,
                 maxTimeStep: 0.1e-9,
                 lteTolerance: 0.5
             )

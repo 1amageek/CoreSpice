@@ -36,6 +36,16 @@ corespice -b <deck.cir> [analysis] [export]
 
 Analysis flags override directives in the netlist. If omitted, the CLI auto-detects the analysis from the deck (first `.tran`, `.ac`, `.dc`, or `.op` found, in that order).
 
+Every transient or Fourier deck, including a `--tran` override, must declare all
+seven positive integer execution limits in `.options`: `tranmaxaccepted`,
+`tranmaxattempts`, `tranmaxiterations`, `tranmaxscalars`, `tranmaxdimension`,
+`tranmaxwork`, and `tranmaxbreakpoints`. The caller selects the ceilings for the
+requested circuit and output. Missing or partial policy fails with
+`analysis.transient-execution`; the CLI does not infer a resource budget.
+[Analysis owns the limits and work-unit definition](../CoreSpiceAnalysis/DESIGN.md).
+PWL sources preserve ordered time/value pairs through parsing, lowering and
+binding; malformed or unsupported source syntax fails before execution.
+
 ### Examples
 
 ```bash

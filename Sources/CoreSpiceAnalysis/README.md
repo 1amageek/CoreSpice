@@ -275,3 +275,23 @@ This module depends on:
 1. Add error wrapping for complex solver failures in `ACAnalysis`.
 
 2. Consider implementing Gear integration methods for improved accuracy in stiff circuits.
+
+### Explicit transient resource admission
+
+`TransientConfig.executionLimits` must be selected by the caller. Missing limits
+throw `TransientExecutionError.missingExecutionLimits` before execution. The
+`TransientExecutionLimits` value is Sendable, Hashable and Codable and owns ceilings
+for accepted steps, Newton solve attempts, Newton iterations, saved scalars, matrix
+dimension, weighted work units and breakpoint entries. DC initialization and both
+DC/transient recovery consume the same run budget. `TransientResult.executionStatistics`
+is populated for actual executions; manually constructed result fixtures can lack
+execution evidence. Saved scalars include the initial point, all time values and
+all MNA variables. Work is an operation-count surrogate, not wall time or FLOPS.
+
+Public Netlist sources accept `pwl: .realVector` with alternating time/value pairs.
+Times are nonnegative, finite and strictly increasing, with at least two points.
+Values and interpolation slopes must be finite. Unknown, partial and conflicting
+waveform families fail binding. The source holds the first/last value outside its
+PWL interval. Accepted time points include source segment boundaries and never
+exceed the maximum step. Native CPU SparseLU evidence does not qualify Metal,
+WASM or Embedded execution.

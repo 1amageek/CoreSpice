@@ -210,7 +210,7 @@ struct BSIM3IntegrationTests {
                 let gate = try #require(circuit.plan.ir.branchNames.first { $0.value == "vg" }?.key)
                 let gateIndex = try #require(circuit.plan.topology.variableMap[.branchCurrent(gate)])
                 #expect(abs(ac.solutions[0][gateIndex].imag) > 1e-7)
-                let config = TransientConfig(stopTime: 2e-9, maxTimeStep: 2e-11, initialTimeStep: 2e-12)
+                let config = TransientConfig(stopTime: 2e-9, executionLimits: .validationFixture, maxTimeStep: 2e-11, initialTimeStep: 2e-12)
                 let run = TransientAnalysis(config: config)
                 let first = try await run.run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
                 #expect(first.timePoints.last == config.stopTime)
@@ -251,7 +251,7 @@ struct BSIM3IntegrationTests {
             close(ac.solutions[0][drainIndex].imag, fixture.ac[2], relative: 1e-7, absolute: 2e-12)
             close(ac.solutions[0][gateIndex].real, fixture.ac[3], relative: 1e-7, absolute: 2e-12)
             close(ac.solutions[0][gateIndex].imag, fixture.ac[4], relative: 1e-7, absolute: 2e-12)
-            let transient = try await TransientAnalysis(config: .init(stopTime: 2e-9, maxTimeStep: 2e-12, initialTimeStep: 2e-12),
+            let transient = try await TransientAnalysis(config: .init(stopTime: 2e-9, executionLimits: .validationFixture, maxTimeStep: 2e-12, initialTimeStep: 2e-12),
                 convergenceConfig: .init(abstol: 1e-15, reltol: 1e-7, vntol: 1e-9, gmin: 0))
                 .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
             for point in fixture.transient {
@@ -295,7 +295,7 @@ struct BSIM3IntegrationTests {
         try other.beginTransientSession(initialState: initial)
         defer { other.endTransientSession() }
         do {
-            _ = try await TransientAnalysis(config: .init(stopTime: 1e-9, useInitialConditions: true))
+            _ = try await TransientAnalysis(config: .init(stopTime: 1e-9, executionLimits: .validationFixture, useInitialConditions: true))
                 .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
             Issue.record("Concurrent transient run admitted")
         } catch let error as BSIM3DeviceError {
@@ -309,7 +309,7 @@ struct BSIM3IntegrationTests {
         }
         other.endTransientSession()
         let cancellation = CancellationToken()
-        let cancelledRun = TransientAnalysis(config: .init(stopTime: 2e-9, maxTimeStep: 1e-10),
+        let cancelledRun = TransientAnalysis(config: .init(stopTime: 2e-9, executionLimits: .validationFixture, maxTimeStep: 1e-10),
             onStepAccepted: { _, _ in cancellation.cancel() })
         do { _ = try await cancelledRun.run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: cancellation)
             Issue.record("Cancellation produced successful evidence") }
@@ -321,7 +321,7 @@ struct BSIM3IntegrationTests {
     @Test func terminalICInitializesPhysicalPrimeAndChargeHistory() async throws {
         let circuit = try await prepared(source(extraModel: "rsh=20", extraInstance: "nqsmod=1 ic=0.5,1.1,-0.2"))
         let device = try mos(circuit)
-        let result = try await TransientAnalysis(config: .init(stopTime: 2e-12, maxTimeStep: 1e-12,
+        let result = try await TransientAnalysis(config: .init(stopTime: 2e-12, executionLimits: .validationFixture, maxTimeStep: 1e-12,
             initialTimeStep: 1e-12, useInitialConditions: true), convergenceConfig: .init(gmin: 0))
             .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
         for (node, expected) in zip(device.instance.nodes, [0.5, 1.1, 0, -0.2]) {
@@ -352,7 +352,7 @@ struct BSIM3IntegrationTests {
         } catch let error as BSIM3Error { #expect(error == .nonFiniteEvaluation) }
         let failing = try await prepared(source().replacingOccurrences(of: "VB b 0 -0.1", with: "VB b 0 sin(-0.1 1e200 100Meg)"))
         do {
-            _ = try await TransientAnalysis(config: .init(stopTime: 2e-12, maxTimeStep: 1e-12, initialTimeStep: 1e-12))
+            _ = try await TransientAnalysis(config: .init(stopTime: 2e-12, executionLimits: .validationFixture, maxTimeStep: 1e-12, initialTimeStep: 1e-12))
                 .run(circuit: failing, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
             Issue.record("Runtime model failure produced successful transient evidence")
         } catch let error as BSIM3Error { #expect(error == .nonFiniteEvaluation) }

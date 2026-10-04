@@ -82,7 +82,7 @@ struct StiffCircuitConvergenceTests {
 
         // Simulate for enough time to see fast transient settle
         // but not so long that we need to simulate the slow one fully
-        let config = TransientConfig(stopTime: 10 * tau_fast, maxTimeStep: tau_fast / 10)
+        let config = TransientConfig(stopTime: 10 * tau_fast, executionLimits: .validationFixture, maxTimeStep: tau_fast / 10)
         let analysis = TransientAnalysis(config: config)
         let solver = SparseLUSolver()
         let token = CancellationToken()
@@ -157,7 +157,7 @@ struct StiffCircuitConvergenceTests {
 
         // Time constant estimate: τ ≈ RD × CL = 1kΩ × 10pF = 10 ns
         let tau = rd * cLoad
-        let config = TransientConfig(stopTime: 10 * tau, maxTimeStep: tau / 10)
+        let config = TransientConfig(stopTime: 10 * tau, executionLimits: .validationFixture, maxTimeStep: tau / 10)
         let analysis = TransientAnalysis(config: config, convergenceConfig: CircuitFactory.nonlinearConfig)
         let solver = SparseLUSolver()
         let token = CancellationToken()
@@ -302,7 +302,7 @@ struct StiffCircuitConvergenceTests {
 
         // Simulate long enough to see the medium time constant settle
         let tau_medium = 100e-6
-        let config = TransientConfig(stopTime: 10 * tau_medium, maxTimeStep: tau_medium / 100)
+        let config = TransientConfig(stopTime: 10 * tau_medium, executionLimits: .validationFixture, maxTimeStep: tau_medium / 100)
         let analysis = TransientAnalysis(config: config)
         let solver = SparseLUSolver()
         let token = CancellationToken()

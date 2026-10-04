@@ -1061,6 +1061,21 @@ def shape_ng(name, cols):
     return cols
 
 
+# The regression fixture owner explicitly admits its finite transient workloads.
+_TRANSIENT_FIXTURE_POLICY = (
+    ".options tranmaxaccepted=250000 tranmaxattempts=1000000 "
+    "tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 "
+    "tranmaxwork=1e15 tranmaxbreakpoints=250000"
+)
+# Preserve the same admitted input deck for CoreSpice, oracle and retained digests.
+CIRCUITS = [
+    (name, "\n".join(
+        (_TRANSIENT_FIXTURE_POLICY + "\n" + line) if line.strip().lower().startswith(".tran ") else line
+        for line in deck.splitlines()
+    ) + "\n", checker, ng_spec)
+    for name, deck, checker, ng_spec in CIRCUITS
+]
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--corespice",

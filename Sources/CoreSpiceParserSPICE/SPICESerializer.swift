@@ -125,7 +125,11 @@ public struct SPICESerializer: NetlistSerializer {
 
         // Parameters
         for (name, value) in sortedIfNeeded(component.parameters, options) {
-            parts.append("\(name)=\(serializeValue(value, options))")
+            if name == "pwl", case .numericVector(let values) = value {
+                parts.append("PWL(" + values.map { formatNumber($0, options) }.joined(separator: " ") + ")")
+            } else {
+                parts.append("\(name)=\(serializeValue(value, options))")
+            }
         }
 
         return parts.joined(separator: " ")
@@ -463,6 +467,8 @@ public struct SPICESerializer: NetlistSerializer {
         switch value {
         case .numeric(let n):
             return formatNumber(n, options)
+        case .numericVector(let values):
+            return values.map { formatNumber($0, options) }.joined(separator: " ")
         case .string(let s):
             return "'\(s)'"
         case .expression(let expr):

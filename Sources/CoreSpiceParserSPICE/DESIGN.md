@@ -37,3 +37,11 @@ Malformed version/numeric contexts and invalid IC arity are parser diagnostics; 
 ## Verification and Change Impact
 
 Integration tests use the actual parser for quoted/unquoted version, IC and OFF, invalid version, and malformed numeric input. Revalidate Lowering when token semantics change.
+
+## Canonical PWL Source Migration
+
+Parsed numeric vectors preserve alternating PWL time/value values. SPICE PWL syntax
+parses and serializes this vector, lowering retains `ParameterValue.realVector`,
+and device admission owns strict time/value validation. Partial/unknown source
+waveforms produce typed parse/binding failure, never successful DC substitution.
+Scalar option/measurement/expression consumers reject vectors explicitly.

@@ -61,7 +61,7 @@ struct NumericalRobustnessTests {
             devices.append(bound)
         }
 
-        let config = TransientConfig(stopTime: 5 * tau, maxTimeStep: tau / 10)
+        let config = TransientConfig(stopTime: 5 * tau, executionLimits: .validationFixture, maxTimeStep: tau / 10)
         let analysis = TransientAnalysis(config: config)
         let solver = SparseLUSolver()
         let token = CancellationToken()
@@ -326,7 +326,7 @@ struct NumericalRobustnessTests {
         }
 
         // Run for 100 time constants - well beyond transient
-        let config = TransientConfig(stopTime: 100 * tau, maxTimeStep: tau / 10)
+        let config = TransientConfig(stopTime: 100 * tau, executionLimits: .validationFixture, maxTimeStep: tau / 10)
         let analysis = TransientAnalysis(config: config)
         let solver = SparseLUSolver()
         let token = CancellationToken()

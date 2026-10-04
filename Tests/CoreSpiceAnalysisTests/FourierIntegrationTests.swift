@@ -28,7 +28,7 @@ struct FourierIntegrationTests {
                                 parameters: ["r": .real(1000)])
 
         let transientConfig = TransientConfig(
-            stopTime: 5.0 * period,
+            stopTime: 5.0 * period, executionLimits: .validationFixture,
             maxTimeStep: period / 400.0,
             lteTolerance: 0.1
         )
@@ -75,7 +75,7 @@ struct FourierIntegrationTests {
                                 parameters: [:])
 
         let transientConfig = TransientConfig(
-            stopTime: 3.0 * period,
+            stopTime: 3.0 * period, executionLimits: .validationFixture,
             maxTimeStep: period / 50.0,
             lteTolerance: 0.5
         )
@@ -122,7 +122,7 @@ struct FourierIntegrationTests {
                                 parameters: ["r": .real(1000)])
 
         let transientConfig = TransientConfig(
-            stopTime: 3.0 * period,
+            stopTime: 3.0 * period, executionLimits: .validationFixture,
             maxTimeStep: period / 100.0,
             lteTolerance: 0.5
         )
@@ -201,7 +201,7 @@ struct FourierIntegrationTests {
                                 parameters: ["r": .real(1000)])
 
         let transientConfig = TransientConfig(
-            stopTime: 3.0 * period,
+            stopTime: 3.0 * period, executionLimits: .validationFixture,
             maxTimeStep: period / 100.0,
             initialTimeStep: period / 200.0,
             lteTolerance: 0.5

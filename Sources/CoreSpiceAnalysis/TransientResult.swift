@@ -32,12 +32,15 @@ public struct TransientResult: Sendable {
     /// Number of rejected (and retried) timesteps.
     public let rejectedSteps: Int
 
+    public let executionStatistics: TransientExecutionStatistics?
+
     public init(
         timePoints: [Double],
         solutionTrace: SolutionTrace,
         variableMap: [MNAVariable: Int],
         timeSteps: Int,
-        rejectedSteps: Int
+        rejectedSteps: Int,
+        executionStatistics: TransientExecutionStatistics? = nil
     ) throws {
         guard timeSteps >= 0 else {
             throw AnalysisResultValidationError.negativeCount(
@@ -94,6 +97,7 @@ public struct TransientResult: Sendable {
                 throw AnalysisResultValidationError.duplicateVariableIndex(index)
             }
         }
+        self.executionStatistics = executionStatistics
         self.timePoints = timePoints
         self.solutionTrace = solutionTrace
         self.variableMap = variableMap

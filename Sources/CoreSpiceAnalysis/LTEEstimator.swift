@@ -91,6 +91,7 @@ public struct LTEEstimator: Sendable {
             // Normalize by voltage node tolerance
             let tol = reltol * abs(current[i]) + vntol
             let normalizedLTE = lte / tol
+            guard normalizedLTE.isFinite else { return .infinity }
             maxLTE = max(maxLTE, normalizedLTE)
 
             // Early exit: if LTE already exceeds threshold, no need to check

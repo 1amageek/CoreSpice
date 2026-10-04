@@ -449,15 +449,19 @@ private struct SPICEParserImpl {
                     let dcKey = (type == .currentSource) ? "i" : "v"
                     if let value = try parseSignedNumber() {
                         params[lower == "dc" ? dcKey : "ac"] = .numeric(value)
+                    } else {
+                        throw ParserDiagnostic.error("DC/AC source value must be numeric", at: currentLocation)
                     }
                 } else if (type == .voltageSource || type == .currentSource),
                           lower == "pulse" {
                     // PULSE(v1 v2 td tr tf pw per)
-                    try parseSourcePulse(into: &params)
+                    try parseSourcePulse(into: &params, current: type == .currentSource)
                 } else if (type == .voltageSource || type == .currentSource),
                           lower == "sin" || lower == "sine" {
                     // SIN(vo va freq td theta)
-                    try parseSourceSine(into: &params)
+                    try parseSourceSine(into: &params, current: type == .currentSource)
+                } else if (type == .voltageSource || type == .currentSource), lower == "pwl" {
+                    params["pwl"] = .numericVector(try parseSourceVector())
                 } else {
                     // Positional value (like resistance value for R, or gain for E)
                     if let key = positionalKey(for: type, existing: params) {
@@ -466,10 +470,15 @@ private struct SPICEParserImpl {
                         } else {
                             params[key] = .expression(.identifier(paramName))
                         }
+                    } else if type == .voltageSource || type == .currentSource {
+                        throw ParserDiagnostic.error("Unsupported source waveform or parameter '\(paramName)'", at: currentLocation)
                     }
                 }
             } else if case .number(let n) = currentToken {
                 // Positional value (resistance for R, DC value for a source, etc.)
+                if (type == .voltageSource || type == .currentSource), !params.isEmpty {
+                    throw ParserDiagnostic.error("Unexpected extra numeric source value", at: currentLocation)
+                }
                 if let key = positionalKey(for: type, existing: params) {
                     params[key] = .numeric(n)
                 }
@@ -490,6 +499,9 @@ private struct SPICEParserImpl {
                     _ = try parseExpressionValue()
                 }
             } else {
+                if type == .voltageSource || type == .currentSource {
+                    throw ParserDiagnostic.error("Unexpected source token", at: currentLocation)
+                }
                 advance()
             }
         }
@@ -771,37 +783,39 @@ private struct SPICEParserImpl {
         }
     }
 
-    /// Parse PULSE(v1 v2 td tr tf pw per) parameters.
-    private mutating func parseSourcePulse(into params: inout [String: ParsedParameterValue]) throws {
-        // Expect '(' after PULSE
-        guard case .leftParen = currentToken else { return }
-        advance()
-
-        let keys = ["v1", "v2", "td", "tr", "tf", "pw", "per"]
-        for key in keys {
-            if case .rightParen = currentToken { break }
-            if let n = try parseSignedNumericTokenIfPresent() {
-                params[key] = .numeric(n)
-            }
+    private mutating func parseSourceVector() throws -> [Double] {
+        guard case .leftParen = currentToken else {
+            throw ParserDiagnostic.error("Source waveform requires parentheses", at: currentLocation)
         }
-
-        if case .rightParen = currentToken { advance() }
+        advance()
+        var values: [Double] = []
+        while !isAtEnd && !isNewline {
+            if case .rightParen = currentToken { advance(); return values }
+            if case .comma = currentToken { advance(); continue }
+            guard let value = try parseSignedNumericTokenIfPresent(), value.isFinite else {
+                throw ParserDiagnostic.error("Source waveform requires finite numeric values", at: currentLocation)
+            }
+            values.append(value)
+        }
+        throw ParserDiagnostic.error("Unterminated source waveform", at: currentLocation)
     }
 
-    /// Parse SIN(vo va freq td theta) parameters.
-    private mutating func parseSourceSine(into params: inout [String: ParsedParameterValue]) throws {
-        guard case .leftParen = currentToken else { return }
-        advance()
-
-        let keys = ["vo", "va", "freq", "td", "phase"]
-        for key in keys {
-            if case .rightParen = currentToken { break }
-            if let n = try parseSignedNumericTokenIfPresent() {
-                params[key] = .numeric(n)
-            }
+    private mutating func parseSourcePulse(into params: inout [String: ParsedParameterValue], current: Bool) throws {
+        let values = try parseSourceVector()
+        let keys = current ? ["i1", "i2", "td", "tr", "tf", "pw", "per"] : ["v1", "v2", "td", "tr", "tf", "pw", "per"]
+        guard values.count == keys.count else {
+            throw ParserDiagnostic.error("PULSE requires seven numeric values", at: currentLocation)
         }
+        for (key, value) in zip(keys, values) { params[key] = .numeric(value) }
+    }
 
-        if case .rightParen = currentToken { advance() }
+    private mutating func parseSourceSine(into params: inout [String: ParsedParameterValue], current: Bool) throws {
+        let values = try parseSourceVector()
+        let keys = current ? ["io", "ia", "freq", "td", "phase"] : ["vo", "va", "freq", "td", "phase"]
+        guard (3...5).contains(values.count) else {
+            throw ParserDiagnostic.error("SIN requires three to five numeric values", at: currentLocation)
+        }
+        for (key, value) in zip(keys, values) { params[key] = .numeric(value) }
     }
 
     private mutating func parseSignedNumericTokenIfPresent() throws -> Double? {

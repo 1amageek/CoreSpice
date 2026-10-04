@@ -211,7 +211,7 @@ struct SPICEIOEndToEndTests {
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
         let result = try await TransientAnalysis(
             config: TransientConfig(
-                stopTime: 5e-3,
+                stopTime: 5e-3, executionLimits: .validationFixture,
                 maxTimeStep: 50e-6,
                 initialTimeStep: 1e-9
             )
@@ -285,7 +285,7 @@ struct SPICEIOEndToEndTests {
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
         let result = try await TransientAnalysis(
             config: TransientConfig(
-                stopTime: 3e-9,
+                stopTime: 3e-9, executionLimits: .validationFixture,
                 maxTimeStep: 5e-9,
                 initialTimeStep: 0.1e-9
             )
@@ -424,7 +424,7 @@ struct SPICEIOEndToEndTests {
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
         let result = try await TransientAnalysis(
             config: TransientConfig(
-                stopTime: 2e-9,
+                stopTime: 2e-9, executionLimits: .validationFixture,
                 maxTimeStep: 0.1e-9,
                 initialTimeStep: 0.1e-9
             )
@@ -729,7 +729,7 @@ struct SPICEIOEndToEndTests {
         let gateNode = try node(fromInstance: "z1", terminal: 1, in: circuit.ir)
         let result = try await TransientAnalysis(
             config: TransientConfig(
-                stopTime: 5e-6,
+                stopTime: 5e-6, executionLimits: .validationFixture,
                 maxTimeStep: 1e-7,
                 initialTimeStep: 1e-9
             )
@@ -920,6 +920,53 @@ struct SPICEIOEndToEndTests {
         #expect(approximately(roundTrippedVoltage, 1.8, tolerance: 1e-9))
         #expect(approximately(originalVoltage, roundTrippedVoltage, tolerance: 1e-12))
     }
+    @Test(arguments: ["V1 in 0 PWL(0 0 1n 1 2n 1)", "I1 0 in PWL(0 0 1n 1m 2n 1m)"])
+    func publicPWLSPICEParseLowerSerializeAndActualTransient(_ sourceLine: String) async throws {
+        let deck = "public PWL\n" + sourceLine + "\nR1 in 0 1k\n.end\n"
+        let parsed = try await SPICEIO.parse(deck).get()
+        let serialized = SPICESerializer().serialize(parsed, options: .default)
+        let roundTrip = try await SPICEIO.parse(serialized).get()
+        #expect(parsed.components.first?.parameters["pwl"] == roundTrip.components.first?.parameters["pwl"])
+        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(serialized))
+        let node = try node(fromInstance: "r1", terminal: 0, in: circuit.ir)
+        let result = try await TransientAnalysis(config: TransientConfig(stopTime: 2e-9,
+            executionLimits: .validationFixture, maxTimeStep: 1e-11, useInitialConditions: true),
+            convergenceConfig: ConvergenceConfig(gmin: 0)).run(plan: circuit.plan, devices: circuit.devices,
+                solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+        #expect(abs(try result.voltage(at: node, timeIndex: result.timePoints.count - 1) - 1) < 1e-9)
+        #expect(result.timePoints.last == 2e-9)
+        #expect(result.executionStatistics != nil)
+    }
+
+    @Test(arguments: ["PULSE(0 1)", "PWL(0 0 1n)", "PWL(0 0 0 1)", "PWL(0 0 1n 1", "EXP(0 1)", "dc", "dc 1 2", "PWL(0 0 1n 1))"])
+    func malformedSourceSyntaxNeverExecutesAsDC(_ waveform: String) async {
+        do {
+            let ir = try await SPICEIO.parseAndLower("invalid source\nV1 in 0 " + waveform + "\nR1 in 0 1k\n.end\n")
+            _ = try compileAndBindElectricalCircuit(ir)
+            Issue.record("Malformed waveform must fail parse/lowering/binding")
+        } catch { }
+    }
+
+    @Test func deckBudgetOptionsRequireCompleteExplicitPolicy() async throws {
+        let optionsLine = ".options tranmaxaccepted=1000 tranmaxattempts=2000 tranmaxiterations=10000 tranmaxscalars=10000 tranmaxdimension=8 tranmaxwork=1e6 tranmaxbreakpoints=100"
+        let parsed = try await SPICEIO.parse("budget\nV1 in 0 dc 1\n" + optionsLine + "\n.end\n").get()
+        let options = try SPICEAnalysisOptions.resolve(from: parsed)
+        #expect(options.executionLimitOptionsPresent)
+        let config = try options.transientConfig(stopTime: 1e-9, stepTime: 1e-11, startTime: nil, maxStep: nil, useInitialConditions: false)
+        #expect(try config.requiredExecutionLimits().maximumSolveAttempts == 2000)
+        let missing = SPICEAnalysisOptions()
+        #expect(!missing.executionLimitOptionsPresent)
+        let partialDeck = try await SPICEIO.parse("partial budget\n.options tranmaxattempts=2\n.end\n").get()
+        let partial = try SPICEAnalysisOptions.resolve(from: partialDeck)
+        #expect(partial.executionLimitOptionsPresent)
+        #expect(partial.executionLimits == nil)
+        #expect(throws: TransientExecutionError.self) {
+            try missing.transientConfig(stopTime: 1e-9, stepTime: 1e-11, startTime: nil, maxStep: nil, useInitialConditions: false)
+        }
+        let coverage = SPICEDeckCoverageReport.generate(from: parsed)
+        #expect(!coverage.hasBlockedItems)
+    }
+
 }
 
 private struct ExecutableElectricalCircuit {

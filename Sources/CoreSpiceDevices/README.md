@@ -156,7 +156,7 @@ public enum Waveform: Sendable {
     case pwl(points: [PWLPoint])
 
     public func value(at time: Double) -> Double
-    public func breakpoints(in interval: ClosedRange<Double>) -> [Double]
+    public func breakpoints(in interval: ClosedRange<Double>, maximumCount: Int) throws -> [Double]
 }
 ```
 

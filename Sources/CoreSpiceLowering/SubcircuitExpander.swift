@@ -134,6 +134,11 @@ public struct SubcircuitExpander: Sendable {
                 behavioralReferencedBranchNames = result.referencedBranchNames
                 continue
             }
+            if name == "pwl", case .numericVector(let values) = value,
+               component.type == .voltageSource || component.type == .currentSource {
+                evaluatedParams[name] = .realVector(values)
+                continue
+            }
             let evaluated = try evaluator.evaluate(value)
             evaluatedParams[name] = .real(evaluated)
         }

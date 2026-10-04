@@ -30,6 +30,21 @@ public struct GminStepping: Sendable {
         self.maxSteps = maxSteps
     }
 
+    /// Lazily generates recovery stages so run admission bounds stage creation.
+    func lazyValues() -> some Sequence<Double> {
+        sequence(state: (value: initialGmin, count: 0, finished: false)) { state in
+            guard !state.finished else { return nil }
+            guard state.value > finalGmin, state.count < maxSteps else {
+                state.finished = true
+                return finalGmin
+            }
+            let value = state.value
+            state.value /= reductionFactor
+            state.count += 1
+            return value
+        }
+    }
+
     /// Generates the sequence of Gmin values from `initialGmin` down to `finalGmin`.
     ///
     /// The sequence divides by `reductionFactor` at each step and always

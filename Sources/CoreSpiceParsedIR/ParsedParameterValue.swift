@@ -7,6 +7,9 @@ public enum ParsedParameterValue: Sendable, Hashable {
     /// A numeric value, possibly with a scale suffix (e.g., "1k", "10u").
     case numeric(Double)
 
+    /// Ordered numeric source waveform input.
+    case numericVector([Double])
+
     /// A string value.
     case string(String)
 
@@ -22,6 +25,8 @@ extension ParsedParameterValue: CustomStringConvertible {
         switch self {
         case .numeric(let value):
             return "\(value)"
+        case .numericVector(let values):
+            return values.map(String.init(describing:)).joined(separator: " ")
         case .string(let value):
             return "\"\(value)\""
         case .expression(let expr):

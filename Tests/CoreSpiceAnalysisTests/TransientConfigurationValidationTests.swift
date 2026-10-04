@@ -10,7 +10,7 @@ struct TransientConfigurationValidationTests {
     @Test("Invalid stop time is rejected before transient setup")
     func invalidStopTimeIsRejectedBeforeTransientSetup() async throws {
         let config = TransientConfig(
-            stopTime: .nan,
+            stopTime: .nan, executionLimits: .validationFixture,
             maxTimeStep: 1.0e-9,
             initialTimeStep: 1.0e-9
         )
@@ -23,7 +23,7 @@ struct TransientConfigurationValidationTests {
     @Test("Non-positive timestep is rejected instead of returning an empty successful run")
     func nonPositiveTimeStepIsRejected() async throws {
         let config = TransientConfig(
-            stopTime: 1.0e-6,
+            stopTime: 1.0e-6, executionLimits: .validationFixture,
             maxTimeStep: 0.0,
             initialTimeStep: 0.0
         )
@@ -35,7 +35,7 @@ struct TransientConfigurationValidationTests {
 
     @Test("Invalid convergence damping is rejected at transient entry")
     func invalidConvergenceDampingIsRejected() async throws {
-        let config = TransientConfig(stopTime: 1.0e-6, maxTimeStep: 1.0e-7)
+        let config = TransientConfig(stopTime: 1.0e-6, executionLimits: .validationFixture, maxTimeStep: 1.0e-7)
         let convergence = ConvergenceConfig(minDamping: 0.0)
 
         await expectInvalidConfiguration {
@@ -46,7 +46,7 @@ struct TransientConfigurationValidationTests {
     @Test("Effective initial timestep respects the configured minimum")
     func effectiveInitialTimestepRespectsConfiguredMinimum() async throws {
         let config = TransientConfig(
-            stopTime: 1.0e-6,
+            stopTime: 1.0e-6, executionLimits: .validationFixture,
             maxTimeStep: 1.0e-6,
             minTimeStep: 5.0e-7
         )

@@ -83,7 +83,7 @@ struct CancellationIntegrationTests {
         let (plan, devices) = try CircuitFactory.compile(netlist)
 
         // Configuration for transient simulation
-        let config = TransientConfig(stopTime: 1.0, maxTimeStep: 1e-3)
+        let config = TransientConfig(stopTime: 1.0, executionLimits: .validationFixture, maxTimeStep: 1e-3)
         let analysis = TransientAnalysis(config: config)
         let solver = SparseLUSolver()
         let token = CancellationToken()
@@ -140,7 +140,7 @@ struct CancellationIntegrationTests {
         let (plan, devices) = try CircuitFactory.compile(netlist)
 
         // Short simulation
-        let config = TransientConfig(stopTime: 10e-6, maxTimeStep: 1e-6)
+        let config = TransientConfig(stopTime: 10e-6, executionLimits: .validationFixture, maxTimeStep: 1e-6)
         let analysis = TransientAnalysis(config: config)
         let solver = SparseLUSolver()
         let token = CancellationToken()  // Not cancelled
@@ -291,7 +291,7 @@ struct CancellationIntegrationTests {
         )
         let (plan, devices) = try CircuitFactory.compile(netlist)
 
-        let config = TransientConfig(stopTime: 0.1, maxTimeStep: 1e-4)
+        let config = TransientConfig(stopTime: 0.1, executionLimits: .validationFixture, maxTimeStep: 1e-4)
         let analysis = TransientAnalysis(config: config, convergenceConfig: CircuitFactory.nonlinearConfig)
         let solver = SparseLUSolver()
         let token = CancellationToken()

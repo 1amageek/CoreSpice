@@ -24,7 +24,7 @@ public struct BreakpointManager: Sendable {
         breakpoints.sort()
         // Remove near-duplicates
         breakpoints = breakpoints.reduce(into: []) { result, point in
-            if result.last.map({ abs($0 - point) > 1e-15 }) ?? true {
+            if result.last.map({ $0 != point }) ?? true {
                 result.append(point)
             }
         }
@@ -44,7 +44,7 @@ public struct BreakpointManager: Sendable {
     ) -> Double {
         // Advance past breakpoints that are at or before the current time
         while currentIndex < breakpoints.count &&
-              breakpoints[currentIndex] <= currentTime + 1e-15 {
+              breakpoints[currentIndex] <= currentTime {
             currentIndex += 1
         }
 
@@ -53,11 +53,10 @@ public struct BreakpointManager: Sendable {
         let nextBP = breakpoints[currentIndex]
         let distToBP = nextBP - currentTime
 
-        // If the breakpoint is within 110% of the proposed step, land on it
-        if distToBP < proposedStep * 1.1 {
-            return distToBP
-        }
-
+        if distToBP <= proposedStep { return distToBP }
+        // Divide the final approach into two representable steps instead of leaving
+        // a rounding-sized remainder after a full step. Neither step exceeds the proposal.
+        if distToBP / proposedStep < 2 { return distToBP / 2 }
         return proposedStep
     }
 
@@ -67,7 +66,7 @@ public struct BreakpointManager: Sendable {
     ///   - time: The simulation time to check.
     ///   - tolerance: Match tolerance in seconds (default 1e-12).
     /// - Returns: `true` if `time` is within `tolerance` of any breakpoint.
-    public func isAtBreakpoint(_ time: Double, tolerance: Double = 1e-12) -> Bool {
+    public func isAtBreakpoint(_ time: Double, tolerance: Double = 0) -> Bool {
         // Binary search for nearest breakpoint
         var lo = 0
         var hi = breakpoints.count

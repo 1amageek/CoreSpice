@@ -95,6 +95,12 @@ extension CoreSpiceCLIFailure {
         stage: "compile"
       )
 
+    case let budgetError as TransientExecutionError:
+      self.init(code: "analysis.transient-execution", message: budgetError.description, stage: "analysis")
+
+    case let waveformError as WaveformError:
+      self.init(code: "analysis.waveform-admission", message: Self.describe(waveformError), stage: "analysis")
+
     case let analysisError as AnalysisError:
       self.init(analysisError: analysisError)
 

@@ -70,6 +70,8 @@ public struct ExpressionEvaluator: Sendable {
         switch value {
         case .numeric(let n):
             return n
+        case .numericVector:
+            throw LoweringError.expressionEvaluationFailed(expression: "numeric vector", reason: "Cannot evaluate vector as scalar")
         case .string:
             throw LoweringError.expressionEvaluationFailed(
                 expression: "string",

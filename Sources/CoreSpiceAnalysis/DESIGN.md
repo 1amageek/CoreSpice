@@ -68,3 +68,56 @@ spectra emit failed and propagate unchanged. The independent oracle supplies
 sampled PSDs; its SPICE log-interpolated integral is not the CoreSpice integral.
 No new retained state is introduced. Per-device output is bounded by existing
 prepared circuit and sampled sweep, and kernel work remains fixed-size.
+
+## Bounded Transient Run Ownership
+
+A transient run owns one Mutex-protected execution budget from initial admission
+through DC initialization, DC GMIN/source recovery, transient Newton/GMIN solves,
+accepted state publication and terminal events. Solver attempts and Newton
+iterations are admitted before their allocations/stamps. Output admission counts
+the time scalar and all MNA scalars, including t=0, before reserve/save/publication.
+Count/product overflow, budget exhaustion, invalid timestep constraints, nonfinite
+LTE and nonprogressing time are typed failures, never nonconvergence retries or
+completed partial trajectories. Cancellation remains a cancelled terminal event.
+Callbacks and event I/O execute outside the counter lock.
+
+Caller policy specifies accepted steps, solve attempts, Newton iterations, saved
+scalars, matrix dimension, breakpoint count and weighted work units. A missing policy fails before execution; callers explicitly supply resource
+ceilings. Machine integer capacity is not treated as a practical resource budget. Decoded limits are
+validated by the same run admission as constructed values. Statistics include DC
+and recovery work and retain the exact accepted time axis. Weighted work is an
+operation-count surrogate: each Newton iteration charges n^3 + 2*nnz + 2*devices
++ 8*n; it is not measured FLOPS or a wall-time guarantee.
+
+Matrix dimension bounds the existing SparseLU dense n*n factor storage and sparse
+L/U fill (each at most n*n entries), in addition to O(n) work vectors and the
+input sparse structure. Checked n*n, n^3 and byte-size products are required before
+analysis allocation. This assumes the supplied LinearSolver and custom device
+implementations honor their declared size contracts; the verified concrete solver
+is the original SparseLUSolver. No new solver or Metal MNA execution is introduced.
+Breakpoint scheduling never enlarges the proposed step and uses representable
+relative lookahead rather than a fixed absolute time tolerance. If a breakpoint
+is between one and two proposed steps away, the final approach is split into two
+steps to avoid a rounding-sized history interval while retaining the exact point.
+
+```mermaid
+flowchart TD
+  Request[Transient config and caller limits] --> Budget[One run execution budget]
+  Budget --> DC[DC and recovery Newton solves]
+  DC --> Transient[Transient and GMIN Newton solves]
+  Budget --> Transient
+  Transient --> Accept[Budget admitted accepted state]
+  Accept --> Output[Exact time axis and statistics]
+  Budget --> Fail[Typed failure or cancellation]
+```
+
+Synchronization review: Native/WASM/Embedded all use the same `Mutex<State>`
+storage, read/statistics and mutation admission entry points; the budget owns no
+shutdown resource. Runtime evidence is native host CPU only. WASM/Embedded are
+unverified; native evidence does not qualify those targets or Metal.
+
+| Target | Storage and isolation | Read / mutation entry points | Owner release | Runtime evidence |
+|---|---|---|---|---|
+| Native | `Mutex<State>` | `statistics` / admission methods | Run exit releases budget | CPU tested |
+| WASM | Same shared source | Same shared source | Same run owner | Unverified |
+| Embedded | Same shared source | Same shared source | Same run owner | Unverified |

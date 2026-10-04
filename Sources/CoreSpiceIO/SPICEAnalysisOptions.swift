@@ -12,17 +12,22 @@ import Foundation
 /// not applied.
 public struct SPICEAnalysisOptions: Sendable {
 
+    public var executionLimits: TransientExecutionLimits?
+    /// Whether the source deck declares any execution-limit option, including a partial policy.
+    public private(set) var executionLimitOptionsPresent: Bool = false
     public var convergence: ConvergenceConfig
     public var transient: SPICETransientOptions
     public var temperatureCelsius: Double?
     public var diagnostics: [SPICEAnalysisOptionDiagnostic]
 
     public init(
+        executionLimits: TransientExecutionLimits? = nil,
         convergence: ConvergenceConfig = ConvergenceConfig(),
         transient: SPICETransientOptions = SPICETransientOptions(),
         temperatureCelsius: Double? = nil,
         diagnostics: [SPICEAnalysisOptionDiagnostic] = []
     ) {
+        self.executionLimits = executionLimits
         self.convergence = convergence
         self.transient = transient
         self.temperatureCelsius = temperatureCelsius
@@ -38,10 +43,17 @@ public struct SPICEAnalysisOptions: Sendable {
 
         var options = SPICEAnalysisOptions()
         var diagnostics: [SPICEAnalysisOptionDiagnostic] = []
+        let budgetKeys = ["tranmaxaccepted", "tranmaxattempts", "tranmaxiterations", "tranmaxscalars", "tranmaxdimension", "tranmaxwork", "tranmaxbreakpoints"]
+        var budgetValues: [String: Int] = [:]
 
         for control in netlist.controls {
             switch control {
             case .option(let name, let value, let location):
+                let key = normalizedOptionName(name)
+                if budgetKeys.contains(key) {
+                    budgetValues[key] = try positiveIntegerOption(value, name: name, evaluator: evaluator)
+                    continue
+                }
                 try applyOption(
                     name: name,
                     value: value,
@@ -63,6 +75,16 @@ public struct SPICEAnalysisOptions: Sendable {
             }
         }
 
+        options.executionLimitOptionsPresent = !budgetValues.isEmpty
+        if let accepted = budgetValues[budgetKeys[0]], let attempts = budgetValues[budgetKeys[1]],
+           let iterations = budgetValues[budgetKeys[2]], let scalars = budgetValues[budgetKeys[3]],
+           let dimension = budgetValues[budgetKeys[4]], let work = budgetValues[budgetKeys[5]],
+           let breakpoints = budgetValues[budgetKeys[6]] {
+            options.executionLimits = TransientExecutionLimits(maximumAcceptedSteps: accepted,
+                maximumSolveAttempts: attempts, maximumNewtonIterations: iterations,
+                maximumSavedScalars: scalars, maximumMatrixDimension: dimension,
+                maximumWorkUnits: work, maximumBreakpoints: breakpoints)
+        }
         options.diagnostics = diagnostics
         return options
     }
@@ -87,6 +109,7 @@ public struct SPICEAnalysisOptions: Sendable {
 
     /// Creates a transient analysis configuration from a `.tran` directive and global options.
     public func transientConfig(
+        executionLimits: TransientExecutionLimits? = nil,
         stopTime: Double,
         stepTime: Double?,
         startTime: Double?,
@@ -198,6 +221,7 @@ public struct SPICEAnalysisOptions: Sendable {
 
         let config = TransientConfig(
             stopTime: stopTime,
+            executionLimits: executionLimits ?? self.executionLimits,
             maxTimeStep: selectedMaxStep,
             initialTimeStep: selectedInitialStep,
             minTimeStep: selectedMinTimeStep,
@@ -456,6 +480,8 @@ public struct SPICEAnalysisOptions: Sendable {
         switch value {
         case .numeric, .expression, .boolean:
             return try evaluator.evaluate(value)
+        case .numericVector:
+            throw SPICEAnalysisOptionError.invalidOptionValue(name: optionName, value: value.description, reason: "value must be scalar")
         case .string(let text):
             throw SPICEAnalysisOptionError.invalidOptionValue(
                 name: optionName,
@@ -541,6 +567,8 @@ public struct SPICEAnalysisOptions: Sendable {
         }
 
         switch value {
+        case .numericVector:
+            throw SPICEAnalysisOptionError.invalidOptionValue(name: name, value: value.description, reason: "value must be scalar")
         case .string(let text):
             return text
         case .expression(.identifier(let identifier)):

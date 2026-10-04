@@ -57,7 +57,7 @@ struct FourierTests {
 
         // Simulate 3 periods to allow settling; use relaxed LTE for resistive divider
         let transientConfig = TransientConfig(
-            stopTime: 3.0 * period,
+            stopTime: 3.0 * period, executionLimits: .validationFixture,
             maxTimeStep: period / 50.0,
             initialTimeStep: period / 200.0,
             lteTolerance: 1.0,
@@ -156,7 +156,7 @@ struct FourierTests {
         }
 
         let transientConfig = TransientConfig(
-            stopTime: 2.0 * period,
+            stopTime: 2.0 * period, executionLimits: .validationFixture,
             maxTimeStep: period / 20.0,
             initialTimeStep: period / 40.0,
             minTimeStep: 1e-12
@@ -221,7 +221,7 @@ struct FourierTests {
             harmonicCount: 9,
             outputNodes: [],
             transientConfig: TransientConfig(
-                stopTime: period,
+                stopTime: period, executionLimits: .validationFixture,
                 maxTimeStep: period / 100.0
             )
         )
@@ -333,7 +333,7 @@ struct FourierTests {
             harmonicCount: 9,
             outputNodes: [],
             transientConfig: TransientConfig(
-                stopTime: period,
+                stopTime: period, executionLimits: .validationFixture,
                 maxTimeStep: period / 100.0
             )
         )

@@ -37,3 +37,10 @@ Invalid allocation requests and name collisions produce NetlistError. Owner iden
 ## Verification and Change Impact
 
 BSIM3 integration tests trace provenance, private identities, and actual sparse topology. Revalidate Compile, Devices binding, Analysis composition, Lowering, and instance-copy consumers.
+
+## Typed Source Vector Input
+
+`ParameterValue.realVector` preserves ordered numeric source input inside canonical
+Netlist/Instance state. Independent source descriptors interpret `pwl` as alternating
+time/value pairs; IR does not own waveform admission or device physics. Parsed IR,
+SPICE parsing/serialization and lowering preserve this vector without scalarizing it.

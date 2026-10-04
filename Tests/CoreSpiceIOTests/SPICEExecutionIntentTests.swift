@@ -32,7 +32,7 @@ struct SPICEExecutionIntentTests {
         #expect(options.diagnostics.count == 1)
         #expect(options.diagnostics.first?.name == "unknownoption")
 
-        let transient = try options.transientConfig(
+        let transient = try options.transientConfig(executionLimits: .validationFixture,
             stopTime: 20e-9,
             stepTime: 1e-9,
             startTime: nil,
@@ -60,7 +60,7 @@ struct SPICEExecutionIntentTests {
             let options = SPICEAnalysisOptions(transient: invalidCase.transient)
 
             do {
-                _ = try options.transientConfig(
+                _ = try options.transientConfig(executionLimits: .validationFixture,
                     stopTime: 10e-9,
                     stepTime: nil,
                     startTime: nil,

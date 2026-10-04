@@ -18,6 +18,7 @@ public struct NewtonRaphsonSolver: Sendable {
 
     /// Convergence configuration controlling tolerances and iteration limits.
     public let config: ConvergenceConfig
+    var executionBudget: TransientExecutionBudget?
 
     public init(config: ConvergenceConfig = ConvergenceConfig()) {
         self.config = config
@@ -87,6 +88,8 @@ public struct NewtonRaphsonSolver: Sendable {
         analysisID: AnalysisID,
         cancellation: CancellationToken
     ) async throws -> Int {
+        if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
+        try executionBudget?.beginSolve()
         let n = initialGuess.count
         if solution.count != n {
             solution = [Double](repeating: 0.0, count: n)
@@ -127,10 +130,11 @@ public struct NewtonRaphsonSolver: Sendable {
         var lastDamping = 1.0
 
         for iter in 0..<config.maxIterations {
-            if cancellation.isCancelled {
+            if cancellation.isCancelled || Task.isCancelled {
                 throw AnalysisError.cancelled
             }
 
+            try executionBudget?.beginIteration()
             await observer?.emit(.newtonIterationStarted(NewtonInfo(
                 id: analysisID,
                 iteration: iter,

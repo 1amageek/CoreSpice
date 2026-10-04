@@ -371,6 +371,13 @@ struct CLI {
         corespice measure --waveform <path.csv> --measure "<spec>" [--measure "<spec>" ...] [--json]
         corespice            # interactive shell
 
+      Transient resource policy:
+        Transient/Fourier execution requires all seven explicit .options values:
+        tranmaxaccepted, tranmaxattempts, tranmaxiterations, tranmaxscalars,
+        tranmaxdimension, tranmaxwork, tranmaxbreakpoints. Values are positive
+        integers; saved scalars include times and all MNA variables. Work units
+        are size-weighted operation counts, not wall time or measured FLOPS.
+
       JSON records:
         Batch success records contain a replayable ExecutionInvocation plus
         inputArtifacts and outputArtifacts as

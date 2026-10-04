@@ -56,6 +56,7 @@ public enum MNAVariable: Hashable, Sendable {
 ```swift
 public enum ParameterValue: Sendable {
     case real(Double)
+    case realVector([Double])
     case integer(Int)
     case string(String)
     case complex(ComplexValue)

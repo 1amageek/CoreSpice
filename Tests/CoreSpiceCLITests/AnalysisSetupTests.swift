@@ -99,6 +99,7 @@ struct AnalysisSetupTests {
       V1 vdd 0 dc 1.8
       R1 vdd n1 1k
       C1 n1 0 20f
+      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
       .tran 20p 50n
       .end
       """
@@ -132,6 +133,7 @@ struct AnalysisSetupTests {
       R1 in out 1k
       C1 out 0 1p
       .ic V(out)=0.42
+      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
       .tran 1n 1n uic
       .end
       """
@@ -158,6 +160,7 @@ struct AnalysisSetupTests {
       V1 in 0 dc 1.0
       R1 in 0 1k
       .ic V(missing)=0.42
+      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
       .tran 1n 1n uic
       .end
       """
@@ -277,6 +280,7 @@ struct AnalysisSetupTests {
         V1 in 0 sin(0 1 1k)
         R1 in out 1k
         C1 out 0 1u
+        .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
         .tran 10u 2m
         .four 1k V(out) I(V1)
         .end

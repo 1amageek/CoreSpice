@@ -24,12 +24,12 @@ public protocol BoundDevice: Sendable {
     ///
     /// Breakpoints are times where the waveform has discontinuities
     /// (e.g., pulse edges) that require precise timestep placement.
-    func breakpoints(in interval: ClosedRange<Double>) -> [Double]
+    func breakpoints(in interval: ClosedRange<Double>, maximumCount: Int) throws -> [Double]
 }
 
 // Default implementation for devices without time-varying waveforms
 extension BoundDevice {
-    public func breakpoints(in interval: ClosedRange<Double>) -> [Double] {
+    public func breakpoints(in interval: ClosedRange<Double>, maximumCount: Int) throws -> [Double] {
         return []
     }
 }

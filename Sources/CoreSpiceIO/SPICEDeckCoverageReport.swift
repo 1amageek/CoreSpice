@@ -955,6 +955,8 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         switch value {
         case .numeric, .boolean, .expression(.literal):
             return nil
+        case .numericVector:
+            return "Measurement numeric field is a vector"
         case .string:
             return "Measurement numeric field is a string"
         case .expression(let expression):

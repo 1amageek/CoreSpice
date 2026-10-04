@@ -37,3 +37,11 @@ Model preparation uses the configured temperature and original defaults. Later b
 ## Verification and Change Impact
 
 Integration tests resolve scoped model expressions and conflicting model/instance selectors, plus version/domain failures through actual lowering. Revalidate IR, Devices preparation, and IO coverage.
+
+## Canonical PWL Source Migration
+
+Parsed numeric vectors preserve alternating PWL time/value values. SPICE PWL syntax
+parses and serializes this vector, lowering retains `ParameterValue.realVector`,
+and device admission owns strict time/value validation. Partial/unknown source
+waveforms produce typed parse/binding failure, never successful DC substitution.
+Scalar option/measurement/expression consumers reject vectors explicitly.

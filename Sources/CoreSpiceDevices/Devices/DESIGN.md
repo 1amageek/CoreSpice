@@ -96,3 +96,26 @@ tests reproduced 56 violations before the implementation change.
 
 This evidence covers the native L3 implementation and analysis consumers on that
 host. It does not qualify BSIM3/4, Metal execution, WASM, or Embedded targets.
+
+## Independent Source Admission
+
+Voltage/current descriptors own DC, pulse, sine and PWL selection. `pwl` is a
+canonical real vector with at least two finite time/value pairs, nonnegative and
+strictly increasing times, and finite interpolation slopes. Waveform families are
+exclusive; partial, unknown and mistyped parameters fail binding rather than
+selecting DC or parameter defaults. DC plus transient parameters is ambiguous.
+PWL holds its first/last values outside its declared domain. Source breakpoint
+enumeration consumes an explicit count admission before appending each item.
+
+```mermaid
+flowchart LR
+  Netlist[Canonical source parameters] --> Admission[Strict descriptor admission]
+  Admission --> Waveform[Bound source waveform]
+  Waveform --> MNA[DC and transient RHS stamps]
+  Waveform --> Breakpoints[Count bounded breakpoint schedule]
+```
+
+Built-in devices preserve the same bounded breakpoint contract through the
+BoundDevice protocol. Custom implementations own admission before allocating
+their breakpoint output. Host CPU integration tests trace compiler, registry,
+bound waveform, numerical transient and exact accepted time axis.

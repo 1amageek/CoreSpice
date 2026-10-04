@@ -1,6 +1,8 @@
 /// A value that can be assigned to a device parameter.
 public enum ParameterValue: Sendable {
     case real(Double)
+    /// Ordered numeric vector; source descriptors own its interpretation.
+    case realVector([Double])
     case integer(Int)
     case string(String)
     case complex(ComplexValue)

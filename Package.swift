@@ -110,7 +110,7 @@ let package = Package(
         // ==========================================================================
 
         // --- ParsedIR: AST types for parsed netlists ---
-        .target(name: "CoreSpiceParsedIR"),
+        .target(name: "CoreSpiceParsedIR", exclude: ["DESIGN.md"]),
 
         // --- Waveform: Waveform data IR and conversion ---
         .target(name: "CoreSpiceWaveform",
@@ -151,7 +151,7 @@ let package = Package(
                                "CoreSpiceParser", "CoreSpiceParserSPICE",
                                "CoreSpiceLowering", "CoreSpiceExporter",
                                "CoreSpiceExporterRAW", "CoreSpiceExporterCSV",
-                               "CoreSpiceExporterPSF"]),
+                               "CoreSpiceExporterPSF"], exclude: ["DESIGN.md"]),
 
         // CLI core and executable entry
         .target(

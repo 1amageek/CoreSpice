@@ -13,6 +13,7 @@ import CoreSpiceEvent
 public struct DCAnalysis: Analysis, Sendable {
 
     public typealias Result = DCResult
+    var executionBudget: TransientExecutionBudget?
 
     /// Convergence configuration for the Newton-Raphson solver.
     public let config: ConvergenceConfig
@@ -100,7 +101,7 @@ public struct DCAnalysis: Analysis, Sendable {
                     )
                     result = stepped
                 } catch let error as AnalysisError {
-                    if case .cancelled = error { throw error }
+                    guard case .convergenceFailure = error else { throw error }
                     // Phase 3: Source stepping
                     result = try await solveWithSourceStepping(
                         plan: plan,
@@ -182,7 +183,8 @@ public struct DCAnalysis: Analysis, Sendable {
             nodeCount: plan.opticalNetwork?.opticalNodeCount ?? 0
         )
 
-        let nr = NewtonRaphsonSolver(config: config)
+        var nr = NewtonRaphsonSolver(config: config)
+        nr.executionBudget = executionBudget
         var solution = [Double](repeating: 0.0, count: initialGuess.count)
         let iterations = try await nr.solve(
             initialGuess: initialGuess,
@@ -237,7 +239,7 @@ public struct DCAnalysis: Analysis, Sendable {
         var x = initialGuess
         var totalIterations = 0
 
-        for gmin in gminStepping.gminValues() {
+        for gmin in gminStepping.lazyValues() {
             var stepConfig = config
             stepConfig.gmin = gmin
 
@@ -286,8 +288,9 @@ public struct DCAnalysis: Analysis, Sendable {
             nodeCount: plan.opticalNetwork?.opticalNodeCount ?? 0
         )
 
-        for factor in sourceStepping.sourceFactors() {
-            let nr = NewtonRaphsonSolver(config: config)
+        for factor in (1...sourceStepping.steps).lazy.map({ Double($0) / Double(sourceStepping.steps) }) {
+            var nr = NewtonRaphsonSolver(config: config)
+            nr.executionBudget = executionBudget
             let iterations = try await nr.solve(
                 initialGuess: x,
                 solution: &solution,
