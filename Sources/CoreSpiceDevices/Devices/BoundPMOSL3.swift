@@ -28,20 +28,6 @@ public struct BoundPMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
     /// Convergence tolerance for terminal voltages (V).
     private static let voltageTolerance: Double = 1e-6
 
-    /// Minimum output conductance to prevent singular matrix in cutoff.
-    private static let minGds: Double = 1e-12
-
-    /// Smoothing parameter for the cutoff-to-on transition (approx kT/q at room temperature).
-    private static let smoothDelta: Double = 0.025
-
-    private static func smoothClamp(_ x: Double) -> Double {
-        0.5 * (x + sqrt(x * x + smoothDelta * smoothDelta))
-    }
-
-    private static func smoothClampDeriv(_ x: Double) -> Double {
-        0.5 * (1.0 + x / sqrt(x * x + smoothDelta * smoothDelta))
-    }
-
     init(
         instance: Instance,
         drain: Node,
@@ -284,10 +270,7 @@ public struct BoundPMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
 
         let rawVsg = vSource - vGate
         let rawVsd = vSource - vDrain
-        let rawVbs = vBulk - vSource
-
-        let beta = parameters.beta
-        let lambda = parameters.lambda
+        let rawVbs = vSource - vBulk
 
         let reversed = rawVsd < 0
         let vsg: Double
@@ -296,88 +279,19 @@ public struct BoundPMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
         if reversed {
             vsd = -rawVsd
             vsg = vDrain - vGate
-            vbs = vBulk - vDrain
+            vbs = vDrain - vBulk
         } else {
             vsd = rawVsd
             vsg = rawVsg
             vbs = rawVbs
         }
 
-        let surfacePotential = parameters.phi
-        let sqrtPhi = sqrt(abs(surfacePotential))
-        let phiMinusVbs = max(surfacePotential - vbs, 0.01)
-        let vtp = parameters.vto + parameters.gamma * (sqrt(phiMinusVbs) - sqrtPhi)
-            + parameters.eta * vsd
-        let vtpAbs = -vtp
-
-        let rawVsgOverdrive = vsg - vtpAbs
-        let vsgOverdrive = Self.smoothClamp(rawVsgOverdrive)
-        let dvsgOverdrive = Self.smoothClampDeriv(rawVsgOverdrive)
-        let dvsgOverdrive_dVsd = dvsgOverdrive * parameters.eta
-
-        let denom = 1.0 + parameters.theta * vsgOverdrive
-        let betaEff = parameters.theta == 0 ? beta : beta / denom
-        let dbeta_dvgst = parameters.theta == 0 ? 0 : (-beta * parameters.theta) / (denom * denom)
-
-        let kappaBase = max(parameters.kappa, 0.0)
-        var kappaVelocity = 0.0
-        if parameters.vmax > 0, parameters.l > 0 {
-            let cox = parameters.cox
-            if cox > 0 {
-                let mu = parameters.kp / cox
-                if mu > 0 {
-                    kappaVelocity = mu / (parameters.vmax * parameters.l)
-                }
-            }
-        }
-        let kappaEff = kappaBase + kappaVelocity
-        let vdsatDenom = 1.0 + kappaEff * vsgOverdrive
-        let vdsat = vsgOverdrive / vdsatDenom
-        let dvdsat_dvgst = 1.0 / (vdsatDenom * vdsatDenom)
-
-        let isd: Double
-        let gm: Double
-        let gds: Double
-
-        if vsd < vdsat {
-            let clm = 1.0 + lambda * vsd
-            let f = vsgOverdrive * vsd - 0.5 * vsd * vsd
-            isd = betaEff * f * clm
-            gm = (dbeta_dvgst * dvsgOverdrive) * f * clm
-                + betaEff * (vsd * dvsgOverdrive) * clm
-            gds = (dbeta_dvgst * dvsgOverdrive_dVsd) * f * clm
-                + betaEff * (vsgOverdrive + vsd * dvsgOverdrive_dVsd - vsd) * clm
-                + betaEff * f * lambda
-        } else {
-            let clm = 1.0 + lambda * vsd
-            let f = vsgOverdrive * vdsat - 0.5 * vdsat * vdsat
-            let dF_dvgst = vdsat + (vsgOverdrive - vdsat) * dvdsat_dvgst
-            isd = betaEff * f * clm
-            gm = (dbeta_dvgst * dvsgOverdrive) * f * clm
-                + betaEff * dF_dvgst * dvsgOverdrive * clm
-            gds = (dbeta_dvgst * dvsgOverdrive_dVsd) * f * clm
-                + betaEff * dF_dvgst * dvsgOverdrive_dVsd * clm
-                + betaEff * f * lambda
-        }
-
-        let effectiveGds = max(gds, Self.minGds)
-
-        let gmbs: Double
-        if parameters.gamma > 0 {
-            gmbs = gm * parameters.gamma / (2.0 * sqrt(phiMinusVbs))
-        } else {
-            gmbs = 0
-        }
-
-        if reversed {
-            return OperatingPointResult(
-                isd: isd, gm: gm, gds: effectiveGds, gmbs: gmbs,
-                vsg: vsg, vsd: vsd, vbs: vbs, reversed: true
-            )
-        }
+        let channel = MOSL3Channel(parameters: parameters, polarity: -1,
+                                   gateBias: vsg, drainBias: vsd, bodyBias: vbs)
         return OperatingPointResult(
-            isd: isd, gm: gm, gds: effectiveGds, gmbs: gmbs,
-            vsg: vsg, vsd: vsd, vbs: vbs, reversed: false
+            isd: channel.current, gm: channel.gateDerivative,
+            gds: channel.drainDerivative, gmbs: channel.bodyDerivative,
+            vsg: vsg, vsd: vsd, vbs: vbs, reversed: reversed
         )
     }
 
@@ -472,20 +386,16 @@ public struct BoundPMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
         let w = parameters.w
         let l = parameters.l
 
-        let cgsOverlap = parameters.cgso * w
-        let cgdOverlap = parameters.cgdo * w
+        let cgsOverlap = (op.reversed ? parameters.cgdo : parameters.cgso) * w
+        let cgdOverlap = (op.reversed ? parameters.cgso : parameters.cgdo) * w
         let cgbOverlap = parameters.cgbo * l
 
         let vsg = op.reversed ? (nodeVoltage(drainIdx, state) - nodeVoltage(gateIdx, state)) : (nodeVoltage(sourceIdx, state) - nodeVoltage(gateIdx, state))
         let vsd = abs(nodeVoltage(sourceIdx, state) - nodeVoltage(drainIdx, state))
 
-        let surfacePotential = parameters.phi
-        let sqrtPhi = sqrt(abs(surfacePotential))
-        let vbs = nodeVoltage(bulkIdx, state) - nodeVoltage(sourceIdx, state)
-        let phiMinusVbs = max(surfacePotential - vbs, 0.01)
-        let vtp = parameters.vto + parameters.gamma * (sqrt(phiMinusVbs) - sqrtPhi)
-            + parameters.eta * vsd
-        let vtpAbs = -vtp
+        let vtpAbs = MOSL3Channel.threshold(
+            parameters, polarity: -1, drainBias: vsd, bodyBias: op.vbs
+        )
 
         let coxWL = cox * w * l
         let cgs: Double
@@ -498,19 +408,7 @@ public struct BoundPMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
             cgd = cgdOverlap
             cgb = coxWL + cgbOverlap
         } else {
-            let kappaBase = max(parameters.kappa, 0.0)
-            var kappaVelocity = 0.0
-            if parameters.vmax > 0, parameters.l > 0 {
-                let coxLocal = parameters.cox
-                if coxLocal > 0 {
-                    let mu = parameters.kp / coxLocal
-                    if mu > 0 {
-                        kappaVelocity = mu / (parameters.vmax * parameters.l)
-                    }
-                }
-            }
-            let kappaEff = kappaBase + kappaVelocity
-            let vdsat = vsgOverdrive / (1.0 + kappaEff * vsgOverdrive)
+            let vdsat = MOSL3Channel.saturationBias(parameters, overdrive: vsgOverdrive)
 
             if vsd < vdsat {
                 let ratio1 = (vsgOverdrive - vsd) / (2.0 * vsgOverdrive - vsd)
@@ -528,8 +426,14 @@ public struct BoundPMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
         let vbd = nodeVoltage(bulkIdx, state) - (op.reversed ? nodeVoltage(sourceIdx, state) : nodeVoltage(drainIdx, state))
         let vbsJunc = nodeVoltage(bulkIdx, state) - (op.reversed ? nodeVoltage(drainIdx, state) : nodeVoltage(sourceIdx, state))
 
-        let cbd = junctionCapacitance(vj: vbd, area: parameters.ad, perimeter: parameters.pd)
-        let cbs = junctionCapacitance(vj: vbsJunc, area: parameters.asrc, perimeter: parameters.ps)
+        let cbd = junctionCapacitance(
+            vj: -vbd, area: op.reversed ? parameters.asrc : parameters.ad,
+            perimeter: op.reversed ? parameters.ps : parameters.pd
+        )
+        let cbs = junctionCapacitance(
+            vj: -vbsJunc, area: op.reversed ? parameters.ad : parameters.asrc,
+            perimeter: op.reversed ? parameters.pd : parameters.ps
+        )
 
         return MeyerCapacitances(cgs: cgs, cgd: cgd, cgb: cgb, cbd: cbd, cbs: cbs)
     }

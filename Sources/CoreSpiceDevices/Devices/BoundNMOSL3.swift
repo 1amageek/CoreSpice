@@ -28,20 +28,6 @@ public struct BoundNMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
     /// Convergence tolerance for terminal voltages (V).
     private static let voltageTolerance: Double = 1e-6
 
-    /// Minimum output conductance to prevent singular matrix in cutoff.
-    private static let minGds: Double = 1e-12
-
-    /// Smoothing parameter for the cutoff-to-on transition (approx kT/q at room temperature).
-    private static let smoothDelta: Double = 0.025
-
-    private static func smoothClamp(_ x: Double) -> Double {
-        0.5 * (x + sqrt(x * x + smoothDelta * smoothDelta))
-    }
-
-    private static func smoothClampDeriv(_ x: Double) -> Double {
-        0.5 * (1.0 + x / sqrt(x * x + smoothDelta * smoothDelta))
-    }
-
     init(
         instance: Instance,
         drain: Node,
@@ -285,9 +271,6 @@ public struct BoundNMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
         let rawVgs = vGate - vSource
         let rawVds = vDrain - vSource
         let rawVbs = vBulk - vSource
-        let beta = parameters.beta
-        let lambda = parameters.lambda
-
         let reversed = rawVds < 0
         let vgs: Double
         let vds: Double
@@ -302,80 +285,12 @@ public struct BoundNMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
             vbs = rawVbs
         }
 
-        let surfacePotential = parameters.phi
-        let sqrtPhi = sqrt(abs(surfacePotential))
-        let phiMinusVbs = max(surfacePotential - vbs, 0.01)
-        let vth = parameters.vto + parameters.gamma * (sqrt(phiMinusVbs) - sqrtPhi)
-            - parameters.eta * vds
-
-        let rawVgst = vgs - vth
-        let vgst = Self.smoothClamp(rawVgst)
-        let dvgst = Self.smoothClampDeriv(rawVgst)
-        let dvgst_dvds = dvgst * parameters.eta
-
-        let denom = 1.0 + parameters.theta * vgst
-        let betaEff = parameters.theta == 0 ? beta : beta / denom
-        let dbeta_dvgst = parameters.theta == 0 ? 0 : (-beta * parameters.theta) / (denom * denom)
-
-        let kappaBase = max(parameters.kappa, 0.0)
-        var kappaVelocity = 0.0
-        if parameters.vmax > 0, parameters.l > 0 {
-            let cox = parameters.cox
-            if cox > 0 {
-                let mu = parameters.kp / cox
-                if mu > 0 {
-                    kappaVelocity = mu / (parameters.vmax * parameters.l)
-                }
-            }
-        }
-        let kappaEff = kappaBase + kappaVelocity
-        let vdsatDenom = 1.0 + kappaEff * vgst
-        let vdsat = vgst / vdsatDenom
-        let dvdsat_dvgst = 1.0 / (vdsatDenom * vdsatDenom)
-
-        let ids: Double
-        let gm: Double
-        let gds: Double
-
-        if vds < vdsat {
-            let clm = 1.0 + lambda * vds
-            let f = vgst * vds - 0.5 * vds * vds
-            ids = betaEff * f * clm
-            gm = (dbeta_dvgst * dvgst) * f * clm
-                + betaEff * (vds * dvgst) * clm
-            gds = (dbeta_dvgst * dvgst_dvds) * f * clm
-                + betaEff * (vgst + vds * dvgst_dvds - vds) * clm
-                + betaEff * f * lambda
-        } else {
-            let clm = 1.0 + lambda * vds
-            let f = vgst * vdsat - 0.5 * vdsat * vdsat
-            let dF_dvgst = vdsat + (vgst - vdsat) * dvdsat_dvgst
-            ids = betaEff * f * clm
-            gm = (dbeta_dvgst * dvgst) * f * clm
-                + betaEff * dF_dvgst * dvgst * clm
-            gds = (dbeta_dvgst * dvgst_dvds) * f * clm
-                + betaEff * dF_dvgst * dvgst_dvds * clm
-                + betaEff * f * lambda
-        }
-
-        let effectiveGds = max(gds, Self.minGds)
-
-        let gmbs: Double
-        if parameters.gamma > 0 {
-            gmbs = gm * parameters.gamma / (2.0 * sqrt(phiMinusVbs))
-        } else {
-            gmbs = 0
-        }
-
-        if reversed {
-            return OperatingPointResult(
-                ids: ids, gm: gm, gds: effectiveGds, gmbs: gmbs,
-                vgs: vgs, vds: vds, vbs: vbs, reversed: true
-            )
-        }
+        let channel = MOSL3Channel(parameters: parameters, polarity: 1,
+                                   gateBias: vgs, drainBias: vds, bodyBias: vbs)
         return OperatingPointResult(
-            ids: ids, gm: gm, gds: effectiveGds, gmbs: gmbs,
-            vgs: vgs, vds: vds, vbs: vbs, reversed: false
+            ids: channel.current, gm: channel.gateDerivative,
+            gds: channel.drainDerivative, gmbs: channel.bodyDerivative,
+            vgs: vgs, vds: vds, vbs: vbs, reversed: reversed
         )
     }
 
@@ -470,19 +385,16 @@ public struct BoundNMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
         let w = parameters.w
         let l = parameters.l
 
-        let cgsOverlap = parameters.cgso * w
-        let cgdOverlap = parameters.cgdo * w
+        let cgsOverlap = (op.reversed ? parameters.cgdo : parameters.cgso) * w
+        let cgdOverlap = (op.reversed ? parameters.cgso : parameters.cgdo) * w
         let cgbOverlap = parameters.cgbo * l
 
         let vgs = op.reversed ? (nodeVoltage(gateIdx, state) - nodeVoltage(drainIdx, state)) : (nodeVoltage(gateIdx, state) - nodeVoltage(sourceIdx, state))
         let vds = abs(nodeVoltage(drainIdx, state) - nodeVoltage(sourceIdx, state))
 
-        let surfacePotential = parameters.phi
-        let sqrtPhi = sqrt(abs(surfacePotential))
-        let vbs = op.reversed ? (nodeVoltage(bulkIdx, state) - nodeVoltage(drainIdx, state)) : (nodeVoltage(bulkIdx, state) - nodeVoltage(sourceIdx, state))
-        let phiMinusVbs = max(surfacePotential - vbs, 0.01)
-        let vth = parameters.vto + parameters.gamma * (sqrt(phiMinusVbs) - sqrtPhi)
-            - parameters.eta * vds
+        let vth = MOSL3Channel.threshold(
+            parameters, polarity: 1, drainBias: vds, bodyBias: op.vbs
+        )
 
         let coxWL = cox * w * l
         let cgs: Double
@@ -495,19 +407,7 @@ public struct BoundNMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
             cgd = cgdOverlap
             cgb = coxWL + cgbOverlap
         } else {
-            let kappaBase = max(parameters.kappa, 0.0)
-            var kappaVelocity = 0.0
-            if parameters.vmax > 0, parameters.l > 0 {
-                let coxLocal = parameters.cox
-                if coxLocal > 0 {
-                    let mu = parameters.kp / coxLocal
-                    if mu > 0 {
-                        kappaVelocity = mu / (parameters.vmax * parameters.l)
-                    }
-                }
-            }
-            let kappaEff = kappaBase + kappaVelocity
-            let vdsat = vgst / (1.0 + kappaEff * vgst)
+            let vdsat = MOSL3Channel.saturationBias(parameters, overdrive: vgst)
 
             if vds < vdsat {
                 let ratio1 = (vgst - vds) / (2.0 * vgst - vds)
@@ -525,8 +425,14 @@ public struct BoundNMOSL3: BoundDevice, VoltageLimitingDevice, TransientStateCom
         let vbd = nodeVoltage(bulkIdx, state) - (op.reversed ? nodeVoltage(sourceIdx, state) : nodeVoltage(drainIdx, state))
         let vbsJunc = nodeVoltage(bulkIdx, state) - (op.reversed ? nodeVoltage(drainIdx, state) : nodeVoltage(sourceIdx, state))
 
-        let cbd = junctionCapacitance(vj: vbd, area: parameters.ad, perimeter: parameters.pd)
-        let cbs = junctionCapacitance(vj: vbsJunc, area: parameters.asrc, perimeter: parameters.ps)
+        let cbd = junctionCapacitance(
+            vj: vbd, area: op.reversed ? parameters.asrc : parameters.ad,
+            perimeter: op.reversed ? parameters.ps : parameters.pd
+        )
+        let cbs = junctionCapacitance(
+            vj: vbsJunc, area: op.reversed ? parameters.ad : parameters.asrc,
+            perimeter: op.reversed ? parameters.pd : parameters.ps
+        )
 
         return MeyerCapacitances(cgs: cgs, cgd: cgd, cgb: cgb, cbd: cbd, cbs: cbs)
     }

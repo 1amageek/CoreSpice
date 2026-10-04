@@ -1,6 +1,12 @@
 # CoreSpice Design Contract
 
-## Responsibility
+## Purpose and Scope
+
+This directory is both the package and system root for CoreSpice. The parent is
+the [LSI system design](../DESIGN.md). Device implementation contracts are owned
+by the [CoreSpiceDevices module](Sources/CoreSpiceDevices/DESIGN.md).
+
+## Responsibilities and Boundaries
 
 CoreSpice is the independently usable simulation domain package. It owns
 SPICE parsing and lowering, circuit IR, device models, numerical analyses,
@@ -53,6 +59,30 @@ digests or provenance.
 | Tool qualification and trust gates | ToolQualification / DesignFlowKernel |
 | Project/run persistence and human approval | Xcircuite / DesignFlowKernel |
 | DRC, LVS, PEX, STA, EM/IR, and physical signoff rules | Domain signoff engines |
+
+## Related Designs
+
+| Design | Relationship | Contract Used | Summary | Cautions |
+|---|---|---|---|---|
+| [LSI](../DESIGN.md) | parent | Simulation domain ownership | Platform composition | Numerical evidence is not signoff approval |
+| [CoreSpiceDevices](Sources/CoreSpiceDevices/DESIGN.md) | child | Bound-device stamping | Native electrical models | Revalidate affected analyses when device derivatives change |
+
+## Architecture
+
+The request-to-domain-to-evidence diagram above describes package composition.
+Native devices depend on IR and event types; analyses consume their stamps.
+
+## Contracts and Invariants
+
+Native L3 MOS DC, AC, and transient analyses use the same device current and its
+linearization. A non-finite numerical result is a failure, never completed
+simulation evidence. L3 binding rejects unsupported parameter domains.
+
+## Verification and Change Impact
+
+Device numerical changes require local current/Jacobian tests and actual affected
+analysis execution. See the device module for its owned behavioral evidence.
+The Metal backend qualification below applies only to GPU execution changes.
 
 ## Deliberate non-goals
 

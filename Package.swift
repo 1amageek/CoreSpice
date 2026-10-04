@@ -44,7 +44,8 @@ let package = Package(
         ),
 
         // --- Devices ---
-        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent"], exclude: ["README.md"]),
+        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent"],
+                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md"]),
 
         // --- Compile ---
         .target(

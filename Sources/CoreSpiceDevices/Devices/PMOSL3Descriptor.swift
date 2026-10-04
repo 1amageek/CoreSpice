@@ -129,7 +129,7 @@ public struct PMOSL3Descriptor: DeviceDescriptor, Sendable {
         if let v = try extractReal("pd") { params.pd = v }
         if let v = try extractReal("ps") { params.ps = v }
 
-        try params.validate(device: instance.name)
+        try MOSL3Channel.validate(params, device: instance.name)
         return params
     }
 }
