@@ -1,0 +1,19 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: native bsim3 independent fixture pmos-saturation
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 1
+@m1[id] = 4.14671104820875302e-05
+@m1[gm] = 2.42523191893149505e-04
+@m1[gds] = 2.30355589065582006e-06
+@m1[gmbs] = 1.00591991564854394e-04
+@m1[qg] = 5.10487758629409590e-14
+@m1[qd] = -1.7764817206252848e-16
+@m1[qb] = -4.2878977724769867e-14
+ngspice-46 done

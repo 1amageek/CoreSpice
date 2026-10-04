@@ -1,0 +1,19 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: native bsim3 independent fixture nmos-body-forward
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 1
+@m1[id] = 1.34662547252618299e-05
+@m1[gm] = 1.36808855357377492e-04
+@m1[gds] = 5.13681537825573807e-06
+@m1[gmbs] = 5.65497900874282314e-05
+@m1[qg] = 4.58204994607241450e-14
+@m1[qd] = -3.2684329037339607e-15
+@m1[qb] = -3.6344952680146770e-14
+ngspice-46 done

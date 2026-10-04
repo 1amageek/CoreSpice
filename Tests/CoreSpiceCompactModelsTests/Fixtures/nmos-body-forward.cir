@@ -1,0 +1,16 @@
+Native BSIM3 independent fixture nmos-body-forward
+vd d 0 0.20000000000000001
+vg g 0 1
+vs s 0 0
+vb b 0 0.050000000000000003
+m1 d g s b reference w=10u l=1u ad=2p as=3p pd=12u ps=14u
+.model reference nmos level=49 version=3.3.0 vth0=0.7 u0=500 tox=10n capmod=3 cj=1m cjsw=100p cgdo=200p cgso=300p
+.temp 27
+.options gmin=1e-12
+.control
+set numdgt=17
+op
+print @m1[id] @m1[gm] @m1[gds] @m1[gmbs] @m1[qg] @m1[qd] @m1[qb]
+quit
+.endc
+.end

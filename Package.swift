@@ -16,6 +16,7 @@ let package = Package(
     platforms: [.macOS(.v26)],
     products: [
         .library(name: "CoreSpice", targets: ["CoreSpice"]),
+        .library(name: "CoreSpiceCompactModels", targets: ["CoreSpiceCompactModels"]),
         .library(name: "CoreSpiceIR", targets: ["CoreSpiceIR"]),
         .library(name: "CoreSpiceIO", targets: ["CoreSpiceIO"]),
         .library(name: "CoreSpiceProcessBackend", targets: ["CoreSpiceProcessBackend"]),
@@ -42,6 +43,13 @@ let package = Package(
             cSettings: [.define("ACCELERATE_NEW_LAPACK")],
             linkerSettings: [.linkedFramework("Accelerate")]
         ),
+
+        // --- Native compact-model evaluator ---
+        .target(name: "CoreSpiceBSIM3", exclude: ["DESIGN.md", "NOTICE.md", "Kernel/DESIGN.md",
+            "Kernel/B3TERMS_OF_USE", "Kernel/upstream.json", "Kernel/adapt_upstream.py"],
+            publicHeadersPath: "include"),
+        .target(name: "CoreSpiceCompactModels", dependencies: ["CoreSpiceBSIM3"],
+            exclude: ["DESIGN.md", "BSIM3/DESIGN.md"]),
 
         // --- Devices ---
         .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent"],
@@ -177,6 +185,8 @@ let package = Package(
         // Tests
         // ==========================================================================
 
+        .testTarget(name: "CoreSpiceCompactModelsTests", dependencies: ["CoreSpiceCompactModels"],
+            resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceIRTests", dependencies: ["CoreSpiceIR"]),
         .testTarget(
             name: "CoreSpiceDevicesTests",
@@ -236,5 +246,6 @@ let package = Package(
                 .copy("../../validation"),
             ]
         ),
-    ]
+    ],
+    cLanguageStandard: .c17
 )
