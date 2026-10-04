@@ -72,6 +72,9 @@ public struct NoiseAnalysis: Analysis, Sendable {
         )))
 
         do {
+            guard frequencies.allSatisfy({ $0.isFinite && $0 > 0 }) else {
+                throw AnalysisError.invalidConfiguration("Noise frequencies must be finite and positive")
+            }
             for device in devices {
                 if let admission = device as? any NoiseAnalysisAdmissionDevice {
                     try admission.validateNoiseAnalysis()
@@ -118,25 +121,11 @@ public struct NoiseAnalysis: Analysis, Sendable {
             struct SourceTracker {
                 let deviceName: String
                 let noiseName: String
+                let positiveNode: Node
+                let negativeNode: Node
                 var spectralDensity: [Double] = []
             }
             var sourceTrackers: [SourceTracker] = []
-
-            // Pre-populate trackers from first frequency point
-            if let firstFreq = frequencies.first {
-                for noisyDevice in noisyDevices {
-                    let contributions = noiseContributions(
-                        for: noisyDevice, state: dcState,
-                        opticalState: dcOpticalState, frequency: firstFreq
-                    )
-                    for source in contributions {
-                        sourceTrackers.append(SourceTracker(
-                            deviceName: noisyDevice.instance.name,
-                            noiseName: source.name
-                        ))
-                    }
-                }
-            }
 
             var outputNoiseDensity: [Double] = []
             var inputReferredNoiseDensity: [Double] = []
@@ -200,12 +189,31 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 var trackerIdx = 0
 
                 for noisyDevice in noisyDevices {
-                    let contributions = noiseContributions(
+                    let contributions = try noiseContributions(
                         for: noisyDevice, state: dcState,
                         opticalState: dcOpticalState, frequency: freq
                     )
 
                     for source in contributions {
+                        guard source.currentSpectralDensity.isFinite, source.currentSpectralDensity >= 0 else {
+                            throw AnalysisError.invalidConfiguration("Invalid noise PSD from \(noisyDevice.instance.name)/\(source.name)")
+                        }
+                        for node in [source.positiveNode, source.negativeNode] {
+                            guard node == plan.ir.groundNode || variableMap[.nodeVoltage(node)] != nil else {
+                                throw AnalysisError.invalidConfiguration("Unknown noise node from \(noisyDevice.instance.name)/\(source.name)")
+                            }
+                        }
+                        if freqIdx == 0 {
+                            sourceTrackers.append(SourceTracker(deviceName: noisyDevice.instance.name,
+                                noiseName: source.name, positiveNode: source.positiveNode, negativeNode: source.negativeNode))
+                        }
+                        guard trackerIdx < sourceTrackers.count,
+                              sourceTrackers[trackerIdx].deviceName == noisyDevice.instance.name,
+                              sourceTrackers[trackerIdx].noiseName == source.name,
+                              sourceTrackers[trackerIdx].positiveNode == source.positiveNode,
+                              sourceTrackers[trackerIdx].negativeNode == source.negativeNode else {
+                            throw AnalysisError.invalidConfiguration("Noise source identity changed during sweep")
+                        }
                         // Clear and set RHS with unit current injection at noise source nodes
                         for i in 0..<dim { noiseRHS[i] = ComplexPair() }
 
@@ -213,10 +221,10 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         let negIdx = variableMap[.nodeVoltage(source.negativeNode)]
 
                         if let posIdx {
-                            noiseRHS[posIdx] = ComplexPair(real: 1.0, imag: 0.0)
+                            noiseRHS[posIdx].real += 1.0
                         }
                         if let negIdx {
-                            noiseRHS[negIdx] = ComplexPair(real: -1.0, imag: 0.0)
+                            noiseRHS[negIdx].real -= 1.0
                         }
 
                         // Solve for transfer function: Y * v = i_noise
@@ -240,13 +248,14 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         let contribution = hMagSquared * source.currentSpectralDensity
                         totalNoisePSD += contribution
 
-                        if trackerIdx < sourceTrackers.count {
-                            sourceTrackers[trackerIdx].spectralDensity.append(contribution)
-                        }
+                        sourceTrackers[trackerIdx].spectralDensity.append(contribution)
                         trackerIdx += 1
                     }
                 }
 
+                guard trackerIdx == sourceTrackers.count else {
+                    throw AnalysisError.invalidConfiguration("Noise source count changed during sweep")
+                }
                 outputNoiseDensity.append(totalNoisePSD)
 
                 if let inputStimulus {
@@ -304,6 +313,15 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 )
             }
 
+            let result = try NoiseResult(
+                frequencies: frequencies,
+                outputNoiseDensity: outputNoiseDensity,
+                inputReferredNoiseDensity: inputReferredNoiseDensity,
+                integratedOutputNoise: integratedNoise,
+                deviceContributions: deviceContributions,
+                variableMap: variableMap
+            )
+
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .noise,
@@ -312,14 +330,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 wallTime: Timestamp().elapsed(since: startTimestamp)
             )))
 
-            return try NoiseResult(
-                frequencies: frequencies,
-                outputNoiseDensity: outputNoiseDensity,
-                inputReferredNoiseDensity: inputReferredNoiseDensity,
-                integratedOutputNoise: integratedNoise,
-                deviceContributions: deviceContributions,
-                variableMap: variableMap
-            )
+            return result
         } catch {
             let status: AnalysisStatus
             if let analysisError = error as? AnalysisError,
@@ -455,22 +466,19 @@ public struct NoiseAnalysis: Analysis, Sendable {
         state: SolutionState,
         opticalState: OpticalState,
         frequency: Double
-    ) -> [NoiseSource] {
+    ) throws -> [NoiseSource] {
         if let optoDevice = device as? OptoelectronicDevice {
             return optoDevice.noiseContributions(
                 state: state, opticalState: opticalState, frequency: frequency
             )
         }
-        return device.noiseContributions(state: state, frequency: frequency)
+        return try device.noiseContributions(state: state, frequency: frequency)
     }
 
     /// Integrates noise spectral density over frequency using the trapezoidal rule.
     /// Returns RMS noise in Vrms.
     private func integrateNoise(frequencies: [Double], noiseDensity: [Double]) -> Double {
         guard frequencies.count >= 2 else {
-            if let first = noiseDensity.first, let f = frequencies.first {
-                return sqrt(first * f)
-            }
             return 0
         }
 

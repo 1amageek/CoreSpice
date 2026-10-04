@@ -23,5 +23,9 @@ int cs_bsim3_initialize_history(CSBSIM3Handle *,const double bias[8]);
 int cs_bsim3_evaluate(CSBSIM3Handle *,const double bias[8],int mode,double angularFrequency,
                      double dt,double gmin,CSBSIM3Result *);
 int cs_bsim3_commit(CSBSIM3Handle *,uint64_t token);
+/* Four uncorrelated current PSDs in A^2/Hz: rd, rs, id, flicker.
+   Frequency is strictly positive Hz. No retained output or noise history. */
+int cs_bsim3_noise_spectrum(CSBSIM3Handle *,const double bias[8],double frequency,
+                            double gmin,double densities[4]);
 void cs_bsim3_accepted_states(const CSBSIM3Handle *,double states[32]);
 #endif

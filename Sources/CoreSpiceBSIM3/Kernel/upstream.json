@@ -12,6 +12,7 @@
     "b3mpar.c": "e708b44b746dd5ef0476be0324c7398459bb9fdf99332a7b320304cad80e88b5",
     "b3par.c": "300bf7e8f29e73ccdc004adc9d83e29673be760f1f7f07adc40fedc13046c4b5",
     "bsim3def.h": "31aee4e556d8aa30ba79455e5d5893a2896e45e3feae8ca08092dc4f895e4199",
-    "bsim3ext.h": "6b132f6cae39dd98ae2fd4af4187daec2ebb917e3eded9d097e259849b9b80d5"
+    "bsim3ext.h": "6b132f6cae39dd98ae2fd4af4187daec2ebb917e3eded9d097e259849b9b80d5",
+    "b3noi.c": "9cd8bfcfec4e9009b088bb6468457833b6a731add0c0a1d59d39cee40a3a6764"
   }
 }

@@ -60,5 +60,7 @@ BoundDevice DC/AC/transient stamps and accepted-step commits are throwing protoc
 requirements. Existing nonthrowing implementations satisfy those requirements.
 TransientSessionDevice begins history from an initial SolutionState and ends it
 on every analysis-scope exit. NoiseAnalysisAdmissionDevice rejects unsupported
-noise before a result can be labeled successful. Their BSIM3 ownership, lifecycle
+noise before a result can be labeled successful. NoisyDevice contributes
+fallible current PSDs through the checked noise contract owned by
+[Analysis](../CoreSpiceAnalysis/DESIGN.md). Their BSIM3 ownership, lifecycle
 and behavior are defined by the [BSIM3 component](BSIM3/DESIGN.md).

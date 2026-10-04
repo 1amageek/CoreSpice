@@ -31,7 +31,9 @@ only fixed value structs, opaque handles and status codes.
 
 Creation/configuration/setup precede evaluation. Preparation is attempted once;
 rejected partial setup cannot be reused. Partial initialization is
-always destructible. Inputs and outputs are finite-checked. A failure invalidates
+always destructible. The noise ABI returns four fixed owned doubles, uses the
+same exact-bias DC/small-signal OP, and never imports simulator noise history.
+Inputs and outputs are finite-checked. A failure invalidates
 the trial but preserves accepted state. Every original parameter-check branch
 runs regardless of filesystem permissions. Original warnings are captured
 without emitting stdout, stderr or a fixed log file.

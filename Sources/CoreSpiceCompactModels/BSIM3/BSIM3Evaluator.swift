@@ -88,6 +88,22 @@ public final class BSIM3Evaluator: BSIM3Evaluating {
                                operatingPoint: Self.vector(result.operatingPoint), token: result.token)
     }
 
+    public func noiseSpectrum(bias: SIMD8<Double>, frequency: Double,
+                              minimumJunctionConductance: Double = 1e-12) throws -> BSIM3NoiseSpectrum {
+        var values = bias
+        var densities = SIMD4<Double>(repeating: 0)
+        try state.withLock { owner in
+            let status = withUnsafeBytes(of: &values) { input in
+                withUnsafeMutableBytes(of: &densities) { output in
+                    cs_bsim3_noise_spectrum(owner.handle, input.bindMemory(to: Double.self).baseAddress!,
+                        frequency, minimumJunctionConductance, output.bindMemory(to: Double.self).baseAddress!)
+                }
+            }
+            guard status == CS_BSIM3_OK else { throw Self.error(status: status, diagnostics: "Invalid noise frequency or effective geometry") }
+        }
+        return BSIM3NoiseSpectrum(currentSpectralDensities: densities)
+    }
+
     public func initializeHistory(at bias: SIMD8<Double>) throws {
         var values = bias
         try state.withLock { owner in

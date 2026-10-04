@@ -41,6 +41,10 @@ public protocol NoisyDevice: BoundDevice {
     /// - Parameters:
     ///   - state: The DC operating point solution.
     ///   - frequency: The analysis frequency in Hz.
-    /// - Returns: An array of noise current sources.
-    func noiseContributions(state: SolutionState, frequency: Double) -> [NoiseSource]
+    /// - Returns: Independent current noise sources in stable name/node order
+    ///   across a sweep. Densities must be finite and nonnegative; nodes must
+    ///   belong to the prepared circuit, including ground and owned nodes.
+    /// - Throws: Device evaluation failures; callers must not replace them
+    ///   with zero spectra or successful unsupported results.
+    func noiseContributions(state: SolutionState, frequency: Double) throws -> [NoiseSource]
 }

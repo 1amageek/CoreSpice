@@ -49,3 +49,22 @@ Actual DC/AC/transient integration tests cover BSIM3 QS/NQS and series nodes, re
 MetalBackend is a ComputeBackend/PhotonicComputeBackend, not a LinearSolver. The
 package has no production selector that executes BSIM3 on Metal. CPU BSIM3 evidence
 does not qualify GPU execution, and no GPU compact-model capability is advertised.
+
+
+### Noise ownership and checked failure
+
+NoiseAnalysis consumes fallible NoisyDevice current PSDs after the actual DC
+operating point. It validates positive finite frequency and finite nonnegative
+PSDs and known nodes before a transfer solve. Coincident source nodes inject
++1 and -1 additively and cancel. A source name/node identity list is fixed by
+the first frequency; subsequent identity changes fail rather than misattribute
+contributions. Four BSIM sources map through the full series/NQS complex matrix.
+
+CoreSpice integrates sampled output PSD by its existing trapezoidal rule over
+exactly [firstFrequency,lastFrequency]. A single frequency has zero bandwidth
+and zero integrated RMS; it does not imply an unsampled 0..f band. A validated
+NoiseResult is constructed before emitting completed. Device errors and invalid
+spectra emit failed and propagate unchanged. The independent oracle supplies
+sampled PSDs; its SPICE log-interpolated integral is not the CoreSpice integral.
+No new retained state is introduced. Per-device output is bounded by existing
+prepared circuit and sampled sweep, and kernel work remains fixed-size.

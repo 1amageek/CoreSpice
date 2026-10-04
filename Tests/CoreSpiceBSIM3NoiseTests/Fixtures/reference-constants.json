@@ -1,0 +1,16 @@
+{
+  "originalConstSHA256": "000d6dda4b539e748c8aeabcea866c866dd7f5145aa745dcb575eb2a83947551",
+  "originalExecutableSHA256": "fcbbc47387a3c270019b34e64aaa105617a144b22f91f30e05f1aff85a85f333",
+  "referenceOnlyChanges": {
+    "CHARGE": [
+      "1.6021766208e-19",
+      "1.602176634e-19"
+    ],
+    "CONSTboltz": [
+      "1.38064852e-23",
+      "1.380649e-23"
+    ]
+  },
+  "authority": "CoreSpice existing SI2019 thermal/shot-noise primitives; original model coefficients unchanged",
+  "uncorrectedEvidence": "uncorrected-si-noise.dat"
+}

@@ -344,13 +344,12 @@ struct BSIM3IntegrationTests {
                 solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
             Issue.record("Overflowing original model produced successful DC evidence")
         } catch let error as BSIM3Error { #expect(error == .nonFiniteEvaluation) }
+        let failingNoise = try await prepared(source(extraModel: "noimod=1 kf=-1"))
         do {
-            _ = try await NoiseAnalysis(outputNode: device.instance.nodes[0], sweep: .linear(start: 1e3, stop: 1e3, points: 1))
-                .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
-            Issue.record("Incomplete BSIM noise produced successful evidence")
-        } catch let error as BSIM3DeviceError {
-            #expect(error == .unsupportedAnalysis(device: "m1", analysis: "noise"))
-        }
+            _ = try await NoiseAnalysis(outputNode: try mos(failingNoise).instance.nodes[0], sweep: .linear(start: 1e3, stop: 1e3, points: 1))
+                .run(circuit: failingNoise, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            Issue.record("Invalid BSIM noise produced successful evidence")
+        } catch let error as BSIM3Error { #expect(error == .nonFiniteEvaluation) }
         let failing = try await prepared(source().replacingOccurrences(of: "VB b 0 -0.1", with: "VB b 0 sin(-0.1 1e200 100Meg)"))
         do {
             _ = try await TransientAnalysis(config: .init(stopTime: 2e-12, maxTimeStep: 1e-12, initialTimeStep: 1e-12))

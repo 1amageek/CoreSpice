@@ -3,7 +3,7 @@ import CoreSpiceIR
 import Synchronization
 
 /// Original BSIM3 equations mapped to the compiled physical and private nodes.
-public final class BoundBSIM3: TransientSessionDevice, TerminalInitialConditionDevice, NoiseAnalysisAdmissionDevice {
+public final class BoundBSIM3: TransientSessionDevice, TerminalInitialConditionDevice, NoisyDevice {
     public let instance: Instance
     public let initialNodeVoltages: [Node: Double]
     public let diagnostics: [BSIM3Diagnostic]
@@ -11,6 +11,8 @@ public final class BoundBSIM3: TransientSessionDevice, TerminalInitialConditionD
     private let csrIndices: SIMD64<Int>
     private let nodeCount: Int
     private let multiplier: Double
+    private let drainPrime: Node
+    private let sourcePrime: Node
     private struct State {
         let evaluator: any BSIM3Evaluating
         var transientActive = false
@@ -23,6 +25,9 @@ public final class BoundBSIM3: TransientSessionDevice, TerminalInitialConditionD
         self.csrIndices = csrIndices
         nodeCount = prepared.evaluator.topology.nodeCount
         multiplier = prepared.multiplier
+        let topology = prepared.evaluator.topology
+        drainPrime = topology.drainPrime > 4 ? instance.ownedNodes[topology.drainPrime - 5] : instance.nodes[0]
+        sourcePrime = topology.sourcePrime > 4 ? instance.ownedNodes[topology.sourcePrime - 5] : instance.nodes[2]
         diagnostics = prepared.evaluator.diagnostics
         var initialVoltages: [Node: Double] = [:]
         if let initial = prepared.initialConditions {
@@ -110,12 +115,19 @@ public final class BoundBSIM3: TransientSessionDevice, TerminalInitialConditionD
         }
     }
 
-    // FIXME(INCOMPLETE_IMPLEMENTATION): Native BSIM3 noise equations are not
-    // integrated. Production NoiseAnalysis checks this admission before DC/AC;
-    // original noise sources and independent spectral fixtures must pass before
-    // noise may produce successful evidence for this device.
-    public func validateNoiseAnalysis() throws {
-        throw BSIM3DeviceError.unsupportedAnalysis(device: instance.name, analysis: "noise")
+    public func noiseContributions(state solution: SolutionState, frequency: Double) throws -> [NoiseSource] {
+        let bias = try biases(solution)
+        let spectrum = try state.withLock {
+            try $0.evaluator.noiseSpectrum(bias: bias, frequency: frequency, minimumJunctionConductance: 1e-12)
+        }.currentSpectralDensities * multiplier
+        guard finite(spectrum) else { throw BSIM3Error.nonFiniteEvaluation }
+        let positive = [drainPrime, sourcePrime, drainPrime, drainPrime]
+        let negative = [instance.nodes[0], instance.nodes[2], sourcePrime, sourcePrime]
+        let names = ["rd", "rs", "id", "1overf"]
+        return (0..<4).map { index in
+            NoiseSource(name: "\(instance.name)_\(names[index])", positiveNode: positive[index],
+                        negativeNode: negative[index], currentSpectralDensity: spectrum[index])
+        }
     }
 
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {

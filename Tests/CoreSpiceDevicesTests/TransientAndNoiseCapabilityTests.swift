@@ -181,7 +181,7 @@ struct TransientAndNoiseCapabilityTests {
             variables: [0.7],
             variableMap: [.nodeVoltage(Node(id: 1)): 0]
         )
-        let diodeNoise = (diode as? any NoisyDevice)?.noiseContributions(
+        let diodeNoise = try (diode as? any NoisyDevice)?.noiseContributions(
             state: diodeState,
             frequency: 1_000
         )
@@ -196,7 +196,7 @@ struct TransientAndNoiseCapabilityTests {
             variables: [5.0, 0.7],
             variableMap: [.nodeVoltage(Node(id: 1)): 0, .nodeVoltage(Node(id: 2)): 1]
         )
-        let npnNoise = (npn as? any NoisyDevice)?.noiseContributions(
+        let npnNoise = try (npn as? any NoisyDevice)?.noiseContributions(
             state: npnState,
             frequency: 1_000
         )
@@ -215,7 +215,7 @@ struct TransientAndNoiseCapabilityTests {
                 .nodeVoltage(Node(id: 3)): 2
             ]
         )
-        let pnpNoise = (pnp as? any NoisyDevice)?.noiseContributions(
+        let pnpNoise = try (pnp as? any NoisyDevice)?.noiseContributions(
             state: pnpState,
             frequency: 1_000
         )
@@ -252,7 +252,7 @@ struct TransientAndNoiseCapabilityTests {
         for (typeName, nodes, parameters, state) in specs {
             let device = try bindDevice(typeName: typeName, nodes: nodes, parameters: parameters)
             let noisyDevice = try #require(device as? any NoisyDevice, "\(typeName) must expose MOSFET channel noise")
-            let contributions = noisyDevice.noiseContributions(state: state, frequency: 1_000)
+            let contributions = try noisyDevice.noiseContributions(state: state, frequency: 1_000)
             #expect(contributions.contains { $0.name == "\(typeName.uppercased())_channel_thermal" })
             #expect(contributions.contains { $0.currentSpectralDensity > 0 })
         }
@@ -284,7 +284,7 @@ struct TransientAndNoiseCapabilityTests {
         for (typeName, nodes, parameters, state) in specs {
             let device = try bindDevice(typeName: typeName, nodes: nodes, parameters: parameters)
             let noisyDevice = try #require(device as? any NoisyDevice, "\(typeName) must expose JFET noise")
-            let contributions = noisyDevice.noiseContributions(state: state, frequency: 1_000)
+            let contributions = try noisyDevice.noiseContributions(state: state, frequency: 1_000)
             #expect(contributions.contains { $0.name == "\(typeName.uppercased())_channel_thermal" })
             #expect(contributions.contains { $0.name.contains("gate") && $0.currentSpectralDensity > 0 })
         }

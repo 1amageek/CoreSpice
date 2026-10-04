@@ -186,6 +186,7 @@ let package = Package(
         // ==========================================================================
 
         .testTarget(name: "CoreSpiceBSIM3IntegrationTests", dependencies: ["CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
+        .testTarget(name: "CoreSpiceBSIM3NoiseTests", dependencies: ["CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceCompactModelsTests", dependencies: ["CoreSpiceCompactModels"],
             resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceIRTests", dependencies: ["CoreSpiceIR"]),

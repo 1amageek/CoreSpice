@@ -55,8 +55,12 @@ flowchart LR
   local RHS and matrix are stamped directly, including series conductances.
 - Numerical/admission failure remains typed through all solver calls. No partial
   matrix is stamped before successful evaluation and no failure becomes zero.
-- Noise is explicitly unsupported and rejected through analysis admission. Level
-  54 remains blocked. This work does not provide BSIM4 or foundry qualification.
+- Noise uses the original four current PSDs, mapped from actual prime/physical
+  nodes. Parallel multiplier m scales each independent current PSD once; the
+  circuit transfer function uses the already multiplied electrical matrix.
+  Zero series PSDs remain named sources for stable tracking. Evaluation may
+  throw and never returns replacement zero sources on failure. Level 54 remains
+  blocked. This work does not provide BSIM4 or foundry qualification.
 
 ## Runtime Flows
 
@@ -74,12 +78,12 @@ partial result.
 | State | Storage owner | Isolation | Read / mutation | Release |
 |---|---|---|---|---|
 | Immutable mapping/model metadata | BoundBSIM3 | Sendable values | Binding / stamping | Bound owner lifetime |
-| Transient active flag and kernel operation sequence | BoundBSIM3 State | Mutex on every target | begin/end/stamp/commit | End on all run exits |
+| Transient active flag and kernel operation sequence | BoundBSIM3 State | Mutex on every target | begin/end/stamp/commit/noiseContributions | End on all run exits |
 | Original C context and accepted/trial states | BSIM3Evaluator | Its existing Mutex on every target | Safe evaluator protocol only | Exactly-once evaluator destruction |
 
 | Target source | Storage / isolation | Read / mutation / release entry points | Runtime evidence |
 |---|---|---|---|
-| Native | BoundBSIM3 Mutex<State> and evaluator Mutex<State> | Same declared begin/end/stamp/commit and evaluator destruction | Host CPU tested |
+| Native | BoundBSIM3 Mutex<State> and evaluator Mutex<State> | Same declared begin/end/stamp/commit/noiseContributions and evaluator noiseSpectrum/destruction | Host CPU tested |
 | WASM | Identical common declarations, no platform branch | Identical declared entry points | Compile/link/runtime unverified |
 | Embedded | Identical common declarations, no platform branch | Identical declared entry points | Compile/link/runtime unverified |
 
@@ -130,3 +134,16 @@ original uncorrected discrepancy and transformation are recorded in the fixture
 generator and JSON. No reference executable is used at simulation runtime.
 These fixtures qualify the original model under their stated inputs; they do
 not qualify arbitrary ngspice extensions or a foundry process.
+
+[CoreSpiceBSIM3NoiseTests](../../../Tests/CoreSpiceBSIM3NoiseTests) owns original
+mode, frequency, temperature, polarity, series/multiplicity and NQS noise proof
+against an independent source-pinned oracle. Noise uses the existing outer then
+evaluator Mutex order, preserves accepted history and invalidates trial tokens.
+
+The noise oracle compares the original junction gmin=1e-12 model under explicit
+fixture solver gmin=0. CoreSpice's default diagonal regularization differs from
+ngspice's junction-only conductance; it measurably changes the nearly cancelling
+rd transfer by approximately 1 ppm. The production default remains unchanged
+and has separate successful/failed behavior tests. No tolerance was relaxed to
+hide this distinction. SI2019 reference primitive alignment, original header
+hash and unaligned spectra are retained beside the noise fixtures.

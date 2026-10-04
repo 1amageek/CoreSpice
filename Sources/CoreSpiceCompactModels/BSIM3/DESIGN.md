@@ -16,7 +16,9 @@ It returns nonlinear
 DC/transient residuals, equivalent-source RHS, analytic real/imaginary matrices,
 physical terminal charges, all 17 internal states, and operating-point data.
 Circuit topology, Newton limiting, convergence, timestep selection, and circuit
-acceptance remain outside this component. Noise analysis is not exposed.
+acceptance remain outside this component. Noise returns four uncorrelated current
+PSDs in A²/Hz, ordered drain resistance, source resistance, channel thermal,
+and flicker. The circuit analysis owns transfer functions and frequency integration.
 
 ## Related Designs
 
@@ -77,7 +79,9 @@ initialized explicitly at an accepted initial bias, with zero charge-current
 history. Evaluation updates trial state only. Backward Euler uses `(Q-Qprev)/dt`;
 trapezoidal uses `2*(Q-Qprev)/dt-Iprev`. Commit accepts only the latest successful
 transient token. DC/AC evaluation, failed evaluation, and history initialization
-invalidate a trial token. A rejected trial cannot change accepted history.
+invalidate a trial token. Noise evaluation refreshes the original OP and charge
+variables through the same DC/small-signal path, invalidates transient trials, and
+preserves accepted history. A rejected trial cannot change accepted history.
 
 ## Failure, Concurrency, and Constraints
 
@@ -105,3 +109,8 @@ values instead of raw buffers or retained Span views. Memory owner, alignment,
 initialized extents and no-escape lifetime are checked in scoped Swift borrows;
 the pointer exists only because the original physics ABI is C. No raw pointer
 is exposed to an evaluator client.
+
+Noise frequency must be finite and strictly positive. Each PSD must be finite
+and nonnegative; invalid frequency, effective noise geometry, or numerical
+outputs throw before publishing any source. Noise uses the same common Mutex
+and fixed storage on Native/WASM/Embedded. Host CPU is the verified runtime.

@@ -176,3 +176,20 @@ int cs_bsim3_commit(CSBSIM3Handle *h,uint64_t token) {
     h->trialTransient=0;return CS_BSIM3_OK;
 }
 void cs_bsim3_accepted_states(const CSBSIM3Handle *h,double states[32]) {memset(states,0,32*sizeof(double));memcpy(states,h->accepted,sizeof(h->accepted));}
+
+
+extern int cs_bsim3_noise_density(BSIM3model *,BSIM3instance *,CKTcircuit *,double,double[4]);
+int cs_bsim3_noise_spectrum(CSBSIM3Handle *h,const double bias[8],double frequency,
+                           double gmin,double densities[4]) {
+    h->trialTransient=0;
+    memset(densities,0,4*sizeof(double));
+    if(!isfinite(frequency)||frequency<=0)return CS_BSIM3_PARAMETER;
+    CSBSIM3Result point;
+    int status=cs_bsim3_evaluate(h,bias,0,0,0,gmin,&point);
+    if(status)return status;
+    double values[4];
+    status=cs_bsim3_noise_density(&h->model,&h->instance,&h->circuit,frequency,values);
+    if(status)return status;
+    for(int n=0;n<4;n++)if(!isfinite(values[n])||values[n]<0)return CS_BSIM3_NUMERICAL;
+    memcpy(densities,values,sizeof(values));return CS_BSIM3_OK;
+}
