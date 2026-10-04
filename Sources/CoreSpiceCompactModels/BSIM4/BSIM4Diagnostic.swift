@@ -1,6 +1,6 @@
 /// Context-local original diagnostic with a stable code for the maintainer limitation.
-public struct BSIM4Diagnostic: Sendable {
-    public enum Code: Sendable { case originalModelMessage, maintainerNoiseModeLimitation }
+public struct BSIM4Diagnostic: Sendable, Hashable, Codable {
+    public enum Code: String, Sendable, Codable { case originalModelMessage, maintainerNoiseModeLimitation }
     public let code: Code
     public let message: String
     init(_ message: String) {

@@ -12,6 +12,7 @@ import Foundation
 /// not applied.
 public struct SPICEAnalysisOptions: Sendable {
 
+    public var bsim4PreparationPolicy: BSIM4PreparationPolicy?
     public var executionLimits: TransientExecutionLimits?
     /// Whether the source deck declares any execution-limit option, including a partial policy.
     public private(set) var executionLimitOptionsPresent: Bool = false
@@ -22,11 +23,13 @@ public struct SPICEAnalysisOptions: Sendable {
 
     public init(
         executionLimits: TransientExecutionLimits? = nil,
+        bsim4PreparationPolicy: BSIM4PreparationPolicy? = nil,
         convergence: ConvergenceConfig = ConvergenceConfig(),
         transient: SPICETransientOptions = SPICETransientOptions(),
         temperatureCelsius: Double? = nil,
         diagnostics: [SPICEAnalysisOptionDiagnostic] = []
     ) {
+        self.bsim4PreparationPolicy = bsim4PreparationPolicy
         self.executionLimits = executionLimits
         self.convergence = convergence
         self.transient = transient
@@ -50,6 +53,21 @@ public struct SPICEAnalysisOptions: Sendable {
             switch control {
             case .option(let name, let value, let location):
                 let key = normalizedOptionName(name)
+                if key == "bsim4stressiterations" {
+                    let count: Double
+                    do { count = try positiveNumericOption(value, name: name, evaluator: evaluator) }
+                    catch let error as SPICEAnalysisOptionError { throw error }
+                    catch {
+                        throw SPICEAnalysisOptionError.invalidOptionValue(name: name, value: String(describing: value),
+                            reason: "Preparation budget could not be resolved: \(error)")
+                    }
+                    guard let bounded = UInt32(exactly: count) else {
+                        throw SPICEAnalysisOptionError.invalidAnalysisValue(name: name, value: String(count),
+                            reason: "BSIM4 preparation budget must fit positive UInt32")
+                    }
+                    options.bsim4PreparationPolicy = try BSIM4PreparationPolicy(maximumStressIterations: bounded)
+                    continue
+                }
                 if budgetKeys.contains(key) {
                     budgetValues[key] = try positiveIntegerOption(value, name: name, evaluator: evaluator)
                     continue
@@ -95,8 +113,14 @@ public struct SPICEAnalysisOptions: Sendable {
     ) -> NetlistLowering.Configuration {
         NetlistLowering.Configuration(
             temperature: temperatureCelsius ?? NetlistLowering.Configuration.default.temperature,
-            randomSeed: randomSeed
+            randomSeed: randomSeed,
+            bsim4PreparationPolicy: bsim4PreparationPolicy
         )
+    }
+
+    /// Uses the same resolved policy as lowering; physical model IR remains unchanged.
+    public func deviceRegistry() -> DeviceRegistry {
+        .standard(bsim4PreparationPolicy: bsim4PreparationPolicy)
     }
 
     /// Resolves validated device operating conditions for binding.

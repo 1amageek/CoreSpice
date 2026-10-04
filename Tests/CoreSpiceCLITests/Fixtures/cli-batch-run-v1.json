@@ -58,5 +58,6 @@
     "variables" : [
       "V(out)"
     ]
-  }
+  },
+  "bsim4Models": []
 }

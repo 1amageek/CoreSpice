@@ -1066,7 +1066,7 @@ struct SubcircuitExpansionTests {
         )
         let netlist = ParsedNetlist(
             components: [mosfet],
-            models: [ParsedModel(name: "bsim", type: .nmos, level: 54)]
+            models: [ParsedModel(name: "bsim", type: .nmos, level: 55)]
         )
 
         do {
@@ -1078,7 +1078,7 @@ struct SubcircuitExpansionTests {
                 return
             }
             #expect(name == "M1")
-            #expect(reason.contains("level 54"))
+            #expect(reason.contains("level 55"))
         }
     }
 

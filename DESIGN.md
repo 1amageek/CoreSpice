@@ -142,5 +142,6 @@ dispatch completes and are returned to the backend pool on all exit paths.
 ## BSIM4 Kernel Composition
 
 [BSIM4 standalone kernel](Sources/CoreSpiceBSIM4/DESIGN.md) owns exact Berkeley 4.8.3 host CPU evaluation. This lower
-contract does not open the native Level 54 frontend/binding gate; production
-integration and correlated noise composition remain incomplete.
+contract is composed by [BSIM4 Devices](Sources/CoreSpiceDevices/BSIM4/DESIGN.md)
+under explicit caller preparation policy. Correlated-noise composition remains
+incomplete. [CLI](Sources/CoreSpiceCLI/DESIGN.md) owns execution provenance.

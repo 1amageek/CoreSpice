@@ -4,7 +4,8 @@
 
 This SwiftPM module owns native electrical device binding and stamping. Its
 parent is the [CoreSpice package](../../DESIGN.md), and its device implementation
-children are [Devices](Devices/DESIGN.md) and [BSIM3](BSIM3/DESIGN.md).
+children are [Devices](Devices/DESIGN.md), [BSIM3](BSIM3/DESIGN.md), and
+[BSIM4](BSIM4/DESIGN.md).
 
 ## Responsibilities and Boundaries
 
@@ -64,3 +65,9 @@ noise before a result can be labeled successful. NoisyDevice contributes
 fallible current PSDs through the checked noise contract owned by
 [Analysis](../CoreSpiceAnalysis/DESIGN.md). Their BSIM3 ownership, lifecycle
 and behavior are defined by the [BSIM3 component](BSIM3/DESIGN.md).
+
+## BSIM4 composition
+
+[BSIM4](BSIM4/DESIGN.md) owns exact Level54 preparation, explicit work policy,
+full auxiliary mapping and checked DC/AC/transient sessions. Its correlated-noise
+admission remains closed. Registry policy is runtime configuration, not physical IR.

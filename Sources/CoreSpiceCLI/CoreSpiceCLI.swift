@@ -217,7 +217,13 @@ struct CLI {
           unit: measurement.unit.isEmpty ? nil : measurement.unit
         )
       },
-      waveform: waveformSummary
+      waveform: waveformSummary,
+      bsim4PreparationPolicy: session.analysisOptions.bsim4PreparationPolicy,
+      bsim4Models: session.devices.compactMap { device in
+        guard let model = device as? BoundBSIM4 else { return nil }
+        return CoreSpiceCLIBSIM4Record(device: model.instance.name,
+          diagnostics: model.diagnostics, maintainerUnsupportedNoiseMode: model.topology.maintainerUnsupportedNoiseMode)
+      }
     )
   }
 
@@ -378,6 +384,10 @@ struct CLI {
         integers; saved scalars include times and all MNA variables. Work units
         are size-weighted operation counts, not wall time or measured FLOPS.
 
+      Native BSIM4 preparation policy:
+        Level 54 exact 4.8.3 requires .options bsim4stressiterations=<positive UInt32>.
+        This bounds original stress preprocessing and is retained in JSON run records.
+
       JSON records:
         Batch success records contain a replayable ExecutionInvocation plus
         inputArtifacts and outputArtifacts as
@@ -434,7 +444,11 @@ struct CLI {
 
 struct Session {
   private(set) var plan: ExecutionPlan?
-  private let registry = DeviceRegistry.withOptoelectronics()
+  private var registry: DeviceRegistry {
+    var registry = analysisOptions.deviceRegistry()
+    registry.registerOptoelectronicDevices()
+    return registry
+  }
   private(set) var devices: [any BoundDevice] = []
   private(set) var lastWaveform: WaveformData?
   private(set) var lastParametric: ParametricWaveformData?
@@ -773,7 +787,6 @@ struct Session {
       let compiler = StandardCompiler()
       let compiled = try compiler.compile(ir: ir)
 
-      let registry = DeviceRegistry.withOptoelectronics()
       let mcStructure = compiled.matrixStructure
       var context = BindingContext(
         variableMap: compiled.topology.variableMap,

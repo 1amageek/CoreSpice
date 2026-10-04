@@ -647,7 +647,12 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
                 }
                 return nil
             case 54:
-                return "BSIM4 MOS level 54 models are parsed, but native BSIM4 execution is not implemented"
+                if let value = model.parameters["version"] {
+                    guard case .string("4.8.3") = value else {
+                        return "Native BSIM4 level 54 requires exact version 4.8.3"
+                    }
+                }
+                return nil
             default:
                 return "MOS level \(level) models are parsed, but no native CoreSpice device descriptor exists"
             }

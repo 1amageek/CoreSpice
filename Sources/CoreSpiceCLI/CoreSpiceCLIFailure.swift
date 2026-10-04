@@ -1,4 +1,6 @@
 import CoreSpiceCompile
+import CoreSpiceDevices
+import CoreSpiceCompactModels
 import CoreSpiceExporterCSV
 import CoreSpiceIO
 import Foundation
@@ -94,6 +96,30 @@ extension CoreSpiceCLIFailure {
         message: Self.describe(bindingError),
         stage: "compile"
       )
+
+    case let deviceError as BSIM4DeviceError:
+      let suffix: String
+      switch deviceError {
+      case .missingPreparationPolicy: suffix = "missing-preparation-policy"
+      case .missingModel, .modelTypeMismatch: suffix = "model-provenance"
+      case .invalidAuxiliaryTopology: suffix = "auxiliary-topology"
+      case .transientSessionAlreadyActive, .transientSessionRequired: suffix = "session"
+      case .unsupportedAnalysis: suffix = "unsupported-analysis"
+      }
+      self.init(code: "device.bsim4." + suffix, message: Self.describe(deviceError),
+        stage: suffix == "unsupported-analysis" || suffix == "session" ? "analysis" : "prepare")
+
+    case let modelError as BSIM4Error:
+      let suffix: String
+      switch modelError {
+      case .unsupportedVersion: suffix = "version"
+      case .invalidConfiguration, .invalidParameter, .modelRejected: suffix = "model-admission"
+      case .nonFiniteEvaluation: suffix = "non-finite"
+      case .resourceBudgetExceeded: suffix = "preparation-budget"
+      case .allocationFailure, .diagnosticCapacityExceeded: suffix = "resources"
+      case .invalidHistory: suffix = "history"
+      }
+      self.init(code: "device.bsim4." + suffix, message: Self.describe(modelError), stage: "device")
 
     case let budgetError as TransientExecutionError:
       self.init(code: "analysis.transient-execution", message: budgetError.description, stage: "analysis")

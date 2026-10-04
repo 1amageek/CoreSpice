@@ -55,3 +55,13 @@ waveform success does not imply Metal, WASM or Embedded qualification.
 verifies voltage/current PWL roundtrip and actual execution, invalid source rejection,
 complete policy resolution and missing policy. CLI fixtures explicitly own their
 finite validation policy; changed defaults require direct API/CLI caller migration.
+
+## BSIM4 preparation policy composition
+
+SPICEAnalysisOptions resolves explicit `.options bsim4stressiterations=<positive UInt32>`
+once into [BSIM4PreparationPolicy](../CoreSpiceDevices/BSIM4/DESIGN.md). Missing
+policy remains nil and Level54 preparation fails typed. Malformed/zero/overflow
+values fail; no fallback selects a budget. The same options value supplies both
+loweringConfiguration and deviceRegistry, including every CLI rebind. Runtime
+policy and kernel qualification diagnostics belong to execution provenance,
+not physical model IR. Other model families do not require this policy.

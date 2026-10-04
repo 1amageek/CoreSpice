@@ -121,3 +121,12 @@ unverified; native evidence does not qualify those targets or Metal.
 | Native | `Mutex<State>` | `statistics` / admission methods | Run exit releases budget | CPU tested |
 | WASM | Same shared source | Same shared source | Same run owner | Unverified |
 | Embedded | Same shared source | Same shared source | Same run owner | Unverified |
+
+## BSIM4 analysis composition
+
+[BSIM4](../CoreSpiceDevices/BSIM4/DESIGN.md) participates through existing throwing
+BoundDevice and transient-session protocols. The unchanged analysis run owns
+begin/defer-end and accepted-step commits. Complex AC uses the device's original
+frequency response and reserved-q constraint. Noise admission rejects this model
+before OP while its correlated-noise implementation is incomplete. Actual host
+CPU public DC/AC/transient evidence is required before Level54 admission opens.

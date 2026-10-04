@@ -20,7 +20,7 @@ public struct DeviceRegistry: Sendable {
     }
 
     /// A registry pre-populated with all built-in device types.
-    public static func standard() -> DeviceRegistry {
+    public static func standard(bsim4PreparationPolicy: BSIM4PreparationPolicy? = nil) -> DeviceRegistry {
         var registry = DeviceRegistry()
         registry.register(ResistorDescriptor())
         registry.register(CapacitorDescriptor())
@@ -47,6 +47,8 @@ public struct DeviceRegistry: Sendable {
         registry.register(PMOSL3Descriptor())
         registry.register(BSIM3Descriptor())
         registry.register(BSIM3Descriptor(pmos: true))
+        registry.register(BSIM4Descriptor(preparationPolicy: bsim4PreparationPolicy))
+        registry.register(BSIM4Descriptor(pmos: true, preparationPolicy: bsim4PreparationPolicy))
         registry.register(NJFETDescriptor())
         registry.register(PJFETDescriptor())
         registry.register(NMESFETDescriptor())

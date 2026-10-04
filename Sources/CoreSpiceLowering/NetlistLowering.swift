@@ -1,3 +1,4 @@
+import CoreSpiceDevices
 import CoreSpiceParsedIR
 import CoreSpiceIR
 import Foundation
@@ -11,6 +12,9 @@ public struct NetlistLowering: Sendable {
 
     /// Configuration for the lowering process.
     public struct Configuration: Sendable {
+
+        /// Explicit work policy for original Level54 preprocessing.
+        public var bsim4PreparationPolicy: BSIM4PreparationPolicy?
 
         /// Maximum subcircuit expansion depth.
         public var maxExpansionDepth: Int
@@ -51,8 +55,10 @@ public struct NetlistLowering: Sendable {
             evaluateExpressions: Bool = true,
             temperature: Double = 27.0,
             parameterOverrides: [String: Double] = [:],
-            randomSeed: UInt64? = nil
+            randomSeed: UInt64? = nil,
+            bsim4PreparationPolicy: BSIM4PreparationPolicy? = nil
         ) {
+            self.bsim4PreparationPolicy = bsim4PreparationPolicy
             self.maxExpansionDepth = maxExpansionDepth
             self.flattenSubcircuits = flattenSubcircuits
             self.expandModels = expandModels

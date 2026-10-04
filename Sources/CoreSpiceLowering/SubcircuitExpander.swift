@@ -82,19 +82,21 @@ public struct SubcircuitExpander: Sendable {
         var evaluatedParams: [String: ParameterValue] = [:]
         var deviceModel: ResolvedDeviceModel?
         let nativeBSIM3 = typeName == "nmos_l49" || typeName == "pmos_l49"
+        let nativeBSIM4 = typeName == "nmos_l54" || typeName == "pmos_l54"
+        let nativeCompactModel = nativeBSIM3 || nativeBSIM4
 
         // If expandModels is enabled and a model exists, copy model parameters as base
-        if (nativeBSIM3 || configuration.expandModels || component.type == .uniformRC),
+        if (nativeCompactModel || configuration.expandModels || component.type == .uniformRC),
            let modelName = component.modelName,
            let model = context.model(modelName) {
             var numeric = model.parameters
-            let version = nativeBSIM3 ? numeric.removeValue(forKey: "version") : nil
+            let version = nativeCompactModel ? numeric.removeValue(forKey: "version") : nil
             let modelParameters = try resolver.resolveInTemporaryScope(numeric)
-            if nativeBSIM3 {
+            if nativeCompactModel {
                 var resolved = modelParameters.mapValues { ParameterValue.real($0) }
                 if let version {
                     guard case .string(let identity) = version else {
-                        throw LoweringError.invalidComponent(name: fullName, reason: "BSIM3 version must be an exact string")
+                        throw LoweringError.invalidComponent(name: fullName, reason: "Compact model version must be an exact string")
                     }
                     resolved["version"] = .string(identity)
                 }
@@ -180,6 +182,11 @@ public struct SubcircuitExpander: Sendable {
             guard let deviceModel else { throw BSIM3DeviceError.missingModel(fullName) }
             auxiliaryNodeCount = try BSIM3Preparation.prepare(model: deviceModel,
                 instanceParameters: evaluatedParams, temperature: context.temperature + 273.15).auxiliaryNodeCount
+        } else if nativeBSIM4 {
+            guard let deviceModel else { throw BSIM4DeviceError.missingModel(fullName) }
+            auxiliaryNodeCount = try BSIM4Preparation.prepare(model: deviceModel,
+                instanceParameters: evaluatedParams, temperature: context.temperature + 273.15,
+                policy: configuration.bsim4PreparationPolicy).auxiliaryNodeCount
         }
 
         // Allocate branches for devices that need them (voltage sources, inductors, etc.)
@@ -799,7 +806,7 @@ public struct SubcircuitExpander: Sendable {
             case 49:
                 return nil
             case 54:
-                return "BSIM4 MOS level 54 execution is not implemented"
+                return nil
             default:
                 return "MOS level \(level) execution is not implemented"
             }

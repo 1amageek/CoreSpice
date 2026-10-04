@@ -66,6 +66,9 @@ mutate through its closure, and release in locked deinit. Host CPU compile/link/
 runtime is the verified platform; WASM/Embedded runtime is explicitly unverified.
 Metal and production Level54 DC/AC/transient require separate composition proof.
 
+Structured diagnostic codes/messages are immutable Hashable/Codable values for
+execution records; serialization never adds a supported/trusted qualification.
+
 ## Charge Multiplicity Correction
 
 The [kernel adaptation contract](../../CoreSpiceBSIM4/Kernel/DESIGN.md) owns the independently derived body/NQS

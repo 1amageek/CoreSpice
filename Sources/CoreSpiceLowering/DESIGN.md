@@ -24,7 +24,7 @@ flowchart LR
 
 ## Contracts and Invariants
 
-Level 49 maps to native BSIM3 descriptors only after cold model admission succeeds. Model parameters cannot be overridden through instance flattening. Original parameter semantics remain independent; invalid role or version is a typed failure. Level 54 remains blocked.
+Level 49 maps to native BSIM3 descriptors only after cold model admission succeeds. Model parameters cannot be overridden through instance flattening. Original parameter semantics remain independent; invalid role or version is a typed failure. Level 54 follows the [BSIM4 preparation contract](../CoreSpiceDevices/BSIM4/DESIGN.md).
 
 ## State, Ownership, and Lifecycle
 
@@ -45,3 +45,11 @@ parses and serializes this vector, lowering retains `ParameterValue.realVector`,
 and device admission owns strict time/value validation. Partial/unknown source
 waveforms produce typed parse/binding failure, never successful DC substitution.
 Scalar option/measurement/expression consumers reject vectors explicitly.
+
+## BSIM4 Level54 admission
+
+[BSIM4 preparation](../CoreSpiceDevices/BSIM4/DESIGN.md) receives the optional
+caller policy from Configuration. Missing policy fails before cold evaluation.
+Exact version and separate model/instance values remain in resolved provenance;
+all original auxiliary requirements become fresh owned nodes. Policy does not
+enter physical model/instance parameters. The same caller policy must reach binding.

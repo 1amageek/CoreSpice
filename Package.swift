@@ -56,7 +56,7 @@ let package = Package(
 
         // --- Devices ---
         .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels"],
-                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md", "BSIM3/DESIGN.md"]),
+                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md"]),
 
         // --- Compile ---
         .target(
@@ -164,6 +164,7 @@ let package = Package(
                 "CoreSpiceIO",
                 "CoreSpiceAnalysis",
                 "CoreSpiceDevices",
+                "CoreSpiceCompactModels",
                 "CoreSpiceOptoelectronics",
                 "CoreSpiceCompile",
                 "CoreSpiceExporter",
@@ -176,7 +177,7 @@ let package = Package(
                 .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation")
             ],
             path: "Sources/CoreSpiceCLI",
-            exclude: ["README.md"]
+            exclude: ["README.md", "DESIGN.md"]
         ),
         .executableTarget(
             name: "CoreSpiceCLI",
@@ -190,6 +191,7 @@ let package = Package(
 
         .testTarget(name: "CoreSpiceBSIM3IntegrationTests", dependencies: ["CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceBSIM3NoiseTests", dependencies: ["CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
+        .testTarget(name: "CoreSpiceBSIM4IntegrationTests", dependencies: ["CoreSpiceParserSPICE", "CoreSpiceParsedIR", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceBSIM4KernelTests", dependencies: ["CoreSpiceCompactModels"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceCompactModelsTests", dependencies: ["CoreSpiceCompactModels"],
             resources: [.copy("Fixtures")]),
