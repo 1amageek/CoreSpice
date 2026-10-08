@@ -264,10 +264,11 @@ external library resolution.
 
 ### Bounded profile grammar
 
-Status: designed, not implemented. This module owns grammar integration for the
+Status: implemented; dedicated bounded grammar verification is required before
+publication. This module owns grammar integration for the
 [Parser contextual contract](../CoreSpiceParser/DESIGN.md#bounded-contextual-source-contract)
 and [ParsedIR storage values](../CoreSpiceParsedIR/DESIGN.md#bounded-source-storage-and-occurrence-values).
-The proposed protocol `SPICEProfileSourceParsing` requires
+The protocol `SPICEProfileSourceParsing` requires
 `parseProfile(document:configuration:environment:resolver:resources:) async throws
 -> SPICEOwnedParseResult`. SPICEParser is its concrete implementation and reuses
 ordinary lexer, expression parser, section and conditional grammar. Environment is
@@ -275,6 +276,14 @@ the checked Core value, resolver is SPICEContextualFileResolver, resources is
 SPICESourceResourceAccounting. No whole expected graph is required: the injected
 provider owns exact-approved or candidate-discovery selection. Parser authenticates
 syntax/context, not approval, PDK admission or filesystem availability.
+
+`SPICEPhysicalSourceCoordinates` retains checked selected source text and a
+reserved line-range collection measured before preprocessing. Physical lexer
+positions map through that collection and the source-owned section offset map;
+CRLF remains two original bytes, continuation tokens retain their physical line,
+and a lone CR follows the existing lexer column semantics. The bounded backend
+refuses non-ASCII coordinate operations explicitly. The parser owns this mapping;
+an adapter never rescans grammar text to infer dependency or declaration positions.
 
 Existing parse/parseChecked remain their documented standalone/count-budget scope.
 The new bounded API requires `configuration.resolveIncludes == true`; disabling
@@ -297,6 +306,10 @@ scopes. Merge child parameters back in the existing order; do not re-evaluate
 parent conditionals or transfer child functions into parent preprocessing.
 
 One checked snapshot supplies both request fingerprint and child construction.
+Bounded events use that fingerprint and retained environment owner; their legacy
+`preprocessingContext` dictionary is empty. Ordinary events retain their existing
+dictionary contract. Consumers of the profile entry use the occurrence/context
+fields rather than treating the legacy dictionary as bounded snapshot authority.
 Parent branch evidence comes from actual preprocessor local scopes and conditional
 events, not the child-entry map. Includes select full child/nil section; external
 libs select their explicit child section. Allocate fresh occurrence IDs before
@@ -333,6 +346,42 @@ When a fixed backend cannot cooperatively bound a normalization/conversion, retu
 name before the operation. In particular a Unicode operation must not silently
 use ASCII equality or an unaccounted Foundation whole-string conversion.
 
+Internal allocation hooks are owned by this module. `SPICEParseStorage` is an
+invocation-local value requiring a real `SPICESourceResourceAccounting`. Its
+accounted owner collection retains actual immutable payloads together with their
+reservations. `reservePayload(of:)` reserves an associated expression/value stride
+before construction; `retain(_:reservation:)` keeps the constructed payload, and
+`hold(_:)` joins an existing immutable owner. `ownArray(_:)` makes a checked concrete
+element-capacity copy while retaining its actual backing; input builders use the
+existing `SPICEAccountedCollection` and release obsolete slots after migration.
+`copyText(_:)` uses checked `SPICEAccountedText` and retains its actual String.
+Retained payload wrappers are immutable class references fitting the existential
+slot, with their concrete `(Value, optional original receipt, metadata receipt)`
+stored-field tuple stride reserved before construction. `immutableOwner()` applies
+that same boundary to result/failure scope export; no implicit large value boxing
+is treated as free. Allocator/class headers remain excluded from this metric.
+
+`SPICEAccountedMap<Value>` owns one String-keyed Dictionary, logical `(String,Value)`
+entry capacity and immutable COW marker. It reserves geometric capacity before
+growth or same-capacity shared writes, then cooperatively rebuilds the dictionary.
+Key work is checked before hash/compare; this bounded hook rejects non-ASCII keys
+instead of introducing Unicode normalization meaning. Dictionary bucket/allocator
+slack, compiler headers and accountant-internal storage remain outside the managed
+logical metric. Its raw export is a separately reserved owned copy.
+
+Stable composed interfaces: `SPICELexer.tokenizeOwned(resources:)` returns
+`SPICEOwnedTokens` (actual token array and `SPICEParseStorage`); expression parsing
+accepts an optional inout storage value solely to preserve standalone calls, and
+bounded callers always pass real storage. Conditional `processOwned(document:
+environment:resources:)` returns its actual projected source/events/diagnostics
+and immutable storage owner. Parser joins those owners into the checked result.
+The profile entry requires each interface's real storage path; ordinary entries
+retain their existing optional count-only work scope.
+
+Hook verification is owned by
+[StorageHookTests](../../Tests/CoreSpiceProfileGrammarTests/StorageHookTests.swift).
+All hook mutable state is invocation-local; only immutable payload owners escape.
+
 All helper scans/transforms charge examined work and check at bounded chunks;
 a top-level token charge does not cover an arbitrary whole-tail/string/set pass.
 Collection/hash/fingerprint arithmetic is checked. Work and logical storage are
@@ -341,6 +390,19 @@ production defaults or machine-capacity selection. Parser state is invocation-lo
 any escaped/shared owner uses immutable backing or Mutex/actor, uniformly Sendable.
 No task, callback or I/O runs under a storage-accountant lock. Nested parser awaits
 are structured; failure completes awaited resolver cleanup and publishes no result.
+
+`SPICEProfileOccurrenceRegistry` admits source occurrence IDs on one traversal-wide
+actor before each child parse. Its concrete stored-field extent and ID collection
+use temporary reservations; they leave at traversal completion and are not retained
+by a result. Source-local ordinals count actual grammar statements (including a
+consumed subcircuit closing directive), excluding preprocessing-only branches and
+the free-text title. Global dependency ordinals are depth-first merge positions.
+
+| Mutable state | Native storage/isolation | WASM/Embedded source contract | Release |
+|---|---|---|---|
+| Parser/preprocessor builders | Invocation-local value state with reserved COW | Same declarations, no conditional state branch | Actual immutable payload owners remain in result |
+| Occurrence uniqueness | Accounted collection on actor; resource callbacks occur in the actor, no Mutex held | Same actor and Sendable contract; runtime not established by Native proof | Traversal end releases temporary capacity |
+| External resource counters | Injected synchronized protocol implementation | Same required protocol; implementation qualification is caller-owned | Shared reservations release at final copy |
 
 The first profile result supports structural declarations, actual ordered subckt
 ports and conditional/section/dependency evidence. Model types do not declare
@@ -351,8 +413,8 @@ Core-owned option evaluation is supplied; do not call unaccounted analysis optio
 resolution or use its defaults in this path. Unsupported required meaning blocks,
 while unused numerical physics is not qualified or executed here.
 
-Verification owner: dedicated new bounded-profile fixture files in
-[ParserSPICETests](../../Tests/CoreSpiceParserSPICETests/). Real grammar must prove
+Verification owner: dedicated bounded-profile fixture files in
+[CoreSpiceProfileGrammarTests](../../Tests/CoreSpiceProfileGrammarTests/). Real grammar must prove
 pre-await coordinates/refusal, selected-parent/full-child section, exact inherited
 snapshot, no parent-function/header-scope inheritance, no parent re-evaluation after
 child merge, repeated origins, physical CRLF/continuation offsets, cumulative

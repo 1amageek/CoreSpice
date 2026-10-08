@@ -8,6 +8,7 @@ import CoreSpiceParser
 public struct SPICELexer: Sendable {
 
     private var work: (any SPICESourceWorkAccounting)?
+    private var scanStorage: SPICEParseStorage?
     private var workFailure: (any Error)?
     private var checkpointCharacters = 0
     private let source: String
@@ -67,6 +68,78 @@ public struct SPICELexer: Sendable {
         try work?.charge(.tokens, units: 1)
         tokens.append(SPICEToken.Located(token: .endOfFile, location: currentLocation))
         return tokens
+    }
+
+    /// Uses the same scanners with admitted string and concrete token-slot storage.
+    mutating func tokenizeOwned(resources: any SPICESourceResourceAccounting) throws -> SPICEOwnedTokens {
+        work = resources
+        workFailure = nil
+        try resources.checkCancellation()
+        var byteCount: UInt64 = 0
+        for byte in source.utf8 {
+            if byteCount.isMultiple(of: 256) { try resources.checkCancellation() }
+            try resources.charge(.lexicalBytes, units: 1)
+            guard byte < 128 else {
+                throw SPICEBoundedSourceError.unsupportedBudgetCapability("Cooperative Unicode SPICE lexing")
+            }
+            byteCount += 1
+        }
+        var lexemes = SPICEAccountedCollection<OwnedLexeme>(storageKind: .temporaryBytes)
+        var statementEnd: Int?
+        defer { scanStorage = nil }
+        while !isAtEnd {
+            try resources.charge(.tokens, units: 1)
+            if lexemes.count == lexemes.managedCapacity {
+                let (doubled, overflow) = lexemes.managedCapacity.multipliedReportingOverflow(by: 2)
+                guard !overflow else { throw SPICESourceStorageError.arithmeticOverflow }
+                try lexemes.reserveCapacity(Swift.max(1, doubled), resources: resources)
+            }
+            scanStorage = SPICEParseStorage(resources: resources)
+            let token = nextToken()
+            if let workFailure { throw workFailure }
+            guard let token else { scanStorage = nil; continue }
+            guard let payload = scanStorage else { preconditionFailure("Missing lexer storage") }
+            scanStorage = nil
+            switch token.token {
+            case .continuation:
+                if let statementEnd {
+                    var kept = SPICEAccountedCollection<OwnedLexeme>(storageKind: .temporaryBytes)
+                    try kept.reserveCapacity(statementEnd, resources: resources)
+                    for position in 0..<statementEnd {
+                        try kept.append(lexemes[position], resources: resources)
+                    }
+                    lexemes.removeAll()
+                    lexemes = kept
+                } else { try lexemes.append(OwnedLexeme(token: token, storage: payload), resources: resources) }
+            case .newline, .comment:
+                try lexemes.append(OwnedLexeme(token: token, storage: payload), resources: resources)
+            default:
+                try lexemes.append(OwnedLexeme(token: token, storage: payload), resources: resources)
+                statementEnd = lexemes.count
+            }
+        }
+        if let workFailure { throw workFailure }
+        try resources.charge(.tokens, units: 1)
+        var storage = SPICEParseStorage(resources: resources)
+        var tokens = SPICEAccountedCollection<SPICEToken.Located>(storageKind: .temporaryBytes)
+        let (count, overflow) = lexemes.count.addingReportingOverflow(1)
+        guard !overflow else { throw SPICESourceStorageError.arithmeticOverflow }
+        try tokens.reserveCapacity(count, resources: resources)
+        for position in lexemes.indices {
+            try tokens.append(lexemes[position].token, resources: resources)
+            try storage.hold(lexemes[position].storage)
+        }
+        try tokens.append(SPICEToken.Located(token: .endOfFile, location: currentLocation), resources: resources)
+        let output = try storage.ownArray(tokens)
+        tokens.removeAll()
+        lexemes.removeAll()
+        try resources.checkCancellation()
+        return SPICEOwnedTokens(tokens: output, storage: storage)
+    }
+
+    private struct OwnedLexeme: Sendable {
+        let token: SPICEToken.Located
+        let storage: SPICEParseStorage
     }
 
     /// Gets the next token.
@@ -202,52 +275,55 @@ public struct SPICELexer: Sendable {
 
     private mutating func scanDirective(startLocation: SourceLocation) -> SPICEToken.Located {
         advance() // skip .
-        var name = ""
-        while !isAtEnd && (current.isLetter || current.isNumber || current == "_") {
-            name.append(current)
-            advance()
-        }
-        return SPICEToken.Located(
-            token: .directive(name.lowercased()),
-            location: startLocation
-        )
+        let start = index
+        while !isAtEnd && (current.isLetter || current.isNumber || current == "_") { advance() }
+        return SPICEToken.Located(token: .directive(materialize(start..<index, lowercase: true)),
+                                 location: startLocation)
     }
 
     private mutating func scanDotOperator(startLocation: SourceLocation) -> SPICEToken.Located? {
-        let operators = ["eq", "ne", "le", "ge", "lt", "gt", "and", "or", "not"]
-        for name in operators {
-            let pattern = ".\(name)."
-            if source[index...].lowercased().hasPrefix(pattern) {
-                for _ in pattern {
-                    advance()
-                }
-                return SPICEToken.Located(token: .dotOperator(name), location: startLocation)
-            }
+        if let token = matchDotOperator(".eq.", name: "eq", at: startLocation) { return token }
+        if let token = matchDotOperator(".ne.", name: "ne", at: startLocation) { return token }
+        if let token = matchDotOperator(".le.", name: "le", at: startLocation) { return token }
+        if let token = matchDotOperator(".ge.", name: "ge", at: startLocation) { return token }
+        if let token = matchDotOperator(".lt.", name: "lt", at: startLocation) { return token }
+        if let token = matchDotOperator(".gt.", name: "gt", at: startLocation) { return token }
+        if let token = matchDotOperator(".and.", name: "and", at: startLocation) { return token }
+        if let token = matchDotOperator(".or.", name: "or", at: startLocation) { return token }
+        return matchDotOperator(".not.", name: "not", at: startLocation)
+    }
+
+    private mutating func matchDotOperator(_ pattern: String, name: String,
+                                          at location: SourceLocation) -> SPICEToken.Located? {
+        var probe = index
+        for expected in pattern.utf8 {
+            do { try work?.checkCancellation(); try work?.charge(.lexicalBytes, units: 1) }
+            catch { workFailure = error; return nil }
+            guard probe < source.endIndex, let actual = source[probe].asciiValue,
+                  (actual >= 65 && actual <= 90 ? actual + 32 : actual) == expected else { return nil }
+            probe = source.index(after: probe)
         }
-        return nil
+        for _ in pattern { advance() }
+        return SPICEToken.Located(token: .dotOperator(name), location: location)
     }
 
     private mutating func scanNumber(startLocation: SourceLocation) -> SPICEToken.Located {
-        var numberStr = ""
+        let start = index
 
         // Handle optional sign
         if current == "+" || current == "-" {
-            numberStr.append(current)
             advance()
         }
 
         // Integer part
         while !isAtEnd && current.isNumber {
-            numberStr.append(current)
             advance()
         }
 
         // Decimal part
         if !isAtEnd && current == "." {
-            numberStr.append(current)
             advance()
             while !isAtEnd && current.isNumber {
-                numberStr.append(current)
                 advance()
             }
         }
@@ -255,41 +331,58 @@ public struct SPICELexer: Sendable {
         // Preserve semantic version identity rather than emitting two numbers.
         if !isAtEnd && current == "." {
             while !isAtEnd && (current.isNumber || current == ".") {
-                numberStr.append(current)
                 advance()
             }
-            return SPICEToken.Located(token: .dottedLiteral(numberStr), location: startLocation)
+            return SPICEToken.Located(token: .dottedLiteral(materialize(start..<index)), location: startLocation)
         }
 
         // Exponent part
         if !isAtEnd && (current == "e" || current == "E") {
-            numberStr.append(current)
             advance()
             if !isAtEnd && (current == "+" || current == "-") {
-                numberStr.append(current)
                 advance()
             }
             var exponentDigits = 0
             while !isAtEnd && current.isNumber {
-                numberStr.append(current)
                 advance()
                 exponentDigits += 1
             }
             if exponentDigits == 0 {
-                return SPICEToken.Located(token: .invalidNumericLiteral(numberStr), location: startLocation)
+                return SPICEToken.Located(token: .invalidNumericLiteral(materialize(start..<index)), location: startLocation)
             }
         }
 
+        let numericEnd = index
         let suffix = scanScaleSuffix()
+        let numberStr = materialize(start..<numericEnd)
+        if scanStorage != nil && numberStr.utf8.count > 64 {
+            workFailure = SPICEBoundedSourceError.unsupportedBudgetCapability("Scalar decimal conversion beyond 64 ASCII bytes")
+            return SPICEToken.Located(token: .invalidNumericLiteral(numberStr), location: startLocation)
+        }
         guard let scale = suffix.scale else {
             return SPICEToken.Located(token: .invalidNumericSuffix(suffix.text), location: startLocation)
         }
+        let conversionScratch: SPICESourceStorageReservation?
+        if let resources = scanStorage?.resources {
+            do {
+                // The installed Double(String) initializer uses a NUL-terminated C string.
+                // The admitted scalar input is at most the backend's 64-byte formatting extent.
+                try resources.checkCancellation()
+                conversionScratch = try resources.reserveStorage(kind: .temporaryBytes,
+                    byteCount: UInt64(numberStr.utf8.count) + 1)
+                try resources.charge(.lexicalBytes, units: UInt64(numberStr.utf8.count))
+            } catch {
+                workFailure = error
+                return SPICEToken.Located(token: .invalidNumericLiteral(numberStr), location: startLocation)
+            }
+        } else { conversionScratch = nil }
+        defer { withExtendedLifetime(conversionScratch) {} }
         guard let parsedValue = Double(numberStr), parsedValue.isFinite else {
             return SPICEToken.Located(token: .invalidNumericLiteral(numberStr), location: startLocation)
         }
         let value = parsedValue * scale
         guard value.isFinite else {
-            return SPICEToken.Located(token: .invalidNumericLiteral(numberStr + suffix.text), location: startLocation)
+            return SPICEToken.Located(token: .invalidNumericLiteral(materialize(start..<index, lowercase: true)), location: startLocation)
         }
 
         return SPICEToken.Located(token: .number(value), location: startLocation)
@@ -301,7 +394,7 @@ public struct SPICELexer: Sendable {
             advance()
         }
 
-        let suffix = String(source[start..<index]).lowercased()
+        let suffix = materialize(start..<index, lowercase: true)
         guard !suffix.isEmpty else {
             return (suffix, 1.0)
         }
@@ -339,49 +432,30 @@ public struct SPICELexer: Sendable {
     }
 
     private mutating func scanIdentifier(startLocation: SourceLocation) -> SPICEToken.Located {
-        var name = ""
+        let start = index
         while !isAtEnd && (current.isLetter || current.isNumber || current == "_" || current == ":" || current == ".") {
-            name.append(current)
             advance()
         }
-
-        // Check if it's a number with suffix (like 1k)
-        if let firstChar = name.first, firstChar.isNumber {
-            // This is actually a number that started with a letter-like character
-            if let value = Double(name) {
-                return SPICEToken.Located(token: .number(value), location: startLocation)
-            }
-        }
-
-        return SPICEToken.Located(
-            token: .identifier(configuration.caseInsensitive ? name.lowercased() : name),
-            location: startLocation
-        )
+        return SPICEToken.Located(token: .identifier(materialize(start..<index,
+            lowercase: configuration.caseInsensitive)), location: startLocation)
     }
 
     private mutating func scanString(startLocation: SourceLocation) -> SPICEToken.Located {
         let quote = current
         advance() // skip opening quote
 
-        var value = ""
+        let start = index
         while !isAtEnd && current != quote && !isAtNewline {
-            if current == "\\", peek() == quote || peek() == "\\" {
-                value.append(current)
-                advance()
-            }
-            value.append(current)
+            if current == "\\", peek() == quote || peek() == "\\" { advance() }
             advance()
         }
-
         guard !isAtEnd && current == quote else {
             return SPICEToken.Located(token: .unterminatedQuote, location: startLocation)
         }
-        advance() // skip closing quote
-
-        let token: SPICEToken = quote == "'"
-            ? .quotedExpression(value)
-            : .string(Self.decodeQuotedText(value, delimiter: quote))
-        return SPICEToken.Located(token: token, location: startLocation)
+        let end = index
+        advance()
+        let value = materialize(start..<end, decodeDelimiter: quote == "\"" ? quote : nil)
+        return SPICEToken.Located(token: quote == "'" ? .quotedExpression(value) : .string(value), location: startLocation)
     }
 
     /// Decodes only delimiter/backslash escapes; all other source text stays exact.
@@ -404,12 +478,57 @@ public struct SPICELexer: Sendable {
     }
 
     private mutating func scanLineComment(startLocation: SourceLocation) -> SPICEToken.Located {
-        var comment = ""
-        while !isAtEnd && !isAtNewline {
-            comment.append(current)
-            advance()
+        let start = index
+        while !isAtEnd && !isAtNewline { advance() }
+        return SPICEToken.Located(token: .comment(materialize(start..<index)), location: startLocation)
+    }
+
+    /// ASCII was validated before bounded scanning, so case folding never expands UTF-8.
+    private mutating func materialize(_ range: Range<String.Index>, lowercase: Bool = false,
+                                     decodeDelimiter: Character? = nil) -> String {
+        guard var storage = scanStorage else {
+            let text = String(source[range])
+            if let decodeDelimiter { return Self.decodeQuotedText(text, delimiter: decodeDelimiter) }
+            return lowercase ? text.lowercased() : text
         }
-        return SPICEToken.Located(token: .comment(comment), location: startLocation)
+        scanStorage = nil
+        defer { scanStorage = storage }
+        do {
+            var count = 0
+            var probe = range.lowerBound
+            while probe < range.upperBound {
+                if count.isMultiple(of: 256) { try storage.resources.checkCancellation() }
+                try storage.resources.charge(.lexicalBytes, units: 1)
+                let character = source[probe]
+                probe = source.index(after: probe)
+                if let decodeDelimiter, character == "\\", probe < range.upperBound,
+                   source[probe] == decodeDelimiter || source[probe] == "\\" { probe = source.index(after: probe) }
+                count += 1
+            }
+            let receipt = try storage.resources.reserveStorage(kind: .liveOwnedBytes, byteCount: UInt64(count))
+            try storage.resources.charge(.projectedBytes, units: UInt64(count))
+            var output = ""
+            output.reserveCapacity(count)
+            probe = range.lowerBound
+            var copied = 0
+            while probe < range.upperBound {
+                if copied.isMultiple(of: 256) { try storage.resources.checkCancellation() }
+                var character = source[probe]
+                probe = source.index(after: probe)
+                if let decodeDelimiter, character == "\\", probe < range.upperBound,
+                   source[probe] == decodeDelimiter || source[probe] == "\\" {
+                    character = source[probe]; probe = source.index(after: probe)
+                }
+                if lowercase, let ascii = character.asciiValue, ascii >= 65 && ascii <= 90 {
+                    character = Character(UnicodeScalar(ascii + 32))
+                }
+                output.append(character)
+                copied += 1
+            }
+            try storage.resources.checkCancellation()
+            try storage.retain(output, reservation: receipt)
+            return output
+        } catch { workFailure = error; return "" }
     }
 
     private mutating func skipWhitespaceAndComments() {
@@ -485,11 +604,5 @@ public struct SPICELexer: Sendable {
 
     private var currentLocation: SourceLocation {
         SourceLocation(file: fileName ?? "<input>", line: line, column: column)
-    }
-}
-
-extension Character {
-    fileprivate func lowercased() -> String {
-        String(self).lowercased()
     }
 }

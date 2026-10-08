@@ -52,6 +52,13 @@ not turn missing capture identity into a successful model receipt.
 
 ## Verification and Change Impact
 
+`SPICEProfileParseFailure` belongs to this module because it retains the existing
+`ParserDiagnostic` and an immutable source owner. Its package-only constructor is
+used by checked grammar publication; raw diagnostic extraction is caller-owned.
+Grammar copies needed diagnostic strings and reserves the concrete failure value
+payload before Error boxing; runtime box headers remain excluded.
+Resource/cancellation failures propagate directly without retaining partial ASTs.
+
 [Loader tests](../../Tests/CoreSpiceIOTests/SPICEDeckLoaderTests.swift) verify actual
 selected library locations and source identity. Parser tests verify custom document
 resolvers; registry file dispatch must preserve the returned document.
@@ -75,7 +82,8 @@ verify selected original declaration lines and finite budget/cancellation failur
 ### Bounded contextual source contract
 
 Source/context values and owned section projection are implemented; contextual
-grammar calls remain designed, not implemented. Parser owns this boundary;
+grammar calls are implemented by ParserSPICE, whose dedicated product owns their
+behavioral proof. Parser owns this boundary;
 [ParsedIR](../CoreSpiceParsedIR/DESIGN.md#bounded-source-storage-and-occurrence-values)
 owns storage and occurrence vocabulary. Standalone FileResolver remains available;
 required bounded parsing cannot silently inject it.

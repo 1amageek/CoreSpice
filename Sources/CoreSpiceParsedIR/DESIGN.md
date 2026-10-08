@@ -102,7 +102,9 @@ bindings. This is syntax evidence, not numerical model or qualification evidence
 Storage receipts, capacity helpers, accounted collections and occurrence IDs are
 implemented at this boundary; verification is owned by
 [StorageBoundaryTests](../../Tests/CoreSpiceSourceBoundaryTests/StorageBoundaryTests.swift).
-`SPICEOwnedParseResult` and grammar integration remain designed, not implemented.
+`SPICEOwnedParseResult` and occurrence origin values are
+implemented boundaries. Checked grammar publication remains the ParserSPICE
+integration owner's pending proof; these values alone do not establish parsing.
 
 | Public contract | Meaning |
 |---|---|
@@ -112,6 +114,22 @@ implemented at this boundary; verification is owned by
 | `SPICESourceCapacity` / `SPICEAccountedCollection` | Checked concrete slot stride/capacity and reserved COW snapshots, including same-capacity append/replace |
 | `SPICEParseOccurrenceID` | Opaque invocation-local identity allocated before parsing; distinct from source/content keys and diagnostic paths |
 | `SPICEOwnedParseResult` | Internally checked successful netlist with immutable source/derived-storage reservations; copies share retained owners |
+
+Bounded origin metadata extends existing standalone values without changing their
+standalone meaning: `ParsedModelOrigin` adds optional occurrence ID, original byte
+offset and source-local statement ordinal; `ParsedSubcircuitOrigin` carries those
+same coordinates and `ParsedSubcircuit.origin` is optional. Bounded grammar fills
+all fields. `SPICESourceDependencyEvent` adds optional parent/child occurrences,
+original statement offset/source-local ordinal, parent section and actual
+preprocessing identity. Its existing ordinal remains merged depth-first lexical
+order; selectedSection is the actual child section in bounded events.
+
+`SPICEOwnedParseResult` exposes a raw netlist while privately retaining one
+immutable owner. Its initializer is package-only and its syntax/context authority
+is supplied by the checked grammar entry. It is not Codable. A syntax failure
+uses Parser-owned `SPICEProfileParseFailure` with the diagnostic and only the needed immutable
+source owner; extracting its raw diagnostic is a caller-owned boundary. Resource
+and cancellation errors propagate directly and retain no partial parse.
 
 A trusted external accountant may construct a reservation from its admitted kind/
 byte count and a `@Sendable () -> Void` release callback, retaining its original

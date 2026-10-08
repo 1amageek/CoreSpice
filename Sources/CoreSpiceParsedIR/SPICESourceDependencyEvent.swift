@@ -9,10 +9,19 @@ public struct SPICESourceDependencyEvent: Sendable, Hashable {
     public let selectedSection: String?
     public let ordinal: Int
     public let preprocessingContext: [String: String]
+    public let parentOccurrenceID: SPICEParseOccurrenceID?
+    public let childOccurrenceID: SPICEParseOccurrenceID?
+    public let statementByteOffset: UInt64?
+    public let statementOrdinal: UInt64?
+    public let parentSection: String?
+    public let preprocessingIdentity: String?
 
     public init(parentCaptureID: String?, childCaptureID: String?, location: SourceLocation?,
                 kind: Kind, path: String, selectedSection: String?, ordinal: Int,
-                preprocessingContext: [String: String]) {
+                preprocessingContext: [String: String],
+                parentOccurrenceID: SPICEParseOccurrenceID? = nil, childOccurrenceID: SPICEParseOccurrenceID? = nil,
+                statementByteOffset: UInt64? = nil, statementOrdinal: UInt64? = nil,
+                parentSection: String? = nil, preprocessingIdentity: String? = nil) {
         self.parentCaptureID = parentCaptureID
         self.childCaptureID = childCaptureID
         self.location = location
@@ -21,5 +30,8 @@ public struct SPICESourceDependencyEvent: Sendable, Hashable {
         self.selectedSection = selectedSection
         self.ordinal = ordinal
         self.preprocessingContext = preprocessingContext
+        self.parentOccurrenceID = parentOccurrenceID; self.childOccurrenceID = childOccurrenceID
+        self.statementByteOffset = statementByteOffset; self.statementOrdinal = statementOrdinal
+        self.parentSection = parentSection; self.preprocessingIdentity = preprocessingIdentity
     }
 }

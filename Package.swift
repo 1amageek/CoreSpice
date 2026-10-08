@@ -242,6 +242,8 @@ let package = Package(
             .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
             .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
 
+        .testTarget(name: "CoreSpiceProfileGrammarTests", dependencies: ["CoreSpiceParsedIR", "CoreSpiceParser", "CoreSpiceParserSPICE"]),
+
         // I/O Tests
         .testTarget(name: "CoreSpiceParsedIRTests", dependencies: ["CoreSpiceParsedIR"]),
         .testTarget(

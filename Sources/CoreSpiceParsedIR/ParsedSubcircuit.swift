@@ -18,19 +18,22 @@ public struct ParsedSubcircuit: Sendable, Hashable {
 
     /// The source location of this subcircuit definition.
     public let location: SourceLocation?
+    public let origin: ParsedSubcircuitOrigin?
 
     public init(
         name: String,
         ports: [String],
         parameters: [String: ParsedParameterValue] = [:],
         body: ParsedNetlistBody,
-        location: SourceLocation? = nil
+        location: SourceLocation? = nil,
+        origin: ParsedSubcircuitOrigin? = nil
     ) {
         self.name = name
         self.ports = ports
         self.parameters = parameters
         self.body = body
         self.location = location
+        self.origin = origin
     }
 }
 
