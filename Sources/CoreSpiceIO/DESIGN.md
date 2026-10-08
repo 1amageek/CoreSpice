@@ -5,6 +5,8 @@
 This SwiftPM module composes SPICE parsing/lowering, analysis intent and waveform
 I/O. Parent: [CoreSpice](../../DESIGN.md). This change owns explicit transient policy
 selection and shared node-voltage assignment intake. Child: [InitialConditions](InitialConditions/DESIGN.md).
+Child: [SimulationPreparation](SimulationPreparation/DESIGN.md), a proposed owned
+execution-intake boundary; its public API is not implemented yet.
 
 ## Responsibilities and Boundaries
 
@@ -18,6 +20,7 @@ machine-capacity execution policy. Numerical admission belongs to Analysis.
 |---|---|---|---|---|
 | [CoreSpice](../../DESIGN.md) | parent | Public package composition | Developer/CLI input | Missing policy is a typed failure |
 | [InitialConditions](InitialConditions/DESIGN.md) | child | Protocol-first ordinary/bounded node-voltage resolution | Shared CLI/host assignment intake | Bounded expressions are limited to literals |
+| [SimulationPreparation](SimulationPreparation/DESIGN.md) | child | Proposed actual source graph, effective intent and IC/nodeset preparation | Shared native CLI/host intake | Legacy exact loading is not whole-invocation capacity proof |
 | [Analysis](../CoreSpiceAnalysis/DESIGN.md) | depends on | TransientExecutionLimits and config | Whole-run admission | DC and recovery share the same budget |
 | [ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md) | depends on | Parsed controls and PWL | Source intent preservation | Malformed sources cannot execute as DC |
 | [Lowering](../CoreSpiceLowering/DESIGN.md) | depends on | Canonical source vectors | Device admission boundary | Preserve numeric pair order |
