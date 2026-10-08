@@ -70,6 +70,7 @@ public struct PreparedCircuit: Sendable {
                   actual.ownedNodes == expected.ownedNodes,
                   actual.model?.name == expected.model?.name,
                   actual.model?.typeName == expected.model?.typeName,
+                  actual.model?.declarationID == expected.model?.declarationID,
                   actual.opticalNodes == expected.opticalNodes else {
                 throw PreparedCircuitError.boundDeviceIdentityMismatch(
                     index: index,

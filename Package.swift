@@ -121,7 +121,7 @@ let package = Package(
 
         // --- Parser: Parser protocols and registry ---
         .target(name: "CoreSpiceParser",
-                dependencies: ["CoreSpiceParsedIR"]),
+                dependencies: ["CoreSpiceParsedIR"], exclude: ["DESIGN.md"]),
 
         // --- ParserSPICE: SPICE netlist parser ---
         .target(name: "CoreSpiceParserSPICE",
@@ -154,7 +154,9 @@ let package = Package(
                                "CoreSpiceParser", "CoreSpiceParserSPICE",
                                "CoreSpiceLowering", "CoreSpiceExporter",
                                "CoreSpiceExporterRAW", "CoreSpiceExporterCSV",
-                               "CoreSpiceExporterPSF"], exclude: ["DESIGN.md"]),
+                               "CoreSpiceExporterPSF",
+                               .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+                               .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")], exclude: ["DESIGN.md"]),
 
         // CLI core and executable entry
         .target(

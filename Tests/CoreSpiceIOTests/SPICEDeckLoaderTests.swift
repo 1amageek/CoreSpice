@@ -47,6 +47,31 @@ struct SPICEDeckLoaderTests {
         ])
     }
 
+    @Test("Selected library declarations retain their physical source line")
+    func selectedLibraryRetainsPhysicalDeclarationLine() async throws {
+        let directory = try temporaryDirectory()
+        defer { removeTemporaryDirectory(directory) }
+        let library = directory.appendingPathComponent("device.lib")
+        try """
+        * Original library header
+        .lib ff
+        .model other R r=200
+        .endl
+        .lib tt
+        .model chosen R r=100
+        + tc1=0.001
+        .endl
+        """.write(to: library, atomically: true, encoding: .utf8)
+        let loaded = try await SPICEDeckLoader.load(
+            source: "library source origin\n.lib \"device.lib\" tt\nR1 out 0 chosen\n.end\n",
+            fileName: directory.appendingPathComponent("root.sp").path
+        )
+        let model = try #require(loaded.netlist.models.first)
+        #expect(model.name == "chosen")
+        #expect(model.location?.file == library.path)
+        #expect(model.location?.line == 6)
+    }
+
     @Test("A missing include fails before lowering")
     func missingIncludeFails() async throws {
         let directory = try temporaryDirectory()

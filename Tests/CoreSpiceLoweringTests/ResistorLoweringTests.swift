@@ -161,14 +161,14 @@ struct ResistorLoweringTests {
 
 private struct ResistorIncludeResolver: FileResolver {
     let content: String
-    func resolveInclude(path: String, relativeTo: String?) async throws -> String {
+    func resolveInclude(path: String, relativeTo: String?) async throws -> SPICESourceDocument {
         guard path == "cell.inc" else { throw FileResolverError.fileNotFound(path: path) }
-        return content
+        return SPICESourceDocument(text: content, resolvedPath: path)
     }
-    func resolveLibrary(path: String, section: String?, relativeTo: String?) async throws -> String {
+    func resolveLibrary(path: String, section: String?, relativeTo: String?) async throws -> SPICESourceDocument {
         throw FileResolverError.fileNotFound(path: path)
     }
-    func readFile(at path: String) async throws -> String {
+    func readFile(at path: String) async throws -> SPICESourceDocument {
         throw FileResolverError.fileNotFound(path: path)
     }
 }

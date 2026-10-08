@@ -11,11 +11,11 @@ public protocol FileResolver: Sendable {
     /// - Parameters:
     ///   - path: The path specified in the .include directive.
     ///   - relativeTo: The path of the file containing the include.
-    /// - Returns: The content of the included file.
+    /// - Returns: Text and the path selected by the same read, plus available capture identity.
     func resolveInclude(
         path: String,
         relativeTo: String?
-    ) async throws -> String
+    ) async throws -> SPICESourceDocument
 
     /// Resolves a library path to the file content.
     ///
@@ -23,29 +23,18 @@ public protocol FileResolver: Sendable {
     ///   - path: The path specified in the .lib directive.
     ///   - section: The optional library section name.
     ///   - relativeTo: The path of the file containing the lib directive.
-    /// - Returns: The content of the library section.
+    /// - Returns: A section projection retaining physical lines and full-source identity.
     func resolveLibrary(
         path: String,
         section: String?,
         relativeTo: String?
-    ) async throws -> String
+    ) async throws -> SPICESourceDocument
 
     /// Reads a file at the given path.
     ///
     /// - Parameter path: The absolute or relative path to read.
-    /// - Returns: The file content as a string.
-    func readFile(at path: String) async throws -> String
-}
-
-/// A file resolver that can report the canonical path selected for an include.
-///
-/// Parsers use this capability to resolve nested relative includes against the
-/// actual selected file instead of reconstructing a path from the directive.
-public protocol ResolvedPathProvidingFileResolver: FileResolver {
-    func resolvedPath(
-        for path: String,
-        relativeTo: String?
-    ) async throws -> String
+    /// - Returns: The source document from the selected file.
+    func readFile(at path: String) async throws -> SPICESourceDocument
 }
 
 /// Errors that can occur during file resolution.
@@ -85,7 +74,7 @@ extension FileResolverError: CustomStringConvertible {
 }
 
 /// A file resolver that reads from the local filesystem.
-public struct LocalFileResolver: ResolvedPathProvidingFileResolver {
+public struct LocalFileResolver: FileResolver {
 
     /// Search paths for resolving includes.
     public let searchPaths: [String]
@@ -104,7 +93,7 @@ public struct LocalFileResolver: ResolvedPathProvidingFileResolver {
     public func resolveInclude(
         path: String,
         relativeTo: String?
-    ) async throws -> String {
+    ) async throws -> SPICESourceDocument {
         let resolvedPath = try await resolvedPath(for: path, relativeTo: relativeTo)
         return try await readFile(at: resolvedPath)
     }
@@ -113,7 +102,7 @@ public struct LocalFileResolver: ResolvedPathProvidingFileResolver {
         path: String,
         section: String?,
         relativeTo: String?
-    ) async throws -> String {
+    ) async throws -> SPICESourceDocument {
         let resolvedPath = try await resolvedPath(for: path, relativeTo: relativeTo)
         let content = try await readFile(at: resolvedPath)
 
@@ -122,13 +111,13 @@ public struct LocalFileResolver: ResolvedPathProvidingFileResolver {
         }
 
         // Extract the named section from the library
-        return try extractLibrarySection(from: content, section: sectionName, library: path)
+        return try content.selectingLibrarySection(sectionName)
     }
 
-    public func readFile(at path: String) async throws -> String {
-        let url = URL(fileURLWithPath: path)
+    public func readFile(at path: String) async throws -> SPICESourceDocument {
+        let url = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath()
         do {
-            return try String(contentsOf: url, encoding: .utf8)
+            return SPICESourceDocument(text: try String(contentsOf: url, encoding: .utf8), resolvedPath: url.path)
         } catch {
             throw FileResolverError.readError(path: path, underlying: error.localizedDescription)
         }
@@ -175,42 +164,7 @@ public struct LocalFileResolver: ResolvedPathProvidingFileResolver {
     }
 
     /// Extracts a section from a library file.
-    private func extractLibrarySection(
-        from content: String,
-        section: String,
-        library: String
-    ) throws -> String {
-        // Look for .lib <section> ... .endl <section> or .endl
-        let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
-        var inSection = false
-        var sectionLines: [Substring] = []
 
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces).lowercased()
-
-            if !inSection {
-                // Check for .lib <section>
-                if trimmed.hasPrefix(".lib") {
-                    let parts = trimmed.split(separator: " ", omittingEmptySubsequences: true)
-                    if parts.count >= 2 && parts[1].lowercased() == section.lowercased() {
-                        inSection = true
-                    }
-                }
-            } else {
-                // Check for .endl
-                if trimmed.hasPrefix(".endl") {
-                    break
-                }
-                sectionLines.append(line)
-            }
-        }
-
-        if sectionLines.isEmpty && !inSection {
-            throw FileResolverError.sectionNotFound(library: library, section: section)
-        }
-
-        return sectionLines.map(String.init).joined(separator: "\n")
-    }
 }
 
 /// A file resolver that never finds files (for testing or isolated parsing).
@@ -218,15 +172,15 @@ public struct NullFileResolver: FileResolver {
 
     public init() {}
 
-    public func resolveInclude(path: String, relativeTo: String?) async throws -> String {
+    public func resolveInclude(path: String, relativeTo: String?) async throws -> SPICESourceDocument {
         throw FileResolverError.fileNotFound(path: path)
     }
 
-    public func resolveLibrary(path: String, section: String?, relativeTo: String?) async throws -> String {
+    public func resolveLibrary(path: String, section: String?, relativeTo: String?) async throws -> SPICESourceDocument {
         throw FileResolverError.fileNotFound(path: path)
     }
 
-    public func readFile(at path: String) async throws -> String {
+    public func readFile(at path: String) async throws -> SPICESourceDocument {
         throw FileResolverError.fileNotFound(path: path)
     }
 }

@@ -24,6 +24,15 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### Selected declaration identity
+
+ResolvedDeviceModel.declarationID is the opaque identity copied from the actual
+selected parsed declaration. Nil means source origin is unavailable; it cannot
+be reconstructed from name/type/parameters. It remains separate from physical
+maps and survives instance cloning. IO owns the origin inventory and bytes;
+IR does not depend on ParsedIR, filesystem access or qualification schemas.
+
+
 `ResolvedDeviceModel` keeps model name, canonical type, and resolved parameters separate from instance parameters. `Instance.ownedNodes` are private auxiliary MNA variables; physical ports and read-only referenced nodes remain distinct. Netlist allocation creates fresh owned identities without resolving source-level node names. All owned nodes appear in CircuitIR.nodes. Conflicting diagnostic names fail build rather than aliasing private identities.
 
 ## State, Ownership, and Lifecycle

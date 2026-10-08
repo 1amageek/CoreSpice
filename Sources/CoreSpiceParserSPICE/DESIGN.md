@@ -27,6 +27,15 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### Resolved source documents
+
+Root and included parsers consume [Parser source documents](../CoreSpiceParser/DESIGN.md).
+The returned path, capture identity and library projection travel together; no
+second path resolution supplies diagnostic provenance. Model origin records the
+actual declaration start and parse-local ordinal. Library blank padding retains
+physical lines, including continued statements. Bytes and limits remain [IO-owned](../CoreSpiceIO/DESIGN.md#consumed-source-capture-required-migration).
+
+
 Continuation lines beginning with a plus after optional whitespace extend the last non-comment logical statement across full-line comments and blank lines. Tokenization folds intervening separators/comments only when a continuation is present; ordinary next statements remain separated and standalone comments remain available. Leading whitespace does not change full-line star-comment semantics. Retained tokens keep their physical source locations, including line and column. This grammar follows the original [ngspice 46 continuation stitcher](https://github.com/imr/ngspice/blob/ngspice-46/src/frontend/inpcom.c#L634-L710) and addresses the comment-interrupted continuations in unchanged Sky130 model cards; model evaluation/version support remains downstream. An unquoted dotted version is not rounded through Double. Numeric contexts reject version literals. MOS OFF is a flag, and IC accepts one to three DS/GS/BS values, defaulting omitted coordinates to zero.
 
 ## Subcircuit Header Defaults

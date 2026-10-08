@@ -63,6 +63,31 @@ failed JSON records.
 
 ## State, Ownership, and Lifecycle
 
+### Completed analysis phases: required migration
+
+DC sweep rebinds each point, and Monte Carlo re-lowers each seed. The current
+baseline `devices` snapshot is not evidence of those completed phases. Session
+must retain the actual plan, consumed model/instance parameters, operating
+conditions and seed/source overrides passed to each successful analysis. Phase
+records are appended only after that analysis and its required observations
+complete; failure or cancellation cannot publish a successful case envelope.
+DC aggregate measurements retain their complete contributing point set. Monte
+Carlo retains observations for every reported seed instead of attributing the
+first seed's measurements to later runs.
+
+The direct CLI case-output path consumes ToolQualification's canonical schemas
+in the host CLI target only. IR, Parser, Lowering and IO stay independent from
+ToolQualification. This path emits explicit case ID, actual executable/input
+identities, original observations and phase-bound selected-model receipts; it
+does not issue qualification or choose physical acceptance criteria. Captured
+input availability and output publication are explicit, immutable and bounded.
+Source capture follows the IO contract rather than a second CLI-owned reader.
+
+Public CLI tests must exercise actual static model calculations, DC rebinds and
+different Monte Carlo seeds, plus failure/cancellation/missing origin and
+incomplete output publication. Primary/oracle assessment and direct host/release
+consumer migration are separately verified by their owners.
+
 Session is a caller-owned value. Bound model shared state retains its existing
 common Mutex owner; CLI introduces no mutable global or platform synchronization
 branch. Each public analysis owns cancellation and transient-session cleanup.

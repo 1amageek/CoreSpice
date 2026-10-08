@@ -1,4 +1,5 @@
 import CircuiteFoundation
+import CoreSpiceIO
 import CircuiteFoundationFoundation
 import CircuiteFoundationFileSystem
 import Foundation
@@ -15,6 +16,10 @@ struct CoreSpiceCLIArtifactReferencer: Sendable {
       identifier: "CoreSpiceCLI",
       version: "0.1.0"
     )
+  }
+
+  func input(capture: SPICESourceCapture, kind: ArtifactKind, format: ArtifactFormat) -> ArtifactReference {
+    ArtifactReference(id: capture.artifactID, descriptor: ArtifactDescriptor(role: .input, kind: kind, format: format))
   }
 
   func input(

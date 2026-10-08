@@ -521,7 +521,11 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
     }
 
     private static func modelLookup(_ models: [ParsedModel]) -> [String: ParsedModel] {
-        Dictionary(uniqueKeysWithValues: models.map { ($0.name.lowercased(), $0) })
+        var result: [String: ParsedModel] = [:]
+        for model in models {
+            result[model.name.lowercased()] = model
+        }
+        return result
     }
 
     private static func mergedModelLookup(

@@ -121,8 +121,7 @@ public final class ParserRegistry: Sendable {
         }
 
         return await parser.parse(
-            source: source,
-            fileName: fileName,
+            document: SPICESourceDocument(text: source, resolvedPath: fileName),
             configuration: configuration,
             fileResolver: fileResolver
         )
@@ -145,7 +144,7 @@ public final class ParserRegistry: Sendable {
         let resolver = fileResolver ?? LocalFileResolver()
 
         do {
-            let source = try await resolver.readFile(at: path)
+            let document = try await resolver.readFile(at: path)
             let selectedFormat = format ?? {
                 if let p = parser(forPath: path) {
                     return p.formatIdentifier
@@ -153,13 +152,14 @@ public final class ParserRegistry: Sendable {
                 return nil
             }()
 
-            return await parse(
-                source: source,
-                format: selectedFormat,
-                fileName: path,
-                configuration: configuration,
-                fileResolver: resolver
-            )
+            let selectedParser: (any NetlistParser)?
+            if let selectedFormat {
+                selectedParser = parser(for: selectedFormat)
+            } else {
+                selectedParser = detectParser(for: document.text)
+            }
+            guard let selectedParser else { return ParseResult(errors: [.error("No parser available for source document")]) }
+            return await selectedParser.parse(document: document, configuration: configuration, fileResolver: resolver)
         } catch {
             return ParseResult(errors: [
                 .error("Failed to read file: \(error)")

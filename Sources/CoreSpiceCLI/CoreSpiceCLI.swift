@@ -152,8 +152,8 @@ struct CLI {
   ) async throws -> CoreSpiceCLIBatchRunRecord {
     let loadedDeck = try await SPICEDeckLoader.loadFile(at: options.deckPath)
     let artifactReferencer = try CoreSpiceCLIArtifactReferencer()
-    let inputArtifacts = try loadedDeck.inputPaths.map { path in
-      try artifactReferencer.input(path: path, kind: .netlist, format: .spice)
+    let inputArtifacts = loadedDeck.captures.map { capture in
+      artifactReferencer.input(capture: capture, kind: .netlist, format: .spice)
     }
     var outputArtifacts: [ArtifactReference] = []
     if let coveragePath = options.outputs.coverageJSON {

@@ -8,18 +8,36 @@ public struct LoadedSPICEDeck: Sendable {
     public let source: String
     public let netlist: ParsedNetlist
     public let coverage: SPICEDeckCoverageReport
-    public let inputPaths: [String]
+    public let captures: [SPICESourceCapture]
+    public let capturePolicy: SPICESourceCapturePolicy
+    public var inputPaths: [String] { captures.compactMap(\.resolvedPath) }
+    public var modelOrigins: [String: ParsedModelOrigin] {
+        func collect(models: [ParsedModel], subcircuits: [ParsedSubcircuit],
+                     into result: inout [String: ParsedModelOrigin]) {
+            for model in models {
+                if let origin = model.origin { result[origin.declarationID] = origin }
+            }
+            for subcircuit in subcircuits {
+                collect(models: subcircuit.body.models, subcircuits: subcircuit.body.subcircuits, into: &result)
+            }
+        }
+        var result: [String: ParsedModelOrigin] = [:]
+        collect(models: netlist.models, subcircuits: netlist.subcircuits, into: &result)
+        return result
+    }
 
-    public init(
+    init(
         source: String,
         netlist: ParsedNetlist,
         coverage: SPICEDeckCoverageReport,
-        inputPaths: [String]
+        captures: [SPICESourceCapture],
+        capturePolicy: SPICESourceCapturePolicy
     ) {
         self.source = source
         self.netlist = netlist
         self.coverage = coverage
-        self.inputPaths = inputPaths
+        self.captures = captures
+        self.capturePolicy = capturePolicy
     }
 }
 
@@ -51,15 +69,17 @@ public enum SPICEDeckLoader {
     /// Loads a deck file and resolves every nested `.include` and `.lib`.
     public static func loadFile(
         at path: String,
-        includePaths: [String] = []
+        includePaths: [String] = [],
+        capturePolicy: SPICESourceCapturePolicy = .hostDefault,
+        sourceReader: any SPICESourceReading = LocalSPICESourceReader()
     ) async throws -> LoadedSPICEDeck {
         let rootPath = canonicalPath(path)
-        let resolver = RecordingFileResolver(
-            base: LocalFileResolver(searchPaths: includePaths)
-        )
-        let source: String
+        let resolver = SPICECapturingFileResolver(includePaths: includePaths, policy: capturePolicy, reader: sourceReader)
+        let document: SPICESourceDocument
         do {
-            source = try await resolver.readFile(at: rootPath)
+            document = try await resolver.readFile(at: rootPath)
+        } catch let error as SPICESourceCaptureError {
+            throw error
         } catch {
             throw SPICEDeckLoadError.fileRead(
                 path: rootPath,
@@ -67,8 +87,7 @@ public enum SPICEDeckLoader {
             )
         }
         return try await load(
-            source: source,
-            fileName: rootPath,
+            document: document,
             includePaths: includePaths,
             resolver: resolver
         )
@@ -78,27 +97,19 @@ public enum SPICEDeckLoader {
     public static func load(
         source: String,
         fileName: String? = nil,
-        includePaths: [String] = []
+        includePaths: [String] = [],
+        capturePolicy: SPICESourceCapturePolicy = .hostDefault,
+        sourceReader: any SPICESourceReading = LocalSPICESourceReader()
     ) async throws -> LoadedSPICEDeck {
-        let resolver = RecordingFileResolver(
-            base: LocalFileResolver(searchPaths: includePaths)
-        )
-        if let fileName {
-            await resolver.record(canonicalPath(fileName))
-        }
-        return try await load(
-            source: source,
-            fileName: fileName.map(canonicalPath),
-            includePaths: includePaths,
-            resolver: resolver
-        )
+        let resolver = SPICECapturingFileResolver(includePaths: includePaths, policy: capturePolicy, reader: sourceReader)
+        let document = try await resolver.captureMemory(source, fileName: fileName)
+        return try await load(document: document, includePaths: includePaths, resolver: resolver)
     }
 
     private static func load(
-        source: String,
-        fileName: String?,
+        document: SPICESourceDocument,
         includePaths: [String],
-        resolver: RecordingFileResolver
+        resolver: SPICECapturingFileResolver
     ) async throws -> LoadedSPICEDeck {
         let configuration = ParserConfiguration(
             resolveIncludes: true,
@@ -106,11 +117,11 @@ public enum SPICEDeckLoader {
         )
         let parser = SPICEParser()
         let parseResult = await parser.parse(
-            source: source,
-            fileName: fileName,
+            document: document,
             configuration: configuration,
             fileResolver: resolver
         )
+        if let failure = await resolver.captureFailure() { throw failure }
         let netlist = try parseResult.get()
         let coverage = SPICEDeckCoverageReport.generate(from: parseResult)
         let blocked = coverage.items.filter { $0.status == .blocked }
@@ -118,10 +129,11 @@ public enum SPICEDeckLoader {
             throw SPICEDeckLoadError.blockedExecutionIntent(items: blocked)
         }
         return LoadedSPICEDeck(
-            source: source,
+            source: document.text,
             netlist: netlist,
             coverage: coverage,
-            inputPaths: await resolver.recordedPaths()
+            captures: await resolver.capturedSources(),
+            capturePolicy: resolver.policy
         )
     }
 
@@ -130,58 +142,5 @@ public enum SPICEDeckLoader {
             .standardizedFileURL
             .resolvingSymlinksInPath()
             .path
-    }
-}
-
-private actor RecordingFileResolver: ResolvedPathProvidingFileResolver {
-    private let base: LocalFileResolver
-    private var paths: [String] = []
-    private var pathSet: Set<String> = []
-
-    init(base: LocalFileResolver) {
-        self.base = base
-    }
-
-    func resolveInclude(path: String, relativeTo: String?) async throws -> String {
-        let resolved = try await resolvedPath(for: path, relativeTo: relativeTo)
-        return try await readFile(at: resolved)
-    }
-
-    func resolveLibrary(
-        path: String,
-        section: String?,
-        relativeTo: String?
-    ) async throws -> String {
-        let resolved = try await resolvedPath(for: path, relativeTo: relativeTo)
-        return try await base.resolveLibrary(
-            path: resolved,
-            section: section,
-            relativeTo: nil
-        )
-    }
-
-    func readFile(at path: String) async throws -> String {
-        record(path)
-        return try await base.readFile(at: path)
-    }
-
-    func resolvedPath(for path: String, relativeTo: String?) async throws -> String {
-        let resolved = try await base.resolvedPath(for: path, relativeTo: relativeTo)
-        record(resolved)
-        return resolved
-    }
-
-    func record(_ path: String) {
-        let canonical = URL(fileURLWithPath: path)
-            .standardizedFileURL
-            .resolvingSymlinksInPath()
-            .path
-        if pathSet.insert(canonical).inserted {
-            paths.append(canonical)
-        }
-    }
-
-    func recordedPaths() -> [String] {
-        paths
     }
 }

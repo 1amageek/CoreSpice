@@ -24,6 +24,15 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### Bound selected-origin identity
+
+PreparedCircuit rejects a bound model whose declarationID differs from the plan's
+selected model, even if model names/types match. This closes the concrete same-name
+wrong-source substitution counterexample; permitted parameter perturbations still
+retain their original model identity. Origin consistency proves binding composition,
+not actual analysis execution or qualification.
+
+
 Bound-device stamps and accepted history commits may throw; all actual callers propagate errors. Newton residual re-stamps obey the same throwing contract. Numerical convergence retries handle AnalysisError only, preserving device failures. Noise admission is checked before execution for devices with an explicit unsupported noise contract.
 
 ## State, Ownership, and Lifecycle

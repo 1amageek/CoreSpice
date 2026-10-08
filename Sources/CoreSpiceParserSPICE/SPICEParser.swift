@@ -14,18 +14,9 @@ public struct SPICEParser: NetlistParser {
 
     public init() {}
 
-    public func parse(
-        source: String,
-        fileName: String?,
-        configuration: ParserConfiguration,
-        fileResolver: any FileResolver
-    ) async -> ParseResult {
-        var parser = SPICEParserImpl(
-            source: source,
-            fileName: fileName,
-            configuration: configuration,
-            fileResolver: fileResolver
-        )
+    public func parse(document: SPICESourceDocument, configuration: ParserConfiguration,
+                      fileResolver: any FileResolver) async -> ParseResult {
+        var parser = SPICEParserImpl(document: document, configuration: configuration, fileResolver: fileResolver)
         return await parser.parse()
     }
 
@@ -71,6 +62,7 @@ public struct SPICEParser: NetlistParser {
 private struct SPICEParserImpl {
 
     private let source: String
+    private let captureID: String?
     private let fileName: String?
     private let configuration: ParserConfiguration
     private let fileResolver: any FileResolver
@@ -96,15 +88,15 @@ private struct SPICEParserImpl {
     private var title: String?
 
     init(
-        source: String,
-        fileName: String?,
+        document: SPICESourceDocument,
         configuration: ParserConfiguration,
         fileResolver: any FileResolver,
         includeDepth: Int = 0,
         conditionalParameterExpressions: [String: String] = [:]
     ) {
-        self.source = source
-        self.fileName = fileName
+        self.source = document.text
+        self.fileName = document.resolvedPath
+        self.captureID = document.captureID
         self.configuration = configuration
         self.fileResolver = fileResolver
         self.includeDepth = includeDepth
@@ -1188,7 +1180,8 @@ private struct SPICEParserImpl {
             type: type,
             level: level,
             parameters: params,
-            location: location
+            location: location,
+            origin: captureID.flatMap { id in location.map { ParsedModelOrigin(captureID: id, location: $0, ordinal: models.count) } }
         ))
     }
 
@@ -1264,11 +1257,7 @@ private struct SPICEParserImpl {
 
             do {
                 let content = try await fileResolver.resolveInclude(path: path, relativeTo: fileName)
-                let childPath = try await resolvedChildPath(path, relativeTo: fileName)
-                try await parseIncludedContent(
-                    content,
-                    fileName: childPath
-                )
+                try await parseIncludedContent(content)
             } catch {
                 diagnostics.append(.error(
                     "Failed to include '\(path)': \(error)",
@@ -1279,15 +1268,14 @@ private struct SPICEParserImpl {
     }
 
     /// Parses included file content and merges it into the current state.
-    private mutating func parseIncludedContent(_ content: String, fileName: String) async throws {
+    private mutating func parseIncludedContent(_ document: SPICESourceDocument) async throws {
         var inheritedConditionalParameters = conditionalParameterExpressions
         for (name, expression) in parameters {
             inheritedConditionalParameters[name.lowercased()] = expression.description
         }
 
         var includedParser = SPICEParserImpl(
-            source: content,
-            fileName: fileName,
+            document: document,
             configuration: configuration,
             fileResolver: fileResolver,
             includeDepth: includeDepth + 1,
@@ -1351,11 +1339,7 @@ private struct SPICEParserImpl {
                     section: section,
                     relativeTo: fileName
                 )
-                let childPath = try await resolvedChildPath(path, relativeTo: fileName)
-                try await parseIncludedContent(
-                    content,
-                    fileName: childPath
-                )
+                try await parseIncludedContent(content)
             } catch {
                 diagnostics.append(.error(
                     "Failed to include library '\(path)' section '\(section ?? "default")': \(error)",
@@ -1363,19 +1347,6 @@ private struct SPICEParserImpl {
                 ))
             }
         }
-    }
-
-    private func resolvedChildPath(_ path: String, relativeTo base: String?) async throws -> String {
-        if let resolver = fileResolver as? any ResolvedPathProvidingFileResolver {
-            return try await resolver.resolvedPath(for: path, relativeTo: base)
-        }
-        guard !path.hasPrefix("/"), let base else {
-            return path
-        }
-        return URL(fileURLWithPath: base)
-            .deletingLastPathComponent()
-            .appendingPathComponent(path)
-            .path
     }
 
     private mutating func parseTransientAnalysis(location: SourceLocation?) throws {

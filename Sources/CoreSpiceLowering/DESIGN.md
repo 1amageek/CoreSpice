@@ -25,6 +25,22 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### Exact lexical declaration preservation
+
+When LoweringContext.model returns the selected ParsedModel, its origin's
+declarationID is copied into ResolvedDeviceModel. Scoped/forward resolution uses
+that actual value, including last declaration precedence. Same names in different
+sources are not interchangeable origins. Physical maps retain their existing
+semantics; uncaptured origins remain nil. [IO](../CoreSpiceIO/DESIGN.md#consumed-source-capture-required-migration)
+owns the full captured-source inventory.
+Current origin transport covers instances retaining ResolvedDeviceModel
+(semiconductor resistors and native BSIM3/4). Other model families still flatten
+model parameters, and generated FET/URC instances do not retain their source
+declaration. This existing loss is explicitly incomplete: the CLI case-emission
+slice must retain those actual model origins before issuing complete receipts.
+It cannot classify those executions as model-free from an absent IR model field.
+
+
 Document geometry scale has one immutable semantic value for a lowering run.
 `Configuration.geometryScale` explicitly overrides the deck; otherwise the last
 resolved `.options scale` is consumed, with default one. A finite positive scale

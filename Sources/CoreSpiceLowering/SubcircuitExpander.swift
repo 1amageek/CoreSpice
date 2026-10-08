@@ -102,8 +102,14 @@ public struct SubcircuitExpander: Sendable {
                     }
                     resolved["version"] = .string(identity)
                 }
-                deviceModel = ResolvedDeviceModel(name: model.name, typeName: typeName, parameters: resolved)
+                deviceModel = ResolvedDeviceModel(name: model.name, typeName: typeName, parameters: resolved, declarationID: model.origin?.declarationID)
             } else {
+                // FIXME(INCOMPLETE_IMPLEMENTATION):
+                // SPICEIO and the CLI still flatten non-compact model parameters
+                // without retaining their selected declaration in executed IR,
+                // including generated FET/URC instances. Qualified case emission
+                // must refuse this path until it retains complete model provenance;
+                // absence of IR model metadata does not prove model-free execution.
                 for (name, value) in modelParameters { evaluatedParams[name] = .real(value) }
             }
         }

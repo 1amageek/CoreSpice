@@ -60,18 +60,22 @@ public struct ParsedModel: Sendable, Hashable {
     /// The source location of this model definition.
     public let location: SourceLocation?
 
+    public let origin: ParsedModelOrigin?
+
     public init(
         name: String,
         type: ModelType,
         level: Int? = nil,
         parameters: [String: ParsedParameterValue] = [:],
-        location: SourceLocation? = nil
+        location: SourceLocation? = nil,
+        origin: ParsedModelOrigin? = nil
     ) {
         self.name = name
         self.type = type
         self.level = level
         self.parameters = parameters
         self.location = location
+        self.origin = origin
     }
 }
 

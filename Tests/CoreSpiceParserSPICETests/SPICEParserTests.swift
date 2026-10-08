@@ -1340,25 +1340,25 @@ private struct MemoryFileResolver: FileResolver {
         self.libraries = libraries
     }
 
-    func resolveInclude(path: String, relativeTo: String?) async throws -> String {
+    func resolveInclude(path: String, relativeTo: String?) async throws -> SPICESourceDocument {
         guard let content = includes[path] else {
             throw FileResolverError.fileNotFound(path: path)
         }
-        return content
+        return SPICESourceDocument(text: content, resolvedPath: path)
     }
 
-    func resolveLibrary(path: String, section: String?, relativeTo: String?) async throws -> String {
+    func resolveLibrary(path: String, section: String?, relativeTo: String?) async throws -> SPICESourceDocument {
         guard let content = libraries[path] else {
             throw FileResolverError.fileNotFound(path: path)
         }
-        return content
+        return SPICESourceDocument(text: content, resolvedPath: path)
     }
 
-    func readFile(at path: String) async throws -> String {
+    func readFile(at path: String) async throws -> SPICESourceDocument {
         guard let content = includes[path] ?? libraries[path] else {
             throw FileResolverError.fileNotFound(path: path)
         }
-        return content
+        return SPICESourceDocument(text: content, resolvedPath: path)
     }
 }
 

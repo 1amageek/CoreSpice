@@ -29,6 +29,16 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### Captured model declaration origin
+
+ParsedModel.origin retains the capture identity, actual declaration start and
+parse-local ordinal. Its declarationID distinguishes declarations even when names
+match; it does not identify physical model parameters. Uncaptured/programmatic
+models have nil origin. [IO](../CoreSpiceIO/DESIGN.md#consumed-source-capture-required-migration)
+owns source bytes and capture policy. ParserSPICE creates origin from its actual
+source document; lowering copies the selected identity without inferring it.
+
+
 `numericVector` is a Sendable/Hashable ordered value. It is preserved by SPICE
 serialization and lowering as `ParameterValue.realVector`; it never becomes a
 scalar default. Source descriptors own finite, strictly increasing PWL admission.

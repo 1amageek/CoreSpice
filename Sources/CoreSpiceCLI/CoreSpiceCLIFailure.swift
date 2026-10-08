@@ -39,6 +39,28 @@ extension CoreSpiceCLIFailure {
     case let cliError as CLIError:
       self.init(cliError: cliError)
 
+    case let captureError as SPICESourceCaptureError:
+      let code: String
+      let actions: [String]
+      switch captureError {
+      case .invalidPolicy, .totalByteLimitExceeded, .sourceCountLimitExceeded:
+        code = "io.source-capture-budget"
+        actions = ["inspect the effective source capture policy and graph size"]
+      case .invalidUTF8:
+        code = "io.source-encoding"
+        actions = ["provide a valid UTF-8 SPICE source"]
+      case .readFailed:
+        code = "io.file-read"
+        actions = ["verify that the deck path exists and is readable"]
+      case .sourceChangedDuringRead:
+        code = "io.source-changed"
+        actions = ["retry with an immutable source graph"]
+      case .closeFailed, .cleanupFailed:
+        code = "io.source-close"
+        actions = ["inspect the source read and close failure before retrying"]
+      }
+      self.init(code: code, message: Self.describe(captureError), stage: "load", suggestedActions: actions)
+
     case let diagnostic as ParserDiagnostic:
       self.init(
         code: "deck.parse",

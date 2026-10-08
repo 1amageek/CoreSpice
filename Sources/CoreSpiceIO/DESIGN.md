@@ -33,6 +33,44 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### Consumed-source capture: required migration
+
+The loader owns immutable full-file UTF-8 bytes from the actual read used by the
+parser. The host resolver returns text, captured content identity and the chosen
+resolved path together; a second path lookup cannot supply the source identity.
+Repeated canonical paths reuse the owned capture for one load, including when
+the original path changes afterward. In-memory source retains its supplied bytes
+even when its diagnostic filename names a different existing file. Paths remain
+availability and diagnostic metadata, separate from content identity.
+
+Library selection projects the retained full-file source while preserving the
+original physical newline positions. Nonselected lines are blanked, not removed;
+selected continuation statements retain their actual physical locations. The
+parser retains declaration identity derived from captured content and actual
+statement position. Lowering carries the exact selected lexical declaration's
+identity, and IR does not import ParsedIR or contain source metadata in physical
+parameter dictionaries. Missing origin remains explicitly unavailable for model
+receipt emission rather than being inferred from a model name.
+
+Capture limits belong to an explicit host policy with caller override. Effective
+whole-graph byte, unique-source-count and read-page limits are finite, positive,
+retained with the load and checked before read, append or materialization.
+Operational defaults have an identified owner and selection rule and must admit
+the observed adopted input graph within the stated budget; they are not physical
+accuracy thresholds. Failed reads, invalid UTF-8, limit violations and checked
+close failures register no successful capture. Capture lifetime is the loaded
+deck lifetime; retained buffers are reused across parser and execution consumers.
+
+Loader tests own mutation-after-read, repeated source reuse, memory-source
+identity, library physical locations, graph limits and read/close failure proof.
+Lowering and Analysis own selected-origin preservation and wrong-origin bound
+substitution refusal. CLI creates input references from these captured bytes,
+never by rereading original paths after parsing. Actual per-phase observations
+and qualification emission remain a separate composition step.
+Coverage lookup accepts repeated declarations from reused sources and selects
+the last declaration in the same lexical scope, matching native lowering.
+Repeated includes cannot trap while constructing the coverage lookup.
+
 Document geometry scale is resolved by `SPICEAnalysisOptions` and passed as the
 explicit `NetlistLowering.Configuration.geometryScale` value. Direct public
 parse-and-lower delegates source option intake to lowering when that explicit
@@ -111,3 +149,25 @@ Configuration and deviceRegistry, including CLI source overrides/Monte Carlo/
 sensitivity rebinds. The choice is execution provenance, not model IR. Direct
 API callers may request noise capability before lowering/binding; late requests
 on electrical-only topology fail explicitly.
+
+## Host capture policy
+
+SPICESourceCapturePolicy.hostDefault selects operational ceilings of 64 MiB of
+unique retained raw UTF-8 bytes, 4096 unique sources and 64 KiB read pages. The
+caller may override all fields; positive finite integer values and page <= total
+are required. LoadedSPICEDeck retains the effective policy. These ceilings are
+host resource policy, not physical tolerances or PDK qualification. A policy
+change requires representative adopted-graph admission and byte/count/page boundary
+verification. Captured source storage owns its bytes for the loaded deck lifetime.
+Read and close failures propagate through typed capture errors. The injected
+SPICESourceReading contract provides bounded reads with checked close; the local
+adapter checks remaining graph capacity before reading pages.
+
+The adopted immutable graph's static inventory is TT 171 sources/7,134,157 bytes,
+SS 171/7,145,502 and FF 171/7,153,041, all below hostDefault. This is inventory
+admission evidence, not a completed parser or numerical execution. The focused
+loader tests prove actual loading for their complete synthetic graphs. The current
+Sky130 parser still refuses runtime-dependent resistor grammar; full graph parsing
+must not be reported as successful from this inventory alone. Batch record source
+inventory persistence and per-phase/TQ emission remain the next CLI composition
+slice; this slice returns captured references without asserting those capabilities.
