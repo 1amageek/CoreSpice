@@ -11,7 +11,7 @@ public struct SPICELexer: Sendable {
     private let fileName: String?
     private let configuration: ParserConfiguration
     private var index: String.Index
-    private var lineStart: String.Index
+    private var isLinePrefixWhitespace: Bool = true
     private var line: Int = 1
     private var column: Int = 1
 
@@ -24,18 +24,30 @@ public struct SPICELexer: Sendable {
         self.fileName = fileName
         self.configuration = configuration
         self.index = source.startIndex
-        self.lineStart = source.startIndex
     }
 
     /// Tokenizes the entire source.
     public mutating func tokenize() -> [SPICEToken.Located] {
         var tokens: [SPICEToken.Located] = []
+        var statementEnd: Int?
 
         while !isAtEnd {
             if let token = nextToken() {
-                if case .continuation = token.token, let last = tokens.last, case .newline = last.token {
-                    tokens.removeLast()
-                } else { tokens.append(token) }
+                switch token.token {
+                case .continuation:
+                    if let statementEnd {
+                        // Fold only trivia following the last regular card. Without a
+                        // continuation, comments and physical separators stay intact.
+                        tokens.removeSubrange(statementEnd..<tokens.count)
+                    } else {
+                        tokens.append(token)
+                    }
+                case .newline, .comment:
+                    tokens.append(token)
+                default:
+                    tokens.append(token)
+                    statementEnd = tokens.count
+                }
             }
         }
 
@@ -59,13 +71,13 @@ public struct SPICELexer: Sendable {
         let char = current
 
         // Handle newlines
-        if char == "\n" {
+        if isAtNewline {
             advance()
             return SPICEToken.Located(token: .newline, location: startLocation)
         }
 
         // Handle continuation at start of line (after newline)
-        if char == "+" && source[lineStart..<index].allSatisfy({ $0.isWhitespace }) {
+        if char == "+" && isLinePrefixWhitespace {
             advance()
             return SPICEToken.Located(token: .continuation, location: startLocation)
         }
@@ -124,7 +136,7 @@ public struct SPICELexer: Sendable {
             return SPICEToken.Located(token: .minus, location: startLocation)
         case "*":
             // Check for comment
-            if column == 1 {
+            if isLinePrefixWhitespace {
                 return scanLineComment(startLocation: startLocation)
             }
             advance()
@@ -343,7 +355,7 @@ public struct SPICELexer: Sendable {
         advance() // skip opening quote
 
         var value = ""
-        while !isAtEnd && current != quote && current != "\n" {
+        while !isAtEnd && current != quote && !isAtNewline {
             if current == "\\" && peek() == quote {
                 advance()
             }
@@ -360,7 +372,7 @@ public struct SPICELexer: Sendable {
 
     private mutating func scanLineComment(startLocation: SourceLocation) -> SPICEToken.Located {
         var comment = ""
-        while !isAtEnd && current != "\n" {
+        while !isAtEnd && !isAtNewline {
             comment.append(current)
             advance()
         }
@@ -379,7 +391,7 @@ public struct SPICELexer: Sendable {
 
             // Skip inline comments ($)
             if char == "$" {
-                while !isAtEnd && current != "\n" {
+                while !isAtEnd && !isAtNewline {
                     advance()
                 }
                 continue
@@ -387,7 +399,7 @@ public struct SPICELexer: Sendable {
 
             // Skip ; comments to end of line
             if char == ";" {
-                while !isAtEnd && current != "\n" {
+                while !isAtEnd && !isAtNewline {
                     advance()
                 }
                 continue
@@ -407,6 +419,10 @@ public struct SPICELexer: Sendable {
         source[index]
     }
 
+    private var isAtNewline: Bool {
+        current == "\n" || current == "\r\n"
+    }
+
     private func peek() -> Character? {
         let nextIndex = source.index(after: index)
         guard nextIndex < source.endIndex else { return nil }
@@ -414,12 +430,15 @@ public struct SPICELexer: Sendable {
     }
 
     private mutating func advance() {
-        if current == "\n" {
+        if isAtNewline {
             line += 1
             column = 1
-            lineStart = source.index(after: index)
+            isLinePrefixWhitespace = true
         } else {
             column += 1
+            if !current.isWhitespace {
+                isLinePrefixWhitespace = false
+            }
         }
         index = source.index(after: index)
     }
