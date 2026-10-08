@@ -48,17 +48,38 @@ public struct ParameterExpressionResolver: Sendable {
         }
     }
 
+    /// Only explicit instance assignments may read their own caller binding.
+    func resolveInstanceParameters(
+        _ parameters: [String: ParsedParameterValue],
+        callerReferenceNames: Set<String>
+    ) throws -> [String: Double] {
+        try context.withScope(parameters: [:]) {
+            try resolve(parameters, reservesLocalNames: true, callerReferenceNames: callerReferenceNames) { name, value in
+                try context.setScopedParameter(name, value: value)
+            }
+        }
+    }
+
     private func resolve(
         _ parameters: [String: ParsedParameterValue],
+        reservesLocalNames: Bool = false,
+        callerReferenceNames: Set<String> = [],
         publish: (String, Double) throws -> Void
     ) throws -> [String: Double] {
         var pending = parameters
+        if reservesLocalNames {
+            pending = [:]
+            for name in parameters.keys.sorted() {
+                pending[name.lowercased()] = parameters[name]
+            }
+        }
+        let callerNames = Set(callerReferenceNames.map { $0.lowercased() })
         var resolved: [String: Double] = [:]
-        var lastFailure: Error?
-        let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
 
         while !pending.isEmpty {
             var progressed = false
+            var blockedReferences: [String: String] = [:]
+            var failure: Error?
 
             for name in pending.keys.sorted() {
                 guard let expression = pending[name] else {
@@ -66,24 +87,40 @@ public struct ParameterExpressionResolver: Sendable {
                 }
 
                 do {
+                    var unresolvedNames = reservesLocalNames ? Set(pending.keys) : []
+                    if callerNames.contains(name) {
+                        unresolvedNames.remove(name)
+                    }
+                    let evaluator = ExpressionEvaluator(
+                        context: context,
+                        randomUniform: randomUniform,
+                        unresolvedParameterNames: unresolvedNames
+                    )
                     let value = try evaluator.evaluate(expression)
                     try publish(name, value)
                     resolved[name.lowercased()] = value
                     pending.removeValue(forKey: name)
                     progressed = true
+                } catch let reference as ExpressionEvaluator.UnresolvedParameterReference {
+                    blockedReferences[name] = reference.name
                 } catch {
-                    lastFailure = error
+                    failure = error
                 }
             }
 
             if !progressed {
-                if let lastFailure {
-                    throw lastFailure
+                if let failure {
+                    throw failure
                 }
-                throw LoweringError.expressionEvaluationFailed(
-                    expression: pending.keys.sorted().joined(separator: ", "),
-                    reason: "Could not resolve parameter dependency graph"
-                )
+                // Every remaining assignment waits for another pending local.
+                // Following these observed references identifies a real cycle,
+                // including references inside the evaluated conditional branch.
+                var visited: Set<String> = []
+                var name = pending.keys.sorted().first!
+                while visited.insert(name).inserted, let dependency = blockedReferences[name] {
+                    name = dependency
+                }
+                throw LoweringError.circularParameterDependency(parameter: name)
             }
         }
 

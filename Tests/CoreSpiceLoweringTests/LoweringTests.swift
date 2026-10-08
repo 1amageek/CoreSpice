@@ -279,7 +279,141 @@ struct LoweringContextTests {
 }
 
 @Suite
+struct ParameterExpressionResolverTests {
+
+    @Test
+    func unresolvedLocalNamesHideParentValues() throws {
+        let context = LoweringContext()
+        context.setParameter("z", value: 17)
+        let values = try ParameterExpressionResolver(context: context).resolveInstanceParameters([
+            "a": .expression(.identifier("Z")),
+            "Z": .numeric(2000)
+        ], callerReferenceNames: [])
+        #expect(values == ["a": 2000, "z": 2000])
+        #expect(context.parameter("z") == 17)
+        #expect(context.parameter("a") == nil)
+    }
+
+    @Test
+    func missingReferenceRestoresParentScope() throws {
+        let context = LoweringContext()
+        context.setParameter("a", value: 17)
+        let resolver = ParameterExpressionResolver(context: context)
+        do {
+            _ = try resolver.resolveInstanceParameters([
+                "a": .numeric(2000),
+                "b": .expression(.identifier("missing"))
+            ], callerReferenceNames: [])
+            Issue.record("Expected a missing reference to fail")
+        } catch let error as LoweringError {
+            guard case .undefinedParameter(let name, _) = error else {
+                Issue.record("Unexpected failure: \(error)")
+                return
+            }
+            #expect(name == "missing")
+        }
+        #expect(context.parameter("a") == 17)
+        #expect(context.parameter("b") == nil)
+        let next = try resolver.resolveInstanceParameters(["a": .numeric(3000)], callerReferenceNames: [])
+        #expect(next == ["a": 3000])
+        #expect(context.parameter("a") == 17)
+    }
+
+    @Test
+    func localCycleCannotUseParentValues() throws {
+        let context = LoweringContext()
+        context.setParameter("a", value: 17)
+        context.setParameter("z", value: 19)
+        do {
+            _ = try ParameterExpressionResolver(context: context).resolveInstanceParameters([
+                "a": .expression(.identifier("z")),
+                "z": .expression(.identifier("a"))
+            ], callerReferenceNames: [])
+            Issue.record("Expected a local dependency cycle to fail")
+        } catch let error as LoweringError {
+            guard case .circularParameterDependency(let name) = error else {
+                Issue.record("Unexpected failure: \(error)")
+                return
+            }
+            #expect(name == "a")
+        }
+        #expect(context.parameter("a") == 17)
+        #expect(context.parameter("z") == 19)
+    }
+
+    @Test
+    func onlyExplicitActualMayReadItsOwnCallerBinding() throws {
+        let context = LoweringContext()
+        context.setParameter("l", value: 0.15)
+        let resolver = ParameterExpressionResolver(context: context)
+        let values: [String: ParsedParameterValue] = ["l": .expression(.identifier("L"))]
+        do {
+            _ = try resolver.resolveInstanceParameters(values, callerReferenceNames: [])
+            Issue.record("Expected a default self-reference to fail")
+        } catch let error as LoweringError {
+            guard case .circularParameterDependency(let name) = error else {
+                Issue.record("Unexpected failure: \(error)")
+                return
+            }
+            #expect(name == "l")
+        }
+        let actual = try resolver.resolveInstanceParameters(values, callerReferenceNames: ["L"])
+        #expect(actual == ["l": 0.15])
+        #expect(context.parameter("l") == 0.15)
+    }
+
+    @Test
+    func functionFormalShadowsAnUnresolvedLocalName() throws {
+        let context = LoweringContext()
+        context.setParameter("z", value: 17)
+        context.registerFunction(name: "identity", parameters: ["Z"], body: .identifier("z"))
+        let values = try ParameterExpressionResolver(context: context).resolveInstanceParameters([
+            "a": .expression(.functionCall(name: "identity", arguments: [.literal(3)])),
+            "z": .expression(.identifier("a"))
+        ], callerReferenceNames: [])
+        #expect(values == ["a": 3, "z": 3])
+        #expect(context.parameter("z") == 17)
+        #expect(context.parameter("a") == nil)
+    }
+
+    @Test
+    func functionFreeVariableRetainsTheLocalBarrier() throws {
+        let context = LoweringContext()
+        context.setParameter("z", value: 17)
+        context.registerFunction(name: "readz", parameters: [], body: .identifier("z"))
+        let values = try ParameterExpressionResolver(context: context).resolveInstanceParameters([
+            "a": .expression(.functionCall(name: "readz", arguments: [])),
+            "z": .numeric(2000)
+        ], callerReferenceNames: [])
+        #expect(values == ["a": 2000, "z": 2000])
+        #expect(context.parameter("z") == 17)
+    }
+}
+
+@Suite
 struct NetlistLoweringTests {
+
+    @Test
+    func modelOwnNameExpressionRetainsParentLookup() throws {
+        let circuit = try NetlistLowering().lower(ParsedNetlist(
+            components: [ParsedComponent(
+                name: "M1", type: .mosfet, nodes: ["d", "g", "s", "b"],
+                modelName: "nch", parameters: ["w": .numeric(1e-6), "l": .numeric(1e-6)]
+            )],
+            models: [ParsedModel(
+                name: "nch", type: .nmos, level: 1,
+                parameters: ["vto": .expression(.identifier("vto"))]
+            )],
+            parameters: ["vto": .literal(1)]
+        ))
+        let instance = try #require(circuit.instances.first)
+        #expect(instance.typeName == "nmos_l1")
+        if case .real(let threshold) = instance.parameters["vto"] {
+            #expect(threshold == 1)
+        } else {
+            Issue.record("Expected model vto to consume the parent parameter")
+        }
+    }
 
     @Test
     func lowerSimpleResistor() throws {
@@ -986,8 +1120,8 @@ struct SubcircuitExpansionTests {
         }
     }
 
-    @Test
-    func subcircuitBodyParameterCannotShadowPublicParameter() throws {
+    @Test(arguments: [false, true])
+    func subcircuitBodyDefaultsAndActualsHaveOrderedPriority(hasOverride: Bool) throws {
         let resistor = ParsedComponent(
             name: "R1",
             type: .resistor,
@@ -997,7 +1131,7 @@ struct SubcircuitExpansionTests {
         let subcircuit = ParsedSubcircuit(
             name: "ambiguous_res",
             ports: ["p", "n"],
-            parameters: ["base_r": .numeric(1000)],
+            parameters: ["BASE_R": .numeric(1000)],
             body: ParsedNetlistBody(
                 components: [resistor],
                 parameters: ["base_r": .literal(2000)]
@@ -1008,23 +1142,50 @@ struct SubcircuitExpansionTests {
             type: .subcircuitInstance,
             nodes: ["a", "0"],
             modelName: "ambiguous_res",
-            parameters: ["base_r": .numeric(1500)]
+            parameters: hasOverride ? ["Base_R": .numeric(1500)] : [:]
         )
         let netlist = ParsedNetlist(
             components: [instance],
             subcircuits: [subcircuit]
         )
 
-        do {
-            _ = try NetlistLowering().lower(netlist)
-            Issue.record("Expected public/local parameter conflict to fail.")
-        } catch let error as LoweringError {
-            guard case .invalidComponent(let name, let reason) = error else {
-                Issue.record("Unexpected lowering error: \(error)")
-                return
-            }
-            #expect(name == "ambiguous_res")
-            #expect(reason.contains("conflicts with a public subcircuit parameter"))
+        let circuit = try NetlistLowering().lower(netlist)
+        let loweredInstance = try #require(circuit.instances.first)
+        if case .real(let resistance) = loweredInstance.parameters["r"] {
+            #expect(resistance == (hasOverride ? 1500 : 2000))
+        } else {
+            Issue.record("Expected the resolved resistance")
+        }
+    }
+
+    @Test
+    func orderedBodyDefinitionsUseTheLastDeclaration() throws {
+        let subcircuit = ParsedSubcircuit(
+            name: "ordered",
+            ports: ["p", "n"],
+            parameters: ["base": .numeric(1000)],
+            body: ParsedNetlistBody(
+                components: [ParsedComponent(
+                    name: "R1", type: .resistor, nodes: ["p", "n"],
+                    parameters: ["r": .expression(.identifier("base"))]
+                )],
+                parameterDefinitions: [
+                    ParsedParameterDefinition(name: "BASE", value: .literal(1500)),
+                    ParsedParameterDefinition(name: "base", value: .literal(2000))
+                ]
+            )
+        )
+        let circuit = try NetlistLowering().lower(ParsedNetlist(
+            components: [ParsedComponent(
+                name: "X1", type: .subcircuitInstance, nodes: ["a", "0"], modelName: "ordered"
+            )],
+            subcircuits: [subcircuit]
+        ))
+        let instance = try #require(circuit.instances.first)
+        if case .real(let resistance) = instance.parameters["r"] {
+            #expect(resistance == 2000)
+        } else {
+            Issue.record("Expected the last body declaration to win")
         }
     }
 

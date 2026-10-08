@@ -43,6 +43,7 @@ private struct Processor {
     private var outputLines: [String] = []
     private var events: [SPICEPreprocessingEvent] = []
     private var diagnostics: [ParserDiagnostic] = []
+    private var pendingSubcircuitHeader: [String]?
 
     init(source: String, fileName: String?, initialParameters: [String: String]) {
         self.source = source
@@ -55,12 +56,14 @@ private struct Processor {
     }
 
     mutating func process() -> SPICEConditionalPreprocessor.Result {
-        let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let lines = source.split(omittingEmptySubsequences: false,
+            whereSeparator: { $0 == "\n" || $0 == "\r\n" }).map(String.init)
         outputLines.reserveCapacity(lines.count)
 
         for (offset, line) in lines.enumerated() {
             process(line: line, lineNumber: offset + 1)
         }
+        finishSubcircuitHeader()
 
         for frame in frames.reversed() {
             diagnostics.append(.error("Unterminated SPICE conditional block", at: frame.openingLocation))
@@ -74,6 +77,16 @@ private struct Processor {
     }
 
     private mutating func process(line: String, lineNumber: Int) {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        let isTrivia = trimmed.hasPrefix("*") || SPICEInlineCommentStripper.strip(from: trimmed).isEmpty
+        if !isTrivia {
+            if trimmed.hasPrefix("+"), pendingSubcircuitHeader != nil {
+                pendingSubcircuitHeader?.append(SPICEInlineCommentStripper.strip(from: String(trimmed.dropFirst())))
+            } else {
+                finishSubcircuitHeader()
+            }
+        }
+
         guard let directive = ConditionalDirective(line: line, fileName: fileName, lineNumber: lineNumber) else {
             if currentActive {
                 outputLines.append(line)
@@ -237,8 +250,9 @@ private struct Processor {
 
         switch directive.keyword {
         case "subckt":
-            parameterScopes.append(subcircuitParameters(from: directive.body))
+            parameterScopes.append([:])
             functionScopes.append([:])
+            pendingSubcircuitHeader = [SPICEInlineCommentStripper.strip(from: directive.body)]
         case "ends":
             if parameterScopes.count > 1 {
                 parameterScopes.removeLast()
@@ -282,18 +296,34 @@ private struct Processor {
     }
 
     private func subcircuitParameters(from body: String) -> [String: String] {
-        let fields = body.split(whereSeparator: { $0.isWhitespace }).map(String.init)
-        guard let paramsIndex = fields.firstIndex(where: { field in
-            let lower = field.lowercased()
-            return lower == "params:" || lower == "params"
-        }) else {
-            return [:]
-        }
+        var lexer = SPICELexer(source: body)
+        let tokens = lexer.tokenize()
+        // The first field names the subcircuit, even when it is named "params".
+        for index in tokens.indices.dropFirst() {
+            let token = tokens[index]
+            guard case .identifier(let name) = token.token else { continue }
+            let isMarker = name.lowercased() == "params" || name.lowercased() == "params:"
+            let isAssignment = index + 1 < tokens.count && tokens[index + 1].token == .equals
+            guard isMarker || isAssignment else { continue }
 
-        let parameterText = fields[(paramsIndex + 1)...].joined(separator: " ")
-        return ParameterAssignmentParser.parse(parameterText).reduce(into: [:]) { result, assignment in
-            result[assignment.name.lowercased()] = assignment.expression
+            let start = body.index(body.startIndex, offsetBy: token.location.column - 1)
+            var parameterText = String(body[start...])
+            if isMarker {
+                parameterText.removeFirst(name.count)
+                parameterText = parameterText.trimmingCharacters(in: .whitespaces)
+                if parameterText.hasPrefix(":") { parameterText.removeFirst() }
+            }
+            return ParameterAssignmentParser.parse(parameterText).reduce(into: [:]) { result, assignment in
+                result[assignment.name.lowercased()] = assignment.expression
+            }
         }
+        return [:]
+    }
+
+    private mutating func finishSubcircuitHeader() {
+        guard let header = pendingSubcircuitHeader else { return }
+        pendingSubcircuitHeader = nil
+        parameterScopes[parameterScopes.count - 1] = subcircuitParameters(from: header.joined(separator: " "))
     }
 
     private mutating func evaluateCondition(
@@ -581,6 +611,8 @@ private struct ParameterAssignmentParser {
                     index = whitespaceStart
                     return
                 }
+                index = probe
+                continue
             }
             index = text.index(after: index)
         }

@@ -6,13 +6,14 @@ This SwiftPM module owns ParsedNetlist to canonical CircuitIR conversion. Parent
 
 ## Responsibilities and Boundaries
 
-Lowering resolves BSIM3 model and instance expressions in separate roles, retaining exact version identity. It delegates native model admission and auxiliary requirements to BSIM3Preparation.
+Lowering owns instance-local named parameter resolution and scoped model composition. It consumes parsed values rather than SPICE text. BSIM3 model and instance expressions retain separate roles and exact version identity; native model admission and auxiliary requirements delegate to BSIM3Preparation.
 
 ## Related Designs
 
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [CoreSpice](../../DESIGN.md) | parent | Package composition | Owned module boundary | Revalidate direct consumers when contracts change |
+| [ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md) | depends on | ParsedSubcircuit header defaults | Marked/unmarked named values have the same parsed representation | Revalidate public parse-to-lower default and override behavior |
 | [Devices BSIM3](../CoreSpiceDevices/BSIM3/DESIGN.md) | depends on | BSIM3Preparation | Native cold admission | Kernel topology is the authority |
 ## Architecture
 
@@ -26,6 +27,63 @@ flowchart LR
 
 Level 49 maps to native BSIM3 descriptors only after cold model admission succeeds. Model parameters cannot be overridden through instance flattening. Original parameter semantics remain independent; invalid role or version is a typed failure. Level 54 follows the [BSIM4 preparation contract](../CoreSpiceDevices/BSIM4/DESIGN.md).
 
+### Instance-local named parameter resolution
+
+The expander builds one case-insensitive declaration map, in increasing priority:
+header defaults, body `.param` defaults in source order (last declaration wins),
+and explicit X-instance values. The complete map is resolved once before body
+components execute. There is no separate protected-name rejection or second body
+parameter application. Ordered `parameterDefinitions` provide body declaration
+order; the body dictionary supports callers that supply typed IR without that list.
+
+All unresolved names owned by this map hide equally named parent/global values.
+A dependent default observes the final local value even when its key sorts before
+the dependency. Explicit X values retain their origin: a reference to that X
+value's own name may read the caller's existing binding before local publication,
+so nested `l={l}` is pass-through rather than a default self-cycle. References to
+other names in the complete map wait for their local values. User-function formal
+arguments remain inner lexical bindings and take priority over reserved names.
+Missing caller/external references, unresolved dependency cycles and invalid
+expressions remain typed failures, without successful default substitution.
+
+Instance resolution selects an internal resolver policy carrying immutable
+per-attempt reserved-name/self-reference information. The public global/model
+resolver paths keep their existing expression environment: a model value such as
+`vto={vto}` may consume the enclosing parameter. Instance declaration ownership
+does not redefine model parameter names as instance-local declarations.
+Expression evaluation retains the existing Mutex-owned context API;
+no raw shared state, platform branch or new synchronization owner is introduced.
+A temporary scope and then the expansion scope are released by existing `defer`
+paths on success or failure. No resolved parameter or scoped model escapes to a
+sibling instance or parent. Exact model versions and model/instance role separation
+remain governed by the device contracts.
+
+```mermaid
+flowchart LR
+    Header[Header defaults] --> Map[One normalized declaration map]
+    Body[Last body defaults] --> Map
+    Actual[X values with origin] --> Map
+    Map --> Resolve[Local dependencies and caller self pass-through]
+    Caller[Existing caller scope] --> Resolve
+    Resolve --> Scope[Resolved instance scope]
+    Scope --> Components[Body components and scoped models]
+```
+
+| Evidence | Required behavior |
+|---|---|
+| Parent z=17; local a=z and X z=2000 | a resolves to2000, never17 |
+| Header1000, body2000, X1500 | body wins without X; X wins when supplied |
+| Nested X l=l | caller l passes through before local publication |
+| Function formal matches pending local name | formal argument remains lexical |
+| Missing reference or local cycle | typed failure and unchanged parent scope |
+| Repeated/sibling invocations | deterministic independent values and model scope |
+
+This contract follows the pinned ngspice46
+[declaration/default transformation](https://raw.githubusercontent.com/imr/ngspice/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/frontend/inpcom.c)
+and [actual-argument evaluation/publication](https://raw.githubusercontent.com/imr/ngspice/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/frontend/numparam/xpressn.c).
+It addresses unchanged Sky130 wrappers with body `l/w` defaults and nested
+same-name actual arguments; it does not qualify device physics or model binning.
+
 ## State, Ownership, and Lifecycle
 
 LoweringContext owns its existing Mutex. Prepared evaluator used for admission is local and released after topology projection; no C state enters IR.
@@ -36,7 +94,7 @@ Model preparation uses the configured temperature and original defaults. Later b
 
 ## Verification and Change Impact
 
-Integration tests resolve scoped model expressions and conflicting model/instance selectors, plus version/domain failures through actual lowering. Revalidate IR, Devices preparation, and IO coverage.
+Integration tests resolve scoped model expressions and conflicting model/instance selectors, plus version/domain failures through actual lowering. Revalidate IR, Devices preparation, and IO coverage. [Lowering tests](../../Tests/CoreSpiceLoweringTests/) own resolver/scope failures; [public IO tests](../../Tests/CoreSpiceIOTests/) own parse-to-lower precedence, nesting and actual CPU circuit behavior.
 
 ## Canonical PWL Source Migration
 

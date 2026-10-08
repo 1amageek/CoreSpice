@@ -950,17 +950,17 @@ private struct SPICEParserImpl {
         if case .identifier(let id) = currentToken, isParamsKeyword(id) {
             advance()
             if case .colon = currentToken { advance() }
-            while !isAtEnd && !isNewline {
-                if case .identifier(let pname) = currentToken {
-                    advance()
-                    if case .equals = currentToken {
-                        advance()
-                        params[pname] = try parseParameterValue()
-                    }
-                } else {
-                    break
-                }
+        }
+        while !isAtEnd && !isNewline {
+            guard case .identifier(let pname) = currentToken else {
+                throw ParserDiagnostic.error("Expected subcircuit parameter name", at: currentLocation)
             }
+            advance()
+            guard case .equals = currentToken else {
+                throw ParserDiagnostic.error("Expected '=' after subcircuit parameter name", at: currentLocation)
+            }
+            advance()
+            params[pname] = try parseParameterValue()
         }
 
         skipNewlinesAndComments()

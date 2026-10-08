@@ -422,17 +422,31 @@ public struct SubcircuitExpander: Sendable {
         // Create instance prefix
         let instancePrefix = prefix.isEmpty ? component.name : "\(prefix).\(component.name)"
 
-        // Evaluate public parameters. Instance values override defaults before
-        // evaluation, so dependent defaults see the same public-parameter set
-        // the body will see.
-        var publicParameterValues = subcircuit.parameters
-        for (name, value) in component.parameters {
-            publicParameterValues[name] = value
+        // Build the complete instance declaration map before resolving defaults.
+        // Body declarations follow the header; explicit actuals have final priority.
+        var parameterValues: [String: ParsedParameterValue] = [:]
+        for name in subcircuit.parameters.keys.sorted() {
+            parameterValues[name.lowercased()] = subcircuit.parameters[name]
+        }
+        if subcircuit.body.parameterDefinitions.isEmpty {
+            for name in subcircuit.body.parameters.keys.sorted() {
+                parameterValues[name.lowercased()] = subcircuit.body.parameters[name].map {
+                    .expression($0)
+                }
+            }
+        } else {
+            for definition in subcircuit.body.parameterDefinitions {
+                parameterValues[definition.name.lowercased()] = .expression(definition.value)
+            }
+        }
+        let callerReferenceNames = Set(component.parameters.keys.map { $0.lowercased() })
+        for name in component.parameters.keys.sorted() {
+            parameterValues[name.lowercased()] = component.parameters[name]
         }
         let instanceParams = try ParameterExpressionResolver(
             context: context,
             randomUniform: randomUniform
-        ).resolveInTemporaryScope(publicParameterValues)
+        ).resolveInstanceParameters(parameterValues, callerReferenceNames: callerReferenceNames)
 
         // Create port mapping
         var portMapping: [String: String] = [:]
@@ -448,18 +462,11 @@ public struct SubcircuitExpander: Sendable {
             portMapping[port] = externalNode
         }
 
-        let publicParameterNames = Set(instanceParams.keys.map { $0.lowercased() })
-
         // Expand subcircuit body with new scope
         try context.withScope(parameters: instanceParams) {
             for model in subcircuit.body.models {
                 try context.registerScopedModel(model)
             }
-            try applyBodyParameters(
-                subcircuit.body.parameters,
-                subcircuitName: subcircuit.name,
-                protectedNames: publicParameterNames
-            )
             for bodyComponent in sortedForExecutableDependencies(subcircuit.body.components) {
                 // Map component nodes through port mapping or to internal nodes
                 var mappedComponent = bodyComponent
@@ -606,52 +613,6 @@ public struct SubcircuitExpander: Sendable {
             return expression
         }
         return .identifier("\(instancePrefix).\(name)")
-    }
-
-    private func applyBodyParameters(
-        _ parameters: [String: ParsedExpression],
-        subcircuitName: String,
-        protectedNames: Set<String>
-    ) throws {
-        var pending = parameters
-        var lastFailure: Error?
-        let resolver = ParameterExpressionResolver(context: context, randomUniform: randomUniform)
-
-        while !pending.isEmpty {
-            var progressed = false
-
-            for name in pending.keys.sorted() {
-                let lowered = name.lowercased()
-                if protectedNames.contains(lowered) {
-                    throw LoweringError.invalidComponent(
-                        name: subcircuitName,
-                        reason: "Local parameter '\(name)' conflicts with a public subcircuit parameter"
-                    )
-                }
-
-                guard let expression = pending[name] else {
-                    continue
-                }
-
-                do {
-                    try resolver.resolveIntoCurrentScope([name: .expression(expression)])
-                    pending.removeValue(forKey: name)
-                    progressed = true
-                } catch {
-                    lastFailure = error
-                }
-            }
-
-            if !progressed {
-                if let lastFailure {
-                    throw lastFailure
-                }
-                throw LoweringError.expressionEvaluationFailed(
-                    expression: subcircuitName,
-                    reason: "Could not resolve local subcircuit parameters"
-                )
-            }
-        }
     }
 
     /// Returns the number of MNA branch variables required by a device type.

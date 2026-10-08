@@ -69,7 +69,7 @@ digests or provenance.
 | [CoreSpiceIO](Sources/CoreSpiceIO/DESIGN.md) | child | Explicit transient caller policy | Typed and CLI intent | Missing limits fail before execution |
 | [CoreSpiceIR](Sources/CoreSpiceIR/DESIGN.md) | child | Canonical model and node ownership | Lossless circuit values | Revalidate direct consumers |
 | [CoreSpiceParserSPICE](Sources/CoreSpiceParserSPICE/DESIGN.md) | child | Exact SPICE syntax | Version and IC preservation | Revalidate direct consumers |
-| [CoreSpiceLowering](Sources/CoreSpiceLowering/DESIGN.md) | child | Cold model admission | Model/instance resolution | Revalidate direct consumers |
+| [CoreSpiceLowering](Sources/CoreSpiceLowering/DESIGN.md) | child | Cold model admission and instance-local parameter resolution | Model/instance roles and scoped default/override binding | Revalidate direct consumers when syntax or binding contracts change |
 | [CoreSpiceCompile](Sources/CoreSpiceCompile/DESIGN.md) | child | Auxiliary sparse topology | CPU solver structure | Revalidate direct consumers |
 | [CoreSpiceAnalysis](Sources/CoreSpiceAnalysis/DESIGN.md) | child | Fallible stamps and session lifetime | Numerical execution | Revalidate direct consumers |
 | [CoreSpiceDevices](Sources/CoreSpiceDevices/DESIGN.md) | child | Bound-device stamping | Native electrical models | Revalidate affected analyses when device derivatives change |

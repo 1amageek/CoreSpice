@@ -8,6 +8,12 @@ public struct ExpressionEvaluator: Sendable {
     private let context: LoweringContext
     /// Source of random numbers in [0, 1).
     private let randomUniform: @Sendable () -> Double
+    /// Names owned by the current declaration map that have not resolved yet.
+    private let unresolvedParameterNames: Set<String>
+
+    struct UnresolvedParameterReference: Error {
+        let name: String
+    }
 
     public init(
         context: LoweringContext,
@@ -15,6 +21,17 @@ public struct ExpressionEvaluator: Sendable {
     ) {
         self.context = context
         self.randomUniform = randomUniform
+        self.unresolvedParameterNames = []
+    }
+
+    init(
+        context: LoweringContext,
+        randomUniform: @escaping @Sendable () -> Double,
+        unresolvedParameterNames: Set<String>
+    ) {
+        self.context = context
+        self.randomUniform = randomUniform
+        self.unresolvedParameterNames = unresolvedParameterNames
     }
 
     /// Evaluates an expression to a numeric value.
@@ -24,6 +41,10 @@ public struct ExpressionEvaluator: Sendable {
             return value
 
         case .identifier(let name):
+            let normalizedName = name.lowercased()
+            if unresolvedParameterNames.contains(normalizedName) {
+                throw UnresolvedParameterReference(name: normalizedName)
+            }
             // Check for circular reference
             guard context.beginEvaluating(name) else {
                 throw LoweringError.circularParameterDependency(parameter: name)
@@ -335,10 +356,15 @@ public struct ExpressionEvaluator: Sendable {
 
         var scopedParameters: [String: Double] = [:]
         for (name, value) in zip(function.parameters, arguments) {
-            scopedParameters[name] = value
+            scopedParameters[name.lowercased()] = value
         }
+        let functionEvaluator = ExpressionEvaluator(
+            context: context,
+            randomUniform: randomUniform,
+            unresolvedParameterNames: unresolvedParameterNames.subtracting(scopedParameters.keys)
+        )
         return try context.withScope(parameters: scopedParameters) {
-            try evaluate(function.body)
+            try functionEvaluator.evaluate(function.body)
         }
     }
 
