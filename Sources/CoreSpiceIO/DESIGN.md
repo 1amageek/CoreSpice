@@ -257,7 +257,8 @@ against a ceiling of 16.
 
 ### Bounded profile source intake
 
-Status: designed, not implemented. IO owns full-reference byte validation and
+The Span checked-source factory and occurrence document conversion are implemented;
+bounded grammar composition remains designed, not implemented. IO owns full-reference byte validation and
 checked text/source ownership for the profile parse path. It composes
 [Parser](../CoreSpiceParser/DESIGN.md#bounded-contextual-source-contract) and
 [ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md#bounded-profile-grammar), without
@@ -266,7 +267,7 @@ The contextual parser/provider contract is grammar-neutral: exact approval and
 candidate discovery both supply captures through that same grammar. Lower IO does
 not choose undeclared paths or infer a producer's expected graph.
 
-Proposed `SPICECheckedSource.admit` Span overload accepts the full source binding,
+`SPICECheckedSource.admit` Span overload accepts the full source binding,
 scoped `Span<UInt8>`, SPICESourceResourceAccounting and explicit positive
 `maximumPageByteCount`, returning SPICECheckedSource with retained reservations. It checks count/digest against those exact borrowed bytes,
 validates strict UTF-8, and creates an owned byte/text representation only after
@@ -320,3 +321,7 @@ approach build timeout and must be reported/replanned rather than repeated blind
 Actual method census/runtime is recorded after implementation, not asserted here.
 One whole review plus one targeted finding recheck precedes frozen affected-product
 proof; upper PDK adapter proof follows verified lower contracts.
+
+Boundary verification is owned by
+[CheckedSpanSourceTests](../../Tests/CoreSpiceSourceBoundaryTests/CheckedSpanSourceTests.swift).
+Its native evidence does not qualify WASM/Embedded or bounded grammar parsing.

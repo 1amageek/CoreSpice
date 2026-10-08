@@ -99,14 +99,17 @@ bindings. This is syntax evidence, not numerical model or qualification evidence
 
 ### Bounded source storage and occurrence values
 
-Status: designed, not implemented. Existing work-count evidence does not
-implement this portable boundary.
+Storage receipts, capacity helpers, accounted collections and occurrence IDs are
+implemented at this boundary; verification is owned by
+[StorageBoundaryTests](../../Tests/CoreSpiceSourceBoundaryTests/StorageBoundaryTests.swift).
+`SPICEOwnedParseResult` and grammar integration remain designed, not implemented.
 
-| Proposed public contract | Meaning |
+| Public contract | Meaning |
 |---|---|
 | `SPICESourceResourceAccounting: SPICESourceWorkAccounting` | Requires `reserveStorage(kind:byteCount:) throws -> SPICESourceStorageReservation` and `chargeHashedBytes(_:) throws`; inherited work/check requirements stay synchronous and Sendable |
 | `SPICESourceStorageKind` | `liveOwnedBytes` and `temporaryBytes`: managed logical extent, not process RSS |
 | `SPICESourceStorageReservation` | Immutable shared release owner with public trusted-accountant initializer `(kind:byteCount:release:)`; final-copy destruction releases once, also after admission closes; no Codable or source/result authority |
+| `SPICESourceCapacity` / `SPICEAccountedCollection` | Checked concrete slot stride/capacity and reserved COW snapshots, including same-capacity append/replace |
 | `SPICEParseOccurrenceID` | Opaque invocation-local identity allocated before parsing; distinct from source/content keys and diagnostic paths |
 | `SPICEOwnedParseResult` | Internally checked successful netlist with immutable source/derived-storage reservations; copies share retained owners |
 

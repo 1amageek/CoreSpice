@@ -121,7 +121,9 @@ let package = Package(
 
         // --- Parser: Parser protocols and registry ---
         .target(name: "CoreSpiceParser",
-                dependencies: ["CoreSpiceParsedIR"], exclude: ["DESIGN.md"]),
+                dependencies: ["CoreSpiceParsedIR",
+                    .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+                    .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")], exclude: ["DESIGN.md"]),
 
         // --- ParserSPICE: SPICE netlist parser ---
         .target(name: "CoreSpiceParserSPICE",
@@ -234,6 +236,11 @@ let package = Package(
                     dependencies: ["CoreSpiceOptoelectronics", "CoreSpiceDevices",
                                    "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceAnalysis",
                                    "CoreSpiceEvent"]),
+
+        // Focused owned source-boundary tests; no numerical or GPU tests.
+        .testTarget(name: "CoreSpiceSourceBoundaryTests", dependencies: ["CoreSpiceParsedIR", "CoreSpiceParser", "CoreSpiceIO",
+            .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+            .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
 
         // I/O Tests
         .testTarget(name: "CoreSpiceParsedIRTests", dependencies: ["CoreSpiceParsedIR"]),

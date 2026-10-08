@@ -74,12 +74,13 @@ verify selected original declaration lines and finite budget/cancellation failur
 
 ### Bounded contextual source contract
 
-Status: designed, not implemented. Parser owns this source/context boundary;
+Source/context values and owned section projection are implemented; contextual
+grammar calls remain designed, not implemented. Parser owns this boundary;
 [ParsedIR](../CoreSpiceParsedIR/DESIGN.md#bounded-source-storage-and-occurrence-values)
 owns storage and occurrence vocabulary. Standalone FileResolver remains available;
 required bounded parsing cannot silently inject it.
 
-Proposed requirement:
+Public requirement:
 `SPICEContextualFileResolver.resolve(_ request: SPICESourceDependencyRequest)
 async throws -> SPICESourceDocument`. Grammar creates the immutable request before
 acquisition await. Fields are parent source key/occurrence, original physical UTF-8
@@ -100,7 +101,7 @@ failure cannot produce partial successful input.
 
 ### Child-entry environment identity
 
-Status: designed, not implemented. Proposed `SPICEPreprocessingEnvironment` is an
+`SPICEPreprocessingEnvironment` is implemented as an
 immutable checked value holding sorted parameter entries and a derived identity.
 Only checked factories derive identity from actual inputs; no initializer accepts
 a detached identity string. Empty-root construction takes actual inspection-policy
@@ -134,10 +135,17 @@ unavailable cooperative Unicode normalization returns typed capability refusal,
 while ordinary parser behavior remains unchanged. Acquisition is already async;
 no sync/async bridge, detached tasks or filesystem fallback is needed.
 
-Verification owner: focused bounded-source/environment tests in
+Boundary verification is owned by
+[EnvironmentBoundaryTests](../../Tests/CoreSpiceSourceBoundaryTests/EnvironmentBoundaryTests.swift)
+and [CheckedSpanSourceTests](../../Tests/CoreSpiceSourceBoundaryTests/CheckedSpanSourceTests.swift).
+Grammar integration verification remains in
 [ParserSPICETests](../../Tests/CoreSpiceParserSPICETests/) and
 [IOTests](../../Tests/CoreSpiceIOTests/). Prove pre-await refusal, child nil section,
 immutable snapshot passed to child, insertion-order-independent fingerprints,
 changed-input identity, case collision refusal and physical CRLF/continuation
 mapping. Unsupported Unicode returns the specified typed failure before an
 unbounded normalization; existing work tests do not prove capacity ownership.
+
+The bounded ASCII section projector keeps newline bytes and an accounted range map;
+Unicode section projection is explicitly unsupported. Raw String extraction is a
+caller-owned boundary requiring the text/document owner to remain retained.
