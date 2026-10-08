@@ -96,6 +96,13 @@ public struct SPICESourceDocument: Sendable {
         self.originalByteCount = parent.originalByteCount
     }
 
+    /// Maps a physical line/column in this document to the immutable full source.
+    public func originalByteOffset(at location: SourceLocation,
+                                   resources: any SPICESourceResourceAccounting) throws -> UInt64 {
+        let coordinates = try SPICEPhysicalSourceCoordinates(document: self, resources: resources)
+        return try coordinates.originalByteOffset(at: location, resources: resources)
+    }
+
     /// Maps a projected byte location back to the same immutable full source.
     public func originalByteOffset(for offset: UInt64,
                                    resources: any SPICESourceResourceAccounting) throws -> UInt64 {

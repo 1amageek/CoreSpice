@@ -52,6 +52,11 @@ not turn missing capture identity into a successful model receipt.
 
 ## Verification and Change Impact
 
+Public document projections are verified by
+[PublicSourceProjectionTests](../../Tests/CoreSpiceProfileGrammarTests/PublicSourceProjectionTests.swift).
+Moving their helper between modules does not change the existing grammar
+algorithm; direct callers must prove resource refusal and physical offset bounds.
+
 `SPICEProfileParseFailure` belongs to this module because it retains the existing
 `ParserDiagnostic` and an immutable source owner. Its package-only constructor is
 used by checked grammar publication; raw diagnostic extraction is caller-owned.
@@ -80,6 +85,17 @@ verify selected original declaration lines and finite budget/cancellation failur
 
 
 ### Bounded contextual source contract
+
+`SPICESourceDocument.originalByteOffset(at:resources:)` accepts the existing
+`SourceLocation` line/column and returns its original full-source UTF-8 offset.
+The diagnostic file label does not select or authenticate a document. The same
+package-visible `SPICEPhysicalSourceCoordinates` used by grammar retains checked
+selected source text and a reserved line-range collection before preprocessing.
+CRLF remains two original bytes, continuation positions keep their physical line,
+and a lone CR follows existing lexer column semantics. Non-ASCII coordinate
+operations are explicitly unsupported. Each public call reserves/builds/releases
+its index under the injected accountant; an adapter never scans grammar text to
+infer positions. Input document/source ownership remains with the caller.
 
 Source/context values and owned section projection are implemented; contextual
 grammar calls are implemented by ParserSPICE, whose dedicated product owns their

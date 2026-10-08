@@ -277,13 +277,23 @@ SPICESourceResourceAccounting. No whole expected graph is required: the injected
 provider owns exact-approved or candidate-discovery selection. Parser authenticates
 syntax/context, not approval, PDK admission or filesystem availability.
 
-`SPICEPhysicalSourceCoordinates` retains checked selected source text and a
-reserved line-range collection measured before preprocessing. Physical lexer
-positions map through that collection and the source-owned section offset map;
-CRLF remains two original bytes, continuation tokens retain their physical line,
-and a lone CR follows the existing lexer column semantics. The bounded backend
-refuses non-ASCII coordinate operations explicitly. The parser owns this mapping;
-an adapter never rescans grammar text to infer dependency or declaration positions.
+Physical source mapping uses the Parser-owned
+[document projection contract](../CoreSpiceParser/DESIGN.md#bounded-contextual-source-contract)
+and its unchanged package-visible coordinate helper.
+
+`SPICEExpressionFormatting` exposes
+`format(expression:resources:) throws -> SPICEOwnedExpressionText`.
+`SPICEExpressionFormatter` delegates to the existing bounded, two-pass
+`ParsedExpression.description` equivalent; it supplies no alternate grammar or
+unaccounted fallback. The output exposes immutable `text` and privately retains
+the actual formatter storage owner through copies. Its constructor is internal,
+it is not Codable, and extracting a raw String transfers retention responsibility
+to the caller. Input expressions are caller-owned values; this API does not mint
+admitted source or AST authority. Unicode/capacity/cancellation errors retain their
+existing typed causes; final cancellation is checked before publication.
+The new public boundary is verified by
+[PublicSourceProjectionTests](../../Tests/CoreSpiceProfileGrammarTests/PublicSourceProjectionTests.swift),
+without replacing valid existing grammar evidence.
 
 Existing parse/parseChecked remain their documented standalone/count-budget scope.
 The new bounded API requires `configuration.resolveIncludes == true`; disabling

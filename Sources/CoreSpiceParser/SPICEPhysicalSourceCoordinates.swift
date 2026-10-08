@@ -1,9 +1,8 @@
 import CoreSpiceParsedIR
-import CoreSpiceParser
 
 /// Grammar physical positions are measured against the selected immutable input,
 /// before conditional processing normalizes its newline spelling.
-struct SPICEPhysicalSourceCoordinates: Sendable {
+package struct SPICEPhysicalSourceCoordinates: Sendable {
     private struct Line: Sendable {
         let start: Int
         let length: Int
@@ -11,7 +10,7 @@ struct SPICEPhysicalSourceCoordinates: Sendable {
     private let document: SPICESourceDocument
     private let lines: SPICEAccountedCollection<Line>
 
-    init(document: SPICESourceDocument, resources: any SPICESourceResourceAccounting) throws {
+    package init(document: SPICESourceDocument, resources: any SPICESourceResourceAccounting) throws {
         guard document.isInvocationAccounted else { throw SPICEBoundedSourceError.unaccountedSource }
         let result = try document.text.utf8.withContiguousStorageIfAvailable { bytes in
             try resources.charge(.lexicalBytes, units: UInt64(bytes.count))
@@ -40,7 +39,7 @@ struct SPICEPhysicalSourceCoordinates: Sendable {
         self.lines = result
     }
 
-    func originalByteOffset(at location: SourceLocation,
+    package func originalByteOffset(at location: SourceLocation,
                             resources: any SPICESourceResourceAccounting) throws -> UInt64 {
         try resources.checkCancellation()
         try resources.charge(.tokens, units: 1)
