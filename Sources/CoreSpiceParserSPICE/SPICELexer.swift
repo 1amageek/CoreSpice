@@ -7,6 +7,9 @@ import CoreSpiceParser
 /// that the parser can consume.
 public struct SPICELexer: Sendable {
 
+    private var work: (any SPICESourceWorkAccounting)?
+    private var workFailure: (any Error)?
+    private var checkpointCharacters = 0
     private let source: String
     private let fileName: String?
     private let configuration: ParserConfiguration
@@ -34,34 +37,35 @@ public struct SPICELexer: Sendable {
 
     /// Tokenizes the entire source.
     public mutating func tokenize() -> [SPICEToken.Located] {
+        do { return try tokenizeChecked(work: nil) }
+        catch { preconditionFailure("Unaccounted lexing cannot produce a work failure") }
+    }
+
+    /// Token storage is charged before scanning; cancellation is cooperative even inside long tokens.
+    public mutating func tokenizeChecked(work: (any SPICESourceWorkAccounting)?) throws -> [SPICEToken.Located] {
+        self.work = work
+        try work?.checkCancellation()
+        try work?.charge(.lexicalBytes, units: UInt64(source.utf8.count))
         var tokens: [SPICEToken.Located] = []
         var statementEnd: Int?
-
         while !isAtEnd {
+            try work?.charge(.tokens, units: 1)
             if let token = nextToken() {
+                if let workFailure { throw workFailure }
                 switch token.token {
                 case .continuation:
-                    if let statementEnd {
-                        // Fold only trivia following the last regular card. Without a
-                        // continuation, comments and physical separators stay intact.
-                        tokens.removeSubrange(statementEnd..<tokens.count)
-                    } else {
-                        tokens.append(token)
-                    }
-                case .newline, .comment:
-                    tokens.append(token)
+                    if let statementEnd { tokens.removeSubrange(statementEnd..<tokens.count) }
+                    else { tokens.append(token) }
+                case .newline, .comment: tokens.append(token)
                 default:
                     tokens.append(token)
                     statementEnd = tokens.count
                 }
             }
         }
-
-        tokens.append(SPICEToken.Located(
-            token: .endOfFile,
-            location: currentLocation
-        ))
-
+        if let workFailure { throw workFailure }
+        try work?.charge(.tokens, units: 1)
+        tokens.append(SPICEToken.Located(token: .endOfFile, location: currentLocation))
         return tokens
     }
 
@@ -441,7 +445,7 @@ public struct SPICELexer: Sendable {
     // MARK: - Character Access
 
     private var isAtEnd: Bool {
-        index >= source.endIndex
+        workFailure != nil || index >= source.endIndex
     }
 
     private var current: Character {
@@ -459,6 +463,13 @@ public struct SPICELexer: Sendable {
     }
 
     private mutating func advance() {
+        guard !isAtEnd else { return }
+        checkpointCharacters += 1
+        if checkpointCharacters == 256 {
+            checkpointCharacters = 0
+            do { try work?.checkCancellation() }
+            catch { workFailure = error; return }
+        }
         if isAtNewline {
             line += 1
             column = 1

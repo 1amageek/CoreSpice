@@ -17,7 +17,17 @@ public struct SPICEParser: NetlistParser {
     public func parse(document: SPICESourceDocument, configuration: ParserConfiguration,
                       fileResolver: any FileResolver) async -> ParseResult {
         var parser = SPICEParserImpl(document: document, configuration: configuration, fileResolver: fileResolver)
-        return await parser.parse()
+        do { return try await parser.parse() }
+        catch { return ParseResult(errors: [.error(String(describing: error))]) }
+    }
+
+    /// Uses the ordinary grammar with cooperative accounting and strict resolver failure propagation.
+    public func parseChecked(document: SPICESourceDocument, configuration: ParserConfiguration,
+                             fileResolver: any FileResolver, work: any SPICESourceWorkAccounting,
+                             initialParameters: [String: String] = [:]) async throws -> ParseResult {
+        var parser = SPICEParserImpl(document: document, configuration: configuration,
+            fileResolver: fileResolver, conditionalParameterExpressions: initialParameters, work: work)
+        return try await parser.parse()
     }
 
     public func canParse(source: String) -> Bool {
@@ -61,6 +71,8 @@ public struct SPICEParser: NetlistParser {
 /// Internal implementation of the SPICE parser.
 private struct SPICEParserImpl {
 
+    private let work: (any SPICESourceWorkAccounting)?
+    private let selectedSection: String?
     private let source: String
     private let captureID: String?
     private let fileName: String?
@@ -81,6 +93,7 @@ private struct SPICEParserImpl {
     private var controls: [ParsedControlStatement] = []
     private var parameterDefinitions: [ParsedParameterDefinition] = []
     private var parameters: [String: ParsedExpression] = [:]
+    private var dependencyEvents: [SPICESourceDependencyEvent] = []
     private var preprocessingEvents: [SPICEPreprocessingEvent] = []
     private var initialConditions: [String: ParsedParameterValue] = [:]
     private var nodeSets: [String: ParsedParameterValue] = [:]
@@ -92,8 +105,11 @@ private struct SPICEParserImpl {
         configuration: ParserConfiguration,
         fileResolver: any FileResolver,
         includeDepth: Int = 0,
-        conditionalParameterExpressions: [String: String] = [:]
+        conditionalParameterExpressions: [String: String] = [:],
+        work: (any SPICESourceWorkAccounting)? = nil
     ) {
+        self.work = work
+        self.selectedSection = document.librarySection
         self.source = document.text
         self.fileName = document.resolvedPath
         self.captureID = document.captureID
@@ -103,11 +119,14 @@ private struct SPICEParserImpl {
         self.conditionalParameterExpressions = conditionalParameterExpressions
     }
 
-    mutating func parse() async -> ParseResult {
-        let conditionalResult = SPICEConditionalPreprocessor().process(
+    mutating func parse() async throws -> ParseResult {
+        try work?.checkCancellation()
+        try work?.charge(.projectedBytes, units: UInt64(source.utf8.count))
+        let conditionalResult = try SPICEConditionalPreprocessor().process(
             source: source,
             fileName: fileName,
-            initialParameters: conditionalParameterExpressions
+            initialParameters: conditionalParameterExpressions,
+            work: work
         )
         preprocessingEvents.append(contentsOf: conditionalResult.events)
         diagnostics.append(contentsOf: conditionalResult.diagnostics)
@@ -118,7 +137,9 @@ private struct SPICEParserImpl {
             fileName: fileName,
             configuration: configuration
         )
-        tokens = lexer.tokenize()
+        tokens = try lexer.tokenizeChecked(work: work)
+        // Prepay a conservative retained-value allowance before statement/AST allocation.
+        try work?.charge(.retainedElements, units: UInt64(tokens.count))
 
         // The title is free text, not a quoted-value role.
         parseTitle()
@@ -136,6 +157,7 @@ private struct SPICEParserImpl {
             do {
                 try await parseStatement()
             } catch {
+                if work != nil, !(error is ParserDiagnostic) { throw error }
                 if let diag = error as? ParserDiagnostic {
                     diagnostics.append(diag)
                 } else {
@@ -155,6 +177,7 @@ private struct SPICEParserImpl {
             parameterDefinitions: parameterDefinitions,
             parameters: parameters,
             preprocessingEvents: preprocessingEvents,
+            dependencyEvents: dependencyEvents,
             initialConditions: initialConditions,
             nodeSets: nodeSets,
             globalNodes: globalNodes,
@@ -223,8 +246,10 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseStatement() async throws {
+        try work?.checkCancellation()
         skipNewlinesAndComments()
         guard !isAtEnd else { return }
+        try work?.charge(.retainedElements, units: 1)
 
         switch currentToken {
         case .directive(let name):
@@ -987,7 +1012,7 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseExpression() throws -> ParsedExpression {
-        var expressionParser = SPICEExpressionTokenParser(tokens: tokens, currentIndex: current)
+        var expressionParser = SPICEExpressionTokenParser(tokens: tokens, currentIndex: current, work: work)
         let expression = try expressionParser.parseExpression()
         current = expressionParser.currentIndex
         return expression
@@ -1256,9 +1281,12 @@ private struct SPICEParserImpl {
             }
 
             do {
+                try work?.charge(.dependencyExpansions, units: 1)
                 let content = try await fileResolver.resolveInclude(path: path, relativeTo: fileName)
+                recordDependency(content, kind: .include, path: path, section: nil, location: location)
                 try await parseIncludedContent(content)
             } catch {
+                if work != nil { throw error }
                 diagnostics.append(.error(
                     "Failed to include '\(path)': \(error)",
                     at: location
@@ -1279,10 +1307,11 @@ private struct SPICEParserImpl {
             configuration: configuration,
             fileResolver: fileResolver,
             includeDepth: includeDepth + 1,
-            conditionalParameterExpressions: inheritedConditionalParameters
+            conditionalParameterExpressions: inheritedConditionalParameters,
+            work: work
         )
 
-        let result = await includedParser.parse()
+        let result = try await includedParser.parse()
 
         // Merge results
         if let netlist = result.netlist {
@@ -1293,6 +1322,12 @@ private struct SPICEParserImpl {
             controls.append(contentsOf: netlist.controls)
             parameterDefinitions.append(contentsOf: netlist.parameterDefinitions)
             preprocessingEvents.append(contentsOf: netlist.preprocessingEvents)
+            for event in netlist.dependencyEvents {
+                dependencyEvents.append(SPICESourceDependencyEvent(parentCaptureID: event.parentCaptureID,
+                    childCaptureID: event.childCaptureID, location: event.location, kind: event.kind,
+                    path: event.path, selectedSection: event.selectedSection, ordinal: dependencyEvents.count,
+                    preprocessingContext: event.preprocessingContext))
+            }
             for (key, value) in netlist.parameters {
                 parameters[key] = value
             }
@@ -1310,6 +1345,8 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseLib(location: SourceLocation?) async throws {
+        let localSection: Bool
+        if case .identifier = currentToken { localSection = true } else { localSection = false }
         let path = try parseTextPath()
         var section: String?
 
@@ -1320,6 +1357,11 @@ private struct SPICEParserImpl {
 
         skipToEndOfLine()
 
+        // A single bare .lib argument declares a local section; quoted paths or a
+        // second argument are external library directives in the existing grammar.
+        if section == nil, localSection, try hasLocalLibraryEnd(named: path) {
+            return
+        }
         controls.append(.library(path: path, section: section, location: location))
 
         // Resolve library if enabled
@@ -1334,19 +1376,51 @@ private struct SPICEParserImpl {
             }
 
             do {
+                try work?.charge(.dependencyExpansions, units: 1)
                 let content = try await fileResolver.resolveLibrary(
                     path: path,
                     section: section,
                     relativeTo: fileName
                 )
+                recordDependency(content, kind: .externalLibrary, path: path, section: section, location: location)
                 try await parseIncludedContent(content)
             } catch {
+                if work != nil { throw error }
                 diagnostics.append(.error(
                     "Failed to include library '\(path)' section '\(section ?? "default")': \(error)",
                     at: location
                 ))
             }
         }
+    }
+
+    private func hasLocalLibraryEnd(named name: String) throws -> Bool {
+        for index in current..<tokens.count {
+            try work?.charge(.tokens, units: 1)
+            guard case .directive(let directive) = tokens[index].token else { continue }
+            // A new local section owns its own closing delimiter. External library
+            // directives with a section argument may still occur inside this section.
+            if directive == "lib", index + 2 < tokens.count,
+               case .identifier = tokens[index + 1].token,
+               tokens[index + 2].token == .newline { return false }
+            if directive == "endl" {
+                if index + 1 < tokens.count, case .identifier(let closingName) = tokens[index + 1].token {
+                    return closingName.lowercased() == name.lowercased()
+                }
+                return true
+            }
+        }
+        return false
+    }
+
+    private mutating func recordDependency(_ child: SPICESourceDocument,
+        kind: SPICESourceDependencyEvent.Kind, path: String, section: String?, location: SourceLocation?) {
+        var context = conditionalParameterExpressions
+        for (name, expression) in parameters { context[name.lowercased()] = expression.description }
+        dependencyEvents.append(SPICESourceDependencyEvent(parentCaptureID: captureID,
+            childCaptureID: child.captureID, location: location, kind: kind, path: path,
+            selectedSection: section ?? selectedSection, ordinal: dependencyEvents.count,
+            preprocessingContext: context))
     }
 
     private mutating func parseTransientAnalysis(location: SourceLocation?) throws {

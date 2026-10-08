@@ -8,17 +8,21 @@ public struct SPICEExpressionParser: Sendable {
 
     public func parse(
         _ source: String,
-        fileName: String? = nil
+        fileName: String? = nil,
+        work: (any SPICESourceWorkAccounting)? = nil
     ) throws -> ParsedExpression {
         var lexer = SPICELexer(expressionSource: source, fileName: fileName)
-        let tokens = lexer.tokenize()
+        let tokens = try lexer.tokenizeChecked(work: work)
         for token in tokens where token.token == .unterminatedQuote {
             throw ParserDiagnostic.error("Unterminated quoted value", at: token.location)
         }
+        // Each token bounds at most one retained expression node.
+        try work?.charge(.retainedElements, units: UInt64(tokens.count))
         var parser = SPICEExpressionTokenParser(
             tokens: tokens,
             currentIndex: 0,
-            allowedEndTokens: [.endOfFile, .newline]
+            allowedEndTokens: [.endOfFile, .newline],
+            work: work
         )
         let expression = try parser.parseExpression()
         try parser.requireEnd()
@@ -28,6 +32,7 @@ public struct SPICEExpressionParser: Sendable {
 
 struct SPICEExpressionTokenParser {
 
+    private let work: (any SPICESourceWorkAccounting)?
     private let tokens: [SPICEToken.Located]
     private let allowedEndTokens: Set<SPICEToken>
     private var current: Int
@@ -39,15 +44,19 @@ struct SPICEExpressionTokenParser {
     init(
         tokens: [SPICEToken.Located],
         currentIndex: Int,
-        allowedEndTokens: Set<SPICEToken> = [.endOfFile, .newline, .rightBrace, .comma, .rightParen]
+        allowedEndTokens: Set<SPICEToken> = [.endOfFile, .newline, .rightBrace, .comma, .rightParen],
+        work: (any SPICESourceWorkAccounting)? = nil
     ) {
+        self.work = work
         self.tokens = tokens
         self.allowedEndTokens = allowedEndTokens
         self.current = currentIndex
     }
 
     mutating func parseExpression() throws -> ParsedExpression {
-        try parseConditionalExpression()
+        try work?.checkCancellation()
+        try work?.charge(.retainedElements, units: 1)
+        return try parseConditionalExpression()
     }
 
     mutating func requireEnd() throws {
@@ -195,7 +204,9 @@ struct SPICEExpressionTokenParser {
             let opening = currentLocation
             advance()
             var lexer = SPICELexer(expressionSource: source, fileName: opening.file)
-            let interiorTokens = lexer.tokenize().map { token in
+            let scanned = try lexer.tokenizeChecked(work: work)
+            try work?.charge(.retainedElements, units: UInt64(scanned.count))
+            let interiorTokens = scanned.map { token in
                 SPICEToken.Located(token: token.token, location: SourceLocation(
                     file: opening.file,
                     line: opening.line + token.location.line - 1,
@@ -205,7 +216,7 @@ struct SPICEExpressionTokenParser {
                 ))
             }
             var parser = SPICEExpressionTokenParser(
-                tokens: interiorTokens, currentIndex: 0, allowedEndTokens: [.endOfFile]
+                tokens: interiorTokens, currentIndex: 0, allowedEndTokens: [.endOfFile], work: work
             )
             let expression = try parser.parseExpression()
             try parser.requireEnd()

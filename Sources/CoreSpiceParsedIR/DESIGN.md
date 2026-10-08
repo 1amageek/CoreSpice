@@ -82,9 +82,9 @@ foundry-qualified model type is introduced by the resistor declaration.
 executes voltage/current PWL parsing, serialization, lowering, binding and actual
 CPU transient output. Changes require parser, lowering and scalar consumer checks.
 
-### Proposed source dependency values
+### Exact source dependency values
 
-Status: proposed exact-profile integration. Add grammar-owned
+Status: implemented exact-profile integration. Grammar-owned
 `SPICESourceDependencyEvent` values retaining parent/child capture IDs, original
 physical SourceLocation, include versus external-library directive, selected
 section, lexical occurrence ordinal and preprocessing context. Conditional event

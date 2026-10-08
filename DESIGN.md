@@ -158,3 +158,14 @@ dispatch completes and are returned to the backend pool on all exit paths.
 [BSIM4 standalone kernel](Sources/CoreSpiceBSIM4/DESIGN.md) owns exact Berkeley 4.8.3 host CPU evaluation. This lower
 contract is composed by [BSIM4 Devices](Sources/CoreSpiceDevices/BSIM4/DESIGN.md)
 under explicit caller preparation policy and noise-dependent topology intent. [CLI](Sources/CoreSpiceCLI/DESIGN.md) owns execution provenance.
+
+### Exact caller-owned SPICE source intake
+
+[IO](Sources/CoreSpiceIO/DESIGN.md#caller-owned-exact-source-intake) composes
+full `ArtifactReference` bindings and immutable checked bytes with the ordinary
+SPICE grammar. [ParsedIR](Sources/CoreSpiceParsedIR/DESIGN.md#exact-source-dependency-values)
+owns portable dependency/work evidence; [ParserSPICE](Sources/CoreSpiceParserSPICE/DESIGN.md#exact-profile-dependency-and-work-contract)
+owns active grammar events and cooperative parsing; [Parser](Sources/CoreSpiceParser/DESIGN.md#cooperative-library-projection)
+owns location-preserving projection. No target depends on PDKKit. Native exact
+intake and ordinary parser/IO behavioral tests establish only source admission,
+not numerical support, foundry qualification or cross-platform execution.

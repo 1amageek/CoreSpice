@@ -1,3 +1,4 @@
+import CircuiteFoundation
 import CoreSpiceParsedIR
 import CoreSpiceParser
 import CoreSpiceParserSPICE
@@ -5,6 +6,11 @@ import Foundation
 
 /// A fully resolved SPICE deck that is safe to pass to lowering and execution.
 public struct LoadedSPICEDeck: Sendable {
+    public let exactRequest: SPICEExactLoadRequest?
+    public let exactSources: [SPICEExactSourceBinding]
+    public let sourceWorkConsumption: [SPICESourceWorkKind: UInt64]
+    public var inputReferences: [ArtifactReference] { exactSources.map(\.reference) }
+    public var dependencyEvents: [SPICESourceDependencyEvent] { netlist.dependencyEvents }
     public let source: String
     public let netlist: ParsedNetlist
     public let coverage: SPICEDeckCoverageReport
@@ -31,8 +37,14 @@ public struct LoadedSPICEDeck: Sendable {
         netlist: ParsedNetlist,
         coverage: SPICEDeckCoverageReport,
         captures: [SPICESourceCapture],
-        capturePolicy: SPICESourceCapturePolicy
+        capturePolicy: SPICESourceCapturePolicy,
+        exactRequest: SPICEExactLoadRequest? = nil,
+        exactSources: [SPICEExactSourceBinding] = [],
+        sourceWorkConsumption: [SPICESourceWorkKind: UInt64] = [:]
     ) {
+        self.exactRequest = exactRequest
+        self.exactSources = exactSources
+        self.sourceWorkConsumption = sourceWorkConsumption
         self.source = source
         self.netlist = netlist
         self.coverage = coverage

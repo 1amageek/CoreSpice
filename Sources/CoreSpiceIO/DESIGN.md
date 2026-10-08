@@ -172,12 +172,12 @@ must not be reported as successful from this inventory alone. Batch record sourc
 inventory persistence and per-phase/TQ emission remain the next CLI composition
 slice; this slice returns captured references without asserting those capabilities.
 
-### Proposed caller-owned exact source intake
+### Caller-owned exact source intake
 
-Status: proposed API, not existing SPICEDeckLoader capability. The current
+Status: implemented by `SPICEExactDeckLoader`. Ordinary
 loadFile/load APIs own filesystem discovery and capture; they do not enforce a
-PDK producer's expected dependency graph. Add a protocol-first exact intake
-entry point, `SPICEDeckSourceLoading`, implemented by the existing loader pipeline.
+PDK producer's expected dependency graph. The protocol-first exact intake
+entry point, `SPICEDeckSourceLoading`, uses the existing parser pipeline.
 Its request supplies a root source binding, explicit section/preprocessing
 configuration, expected source bindings and finite source/parser policy. Inject
 `SPICEExactSourceProviding` and `SPICESourceWorkAccounting` requirements rather
@@ -211,3 +211,44 @@ No CoreSpice target depends on PDKKit. CoreSpiceIOTests owns real source-factory
 loader/event, source drift, configuration, work/cancellation and capture-lifetime
 proof before PDK adapter tests. Native simulation composition must retain the
 loaded graph and actual model/operating-condition evidence.
+
+#### Exact intake authority and limits
+
+`SPICEExactLoadRequest` fixes root key, optional library section, initial conditional
+parameters, expected full source bindings, parser configuration, capture limits
+and work limits. Expected active edges retain parent/child keys, directive path,
+section and physical position; comparison is ordered after the actual grammar
+returns. `SPICECheckedSource.admit` hashes/counts supplied immutable full-file bytes
+before constructing an input owner. Source keys are caller-owned lookup tokens;
+they do not grant filesystem authority. The injected provider resolves only supplied
+keys. Its returned complete binding must equal the expected binding.
+
+The load-local actor retains one checked owner per key and rejects missing,
+undeclared, changed, duplicate or unused expected bindings. The parser produces
+active dependency events in lexical depth-first order. Local section delimiters
+are grammar syntax and never external resolution requests. Conditional evidence
+retains inactive and unresolved branches; unresolved evaluation is a parse failure.
+All parser/source work uses one synchronous `SPICESourceWorkAccounting` requirement
+with a finite load-owned budget plus injected invocation accounting. Charges precede
+source/projection copies, lexer token growth, statement retention, expansion and
+conditional evaluation. Cancellation is checked during lexing and at statement,
+source and expansion boundaries. A failed exact load exposes no loaded deck.
+
+```text
+Expected full refs + immutable provider bytes
+  -> checked source owner -> actual SPICEParser grammar
+  -> ordered events + captured owners -> exact graph comparison -> coverage gate
+```
+
+Native `SPICEExactSourceIntakeTests` owns factory drift, source reuse, actual
+include/lib grammar, section/conditional context, graph mismatch, bounded work
+and cancellation. This source intake establishes no numerical qualification.
+
+The work accountant's only mutable state is `Mutex<[SPICESourceWorkKind: UInt64]>`.
+Charge and consumption reads use that same storage/isolation on the host IO target;
+upstream callbacks and cancellation checks run outside its critical section.
+The registry actor owns captures and checked owners for one load, and the returned
+deck retains their value storage. No Embedded/WASM conditional storage or Sendable
+branch is introduced; host IO evidence does not qualify those execution platforms.
+Native concurrent admission verifies that 32 contenders admit exactly 16 units
+against a ceiling of 16.

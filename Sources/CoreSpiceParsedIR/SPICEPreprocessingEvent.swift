@@ -4,6 +4,10 @@
 /// statements and are not serialized back into a flattened SPICE deck.
 public struct SPICEPreprocessingEvent: Sendable, Hashable {
 
+    public enum Selection: Sendable, Hashable { case active, inactive, unresolved }
+    public let resolved: Bool
+    public var selection: Selection { resolved ? (active ? .active : .inactive) : .unresolved }
+
     /// The conditional directive kind.
     public let kind: SPICEConditionalDirectiveKind
 
@@ -20,8 +24,10 @@ public struct SPICEPreprocessingEvent: Sendable, Hashable {
         kind: SPICEConditionalDirectiveKind,
         expression: String?,
         active: Bool,
-        location: SourceLocation?
+        location: SourceLocation?,
+        resolved: Bool = true
     ) {
+        self.resolved = resolved
         self.kind = kind
         self.expression = expression
         self.active = active

@@ -218,9 +218,9 @@ and device admission owns strict time/value validation. Partial/unknown source
 waveforms produce typed parse/binding failure, never successful DC substitution.
 Scalar option/measurement/expression consumers reject vectors explicitly.
 
-### Proposed exact-profile dependency and work contract
+### Exact-profile dependency and work contract
 
-Status: proposed migration. Produce the dependency events owned by
+Status: implemented. The parser produces the dependency events owned by
 [ParsedIR](../CoreSpiceParsedIR/DESIGN.md#proposed-source-dependency-values)
 from actual include/library parse branches, preserving original physical positions
 and lexical precedence. Local library sections and external library directives
@@ -241,3 +241,20 @@ Parser tests must reproduce local/external lib, active/inactive/unknown branches
 physical positions, repeated includes, depth/work exhaustion and cancellation.
 A successful static source inventory or permissive partial parse does not meet
 this contract. The optional PDK adapter translates events only after these checks.
+
+`SPICEParser.parseChecked` propagates resolver and accountant errors rather than
+recovering them into partial success. The ordinary protocol entry point still
+returns source diagnostics. Both use the same lexer/token parser and conditional
+evaluator. `SPICEPreprocessingEvent.selection` distinguishes active, inactive and
+unresolved evaluation; unresolved required selection remains an error. Dependency
+occurrences retain lexical depth-first ordinals and inherited/local parameter
+expressions. Repeated source identity is not itself a cycle; include-depth and
+expansion ceilings terminate recursion.
+
+Checked top-level and quoted-interior token counts prepay a conservative retained
+value/AST allowance before statement or expression construction. Subcircuit
+default preprocessing, quoted expression lexing and recursive conditional
+evaluation forward the same accountant. Native regressions reject token and
+retention exhaustion inside those paths. Local library end matching stops at
+the next local opener; an unrelated section cannot suppress an earlier bare
+external library resolution.

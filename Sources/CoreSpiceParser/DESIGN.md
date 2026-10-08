@@ -57,3 +57,14 @@ selected library locations and source identity. Parser tests verify custom docum
 resolvers; registry file dispatch must preserve the returned document.
 [Registry document tests](../../Tests/CoreSpiceParserSPICETests/ParserRegistryDocumentTests.swift)
 verify selected-document origin and explicit unsupported-format refusal.
+
+### Cooperative library projection
+
+`SPICESourceDocument.selectingLibrarySection` accepts the CoreSpice-owned
+`SPICESourceWorkAccounting` requirements. Exact IO supplies the same invocation
+accountant used by the grammar; full projection storage is charged before reserve
+and cancellation is checked every 256 characters and at line boundaries.
+Ordinary callers retain the existing optional-accounting behavior. Physical
+newline positions and the full-file capture identity survive selection. Native
+[exact IO tests](../../Tests/CoreSpiceIOTests/SPICEExactSourceIntakeTests.swift)
+verify selected original declaration lines and finite budget/cancellation failure.

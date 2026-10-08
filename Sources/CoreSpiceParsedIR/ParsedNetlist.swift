@@ -31,6 +31,9 @@ public struct ParsedNetlist: Sendable, Hashable {
     /// Source-level preprocessing evidence.
     public let preprocessingEvents: [SPICEPreprocessingEvent]
 
+    /// Actual grammar-owned dependency occurrences.
+    public let dependencyEvents: [SPICESourceDependencyEvent]
+
     /// Initial conditions for nodes.
     public let initialConditions: [String: ParsedParameterValue]
 
@@ -59,6 +62,7 @@ public struct ParsedNetlist: Sendable, Hashable {
         parameterDefinitions: [ParsedParameterDefinition] = [],
         parameters: [String: ParsedExpression] = [:],
         preprocessingEvents: [SPICEPreprocessingEvent] = [],
+        dependencyEvents: [SPICESourceDependencyEvent] = [],
         initialConditions: [String: ParsedParameterValue] = [:],
         nodeSets: [String: ParsedParameterValue] = [:],
         globalNodes: [String] = [],
@@ -75,6 +79,7 @@ public struct ParsedNetlist: Sendable, Hashable {
         self.parameterDefinitions = parameterDefinitions
         self.parameters = parameters
         self.preprocessingEvents = preprocessingEvents
+        self.dependencyEvents = dependencyEvents
         self.initialConditions = initialConditions
         self.nodeSets = nodeSets
         self.globalNodes = globalNodes

@@ -14,14 +14,16 @@ struct SPICEConditionalPreprocessor: Sendable {
     func process(
         source: String,
         fileName: String?,
-        initialParameters: [String: String] = [:]
-    ) -> Result {
+        initialParameters: [String: String] = [:],
+        work: (any SPICESourceWorkAccounting)? = nil
+    ) throws -> Result {
         var processor = Processor(
             source: source,
             fileName: fileName,
-            initialParameters: initialParameters
+            initialParameters: initialParameters,
+            work: work
         )
-        return processor.process()
+        return try processor.process()
     }
 }
 
@@ -35,6 +37,8 @@ private struct Processor {
         var hasElse: Bool
     }
 
+    private let work: (any SPICESourceWorkAccounting)?
+    private var workFailure: (any Error)?
     private let source: String
     private let fileName: String?
     private var frames: [ConditionalFrame] = []
@@ -45,7 +49,8 @@ private struct Processor {
     private var diagnostics: [ParserDiagnostic] = []
     private var pendingSubcircuitHeader: [String]?
 
-    init(source: String, fileName: String?, initialParameters: [String: String]) {
+    init(source: String, fileName: String?, initialParameters: [String: String], work: (any SPICESourceWorkAccounting)?) {
+        self.work = work
         self.source = source
         self.fileName = fileName
         let rootScope = initialParameters.reduce(into: [:]) { result, entry in
@@ -55,15 +60,24 @@ private struct Processor {
         self.functionScopes = [[:]]
     }
 
-    mutating func process() -> SPICEConditionalPreprocessor.Result {
-        let lines = source.split(omittingEmptySubsequences: false,
-            whereSeparator: { $0 == "\n" || $0 == "\r\n" }).map(String.init)
-        outputLines.reserveCapacity(lines.count)
-
-        for (offset, line) in lines.enumerated() {
-            process(line: line, lineNumber: offset + 1)
+    mutating func process() throws -> SPICEConditionalPreprocessor.Result {
+        var start = source.startIndex
+        var cursor = start
+        var lineNumber = 1
+        var characters = 0
+        while cursor < source.endIndex {
+            if source[cursor] == "\n" || source[cursor] == "\r\n" {
+                try processSlice(source[start..<cursor], lineNumber: lineNumber)
+                lineNumber += 1
+                start = source.index(after: cursor)
+            }
+            cursor = source.index(after: cursor)
+            characters += 1
+            if characters == 256 { try work?.checkCancellation(); characters = 0 }
         }
+        try processSlice(source[start..<cursor], lineNumber: lineNumber)
         finishSubcircuitHeader()
+        if let workFailure { throw workFailure }
 
         for frame in frames.reversed() {
             diagnostics.append(.error("Unterminated SPICE conditional block", at: frame.openingLocation))
@@ -74,6 +88,14 @@ private struct Processor {
             events: events,
             diagnostics: diagnostics
         )
+    }
+
+    private mutating func processSlice(_ line: Substring, lineNumber: Int) throws {
+        try work?.checkCancellation()
+        try work?.charge(.retainedElements, units: 1)
+        try work?.charge(.projectedBytes, units: UInt64(line.utf8.count))
+        process(line: String(line), lineNumber: lineNumber)
+        if let workFailure { throw workFailure }
     }
 
     private mutating func process(line: String, lineNumber: Int) {
@@ -113,6 +135,7 @@ private struct Processor {
 
     private mutating func processIf(_ directive: ConditionalDirective) {
         let parentActive = currentActive
+        var resolved = true
         var branchActive = false
         var branchTaken = false
 
@@ -122,6 +145,7 @@ private struct Processor {
                 branchActive = active
                 branchTaken = active
             case .failure:
+                resolved = false
                 branchActive = false
                 branchTaken = true
             }
@@ -138,7 +162,8 @@ private struct Processor {
             kind: directive.kind,
             expression: directive.expression,
             active: parentActive && branchActive,
-            location: directive.location
+            location: directive.location,
+            resolved: resolved
         ))
     }
 
@@ -168,6 +193,7 @@ private struct Processor {
             return
         }
 
+        var resolved = true
         var branchActive = false
         if frame.parentActive && !frame.branchTaken {
             switch evaluateCondition(directive.expression, location: directive.location) {
@@ -177,6 +203,7 @@ private struct Processor {
                     frame.branchTaken = true
                 }
             case .failure:
+                resolved = false
                 branchActive = false
                 frame.branchTaken = true
             }
@@ -188,7 +215,8 @@ private struct Processor {
             kind: directive.kind,
             expression: directive.expression,
             active: frame.parentActive && branchActive,
-            location: directive.location
+            location: directive.location,
+            resolved: resolved
         ))
     }
 
@@ -295,9 +323,10 @@ private struct Processor {
         functionScopes[scopeIndex][definition.name] = definition
     }
 
-    private func subcircuitParameters(from body: String) -> [String: String] {
+    private func subcircuitParameters(from body: String) throws -> [String: String] {
         var lexer = SPICELexer(source: body)
-        let tokens = lexer.tokenize()
+        let tokens = try lexer.tokenizeChecked(work: work)
+        try work?.charge(.retainedElements, units: UInt64(tokens.count))
         // The first field names the subcircuit, even when it is named "params".
         for index in tokens.indices.dropFirst() {
             let token = tokens[index]
@@ -323,7 +352,9 @@ private struct Processor {
     private mutating func finishSubcircuitHeader() {
         guard let header = pendingSubcircuitHeader else { return }
         pendingSubcircuitHeader = nil
-        parameterScopes[parameterScopes.count - 1] = subcircuitParameters(from: header.joined(separator: " "))
+        do {
+            parameterScopes[parameterScopes.count - 1] = try subcircuitParameters(from: header.joined(separator: " "))
+        } catch { workFailure = error }
     }
 
     private mutating func evaluateCondition(
@@ -337,13 +368,14 @@ private struct Processor {
         }
 
         do {
-            let parsedExpression = try SPICEExpressionParser().parse(expression, fileName: location.file)
+            let parsedExpression = try SPICEExpressionParser().parse(expression, fileName: location.file, work: work)
             var evaluator = SPICEConditionalExpressionEvaluator(
                 parameters: mergedParameterExpressions,
                 parameterValues: [:],
                 functions: mergedFunctionDefinitions,
                 resolvingParameters: [],
-                resolvingFunctions: []
+                resolvingFunctions: [],
+                work: work
             )
             let value = try evaluator.evaluate(parsedExpression)
             return .success(value != 0)
@@ -355,6 +387,7 @@ private struct Processor {
             diagnostics.append(.error("Invalid SPICE conditional expression: \(error.message)", at: location))
             return .failure(error)
         } catch {
+            if work != nil { workFailure = error }
             let wrapped = SPICEConditionalExpressionError(message: "\(error)")
             diagnostics.append(.error("Invalid SPICE conditional expression: \(wrapped.message)", at: location))
             return .failure(wrapped)
@@ -707,6 +740,7 @@ private struct SPICEConditionalExpressionError: Error, Sendable {
 
 private struct SPICEConditionalExpressionEvaluator {
 
+    private let work: (any SPICESourceWorkAccounting)?
     private let parameters: [String: String]
     private let parameterValues: [String: Double]
     private let functions: [String: ConditionalFunctionDefinition]
@@ -718,8 +752,10 @@ private struct SPICEConditionalExpressionEvaluator {
         parameterValues: [String: Double],
         functions: [String: ConditionalFunctionDefinition],
         resolvingParameters: Set<String>,
-        resolvingFunctions: Set<String>
+        resolvingFunctions: Set<String>,
+        work: (any SPICESourceWorkAccounting)? = nil
     ) {
+        self.work = work
         self.parameters = parameters
         self.parameterValues = parameterValues
         self.functions = functions
@@ -728,6 +764,8 @@ private struct SPICEConditionalExpressionEvaluator {
     }
 
     mutating func evaluate(_ expression: ParsedExpression) throws -> Double {
+        try work?.checkCancellation()
+        try work?.charge(.conditionalEvaluations, units: 1)
         switch expression {
         case .literal(let value):
             return value
@@ -827,7 +865,7 @@ private struct SPICEConditionalExpressionEvaluator {
         resolvingParameters.insert(name)
         let expression: ParsedExpression
         do {
-            expression = try SPICEExpressionParser().parse(ParameterAssignmentParser.stripOuterBraces(parameterExpression))
+            expression = try SPICEExpressionParser().parse(ParameterAssignmentParser.stripOuterBraces(parameterExpression), work: work)
         } catch let diagnostic as ParserDiagnostic {
             resolvingParameters.remove(name)
             throw SPICEConditionalExpressionError(message: diagnostic.message)
@@ -837,7 +875,8 @@ private struct SPICEConditionalExpressionEvaluator {
             parameterValues: parameterValues,
             functions: functions,
             resolvingParameters: resolvingParameters,
-            resolvingFunctions: resolvingFunctions
+            resolvingFunctions: resolvingFunctions,
+            work: work
         )
         let value = try evaluator.evaluate(expression)
         resolvingParameters.remove(name)
@@ -953,7 +992,7 @@ private struct SPICEConditionalExpressionEvaluator {
         nextResolvingFunctions.insert(name)
         let expression: ParsedExpression
         do {
-            expression = try SPICEExpressionParser().parse(function.body)
+            expression = try SPICEExpressionParser().parse(function.body, work: work)
         } catch let diagnostic as ParserDiagnostic {
             throw SPICEConditionalExpressionError(message: diagnostic.message)
         }
@@ -962,7 +1001,8 @@ private struct SPICEConditionalExpressionEvaluator {
             parameterValues: scopedParameterValues,
             functions: functions,
             resolvingParameters: resolvingParameters,
-            resolvingFunctions: nextResolvingFunctions
+            resolvingFunctions: nextResolvingFunctions,
+            work: work
         )
         return try evaluator.evaluate(expression)
     }
