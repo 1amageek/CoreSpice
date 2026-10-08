@@ -39,6 +39,26 @@ normalization, whereas terminal charges use physical node orientation.
 
 ## State, Ownership, and Lifecycle
 
+### Exact release admission
+
+The current evaluator exposes Berkeley 4.8.3 and rejects version 4.5. The
+selected Sky130 cards require the corresponding original Berkeley 4.5.0 release,
+with its own defaults, selectors and equations. Relabeling cards to 4.8.3 does
+not satisfy that requirement. Supporting 4.5 remains unimplemented.
+
+Release admission precedes successful model publication. The selected release
+owns temperature preparation, topology, residuals/derivatives, terminal charge
+and derivatives, history and noise. Existing 4.8.3 capacities, adaptations and
+limitations cannot be attributed to 4.5 without release-specific evidence.
+Every access and destruction retains the exclusive synchronized-owner contract;
+failed initialization releases acquired resources exactly once. Preparation and
+binding agree on temperature, noise capability and explicit resource policy.
+
+Completion requires actual 4.5 cold initialization, original selected-card
+preparation, release-specific topology/charge/history/noise and lifecycle failure
+evidence. Synthetic benchmarks or reference-executable agreement prove their
+tested conditions, not measured process accuracy or unexecuted-model coverage.
+
 Native, WASM and Embedded source use the same `Mutex<State>`, opaque owner, entry
 points and deinit. Setup is exclusive before publication; failed setup destroys
 the handle once. Deinit frees under the same lock. No I/O, callback or suspension

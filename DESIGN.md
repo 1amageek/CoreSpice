@@ -83,6 +83,18 @@ Native devices depend on IR and event types; analyses consume their stamps.
 
 ## Contracts and Invariants
 
+PDK declaration intake, semantic model/geometry admission, numerical execution
+and physical qualification are distinct boundaries. The target PDK contracts are
+owned by [IO](Sources/CoreSpiceIO/DESIGN.md),
+[Lowering](Sources/CoreSpiceLowering/DESIGN.md),
+[native resistors](Sources/CoreSpiceDevices/Devices/DESIGN.md#resistor-execution-contract)
+and [exact BSIM4 release admission](Sources/CoreSpiceCompactModels/BSIM4/DESIGN.md#exact-release-admission).
+These contracts record current gaps; they do not assert completed Sky130 support.
+The [CLI](Sources/CoreSpiceCLI/DESIGN.md) owns receipts generated from actual
+selected/bound models. Trust and application criteria remain with
+[ToolQualification](../ToolQualification/DESIGN.md) and their domain/application
+authorities. Loaded declarations cannot supply executed-model coverage.
+
 Native L3 MOS DC, AC, and transient analyses use the same device current and its
 linearization. A non-finite numerical result is a failure, never completed
 simulation evidence. L3 binding rejects unsupported parameter domains.

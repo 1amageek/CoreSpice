@@ -121,10 +121,13 @@ public struct SPICESerializer: NetlistSerializer {
         // Model name
         if let model = component.modelName {
             parts.append(model)
+        } else if let candidate = component.resistorModelCandidate {
+            parts.append(candidate)
         }
 
         // Parameters
         for (name, value) in sortedIfNeeded(component.parameters, options) {
+            if name == "r", component.resistorModelCandidate != nil { continue }
             if name == "pwl", case .numericVector(let values) = value {
                 parts.append("PWL(" + values.map { formatNumber($0, options) }.joined(separator: " ") + ")")
             } else {

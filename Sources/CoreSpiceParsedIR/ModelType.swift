@@ -3,6 +3,8 @@
 /// Model types define the mathematical model used to simulate a device.
 public enum ModelType: String, Sendable, Hashable, Codable {
 
+    case resistor = "R"
+
     // Diode models
     case diode = "D"
 

@@ -20,6 +20,9 @@ typed numerical failures; devices never label an analysis successful.
 |---|---|---|---|---|
 | [CoreSpice](../../DESIGN.md) | parent | Simulation domain | Package composition | Native evidence does not qualify a foundry model |
 | [Devices](Devices/DESIGN.md) | child | Descriptors and bound devices | Physical models | Current and Jacobian must change together |
+| [ParsedIR](../CoreSpiceParsedIR/DESIGN.md) | coordinates with | Original model and instance source roles | Resistor declaration provenance | Unused declaration acceptance is not execution admission |
+| [Lowering](../CoreSpiceLowering/DESIGN.md) | used by | Device preparation and supported parameter roles | Canonical model/instance values and runtime dependencies | Model values must not be flattened into instance overrides |
+| [Analysis](../CoreSpiceAnalysis/DESIGN.md) | used by | Fallible stamps and noise admission | Numerical execution and current PSD consumption | Unsupported requested noise cannot disappear from a successful result |
 
 ## Architecture
 
@@ -42,6 +45,14 @@ share the same derivative. Transient stamping combines that current with the
 selected integration companion, and commits history only after acceptance.
 
 ## State, Ownership, and Lifecycle
+
+The [resistor execution contract](Devices/DESIGN.md#resistor-execution-contract)
+is the authority for the implemented ideal and static model-backed R boundary
+and the target runtime resistor profile in B8.6.5.4. This module composes that child through the existing
+registry and BoundDevice/noise interfaces. Declaration parsing, device admission,
+and process-model qualification are separate completion claims. The target
+runtime contract is not a statement that the current implementation supports
+voltage-dependent R; that binding path remains an explicit refusal.
 
 L3 parameters and topology are immutable after binding. The bound device owns a
 `TransientCapacitanceStore` whose accepted currents use `Mutex`; its read and

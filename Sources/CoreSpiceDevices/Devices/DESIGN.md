@@ -3,8 +3,10 @@
 ## Purpose and Scope
 
 This component owns descriptor and bound-device implementations. Its parent is
-[CoreSpiceDevices](../DESIGN.md). This sprint changes only the Level 3 MOS channel
-model and its direct descriptor/stamping/capacitance paths.
+[CoreSpiceDevices](../DESIGN.md). The verified Level 3 MOS contract and independent
+source admission remain unchanged. The resistor section separately defines the
+target B8.6.5.4 static/runtime resistor contracts; it does not claim that
+the currently missing implementation or whole-process qualification is complete.
 
 ## Responsibilities and Boundaries
 
@@ -18,6 +20,9 @@ foundry temperature/noise fidelity are not provided by this Level 3 model.
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [CoreSpiceDevices](../DESIGN.md) | parent | BoundDevice and registry | Analysis boundary | Current and derivative consistency is required for all analyses |
+| [IR](../../CoreSpiceIR/DESIGN.md) | depends on | ResolvedDeviceModel, Instance and BehavioralExpression | Separate model provenance and simulation dependencies | Reuse existing value boundaries; do not invent merged provenance |
+| [Lowering](../../CoreSpiceLowering/DESIGN.md) | used by | Model resolution and runtime expression lowering | Prepared numerical input and dependencies | The parser does not implement resistor physics |
+| [Analysis](../../CoreSpiceAnalysis/DESIGN.md) | used by | Checked stamping and noise execution | DC, AC, transient and noise consumers | Device binding does not declare an analysis successful |
 
 ## Architecture
 
@@ -119,3 +124,245 @@ Built-in devices preserve the same bounded breakpoint contract through the
 BoundDevice protocol. Custom implementations own admission before allocating
 their breakpoint output. Host CPU integration tests trace compiler, registry,
 bound waveform, numerical transient and exact accepted time axis.
+
+## Resistor Execution Contract
+
+### Static Preparation Ownership
+
+`ResistorPreparation` owns the static parameter-domain and derived-value admission
+behind `ResistorDescriptor`. The immutable prepared value supplies DC and AC
+conductances, thermal temperature, multiplicity and flicker coefficients to the
+memoryless `BoundResistor`. Preparation reads original model and instance maps
+separately; aliases are admitted only within their source role and conflicting
+aliases are explicit failures. Model geometry defaults are 10 micrometers and
+remain SI; only supplied instance dimensions consume document scale in lowering.
+Model geometry wins over model R only when sheet resistance and source dimensions
+admit the original geometry path. Effective dimensions must be positive whenever
+geometry resistance or explicit-dimension flicker area consumes them.
+
+The pinned `resnoise.c` plus `NevalSrcInstanceTemp` define a distinct thermal
+temperature: without absolute instance `temp`, use operating temperature plus
+`dtemp`; with `temp`, use its Kelvin value plus model nominal Celsius temperature.
+This unusual original rule is preserved explicitly rather than substituting the
+resistance-evaluation temperature. It requires finite positive noise temperature.
+Flicker consumes total actual DC current `I=G*V`, then the per-unit current `I/m`.
+Its area is one unless either source instance dimension is supplied; otherwise
+the admitted effective dimensions and model `lf/wf` define the area. Invalid
+frequency or non-finite/negative spectra fail the existing throwing noise API.
+
+```mermaid
+flowchart LR
+  Model[Original model values] --> Prepare[Static preparation]
+  Instance[Original instance values] --> Prepare
+  Conditions[Actual and circuit nominal temperature] --> Prepare
+  Prepare --> Bound[Immutable conductance and noise law]
+  Bound --> DC[DC and transient]
+  Bound --> AC[Separate AC conductance]
+  Bound --> Noise[Thermal and current-dependent flicker]
+```
+
+Runtime-dependent resistance is retained as canonical behavioral IR and referenced
+nodes in lowering. Its callable binding branch remains a marked typed refusal
+until the independently owned runtime current/Jacobian/noise contract is complete.
+
+### Current Facts and Fixed Scope
+
+`ResistorDescriptor` delegates static admission to `ResistorPreparation` and
+binds immutable conductance/noise values. DC/transient share the prepared
+conductance; AC may use a separate admitted resistance. Binding resolves CSR
+indices once. Original ideal-R meaning and terminal orientation are retained.
+Temperature, geometry, multiplicity, resistance scale and thermal/flicker noise
+now have explicit numerical paths; runtime-dependent R remains a marked typed
+binding refusal. Focused native CPU execution evidence is recorded by the task
+executor, independently of this implementation description.
+
+B8.6.5.4 fixes two target responsibilities: complete native static resistor
+semantics (explicit/model/geometry resistance, temperature, multiplicity,
+resistance scale and noise), and runtime-dependent resistor semantics (current,
+complete Jacobian, temperature, multiplicity and noise). Implementation sprints
+are divided by the package task; an interim subset is not the completed contract.
+Until a supplied parameter's meaning is implemented, it is a typed refusal when
+used, even if syntactically valid or zero-valued. This interim admission prevents
+false success; it does not remove the missing feature from the target.
+Unused declarations remain source values; they are neither numerically prepared
+nor qualified by parsing alone. Completion does not imply all Sky130 device or
+process coverage, or arbitrary runtime function support.
+
+The untouched xhigh-po card establishes these concrete needs: `rend1/2` reference
+`reshead`, supply scalar `r` and instance `tc1/tc2`; `reshead` supplies `tnom=25`.
+`rbody` supplies a resistance expression containing terminal/substrate voltages
+and its own `tc1/tc2`, but does not reference `resbody`. That unused model's
+`tnom=25` must not be inferred as the body's temperature authority. The observed
+model declaration refusal precedes these execution paths; advancing that refusal
+alone is not evidence of their numerical correctness.
+
+### Input Roles and Admission
+
+- Keep resolved model name/type/parameters in existing `ResolvedDeviceModel`,
+  separate from supplied `Instance.parameters`. Instance coefficients override
+  corresponding model defaults only at the device's preparation boundary.
+  Model identity/type mismatch, unknown references and unsupported supplied
+  parameters fail explicitly. No model coefficients are lost through flattening.
+- A static resistance expression resolves using the existing scoped parameter
+  semantics. A voltage-dependent resistance retains the existing canonical
+  `BehavioralExpression` and all referenced nodes. It must not be statically
+  evaluated, replaced by a constant, or changed into manufactured SPICE text.
+- Require finite, positive effective resistance, valid temperature and finite
+  derived current/conductance/derivatives within the admitted passive profile.
+  Zero/negative/non-finite resistance, invalid temperature factors and arithmetic
+  overflow yield typed binding/runtime failure. Do not adopt the reference's
+  warning-plus-small-resistance substitution as successful native admission.
+- Explicit source R has precedence over any admitted model-default resistance.
+  Without explicit R, the static owner selects valid original geometry and sheet
+  resistance, then model-default R. Missing/invalid input fails instead of the
+  reference warning-plus-1mOhm fallback. Geometry is a required target, not a
+  reason to infer an ideal resistance while its implementation is absent.
+
+### Temperature and Scale Authorities
+
+For ordinary model-backed R, model `tnom` is Celsius at source intake and Kelvin
+after preparation. Without model `tnom`, use the circuit nominal temperature
+(reference default 300.15 K), independently of actual operating temperature.
+`OperatingConditions` owns distinct actual and nominal temperatures in Kelvin.
+Its nominal temperature defaults to 300.15 K and both temperatures must be finite
+and positive. `SPICEAnalysisOptions` resolves circuit `.options tnom` in Celsius
+and supplies the converted nominal value through `operatingConditions()`.
+Model `tnom` overrides this circuit nominal value only during device preparation.
+Nominal temperature is not inserted into physical instance parameter maps.
+Instance `tc1/tc2`
+override their model defaults independently. With
+`dT = T_effective - T_nominal`, `F = 1 + tc1*dT + tc2*dT*dT` and
+`R_effective = R_nominal*F`. Multiplicity and resistance scale are required static
+semantics: `G = m/(R_nominal*F*scale)`. An explicit
+instance absolute `temp` takes precedence over `dtemp`; otherwise `dtemp` adds
+to the operating temperature. Instance `tce` overrides model `tce`; if either is
+supplied, its exponential factor `pow(1.01,tce*dT)` takes precedence over the
+quadratic law. Optional AC resistance uses its distinct source value with the
+same admitted temperature/multiplicity/scale law. Every applied value retains
+its source role; unimplemented supplied values are not ignored.
+
+For the reference-compatible voltage-dependent R profile, use the pinned
+behavioral nominal temperature **300.15 K**, independently of an unused resistor
+model's `tnom`. Preserve its supplied instance `tc1/tc2` and admitted multiplicity
+in the reference law `I = m*V_terminal/(R_expression*F)`. Runtime multiplicity
+is a required target regardless of whether the observed card supplies it.
+The reference rewrite copies main-current multiplicity but not multiplicity to
+its noise auxiliaries. This is a source-authority difference, not permission to
+guess a multiplicity-scaled noise law. Runtime noise/multiplicity composition
+must be resolved against the actual original auxiliary algorithm before that
+target is implemented or claimed complete. A supplied parameter that the current
+implementation cannot honor is an interim typed refusal, not inherited from an
+unrelated model or permanently excluded from the required runtime target.
+
+The pinned reference applies document `.options scale` to source instance `l/w`,
+while R-instance `scale` multiplies resistance. They must never alias. The required
+static geometry contract preserves SI lengths and the original
+`Rsh*(L-2*short)/(W-2*narrow)` law, source default provenance and valid effective
+dimensions. Defaults and effective dimensions retain their model/instance origin.
+This requires its own analytical proof before successful admission. The observed
+xhigh-po card does not need geometry-only resistance or `tce`; that observation
+does not remove either from the complete static target.
+
+These rules use the fixed ngspice46 commit
+`ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6`:
+[ordinary temperature/geometry](https://raw.githubusercontent.com/imr/ngspice/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/spicelib/devices/res/restemp.c),
+[source temperature and scale conversion](https://raw.githubusercontent.com/imr/ngspice/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/spicelib/devices/res/resparam.c),
+and [behavioral temperature and current stamping](https://raw.githubusercontent.com/imr/ngspice/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/spicelib/devices/asrc/asrcload.c).
+The reference's behavioral nominal-temperature FIXME is a verified reference
+behavior, not permission to silently replace it with the unused model's `tnom`.
+
+### Runtime and Noise
+
+DC and transient evaluate the same current law. Every voltage dependency enters
+the compiled matrix structure, even when it is not one of the two resistor ports.
+Jacobian and AC small-signal stamps differentiate that complete current law at
+the same operating point, including the voltage dependence of R. Subcircuit
+remapping applies to both terminals and read-only referenced nodes. Reuse the
+existing behavioral expression machinery; evaluating `1/R` alone is not the
+nonlinear device Jacobian. The device is memoryless and adds no transient history.
+
+Ordinary R retains its existing thermal-noise default. Explicit admitted
+`noisy/noise=0` is a source choice, not an unsupported-noise fallback. The
+reference-compatible runtime R default is noiseless; thermal noise is enabled
+only by an explicit `noisy/noise` choice or caller policy equivalent to
+the reference `enable_noisy_r`. This choice must survive lowering and binding.
+Ordinary thermal current PSD uses the selected temperature and conductance law,
+`4*kB*T_noise*G`. Its temperature authority and overrides must follow the original
+noise path, not an assumed equality with another nominal temperature. For the
+reference runtime rewrite with default multiplicity and temperature, the auxiliary
+law gives `4*kB*T_operating/(R_expression*F)` at the operating point. This is not
+`4*kB*T*dI/dV` for a nonlinear R. Extending this to multiplicity or other supplied
+runtime parameters is an unresolved algorithm boundary until original auxiliary
+semantics are verified; do not multiply that PSD by m merely from the current law.
+Noise-disabled and noise-unsupported states are different: a requested capability
+outside the profile fails through the existing noise admission boundary before
+successful analysis. It cannot disappear because a device lacks `NoisyDevice`.
+
+Static flicker noise is a required target. It retains model `kf/af/ef/lf/wf`,
+actual operating-point current and admitted effective noise area. The original
+current PSD is `m*kf*abs(I/m)^af/(A_effective*f^ef)`; when source dimensions are
+supplied, `A_effective=(L-2*short)^lf*(W-2*narrow)^wf`, otherwise its source
+default is retained. Finite/domain admission and frequency/temperature handling
+remain explicit. Static preparation and `BoundResistor` implement these semantics; invalid
+supplied coefficients and non-finite runtime spectra remain typed failures. Existing ideal-R thermal tests cannot qualify flicker.
+The fixed reference's
+[runtime rewrite and noise selection](https://raw.githubusercontent.com/imr/ngspice/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/frontend/inpcom.c),
+[ordinary defaults](https://raw.githubusercontent.com/imr/ngspice/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/spicelib/devices/res/ressetup.c),
+and [noise law](https://raw.githubusercontent.com/imr/ngspice/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/spicelib/devices/res/resnoise.c)
+are separate authorities; the behavioral current-source implementation alone
+does not provide resistor-noise support.
+
+```mermaid
+flowchart LR
+    Roles[Separate model and instance values] --> Prepare[Profile and temperature admission]
+    Expr[Static value or canonical runtime R expression] --> Prepare
+    Prepare --> Bound[Immutable run-owned resistor]
+    Bound --> Current[Current and complete Jacobian]
+    Current --> Analyses[DC / AC / transient]
+    Bound --> Noise[Explicit noise selection and checked PSD]
+    Noise --> NoiseAnalysis[Noise analysis]
+```
+
+### Ownership, Failures and Completion Evidence
+
+Prepared values/dependencies are immutable and owned by the bound device for one
+analysis run. Expression resolution is invocation-local and uses the existing
+LoweringContext isolation. No shared mutable resistor state, platform-conditional
+storage, C evaluator or new global projector is introduced. Resource/cancellation
+and numerical-failure propagation remain with the existing compilation/analysis
+owners. No typed error can become a successful zero current, ideal R or omitted
+noise contribution.
+
+| Invariant | Minimum behavioral evidence and owner |
+|---|---|
+| Declaration vs execution | Parser/ParsedIR unused-model round trip plus public IO model-reference survival |
+| Separate roles and precedence | Public IO model/instance coefficient conflict, scoped references and actual binding |
+| Static resistance and geometry | Public IO explicit/model/geometry precedence, SI/document scale, effective dimensions and model defaults against an independent resistance oracle |
+| Ordinary temperature and scale | Device/public IO current/AC conductance for model and instance coefficients, tnom, temp/dtemp, tce, m and resistance scale |
+| Runtime current and topology | Public IO voltage-dependent DC/transient, independent derivative oracle and AC linearization, including substrate and nested node references |
+| Distinct nominal authorities | Same coefficient values tested against ordinary model tnom and runtime 300.15 K separately |
+| Static noise | Actual NoiseAnalysis thermal/flicker PSD and contribution checks across current/frequency/area/multiplicity and explicit disable |
+| Runtime noise | Actual original auxiliary algorithm comparison including temperature/multiplicity, enabled/disabled selection and nonlinear operating-point dependence |
+| Refusal | Unsupported supplied parameter, model mismatch, non-finite/invalid R or temperature factor and runtime-domain failure |
+| Production input locality | Untouched Sky130 card/deck replay retains expressions; grammar progress is reported separately from device numerical completion |
+
+Existing [resistor binding/stamp tests](../../../Tests/CoreSpiceDevicesTests/CoreSpiceDevicesTests.swift),
+[ideal thermal-noise tests](../../../Tests/CoreSpiceAnalysisTests/NoiseIntegrationTests.swift)
+and [behavioral public IO tests](../../../Tests/CoreSpiceIOTests/SPICEIOEndToEndTests.swift)
+remain regression premises. They do not already prove this target resistor
+profile. New profile completion requires the additional actual public behavior
+above; no foundry/process-wide qualification follows from that completion.
+
+
+### Static Verification Owners
+
+[StaticResistorTests](../../../Tests/CoreSpiceDevicesTests/StaticResistorTests.swift)
+checks analytical temperature/multiplicity/scale and AC conductances, model/default
+geometry precedence, original thermal-temperature rule, current-dependent flicker
+area and frequency laws, aliases, noise disable, CSR/transient reuse and failures.
+[ResistorLoweringTests](../../../Tests/CoreSpiceLoweringTests/ResistorLoweringTests.swift)
+checks lexical models, separate maps, runtime dependency retention, document scale
+and incomplete MOS refusal. [SPICEIOEndToEndTests](../../../Tests/CoreSpiceIOTests/SPICEIOEndToEndTests.swift)
+executes actual DC/AC/noise and nominal-temperature/geometry compositions.
+Evidence remains local to the native CPU paths executed by the task executor;
+WASM/Embedded, runtime resistor physics and foundry-wide accuracy are unqualified.

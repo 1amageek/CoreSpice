@@ -632,7 +632,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
 
     private static func blockedModelReason(_ model: ParsedModel) -> String? {
         switch model.type {
-        case .diode, .npn, .pnp:
+        case .resistor, .diode, .npn, .pnp:
             return nil
         case .nmos, .pmos:
             let level = model.level ?? 1

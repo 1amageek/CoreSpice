@@ -155,9 +155,9 @@ private struct SPICEParserImpl {
 
         let netlist = ParsedNetlist(
             title: title,
-            components: components,
+            components: resistorRoles(in: components, models: Set(models.map { $0.name.lowercased() })),
             models: models,
-            subcircuits: subcircuits,
+            subcircuits: resistorSubcircuitRoles(subcircuits, inheritedModels: Set(models.map { $0.name.lowercased() })),
             analyses: analyses,
             controls: controls,
             parameterDefinitions: parameterDefinitions,
@@ -177,6 +177,30 @@ private struct SPICEParserImpl {
     }
 
     // MARK: - Parsing Methods
+
+    private func resistorRoles(in values: [ParsedComponent], models: Set<String>) -> [ParsedComponent] {
+        values.map { component in
+            guard component.type == .resistor, component.modelName == nil,
+                  let candidate = component.resistorModelCandidate,
+                  models.contains(candidate.lowercased()) else { return component }
+            var parameters = component.parameters
+            parameters.removeValue(forKey: "r")
+            return ParsedComponent(name: component.name, type: component.type, nodes: component.nodes,
+                modelName: candidate, parameters: parameters, location: component.location)
+        }
+    }
+
+    private func resistorSubcircuitRoles(_ values: [ParsedSubcircuit], inheritedModels: Set<String>) -> [ParsedSubcircuit] {
+        values.map { subcircuit in
+            let models = inheritedModels.union(subcircuit.body.models.map { $0.name.lowercased() })
+            let body = ParsedNetlistBody(components: resistorRoles(in: subcircuit.body.components, models: models),
+                models: subcircuit.body.models,
+                subcircuits: resistorSubcircuitRoles(subcircuit.body.subcircuits, inheritedModels: models),
+                parameters: subcircuit.body.parameters, parameterDefinitions: subcircuit.body.parameterDefinitions)
+            return ParsedSubcircuit(name: subcircuit.name, ports: subcircuit.ports,
+                parameters: subcircuit.parameters, body: body, location: subcircuit.location)
+        }
+    }
 
     private mutating func parseTitle() {
         // In SPICE, the very first line is always the title.
@@ -345,6 +369,7 @@ private struct SPICEParserImpl {
 
         var nodes: [ParsedNodeRef] = []
         var modelName: String?
+        var resistorModelCandidate: String?
         var params: [String: ParsedParameterValue] = [:]
 
         // Parse nodes
@@ -416,6 +441,16 @@ private struct SPICEParserImpl {
 
         // Parse parameters
         while !isAtEnd && !isNewline {
+            if type == .resistor, modelName == nil,
+               let candidate = resistorModelCandidate {
+                switch currentToken {
+                case .number, .leftBrace, .quotedExpression, .plus, .minus:
+                    modelName = candidate
+                    resistorModelCandidate = nil
+                    params.removeValue(forKey: "r")
+                default: break
+                }
+            }
             if case .dottedLiteral(let text) = currentToken {
                 throw ParserDiagnostic.error("Version literal '\(text)' is not a numerical component value", at: currentLocation)
             }
@@ -424,6 +459,12 @@ private struct SPICEParserImpl {
                 advance()
                 if case .equals = currentToken {
                     advance()
+                    if type == .resistor, lower == "r" || lower == "resistance",
+                       let candidate = resistorModelCandidate, modelName == nil {
+                        modelName = candidate
+                        resistorModelCandidate = nil
+                        params.removeValue(forKey: "r")
+                    }
                     if type == .mosfet && lower == "ic" {
                         let keys = ["ic_vds", "ic_vgs", "ic_vbs"]
                         for key in keys { params[key] = .numeric(0) }
@@ -470,9 +511,16 @@ private struct SPICEParserImpl {
                             params[key] = .numeric(value)
                         } else {
                             params[key] = .expression(.identifier(paramName))
+                            if type == .resistor { resistorModelCandidate = paramName }
                         }
                     } else if type == .voltageSource || type == .currentSource {
                         throw ParserDiagnostic.error("Unsupported source waveform or parameter '\(paramName)'", at: currentLocation)
+                    } else if type == .resistor {
+                        guard modelName == nil, params["r"] != nil else {
+                            throw ParserDiagnostic.error("Unexpected resistor token '\(paramName)'", at: currentLocation)
+                        }
+                        modelName = paramName
+                        resistorModelCandidate = nil
                     }
                 }
             } else if case .quotedExpression = currentToken {
@@ -492,6 +540,8 @@ private struct SPICEParserImpl {
                 }
                 if let key = positionalKey(for: type, existing: params) {
                     params[key] = .numeric(n)
+                } else if type == .resistor {
+                    throw ParserDiagnostic.error("Unexpected extra resistor value", at: currentLocation)
                 }
                 advance()
             } else if case .invalidNumericLiteral(let text) = currentToken {
@@ -502,26 +552,38 @@ private struct SPICEParserImpl {
                 // Signed positional value, e.g. a negative source DC value (V1 n1 n2 -2).
                 if let value = try parseSignedNumber(), let key = positionalKey(for: type, existing: params) {
                     params[key] = .numeric(value)
+                } else if type == .resistor {
+                    throw ParserDiagnostic.error("Unexpected signed resistor value", at: currentLocation)
                 }
             } else if case .leftBrace = currentToken {
                 if let key = positionalKey(for: type, existing: params) {
                     params[key] = try parseExpressionValue()
                 } else {
+                    if type == .resistor {
+                        throw ParserDiagnostic.error("Unexpected extra resistor expression", at: currentLocation)
+                    }
                     _ = try parseExpressionValue()
                 }
             } else {
                 if type == .voltageSource || type == .currentSource {
                     throw ParserDiagnostic.error("Unexpected source token", at: currentLocation)
                 }
+                if type == .resistor {
+                    throw ParserDiagnostic.error("Unexpected resistor token", at: currentLocation)
+                }
                 advance()
             }
         }
 
+        if type == .resistor, nodes.count != 2 || (params["r"] == nil && params["resistance"] == nil && modelName == nil) {
+            throw ParserDiagnostic.error("Resistor requires two nodes and resistance or model", at: loc)
+        }
         components.append(ParsedComponent(
             name: name,
             type: type,
             nodes: nodes,
             modelName: modelName,
+            resistorModelCandidate: resistorModelCandidate,
             parameters: params,
             location: loc
         ))

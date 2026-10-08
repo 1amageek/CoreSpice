@@ -115,8 +115,10 @@ struct SPICEExecutionIntentTests {
         let options = try SPICEAnalysisOptions.resolve(from: netlist)
 
         #expect(options.temperatureCelsius == nil)
-        #expect(options.diagnostics.count == 1)
-        #expect(options.diagnostics.first?.name == "tnom")
+        #expect(options.nominalTemperatureCelsius == 25)
+        #expect(options.diagnostics.isEmpty)
+        #expect(try options.operatingConditions().nominalTemperatureKelvin == 298.15)
+        #expect(try options.operatingConditions().temperatureKelvin == 300.15)
     }
 
     @Test
@@ -423,12 +425,12 @@ struct SPICEExecutionIntentTests {
         #expect(report.summary.totalItems > 0)
         #expect(report.summary.appliedItems >= 2)
         #expect(report.summary.supportedItems >= 3)
-        #expect(report.summary.warningItems == 2)
+        #expect(report.summary.warningItems == 1)
         #expect(report.summary.blockedItems == 2)
         #expect(report.hasBlockedItems)
 
         #expect(item(named: "reltol", in: report)?.status == .applied)
-        #expect(item(named: "tnom", in: report)?.status == .warning)
+        #expect(item(named: "tnom", in: report)?.status == .applied)
         #expect(item(named: "unknownoption", in: report)?.status == .warning)
         #expect(item(named: "maxord", in: report)?.status == .blocked)
         #expect(item(named: "vmax", in: report)?.status == .supported)

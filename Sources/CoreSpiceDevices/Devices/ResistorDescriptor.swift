@@ -1,12 +1,23 @@
 import CoreSpiceIR
 
-/// Descriptor for a two-terminal linear resistor.
+/// Descriptor for a two-terminal static semiconductor resistor.
 public struct ResistorDescriptor: DeviceDescriptor, Sendable {
 
     public let typeName = "resistor"
     public let portNames = ["pos", "neg"]
     public let parameterDescriptors = [
         ParameterDescriptor(name: "r", defaultValue: nil, description: "Resistance in ohms"),
+        ParameterDescriptor(name: "ac", defaultValue: nil, description: "Independent AC resistance in ohms"),
+        ParameterDescriptor(name: "l", defaultValue: nil, description: "Instance length in meters after document scale"),
+        ParameterDescriptor(name: "w", defaultValue: nil, description: "Instance width in meters after document scale"),
+        ParameterDescriptor(name: "temp", defaultValue: nil, description: "Absolute instance temperature in Celsius"),
+        ParameterDescriptor(name: "dtemp", defaultValue: nil, description: "Instance temperature offset in Kelvin"),
+        ParameterDescriptor(name: "tc1", defaultValue: nil, description: "Instance linear temperature coefficient"),
+        ParameterDescriptor(name: "tc2", defaultValue: nil, description: "Instance quadratic temperature coefficient"),
+        ParameterDescriptor(name: "tce", defaultValue: nil, description: "Instance exponential temperature coefficient"),
+        ParameterDescriptor(name: "m", defaultValue: nil, description: "Positive parallel multiplicity"),
+        ParameterDescriptor(name: "scale", defaultValue: nil, description: "Positive resistance scale distinct from document geometry scale"),
+        ParameterDescriptor(name: "noisy", defaultValue: nil, description: "Noise enabled (1) or disabled (0)"),
     ]
 
     public init() {}
@@ -18,22 +29,7 @@ public struct ResistorDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
-        let resistance: Double
-        if let param = instance.parameters["r"] {
-            guard case .real(let r) = param else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: "r", expected: "real"
-                )
-            }
-            guard r > 0 else {
-                throw DeviceBindingError.invalidParameterValue(
-                    device: instance.name, parameter: "r", message: "Resistance must be positive"
-                )
-            }
-            resistance = r
-        } else {
-            throw DeviceBindingError.missingParameter(device: instance.name, parameter: "r")
-        }
+        let parameters = try ResistorPreparation.prepare(instance: instance, conditions: context.operatingConditions)
 
         let posNode = instance.nodes[0]
         let negNode = instance.nodes[1]
@@ -50,8 +46,7 @@ public struct ResistorDescriptor: DeviceDescriptor, Sendable {
             instance: instance,
             posNode: posNode,
             negNode: negNode,
-            resistance: resistance,
-            temperatureKelvin: context.operatingConditions.temperatureKelvin,
+            parameters: parameters,
             posIdx: posIdx,
             negIdx: negIdx,
             stampPP: stampPP,

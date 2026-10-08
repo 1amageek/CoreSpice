@@ -7,6 +7,107 @@ import CoreSpiceIO
 @Suite("SPICEIO end-to-end tests")
 struct SPICEIOEndToEndTests {
 
+    @Test("Document scale reaches source dimensions once and circuit nominal temperature reaches binding")
+    func staticResistorGeometryScaleAndCircuitNominalTemperature() async throws {
+        let parsed = try await SPICEIO.parse("""
+        geometry source authority
+        .options scale=1u
+        V1 in 0 1
+        R1 in out sheet l=10 w=4 scale=2 m=2
+        R2 out 0 1000
+        .model sheet R r=999 rsh=100 l=10u w=5u short=1u narrow=.5u
+        .end
+        """).get()
+        let options = try SPICEAnalysisOptions.resolve(from: parsed)
+        #expect(options.geometryScale == 1e-6)
+        let composed = try SPICEIO.lower(parsed, configuration: options.loweringConfiguration())
+        let direct = try SPICEIO.lower(parsed)
+        for ir in [direct, composed] {
+            let instance = try #require(ir.instances.first { $0.name.lowercased() == "r1" })
+            guard case .real(let length) = instance.parameters["l"],
+                  case .real(let width) = instance.parameters["w"],
+                  case .real(let modelWidth) = instance.model?.parameters["w"],
+                  case .real(let resistanceScale) = instance.parameters["scale"] else {
+                Issue.record("Expected separate original model and scaled source geometry")
+                return
+            }
+            #expect(abs(length - 10e-6) < 1e-20)
+            #expect(abs(width - 4e-6) < 1e-20)
+            #expect(abs(modelWidth - 5e-6) < 1e-20)
+            #expect(resistanceScale == 2)
+            let circuit = try compileAndBindElectricalCircuit(ir)
+            let result = try await DCAnalysis().run(plan: circuit.plan, devices: circuit.devices,
+                solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            let out = try node(fromInstance: "r1", terminal: 1, in: ir)
+            #expect(approximately(try result.voltage(at: out), 1000 / (1000 + 800.0 / 3), tolerance: 1e-9))
+        }
+        let temperatureDeck = try await SPICEIO.parse("""
+        circuit nominal authority
+        .options tnom=20 temp=50
+        V1 in 0 1
+        R1 in out r=1000 tc1=.01
+        R2 out 0 1000
+        .end
+        """).get()
+        let temperatureOptions = try SPICEAnalysisOptions.resolve(from: temperatureDeck)
+        let conditions = try temperatureOptions.operatingConditions()
+        #expect(conditions.temperatureKelvin == 323.15)
+        #expect(conditions.nominalTemperatureKelvin == 293.15)
+        let ir = try SPICEIO.lower(temperatureDeck, configuration: temperatureOptions.loweringConfiguration())
+        let circuit = try compileAndBindElectricalCircuit(ir, operatingConditions: conditions)
+        let result = try await DCAnalysis().run(plan: circuit.plan, devices: circuit.devices,
+            solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+        let out = try node(fromInstance: "r1", terminal: 1, in: ir)
+        #expect(approximately(try result.voltage(at: out), 1 / 2.3, tolerance: 1e-9))
+    }
+
+    @Test("Static semiconductor resistor executes distinct DC AC and flicker noise laws")
+    func staticResistorDCACAndFlickerNoise() async throws {
+        let ir = try await SPICEIO.parseAndLower("""
+        resistor actual analysis
+        V1 in 0 dc 1 ac 1
+        R1 in out sheet r=1000 ac=2000
+        R2 out 0 1000 noisy=0
+        .model sheet R kf=1e-12 af=2 ef=1
+        .end
+        """)
+        let circuit = try compileAndBindElectricalCircuit(ir)
+        let out = try node(fromInstance: "r1", terminal: 1, in: ir)
+        let dc = try await DCAnalysis().run(plan: circuit.plan, devices: circuit.devices,
+            solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+        #expect(approximately(try dc.voltage(at: out), 0.5, tolerance: 1e-9))
+        let ac = try await ACAnalysis(sweep: .single(100)).run(plan: circuit.plan,
+            devices: circuit.devices, solver: SparseLUSolver(), observer: nil,
+            cancellation: CancellationToken())
+        #expect(approximately(try ac.voltage(at: out, frequencyIndex: 0).real, 1.0 / 3.0, tolerance: 1e-9))
+        let noise = try await NoiseAnalysis(outputNode: out, sweep: .single(100)).run(
+            plan: circuit.plan, devices: circuit.devices, solver: SparseLUSolver(), observer: nil,
+            cancellation: CancellationToken())
+        let currentPSD = 4 * 1.380649e-23 * 300.15 / 1000 + 1e-12 * 0.0005 * 0.0005 / 100
+        #expect(approximately(noise.outputNoiseDensity[0] / (currentPSD * pow(1 / 0.0015, 2)), 1, tolerance: 1e-8))
+    }
+
+    @Test("Static resistor retains model identity and applies model nominal temperature")
+    func staticResistorModelIdentityAndTemperature() async throws {
+        let ir = try await SPICEIO.parseAndLower("""
+        resistor model temperature regression
+        V1 in 0 1
+        R1 in out reshead r=1000 tc1=0.01
+        R2 out 0 1000
+        .model reshead R tnom=25
+        .op
+        .end
+        """)
+        let resistor = try #require(ir.instances.first { $0.name.lowercased() == "r1" })
+        #expect(resistor.model?.name.lowercased() == "reshead")
+        #expect(resistor.parameters["tnom"] == nil)
+        let circuit = try compileAndBindElectricalCircuit(ir)
+        let result = try await DCAnalysis().run(plan: circuit.plan, devices: circuit.devices,
+            solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+        let out = try node(fromInstance: "r1", terminal: 1, in: ir)
+        #expect(approximately(try result.voltage(at: out), 1000.0 / 2020.0, tolerance: 1e-9))
+    }
+
     @Test("Public API parses, lowers, analyzes, and exports an operating-point deck")
     func publicAPIParsesLowersAnalyzesAndExportsOperatingPointDeck() async throws {
         let source = """
@@ -975,7 +1076,8 @@ private struct ExecutableElectricalCircuit {
     let devices: [any BoundDevice]
 }
 
-private func compileAndBindElectricalCircuit(_ ir: CircuitIR) throws -> ExecutableElectricalCircuit {
+private func compileAndBindElectricalCircuit(_ ir: CircuitIR,
+    operatingConditions: OperatingConditions = .nominal) throws -> ExecutableElectricalCircuit {
     let plan = try StandardCompiler().compile(ir: ir)
     let registry = DeviceRegistry.standard()
     let structure = plan.matrixStructure
@@ -983,6 +1085,7 @@ private func compileAndBindElectricalCircuit(_ ir: CircuitIR) throws -> Executab
         variableMap: plan.topology.variableMap,
         matrixDimension: plan.topology.dimension,
         branchNames: plan.ir.branchNames,
+        operatingConditions: operatingConditions,
         stampIndexResolver: { row, col in
             structure.index(row: row, col: col)
         }

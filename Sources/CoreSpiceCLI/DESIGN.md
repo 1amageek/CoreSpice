@@ -26,6 +26,30 @@ and immutable qualification provenance throughout initial and repeated binding.
 
 ## Contracts and Invariants
 
+### Required selected-model receipts
+
+Current BSIM4 run records retain instance diagnostics and preparation policy,
+but do not provide the complete selected source/model/version binding needed by
+[case-bound qualification](../../../ToolQualification/DESIGN.md).
+The target record must derive that binding from the actual lowered and bound
+instances and verified input sources, retaining effective geometry, temperature,
+analysis profile and original result identity. It must not copy requested model
+IDs or infer execution from included declarations. Rebinding observations belong
+to their own execution phase. Failed preparation or analysis cannot publish a
+successful model receipt. Public CLI execution tests own this proof; changing
+record structure alone does not establish the contract.
+
+Current `ResolvedDeviceModel` retains name, type and evaluated parameters but
+drops the parsed declaration's source location. Current `LoadedSPICEDeck`
+records paths, while `executeBatch` hashes those paths after parsing. These
+facts do not establish that a retained model source is the exact content consumed
+by the parser. Receipt integration must retain the selected declaration origin
+and bind each consumed source to its captured content; a later read of the same
+path cannot substitute for that identity. Model names alone cannot disambiguate
+same-named declarations in different scopes. Path/availability metadata must
+remain separate from content identity. Missing or changed source bindings refuse
+qualification, rather than publishing an inferred receipt.
+
 The actual deck option bsim4stressiterations is the caller's positive UInt32 work
 budget. Session uses one resolved options object for lowering, initial binding,
 source-sweep/MonteCarlo/sensitivity rebinding and operating conditions. The batch

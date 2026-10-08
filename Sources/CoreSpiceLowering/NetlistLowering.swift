@@ -40,6 +40,8 @@ public struct NetlistLowering: Sendable {
 
         /// Default temperature in Celsius.
         public var temperature: Double
+        /// Explicit document geometry-scale override; nil consumes the deck option or one.
+        public var geometryScale: Double?
 
         /// Parameter overrides applied globally.
         /// These values override any parameters defined in the netlist.
@@ -55,6 +57,7 @@ public struct NetlistLowering: Sendable {
             expandModels: Bool = true,
             evaluateExpressions: Bool = true,
             temperature: Double = 27.0,
+            geometryScale: Double? = nil,
             parameterOverrides: [String: Double] = [:],
             randomSeed: UInt64? = nil,
             bsim4PreparationPolicy: BSIM4PreparationPolicy? = nil,
@@ -67,6 +70,7 @@ public struct NetlistLowering: Sendable {
             self.expandModels = expandModels
             self.evaluateExpressions = evaluateExpressions
             self.temperature = temperature
+            self.geometryScale = geometryScale
             self.parameterOverrides = parameterOverrides
             self.randomSeed = randomSeed
         }
@@ -128,13 +132,35 @@ public struct NetlistLowering: Sendable {
             context.setParameter(name, value: value)
         }
 
+        var resolvedConfiguration = configuration
+        if let scale = configuration.geometryScale {
+            guard scale.isFinite, scale > 0 else {
+                throw LoweringError.invalidComponent(name: "document", reason: "Geometry scale must be finite and positive")
+            }
+        } else {
+            var scale = 1.0
+            let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
+            for control in netlist.controls {
+                if case .option(let name, let value, _) = control, name.lowercased() == "scale" {
+                    guard let value else {
+                        throw LoweringError.invalidComponent(name: "document", reason: "Geometry scale requires a value")
+                    }
+                    scale = try evaluator.evaluate(value)
+                    guard scale.isFinite, scale > 0 else {
+                        throw LoweringError.invalidComponent(name: "document", reason: "Geometry scale must be finite and positive")
+                    }
+                }
+            }
+            resolvedConfiguration.geometryScale = scale
+        }
+
         // Build the netlist
         var builder = Netlist()
 
         // Expand components
         let expander = SubcircuitExpander(
             context: context,
-            configuration: configuration,
+            configuration: resolvedConfiguration,
             randomUniform: randomUniform
         )
         for component in sortedForExecutableDependencies(netlist.components) {

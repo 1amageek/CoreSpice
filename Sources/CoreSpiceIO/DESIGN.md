@@ -33,6 +33,14 @@ flowchart LR
 
 ## Contracts and Invariants
 
+Document geometry scale is resolved by `SPICEAnalysisOptions` and passed as the
+explicit `NetlistLowering.Configuration.geometryScale` value. Direct public
+parse-and-lower delegates source option intake to lowering when that explicit
+value is absent. Both paths use a finite positive dimensionless value. Current
+static resistor consumers scale only supplied instance `l/w`; model geometry
+defaults retain SI units and instance resistance `scale` remains independent.
+The incomplete compact-device consumer refuses nonidentity document scale.
+
 Typed callers supply `executionLimits` directly. CLI/deck callers supply all seven
 positive integer options: `tranmaxaccepted`, `tranmaxattempts`, `tranmaxiterations`,
 `tranmaxscalars`, `tranmaxdimension`, `tranmaxwork`, `tranmaxbreakpoints`. Each option
@@ -44,6 +52,35 @@ callers distinguish absent policy from partial policy before selecting their own
 Scalar options and measurements reject numeric vectors.
 
 ## Failure, Concurrency, and Constraints
+
+### Circuit nominal temperature composition
+
+`SPICEAnalysisOptions` resolves `.options tnom` independently of `.temp` and
+passes actual and nominal temperature through the immutable
+`OperatingConditions` value. Source nominal temperature is Celsius; device
+conditions are Kelvin, finite and above absolute zero. The absent nominal option
+uses 300.15 K. Device preparation owns any model-level nominal override. IO does
+not add synthetic nominal-temperature keys to instance or model parameters.
+Public IO tests distinguish actual, circuit nominal and model nominal authority.
+
+### Required PDK geometry composition
+
+IO resolves document `scale` and supplies it once to
+[Lowering](../CoreSpiceLowering/DESIGN.md); static resistor instance geometry
+uses that scale. Compact MOS geometry and scoped bin selection remain incomplete,
+and nonidentity scale is explicitly refused on that path. Model names,
+`BINUNIT` and display units are not alternative scaling authorities. Unsupported
+required options cannot produce qualified execution with altered geometry.
+
+Included declarations and executed models are separate coverage facts. The
+selected Sky130 library includes R/C definitions; the examined unchanged MOS
+deck executes a model-free load resistor and an `nfet_01v8` wrapper. Declaration
+intake alone does not establish the unused models' numerical execution.
+
+Public IO verification retains the original deck and include graph, resolved
+scale/temperature, selected model and execution profile. Static TT/SS/FF
+inventories are not executed corner evidence. Parsing, numerical execution and
+physical qualification remain separate completion conditions.
 
 The options object is a Sendable value; it owns no shared mutable state. Missing,
 invalid or exhausted policy remains typed and produces CLI JSON failure. CPU

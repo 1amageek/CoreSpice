@@ -13,6 +13,9 @@ The lexer preserves dotted version literals; parser retains an exact model versi
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [CoreSpice](../../DESIGN.md) | parent | Package composition | Owned module boundary | Revalidate direct consumers when contracts change |
+| [ParsedIR](../CoreSpiceParsedIR/DESIGN.md) | depends on | Resistor declaration and source-role preservation | Syntax output retains model references and values | Declaration admission does not admit a numerical model |
+| [Lowering](../CoreSpiceLowering/DESIGN.md) | used by | Scoped resolution and canonical runtime expressions | Parsed resistor intent reaches device preparation | Do not evaluate voltage references in the frontend |
+| [Native Devices](../CoreSpiceDevices/Devices/DESIGN.md) | coordinates with | Resistor execution admission | Numerical guarantees belong to the device owner | Unused model parsing is not device qualification |
 
 ## Architecture
 
@@ -135,6 +138,56 @@ The package master indexes this child contract. Revalidate the parser target and
 public IO consumer tests once after the implementation/test snapshot is frozen.
 Lowering/model source remains unchanged; existing exact-version tests are direct
 consumer checks rather than proof of new device support.
+
+## Resistor Declaration and Instance Intake
+
+Ambiguous bare identifiers carry `ParsedComponent.resistorModelCandidate`; numeric
+braces, quotes and named `r=` values retain an explicit numeric role with no
+candidate. Role resolution consumes only that source metadata, never expression
+shape. Serializer output preserves an unresolved candidate as its original bare
+token so include assembly or later lexical lowering can still resolve it.
+
+`ModelType.resistor` and the resistor source-role intake are implemented.
+Forward and scoped declarations resolve after their containing parse completes;
+lowering repeats lexical resolution for declarations assembled by include loading.
+An unresolved bare symbol remains a resistance expression. A model followed by
+`r=` remains an explicit model reference even when the model is unknown.
+Numerical execution is admitted separately by the device owner.
+
+The frontend accepts `.model <name> R` as a resistor declaration and preserves
+its original named values, expressions and source location. Unused declarations
+may be parsed and serialized without executing their model. An unsupported
+numerical parameter is retained for downstream admission, never silently dropped
+or advertised as supported because the declaration parsed successfully.
+
+For a two-node R instance, a model reference and positional or named resistance
+are distinct source roles. A bare symbolic positional resistance remains an
+expression when it does not designate a resistor model; scoped/forward model
+references must retain `ParsedComponent.modelName`. An explicit named `r=` must
+not overwrite or erase that model reference. The parser preserves instance
+parameters separately from model declaration parameters; it does not merge
+temperature coefficients, apply geometry scale, infer a model from a subcircuit
+name, or translate a voltage-dependent R into a synthetic B card. Numeric values
+use the existing numeric/quoted-expression grammar. Missing or malformed fields
+produce physical-location `ParserDiagnostic` failures.
+
+```mermaid
+flowchart LR
+    Model[Original model R declaration] --> Parsed[ParsedModel]
+    Card[Original R instance] --> Roles[Two nodes plus model name and instance values]
+    Roles --> Component[ParsedComponent]
+    Parsed --> Lowering[Scoped lowering and numerical preparation]
+    Component --> Lowering
+```
+
+The model/instance syntax follows the pinned ngspice46
+[resistor parser](https://raw.githubusercontent.com/imr/ngspice/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/spicelib/parser/inp2r.c).
+Runtime and noise semantics are owned only by the
+[Native Devices resistor contract](../CoreSpiceDevices/Devices/DESIGN.md#resistor-execution-contract).
+The parser test owner must distinguish unused declaration round trips, numeric
+and symbolic positional R, model plus named R, scoped/forward references, and
+malformed source diagnostics. Public IO must additionally prove that model
+identity survives to binding; parser tests alone do not establish that guarantee.
 
 ## State, Ownership, and Lifecycle
 

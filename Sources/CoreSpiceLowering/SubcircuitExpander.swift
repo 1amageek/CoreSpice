@@ -28,11 +28,12 @@ public struct SubcircuitExpander: Sendable {
     ///   nodes and its internals to prefixed names), so they are used as-is. This
     ///   prevents the ports from being prefixed a second time.
     public func expandComponent(
-        _ component: ParsedComponent,
+        _ inputComponent: ParsedComponent,
         into builder: inout Netlist,
         prefix: String,
         mapNodes: Bool = true
     ) throws {
+        let component = resolveResistorSourceRole(inputComponent)
         let fullName = prefix.isEmpty ? component.name : "\(prefix).\(component.name)"
 
         // Handle subcircuit instances specially
@@ -84,15 +85,16 @@ public struct SubcircuitExpander: Sendable {
         let nativeBSIM3 = typeName == "nmos_l49" || typeName == "pmos_l49"
         let nativeBSIM4 = typeName == "nmos_l54" || typeName == "pmos_l54"
         let nativeCompactModel = nativeBSIM3 || nativeBSIM4
+        let preservesModelRoles = nativeCompactModel || component.type == .resistor
 
         // If expandModels is enabled and a model exists, copy model parameters as base
-        if (nativeCompactModel || configuration.expandModels || component.type == .uniformRC),
+        if (preservesModelRoles || configuration.expandModels || component.type == .uniformRC),
            let modelName = component.modelName,
            let model = context.model(modelName) {
             var numeric = model.parameters
             let version = nativeCompactModel ? numeric.removeValue(forKey: "version") : nil
             let modelParameters = try resolver.resolveInTemporaryScope(numeric)
-            if nativeCompactModel {
+            if preservesModelRoles {
                 var resolved = modelParameters.mapValues { ParameterValue.real($0) }
                 if let version {
                     guard case .string(let identity) = version else {
@@ -136,6 +138,16 @@ public struct SubcircuitExpander: Sendable {
                 behavioralReferencedBranchNames = result.referencedBranchNames
                 continue
             }
+            if component.type == .resistor, name == "r" || name == "resistance",
+               case .expression(let expression) = value,
+               hasRuntimeDependency(expression) {
+                let result = try BehavioralExpressionLowerer(context: context, prefix: prefix, mapNodes: mapNodes)
+                    .lower(expression, into: &builder)
+                evaluatedParams[name] = .behavioralExpression(result.expression)
+                behavioralReferencedNodeNames += result.referencedNodeNames
+                behavioralReferencedBranchNames += result.referencedBranchNames
+                continue
+            }
             if name == "pwl", case .numericVector(let values) = value,
                component.type == .voltageSource || component.type == .currentSource {
                 evaluatedParams[name] = .realVector(values)
@@ -143,6 +155,18 @@ public struct SubcircuitExpander: Sendable {
             }
             let evaluated = try evaluator.evaluate(value)
             evaluatedParams[name] = .real(evaluated)
+        }
+        if component.type == .resistor {
+            let scale = configuration.geometryScale ?? 1
+            for name in ["l", "w"] {
+                if case .real(let dimension) = evaluatedParams[name] {
+                    let scaled = dimension * scale
+                    guard scaled.isFinite, scaled > 0 else {
+                        throw LoweringError.invalidComponent(name: fullName, reason: "Scaled resistor \(name) must be finite and positive")
+                    }
+                    evaluatedParams[name] = .real(scaled)
+                }
+            }
         }
         if component.type == .coupledInductors {
             try addMutualInductanceInstance(
@@ -215,6 +239,44 @@ public struct SubcircuitExpander: Sendable {
             referencedBranchNames: referencedBranchNames + behavioralReferencedBranchNames,
             referencedNodeNames: behavioralReferencedNodeNames
         )
+    }
+
+    private func resolveResistorSourceRole(_ component: ParsedComponent) -> ParsedComponent {
+        guard component.type == .resistor, component.modelName == nil,
+              let candidate = component.resistorModelCandidate,
+              context.model(candidate) != nil else { return component }
+        var parameters = component.parameters
+        parameters.removeValue(forKey: "r")
+        return ParsedComponent(name: component.name, type: component.type, nodes: component.nodes,
+            modelName: candidate, parameters: parameters, location: component.location)
+    }
+
+    private func hasRuntimeDependency(_ expression: ParsedExpression,
+        visitedFunctions: Set<String> = [], boundNames: Set<String> = []) -> Bool {
+        switch expression {
+        case .literal: return false
+        case .identifier(let name):
+            return name.lowercased() == "time" && !boundNames.contains(name.lowercased())
+        case .unaryOperation(_, let operand):
+            return hasRuntimeDependency(operand, visitedFunctions: visitedFunctions, boundNames: boundNames)
+        case .binaryOperation(_, let lhs, let rhs):
+            return hasRuntimeDependency(lhs, visitedFunctions: visitedFunctions, boundNames: boundNames)
+                || hasRuntimeDependency(rhs, visitedFunctions: visitedFunctions, boundNames: boundNames)
+        case .conditional(let condition, let then, let otherwise):
+            return [condition, then, otherwise].contains {
+                hasRuntimeDependency($0, visitedFunctions: visitedFunctions, boundNames: boundNames)
+            }
+        case .functionCall(let name, let arguments):
+            let key = name.lowercased()
+            if key == "v" || key == "i" { return true }
+            if arguments.contains(where: { hasRuntimeDependency($0, visitedFunctions: visitedFunctions, boundNames: boundNames) }) {
+                return true
+            }
+            guard let function = context.function(name) else { return false }
+            if visitedFunctions.contains(key) { return true }
+            return hasRuntimeDependency(function.body, visitedFunctions: visitedFunctions.union([key]),
+                boundNames: boundNames.union(function.parameters))
+        }
     }
 
     private func addSeriesResistanceFETInstances(
@@ -484,7 +546,7 @@ public struct SubcircuitExpander: Sendable {
                 }
 
                 let mappedParameters: [String: ParsedParameterValue]
-                if bodyComponent.type == .behavioral {
+                if bodyComponent.type == .behavioral || bodyComponent.type == .resistor {
                     mappedParameters = bodyComponent.parameters.mapValues { value in
                         guard case .expression(let expression) = value else {
                             return value
@@ -506,6 +568,7 @@ public struct SubcircuitExpander: Sendable {
                     type: bodyComponent.type,
                     nodes: mappedNodes,
                     modelName: bodyComponent.modelName,
+                    resistorModelCandidate: bodyComponent.resistorModelCandidate,
                     parameters: mappedParameters,
                     location: bodyComponent.location
                 )
@@ -673,6 +736,20 @@ public struct SubcircuitExpander: Sendable {
         _ component: ParsedComponent,
         fullName: String
     ) throws {
+        if component.type == .resistor, component.modelName != nil {
+            guard let model = try resolvedModel(for: component), model.type == .resistor else {
+                throw LoweringError.invalidComponent(name: fullName, reason: "Resistor requires a resistor model reference")
+            }
+            guard model.level == nil else {
+                throw LoweringError.invalidComponent(name: fullName, reason: "Resistor model level is not supported")
+            }
+        }
+        // FIXME(INCOMPLETE_IMPLEMENTATION):
+        // Public lowering refuses scaled MOS instances until release-specific geometry
+        // conversion and model-family selection have actual execution evidence.
+        if component.type == .mosfet, (configuration.geometryScale ?? 1) != 1 {
+            throw LoweringError.invalidComponent(name: fullName, reason: "MOS document geometry scaling and model bin selection are not implemented")
+        }
         if let reason = unsupportedComponentTypeReason(component.type) {
             throw LoweringError.invalidComponent(name: fullName, reason: reason)
         }
@@ -757,7 +834,7 @@ public struct SubcircuitExpander: Sendable {
 
     private func unsupportedModelReason(_ model: ParsedModel) -> String? {
         switch model.type {
-        case .diode, .npn, .pnp:
+        case .resistor, .diode, .npn, .pnp:
             return nil
         case .nmos, .pmos:
             let level = model.level ?? 1

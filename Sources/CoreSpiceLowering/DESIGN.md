@@ -25,6 +25,17 @@ flowchart LR
 
 ## Contracts and Invariants
 
+Document geometry scale has one immutable semantic value for a lowering run.
+`Configuration.geometryScale` explicitly overrides the deck; otherwise the last
+resolved `.options scale` is consumed, with default one. A finite positive scale
+multiplies supplied resistor instance `l/w` once, preserving model defaults in SI
+and the distinct instance resistance `scale`. IO can resolve the deck option and
+pass that value explicitly; lowering does not resolve the source option again in
+that composition. Direct public lowering resolves it after global parameters.
+Compact-device geometry consumption and model-family selection remain incomplete.
+A nonidentity geometry scale reaching a MOS instance is a marked typed refusal
+until the independent compact-device geometry owner completes that path.
+
 Level 49 maps to native BSIM3 descriptors only after cold model admission succeeds. Model parameters cannot be overridden through instance flattening. Original parameter semantics remain independent; invalid role or version is a typed failure. Level 54 follows the [BSIM4 preparation contract](../CoreSpiceDevices/BSIM4/DESIGN.md).
 
 ### Instance-local named parameter resolution
@@ -86,6 +97,39 @@ same-name actual arguments; it does not qualify device physics or model binning.
 
 ## State, Ownership, and Lifecycle
 
+### Required geometry and scoped family selection
+
+Current exact-name lookup does not select suffixed model bins from an unsuffixed
+family reference. Document scale now reaches static resistor source dimensions. Compact-device
+geometry conversion and family selection remain incomplete for the selected
+Sky130 profile; nonidentity document scale at a MOS instance fails explicitly.
+
+The target contract consumes the resolved geometry scale once at the instance
+boundary. Length and area parameters use the specified release's linear and
+quadratic rules. Model bounds and coefficients retain their original units;
+dimensionless selectors and multiplicities remain dimensionless. `BINUNIT` is a
+model coefficient convention, not the deck scale. The unchanged `w=.65 l=.15`
+with `scale=1u` requires W=650 nm and L=150 nm.
+
+Family selection uses effective geometry and the applicable lexical scope,
+including declaration order and the pinned reference's preprocessing and
+boundary rules. An inner family cannot select a parent or sibling model.
+The reference execution of the unchanged TT deck reports bounds uniquely
+identifying bin `.98` at this geometry; this one observation does not establish
+all boundary cases or native selection. A universal half-open rule is not
+inferred from model-file limits.
+
+The selected exact model/version, source identity, effective geometry and
+separate model/instance roles remain traceable through preparation and binding.
+Missing or unsupported selection fails explicitly. Resistor physics belongs to
+[Devices](../CoreSpiceDevices/Devices/DESIGN.md); lowering preserves its static
+versus runtime dependencies and parameter roles without inventing device laws.
+
+Completion requires the actual public parse-to-lower path to prove scaling once,
+scoped selection and refusal, boundary selection against the complete pinned
+reference path, and exact selected identity. Existing local-parameter tests do
+not establish these capabilities or physical accuracy.
+
 LoweringContext owns its existing Mutex. Prepared evaluator used for admission is local and released after topology projection; no C state enters IR.
 
 ## Failure, Concurrency, and Constraints
@@ -118,3 +162,28 @@ Configuration carries the caller noisePreparationRequested choice to the same
 BSIM4 preparation contract used at binding. Original tnoimod1 noise-only D/S
 nodes are allocated only when requested; full CSR ownership remains unchanged.
 Noise capability and resource policy are separate from physical model parameters.
+
+## Static Resistor Composition
+
+Scoped/include model resolution consumes only `ParsedComponent.resistorModelCandidate`
+for ambiguous bare tokens. An explicit numeric identifier keeps its original role
+when an equally named model exists. Subcircuit remapping preserves the candidate
+without adding it to physical parameter dictionaries. A braced, quoted or named
+numeric expression is never reclassified from its expression shape.
+
+The expander retains resolved resistor model name/type/parameters in
+`ResolvedDeviceModel`, with supplied instance values in their own map, regardless
+of `expandModels`. Scoped references and static expressions use the existing
+resolver. Unknown or mismatched models fail explicitly. Runtime-dependent R
+expressions consume `BehavioralExpressionLowerer` and preserve read-only node
+and branch dependencies; subcircuit remapping uses the existing voltage-reference
+mapper. Binding remains a marked typed refusal until runtime resistor physics is
+implemented. Static geometry and temperature/noise physics belong to
+[Devices](../CoreSpiceDevices/Devices/DESIGN.md#resistor-execution-contract).
+
+The focused owners are [ResistorParserTests](../../Tests/CoreSpiceParserSPICETests/ResistorParserTests.swift),
+[ResistorLoweringTests](../../Tests/CoreSpiceLoweringTests/ResistorLoweringTests.swift),
+[StaticResistorTests](../../Tests/CoreSpiceDevicesTests/StaticResistorTests.swift), and
+[public IO execution](../../Tests/CoreSpiceIOTests/SPICEIOEndToEndTests.swift).
+Their planned paths are native CPU DC, independent AC and thermal/flicker noise;
+compilation or parser intake is not physical qualification.

@@ -20,6 +20,8 @@ public struct SPICEAnalysisOptions: Sendable {
     public var convergence: ConvergenceConfig
     public var transient: SPICETransientOptions
     public var temperatureCelsius: Double?
+    public var nominalTemperatureCelsius: Double?
+    public var geometryScale: Double?
     public var diagnostics: [SPICEAnalysisOptionDiagnostic]
 
     public init(
@@ -29,6 +31,8 @@ public struct SPICEAnalysisOptions: Sendable {
         convergence: ConvergenceConfig = ConvergenceConfig(),
         transient: SPICETransientOptions = SPICETransientOptions(),
         temperatureCelsius: Double? = nil,
+        nominalTemperatureCelsius: Double? = nil,
+        geometryScale: Double? = nil,
         diagnostics: [SPICEAnalysisOptionDiagnostic] = []
     ) {
         self.bsim4NoisePreparationRequested = bsim4NoisePreparationRequested
@@ -37,6 +41,8 @@ public struct SPICEAnalysisOptions: Sendable {
         self.convergence = convergence
         self.transient = transient
         self.temperatureCelsius = temperatureCelsius
+        self.nominalTemperatureCelsius = nominalTemperatureCelsius
+        self.geometryScale = geometryScale
         self.diagnostics = diagnostics
     }
 
@@ -116,6 +122,7 @@ public struct SPICEAnalysisOptions: Sendable {
     ) -> NetlistLowering.Configuration {
         NetlistLowering.Configuration(
             temperature: temperatureCelsius ?? NetlistLowering.Configuration.default.temperature,
+            geometryScale: geometryScale,
             randomSeed: randomSeed,
             bsim4PreparationPolicy: bsim4PreparationPolicy,
             bsim4NoisePreparationRequested: bsim4NoisePreparationRequested
@@ -139,7 +146,8 @@ public struct SPICEAnalysisOptions: Sendable {
     public func operatingConditions() throws -> OperatingConditions {
         try OperatingConditions(
             temperatureCelsius: temperatureCelsius
-                ?? NetlistLowering.Configuration.default.temperature
+                ?? NetlistLowering.Configuration.default.temperature,
+            nominalTemperatureCelsius: nominalTemperatureCelsius ?? 27.0
         )
     }
 
@@ -297,6 +305,15 @@ public struct SPICEAnalysisOptions: Sendable {
         let key = normalizedOptionName(name)
 
         switch key {
+        case "scale":
+            options.geometryScale = try positiveNumericOption(value, name: name, evaluator: evaluator)
+        case "tnom":
+            let temperature = try numericOption(value, name: name, evaluator: evaluator)
+            guard temperature.isFinite, temperature + 273.15 > 0 else {
+                throw SPICEAnalysisOptionError.invalidOptionValue(name: name, value: String(temperature),
+                    reason: "Nominal temperature must be finite and above absolute zero")
+            }
+            options.nominalTemperatureCelsius = temperature
         case "abstol":
             options.convergence.abstol = try positiveNumericOption(value, name: name, evaluator: evaluator)
         case "reltol":
