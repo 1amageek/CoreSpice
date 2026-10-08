@@ -158,7 +158,7 @@ let package = Package(
                                "CoreSpiceExporterRAW", "CoreSpiceExporterCSV",
                                "CoreSpiceExporterPSF",
                                .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
-                               .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")], exclude: ["DESIGN.md"]),
+                               .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")], exclude: ["DESIGN.md", "InitialConditions/DESIGN.md"]),
 
         // CLI core and executable entry
         .target(
@@ -241,6 +241,8 @@ let package = Package(
         .testTarget(name: "CoreSpiceSourceBoundaryTests", dependencies: ["CoreSpiceParsedIR", "CoreSpiceParser", "CoreSpiceIO",
             .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
             .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
+
+        .testTarget(name: "CoreSpiceInitialConditionTests", dependencies: ["CoreSpiceIO", "CoreSpiceIR", "CoreSpiceParsedIR", "CoreSpiceLowering"]),
 
         .testTarget(name: "CoreSpiceProfileGrammarTests", dependencies: ["CoreSpiceParsedIR", "CoreSpiceParser", "CoreSpiceParserSPICE"]),
 

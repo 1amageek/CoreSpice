@@ -1309,29 +1309,23 @@ struct Session {
     plan: ExecutionPlan,
     evaluator: ExpressionEvaluator
   ) throws -> [Node: Double] {
-    guard !assignments.isEmpty else { return [:] }
-
-    var nodesByName: [String: Node] = [:]
-    nodesByName.reserveCapacity(plan.ir.nodeNames.count + 2)
-    for (node, name) in plan.ir.nodeNames {
-      nodesByName[name.lowercased()] = node
-    }
-    nodesByName["0"] = plan.ir.groundNode
-    nodesByName["gnd"] = plan.ir.groundNode
-
-    var resolved: [Node: Double] = [:]
-    for (nodeName, value) in assignments {
-      let normalizedName = nodeName.lowercased()
-      guard let node = nodesByName[normalizedName] else {
-        throw CLIError.invalidArguments("\(label) references unknown node '\(nodeName)'")
-      }
-      let voltage = try numericValue(value, field: "\(label).\(nodeName)", evaluator: evaluator)
-      if node == plan.ir.groundNode, voltage != 0 {
+    let resolver: any SPICENodeVoltageResolving = SPICENodeVoltageResolver()
+    do {
+      return try resolver.resolve(assignments: assignments, circuit: plan.ir, evaluator: evaluator)
+    } catch {
+      switch error {
+      case .unknownNode(let name):
+        throw CLIError.invalidArguments("\(label) references unknown node '\(name)'")
+      case .nonfiniteValue(let name, let value):
+        throw CLIError.invalidArguments("\(label).\(name) must be finite, got \(value)")
+      case .nonzeroGround:
         throw CLIError.invalidArguments("\(label) for ground node must be zero")
+      case .evaluation(let name, let cause):
+        throw CLIError.invalidArguments("\(label).\(name) could not be resolved: \(cause.localizedDescription)")
+      default:
+        throw error
       }
-      resolved[node] = voltage
     }
-    return resolved
   }
 
   private static func numericValue(
