@@ -60,6 +60,82 @@ Its historical default-value warning does not override CoreSpice's verified
 instance/default resolver or the current executable oracle; only the unmarked
 header grammar is used here.
 
+## Quoted Values and Source Diagnostics
+
+### Confirmed Path and Owned Difference
+
+The native replay of the untouched Sky130 TT library at CoreSpice `6a7e7a7`
+fails at `corners/tt/nonfet.spice:4:13`: `cnwvc_tox='41.6503*1.024'`.
+The existing lexer collapses both delimiters into a string token. The standalone
+expression parser rejects that token, while generic parameter intake retains it
+as opaque text. The serializer also emits opaque values with single quotes.
+These three paths lose the distinction required by the
+[ngspice numeric parameter specification](https://nmg.gitlab.io/ngspice-manual/circuitdescription/paramparametricnetlists/paramline.html).
+The frontend owns this repair; ParsedIR already distinguishes expression and
+string values, and Lowering consumes those contracts without another parser.
+
+### Contract
+
+- Tokens preserve single-quoted expression versus double-quoted opaque text.
+- Numeric expression positions parse the complete single-quoted interior with
+  the existing expression grammar, including references and function calls.
+  Numeric `.param` positions reject opaque double-quoted text explicitly.
+- Generic component, model, subcircuit-default and actual values map
+  single-quoted numeric input to `ParsedParameterValue.expression`; they retain
+  double-quoted text as `.string`. Conditional preprocessing uses the same
+  expression parser through its existing dependency/function evaluator.
+- Model `version` and include/library/HDL paths are explicit text roles. Either
+  delimiter preserves their exact value; no arithmetic, suffix conversion or
+  version normalization selects another model or path. Existing native model
+  admission remains authoritative after parsing.
+- The structural model `level` consumes a numeric value or a quoted literal,
+  validated by exact integer conversion. A supplied nonliteral expression,
+  opaque text, fractional or out-of-range value fails explicitly rather than
+  silently retaining the default level. This structural role is distinct from
+  model parameter expressions evaluated downstream.
+- Unknown characters remain visible tokens so complete numeric expression
+  parsing rejects quoted trailing invalid characters. The common lexical gate
+  rejects unterminated quotes; raw control policy is not expanded by this repair.
+- Opaque value serialization uses double quotes and reversible escaping for
+  delimiters/backslashes. Expression serialization may retain the existing
+  brace representation. Parse/serialize/parse preserves the IR meaning.
+- Unterminated quotes, empty numeric interiors, malformed operators and
+  unconsumed interior tokens yield `ParserDiagnostic` failures. Diagnostics
+  inside quoted expressions retain the original physical file/line/column,
+  including continued lines and CRLF. Unclosed text cannot become a success
+  value through a partial lexer token or an empty path.
+- Bare positional numeric values use the same quoted-expression intake as
+  named values. A quoted token cannot be discarded when a positional slot is
+  missing; opaque text in a numeric positional slot fails explicitly.
+- The existing first-line title is free text, outside quoted-value syntax.
+  Common unterminated-quote validation begins after that title is consumed;
+  all remaining statements retain the lexical failure gate.
+- Each parse owns its token/state lifetime. No new shared state, model backend,
+  process policy, unit conversion or geometry bin selection is introduced.
+
+```mermaid
+flowchart LR
+    Source[Physical quoted source] --> Lexer[Delimiter-preserving token]
+    Lexer --> Numeric[Numeric role: shared expression parser]
+    Lexer --> Text[Exact text role: path or model version]
+    Numeric --> IR[Expression or string ParsedIR]
+    Text --> IR
+    IR --> Serialize[Semantic-preserving serializer]
+    Serialize --> Source
+```
+
+| Requirement | Implementing owner | Behavioral proof |
+|---|---|---|
+| Numeric quotes and lexical distinction | Lexer, token and expression parser | Quoted AST, full-input rejection, physical errors |
+| Canonical intake across actual consumers | SPICE parser and existing conditional evaluator | `.param`, `.model`, header/actual, `.if`, public parse/lower |
+| Exact text and persistence | Text-role parser and serializer | Both path delimiters, exact unsupported version, opaque escaping round trip |
+| Production admission | Native CLI with unchanged PDK/deck | Next actual failure or result; no model physics qualification inferred |
+
+The package master indexes this child contract. Revalidate the parser target and
+public IO consumer tests once after the implementation/test snapshot is frozen.
+Lowering/model source remains unchanged; existing exact-version tests are direct
+consumer checks rather than proof of new device support.
+
 ## State, Ownership, and Lifecycle
 
 Lexer and parser state is local to a parse. Parsed results are owned Sendable values.

@@ -315,13 +315,13 @@ public struct SPICESerializer: NetlistSerializer {
     ) -> String? {
         switch control {
         case .include(let path, _):
-            return ".include \"\(path)\""
+            return ".include \(serializeText(path))"
 
         case .library(let path, let section, _):
             if let sec = section {
-                return ".lib \"\(path)\" \(sec)"
+                return ".lib \(serializeText(path)) \(sec)"
             }
-            return ".lib \"\(path)\""
+            return ".lib \(serializeText(path))"
 
         case .option(let name, let value, _):
             if let v = value {
@@ -374,7 +374,7 @@ public struct SPICESerializer: NetlistSerializer {
             return ".func \(name)(\(argumentList)) = {\(serializeExpression(body, options))}"
 
         case .hdl(let path, _):
-            return ".hdl \"\(path)\""
+            return ".hdl \(serializeText(path))"
         }
     }
 
@@ -470,12 +470,24 @@ public struct SPICESerializer: NetlistSerializer {
         case .numericVector(let values):
             return values.map { formatNumber($0, options) }.joined(separator: " ")
         case .string(let s):
-            return "'\(s)'"
+            return serializeText(s)
         case .expression(let expr):
             return "{\(serializeExpression(expr, options))}"
         case .boolean(let b):
             return b ? "1" : "0"
         }
+    }
+
+    private func serializeText(_ text: String) -> String {
+        var result = "\""
+        for character in text {
+            if character == "\"" || character == "\\" {
+                result.append("\\")
+            }
+            result.append(character)
+        }
+        result.append("\"")
+        return result
     }
 
     private func serializeExpression(

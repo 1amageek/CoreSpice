@@ -7,7 +7,11 @@ public enum SPICEToken: Sendable, Hashable {
     case number(Double)
     case dottedLiteral(String)
     case identifier(String)
+    /// Raw single-quoted interior, interpreted according to the consuming role.
+    case quotedExpression(String)
     case string(String)
+    case unterminatedQuote
+    case invalidCharacter(Character)
     case invalidNumericLiteral(String)
     case invalidNumericSuffix(String)
 
@@ -66,6 +70,12 @@ extension SPICEToken: CustomStringConvertible {
             return "identifier(\(name))"
         case .string(let value):
             return "string(\"\(value)\")"
+        case .quotedExpression(let value):
+            return "quotedExpression('\(value)')"
+        case .unterminatedQuote:
+            return "unterminatedQuote"
+        case .invalidCharacter(let character):
+            return "invalidCharacter(\(character))"
         case .invalidNumericLiteral(let text):
             return "invalidNumericLiteral(\(text))"
         case .invalidNumericSuffix(let suffix):

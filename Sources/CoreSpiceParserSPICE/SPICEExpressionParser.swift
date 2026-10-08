@@ -10,8 +10,11 @@ public struct SPICEExpressionParser: Sendable {
         _ source: String,
         fileName: String? = nil
     ) throws -> ParsedExpression {
-        var lexer = SPICELexer(source: source, fileName: fileName)
+        var lexer = SPICELexer(expressionSource: source, fileName: fileName)
         let tokens = lexer.tokenize()
+        for token in tokens where token.token == .unterminatedQuote {
+            throw ParserDiagnostic.error("Unterminated quoted value", at: token.location)
+        }
         var parser = SPICEExpressionTokenParser(
             tokens: tokens,
             currentIndex: 0,
@@ -188,6 +191,31 @@ struct SPICEExpressionTokenParser {
 
     private mutating func parsePrimaryExpression() throws -> ParsedExpression {
         switch currentToken {
+        case .quotedExpression(let source):
+            let opening = currentLocation
+            advance()
+            var lexer = SPICELexer(expressionSource: source, fileName: opening.file)
+            let interiorTokens = lexer.tokenize().map { token in
+                SPICEToken.Located(token: token.token, location: SourceLocation(
+                    file: opening.file,
+                    line: opening.line + token.location.line - 1,
+                    column: token.location.line == 1
+                        ? opening.column + token.location.column
+                        : token.location.column
+                ))
+            }
+            var parser = SPICEExpressionTokenParser(
+                tokens: interiorTokens, currentIndex: 0, allowedEndTokens: [.endOfFile]
+            )
+            let expression = try parser.parseExpression()
+            try parser.requireEnd()
+            return expression
+        case .string:
+            throw ParserDiagnostic.error("Opaque string is not a numeric expression", at: currentLocation)
+        case .unterminatedQuote:
+            throw ParserDiagnostic.error("Unterminated quoted value", at: currentLocation)
+        case .invalidCharacter(let character):
+            throw ParserDiagnostic.error("Invalid character '\(character)' in expression", at: currentLocation)
         case .number(let value):
             advance()
             return .literal(value)

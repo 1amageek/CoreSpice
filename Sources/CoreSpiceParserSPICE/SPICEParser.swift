@@ -128,8 +128,16 @@ private struct SPICEParserImpl {
         )
         tokens = lexer.tokenize()
 
-        // Parse title (first line)
+        // The title is free text, not a quoted-value role.
         parseTitle()
+        for token in tokens[current...] {
+            switch token.token {
+            case .unterminatedQuote:
+                diagnostics.append(.error("Unterminated quoted value", at: token.location))
+            default:
+                break
+            }
+        }
 
         // Parse statements
         while !isAtEnd {
@@ -318,14 +326,7 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseHDL(location: SourceLocation?) throws {
-        let path: String
-        switch currentToken {
-        case .string(let value), .identifier(let value):
-            path = value
-            advance()
-        default:
-            throw ParserDiagnostic.error("Expected HDL source path", at: currentLocation)
-        }
+        let path = try parseTextPath()
         controls.append(.hdl(path: path, location: location))
         skipToEndOfLine()
     }
@@ -474,6 +475,16 @@ private struct SPICEParserImpl {
                         throw ParserDiagnostic.error("Unsupported source waveform or parameter '\(paramName)'", at: currentLocation)
                     }
                 }
+            } else if case .quotedExpression = currentToken {
+                if (type == .voltageSource || type == .currentSource), !params.isEmpty {
+                    throw ParserDiagnostic.error("Unexpected extra numeric source value", at: currentLocation)
+                }
+                guard let key = positionalKey(for: type, existing: params) else {
+                    throw ParserDiagnostic.error("Unexpected quoted positional value", at: currentLocation)
+                }
+                params[key] = try parseParameterValue()
+            } else if case .string = currentToken {
+                throw ParserDiagnostic.error("Opaque string is not a numeric positional value", at: currentLocation)
             } else if case .number(let n) = currentToken {
                 // Positional value (resistance for R, DC value for a source, etc.)
                 if (type == .voltageSource || type == .currentSource), !params.isEmpty {
@@ -776,7 +787,8 @@ private struct SPICEParserImpl {
 
         switch currentToken {
         case .number, .invalidNumericLiteral, .invalidNumericSuffix,
-             .identifier, .string, .leftBrace, .minus, .plus:
+             .identifier, .string, .quotedExpression, .unterminatedQuote,
+             .invalidCharacter, .leftBrace, .minus, .plus:
             return try parseParameterValue()
         default:
             return nil
@@ -891,6 +903,12 @@ private struct SPICEParserImpl {
         case .string(let s):
             advance()
             return .string(s)
+        case .quotedExpression:
+            return .expression(try parseExpression())
+        case .unterminatedQuote:
+            throw ParserDiagnostic.error("Unterminated quoted value", at: currentLocation)
+        case .invalidCharacter(let character):
+            throw ParserDiagnostic.error("Invalid character '\(character)'", at: currentLocation)
         case .leftBrace:
             return try parseExpressionValue()
         default:
@@ -1061,11 +1079,15 @@ private struct SPICEParserImpl {
                 advance()
                 if case .equals = currentToken {
                     advance()
+                    let valueLocation = currentLocation
                     let value: ParsedParameterValue
                     if pname.lowercased() == "version" {
                         switch currentToken {
                         case .dottedLiteral(let text), .string(let text), .identifier(let text):
                             value = .string(text)
+                            advance()
+                        case .quotedExpression(let text):
+                            value = .string(SPICELexer.decodeQuotedText(text, delimiter: "'"))
                             advance()
                         case .number(let number):
                             value = .string(String(number))
@@ -1077,9 +1099,17 @@ private struct SPICEParserImpl {
                         value = try parseParameterValue()
                     }
                     if pname.lowercased() == "level" {
-                        if case .numeric(let n) = value {
-                            level = Int(n)
+                        let number: Double
+                        switch value {
+                        case .numeric(let value), .expression(.literal(let value)):
+                            number = value
+                        default:
+                            throw ParserDiagnostic.error("Model level must be a constant integer literal", at: valueLocation)
                         }
+                        guard let parsedLevel = Int(exactly: number) else {
+                            throw ParserDiagnostic.error("Model level must be a representable integer", at: valueLocation)
+                        }
+                        level = parsedLevel
                     } else {
                         params[pname.lowercased()] = value
                     }
@@ -1133,15 +1163,27 @@ private struct SPICEParserImpl {
         return try parseExpression()
     }
 
-    private mutating func parseInclude(location: SourceLocation?) async throws {
-        var path = ""
-        if case .string(let s) = currentToken {
-            path = s
-            advance()
-        } else if case .identifier(let s) = currentToken {
-            path = s
-            advance()
+    private mutating func parseTextPath() throws -> String {
+        let path: String
+        switch currentToken {
+        case .string(let text), .identifier(let text):
+            path = text
+        case .quotedExpression(let text):
+            path = SPICELexer.decodeQuotedText(text, delimiter: "'")
+        case .unterminatedQuote:
+            throw ParserDiagnostic.error("Unterminated quoted value", at: currentLocation)
+        default:
+            throw ParserDiagnostic.error("Expected source path", at: currentLocation)
         }
+        guard !path.isEmpty else {
+            throw ParserDiagnostic.error("Expected nonempty source path", at: currentLocation)
+        }
+        advance()
+        return path
+    }
+
+    private mutating func parseInclude(location: SourceLocation?) async throws {
+        let path = try parseTextPath()
 
         skipToEndOfLine()
 
@@ -1218,16 +1260,8 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseLib(location: SourceLocation?) async throws {
-        var path = ""
+        let path = try parseTextPath()
         var section: String?
-
-        if case .string(let s) = currentToken {
-            path = s
-            advance()
-        } else if case .identifier(let s) = currentToken {
-            path = s
-            advance()
-        }
 
         if case .identifier(let s) = currentToken {
             section = s
@@ -2107,6 +2141,10 @@ private struct SPICEParserImpl {
             return name
         case .string(let value):
             return "\"\(value)\""
+        case .quotedExpression(let value):
+            return "'\(value)'"
+        case .invalidCharacter(let character):
+            return String(character)
         case .invalidNumericLiteral(let text):
             return text
         case .invalidNumericSuffix(let suffix):

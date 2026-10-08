@@ -26,6 +26,12 @@ public struct SPICELexer: Sendable {
         self.index = source.startIndex
     }
 
+    /// Expression interiors have operators, not card continuation/comment prefixes.
+    init(expressionSource: String, fileName: String?) {
+        self.init(source: expressionSource, fileName: fileName)
+        isLinePrefixWhitespace = false
+    }
+
     /// Tokenizes the entire source.
     public mutating func tokenize() -> [SPICEToken.Located] {
         var tokens: [SPICEToken.Located] = []
@@ -141,7 +147,7 @@ public struct SPICELexer: Sendable {
             }
             advance()
             // Check for ** (power)
-            if current == "*" {
+            if !isAtEnd && current == "*" {
                 advance()
                 return SPICEToken.Located(token: .caret, location: startLocation)
             }
@@ -183,9 +189,8 @@ public struct SPICELexer: Sendable {
             // ngspice inline comment
             return scanLineComment(startLocation: startLocation)
         default:
-            // Skip unknown characters
             advance()
-            return nextToken()
+            return SPICEToken.Located(token: .invalidCharacter(char), location: startLocation)
         }
     }
 
@@ -356,18 +361,42 @@ public struct SPICELexer: Sendable {
 
         var value = ""
         while !isAtEnd && current != quote && !isAtNewline {
-            if current == "\\" && peek() == quote {
+            if current == "\\", peek() == quote || peek() == "\\" {
+                value.append(current)
                 advance()
             }
             value.append(current)
             advance()
         }
 
-        if current == quote {
-            advance() // skip closing quote
+        guard !isAtEnd && current == quote else {
+            return SPICEToken.Located(token: .unterminatedQuote, location: startLocation)
         }
+        advance() // skip closing quote
 
-        return SPICEToken.Located(token: .string(value), location: startLocation)
+        let token: SPICEToken = quote == "'"
+            ? .quotedExpression(value)
+            : .string(Self.decodeQuotedText(value, delimiter: quote))
+        return SPICEToken.Located(token: token, location: startLocation)
+    }
+
+    /// Decodes only delimiter/backslash escapes; all other source text stays exact.
+    static func decodeQuotedText(_ text: String, delimiter: Character) -> String {
+        var result = ""
+        var index = text.startIndex
+        while index < text.endIndex {
+            let character = text[index]
+            let next = text.index(after: index)
+            if character == "\\", next < text.endIndex,
+               text[next] == delimiter || text[next] == "\\" {
+                result.append(text[next])
+                index = text.index(after: next)
+            } else {
+                result.append(character)
+                index = next
+            }
+        }
+        return result
     }
 
     private mutating func scanLineComment(startLocation: SourceLocation) -> SPICEToken.Located {
