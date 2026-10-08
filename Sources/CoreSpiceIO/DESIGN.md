@@ -195,8 +195,9 @@ SPICEParser, library projection and coverage gate as ordinary loading.
 
 The CoreSpice-owned work interface is independent of PDK; the optional
 [PDK adapter](../../../PDKKit/Sources/PDKSpiceProfileInspection/DESIGN.md)
-forwards costs/checks to the invocation accountant. Text/projection copies and
-retained parsed elements count against that policy. Parsed input references
+forwards costs/checks to the invocation accountant. Text/projection byte counts and
+retained element counts use that work policy. They are not live/temp capacity
+reservations; the bounded-profile design below owns that missing guarantee. Parsed input references
 propagate into the actual execution provenance; returning only the root netlist
 reference is insufficient when included sources contribute. Changed/missing/extra
 source, section or preprocessing context blocks before numerical dispatch.
@@ -229,9 +230,9 @@ active dependency events in lexical depth-first order. Local section delimiters
 are grammar syntax and never external resolution requests. Conditional evidence
 retains inactive and unresolved branches; unresolved evaluation is a parse failure.
 All parser/source work uses one synchronous `SPICESourceWorkAccounting` requirement
-with a finite load-owned budget plus injected invocation accounting. Charges precede
-source/projection copies, lexer token growth, statement retention, expansion and
-conditional evaluation. Cancellation is checked during lexing and at statement,
+with a finite load-owned budget plus injected invocation accounting. Count charges precede
+source/projection copies, token growth, statement retention, expansion and
+conditional evaluation; current counts do not prove byte-capacity ownership. Cancellation is checked during lexing and at statement,
 source and expansion boundaries. A failed exact load exposes no loaded deck.
 
 ```text
@@ -252,3 +253,70 @@ deck retains their value storage. No Embedded/WASM conditional storage or Sendab
 branch is introduced; host IO evidence does not qualify those execution platforms.
 Native concurrent admission verifies that 32 contenders admit exactly 16 units
 against a ceiling of 16.
+
+
+### Bounded profile source intake
+
+Status: designed, not implemented. IO owns full-reference byte validation and
+checked text/source ownership for the profile parse path. It composes
+[Parser](../CoreSpiceParser/DESIGN.md#bounded-contextual-source-contract) and
+[ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md#bounded-profile-grammar), without
+using the existing whole-expected-graph/numerical coverage loader as a substitute.
+The contextual parser/provider contract is grammar-neutral: exact approval and
+candidate discovery both supply captures through that same grammar. Lower IO does
+not choose undeclared paths or infer a producer's expected graph.
+
+Proposed `SPICECheckedSource.admit` Span overload accepts the full source binding,
+scoped `Span<UInt8>`, SPICESourceResourceAccounting and explicit positive
+`maximumPageByteCount`, returning SPICECheckedSource with retained reservations. It checks count/digest against those exact borrowed bytes,
+validates strict UTF-8, and creates an owned byte/text representation only after
+its concrete logical extent is reserved. Copying raw bytes at this ownership
+boundary is permitted and charged; no public Data export or second file read is
+needed. SourceDocument conversion accepts a fresh occurrence and actual section,
+retaining checked source/text owners. The existing Data-valued bytes property is an explicit raw caller-owned export
+boundary; the bounded factory charges its internal owned copy before allocation.
+Legacy Data factories remain their current count-only scope, and bounded parsing
+rejects a source/document lacking accounted storage instead of upgrading it silently. Source/content identity
+and parse occurrence remain separate.
+
+Hash chunk Array copy is reserved before materialization and released after update.
+Charge actual hashed bytes before each update and check cancellation/deadline through
+the injected accounting requirement. `.sourceBytes` is legacy logical intake work,
+not real filesystem reads: a PDK capture already accounts readBytes/pages/open
+resources. Do not charge those again at text admission. Hash failure preserves its
+actual resource cause across typed digester callbacks, not a lossy error string.
+Strict UTF-8 may not repair invalid input. Size/map/byte-count arithmetic is checked.
+
+Byte/text storage and parsed results share immutable reservation handles with
+copies. Temporary hash/UTF-8/projection storage ends at its true scope; retained
+source/result storage ends at final owner release, including after accounting closes.
+Failures containing derived payload retain its necessary backing, not a whole
+registry or cycle. The adapter exports checked fact copies before releasing lower
+owners. No source drift/invalid UTF-8/capacity/cancellation failure publishes a
+checked successful source/result.
+
+#### Minimal responsibility sprints and proof
+
+| Ordered lower sprint | Closed invariant and files | Behavioral proof |
+|---|---|---|
+| Owned boundary | New portable reservation/error/occurrence values in ParsedIR; checked source text/environment/contextual protocol in Parser; Span source factory/retention in IO | Count/digest/UTF-8 refusal, hash accounting, empty/changed/insertion-order snapshot identities, capacity-before-copy, final-copy release and COW/refund helpers |
+| Existing grammar integration | SPICEParser, SPICELexer, SPICEExpressionParser, SPICEConditionalPreprocessor and their invoked helpers; account the concrete allocation table in ParserSPICE | Actual pre-await request/refusal, original positions/section, inherited map semantics, repeated origin, every named transform/copy quota boundary, cancellation and supported ordinary/bounded fact equivalence |
+
+The first sprint closes checked helper contracts independently; do not expose a
+callable pretend bounded parse before the second sprint finishes. Any deliberately
+unfinished public branch requires the repository's explicit incomplete-implementation
+marker and typed refusal. No whole-frontend rewrite, AST grammar, numericalEngine,
+CLI or standard-view migration is included. Public protocol operations invoked
+through existentials are requirements; no generic existential bridge is assumed.
+
+Proof owners: focused files in ParsedIRTests, ParserSPICETests and IOTests. Register
+a dedicated native lower source test product selecting those affected test targets
+when package-wide test graph would bring GPU/CLI tests into the run. Existing IO
+production dependencies may compile, but numerical tests/execution are not needed
+for this contract. Build/run separately with timeout180/60 seconds under fixed
+Swift6.4.0; source snapshot and dependency override/build-path must match. Expected
+incremental proof is seconds to tens of seconds; a cold IO dependency build may
+approach build timeout and must be reported/replanned rather than repeated blindly.
+Actual method census/runtime is recorded after implementation, not asserted here.
+One whole review plus one targeted finding recheck precedes frozen affected-product
+proof; upper PDK adapter proof follows verified lower contracts.

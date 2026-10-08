@@ -31,9 +31,10 @@ flowchart LR
 
 ### Captured model declaration origin
 
-ParsedModel.origin retains the capture identity, actual declaration start and
-parse-local ordinal. Its declarationID distinguishes declarations even when names
-match; it does not identify physical model parameters. Uncaptured/programmatic
+ParsedModel.origin currently retains the capture identity, actual declaration start
+and parse-local ordinal. Repeated parses of one capture can repeat that declaration
+identity; the bounded occurrence contract below closes this gap. Within one parse
+it distinguishes declarations even when names match; it does not identify physical model parameters. Uncaptured/programmatic
 models have nil origin. [IO](../CoreSpiceIO/DESIGN.md#consumed-source-capture-required-migration)
 owns source bytes and capture policy. ParserSPICE creates origin from its actual
 source document; lowering copies the selected identity without inferring it.
@@ -84,7 +85,7 @@ CPU transient output. Changes require parser, lowering and scalar consumer check
 
 ### Exact source dependency values
 
-Status: implemented exact-profile integration. Grammar-owned
+Status: implemented post-resolution exact-load integration. Grammar-owned
 `SPICESourceDependencyEvent` values retaining parent/child capture IDs, original
 physical SourceLocation, include versus external-library directive, selected
 section, lexical occurrence ordinal and preprocessing context. Conditional event
@@ -94,3 +95,60 @@ of PDK and host filesystem identity; consumers join events to their exact source
 bindings. This is syntax evidence, not numerical model or qualification evidence.
 [ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md) owns event production;
 [IO](../CoreSpiceIO/DESIGN.md) owns checked capture/intake composition.
+
+
+### Bounded source storage and occurrence values
+
+Status: designed, not implemented. Existing work-count evidence does not
+implement this portable boundary.
+
+| Proposed public contract | Meaning |
+|---|---|
+| `SPICESourceResourceAccounting: SPICESourceWorkAccounting` | Requires `reserveStorage(kind:byteCount:) throws -> SPICESourceStorageReservation` and `chargeHashedBytes(_:) throws`; inherited work/check requirements stay synchronous and Sendable |
+| `SPICESourceStorageKind` | `liveOwnedBytes` and `temporaryBytes`: managed logical extent, not process RSS |
+| `SPICESourceStorageReservation` | Immutable shared release owner with public trusted-accountant initializer `(kind:byteCount:release:)`; final-copy destruction releases once, also after admission closes; no Codable or source/result authority |
+| `SPICEParseOccurrenceID` | Opaque invocation-local identity allocated before parsing; distinct from source/content keys and diagnostic paths |
+| `SPICEOwnedParseResult` | Internally checked successful netlist with immutable source/derived-storage reservations; copies share retained owners |
+
+A trusted external accountant may construct a reservation from its admitted kind/
+byte count and a `@Sendable () -> Void` release callback, retaining its original
+accounting token in that callback owner. All value copies share one immutable
+release owner; callback executes exactly once outside accountant locks. This is
+an accounting/lifetime receipt, not checked source or parse-result authority.
+
+Managed extents are reserved UTF-8 byte capacities, collection slot capacities
+multiplied by the checked stride of their stored element type, map/set entry
+payload capacities, and concrete associated payloads of expression nodes.
+Separately allocated strings/child containers are charged separately. Inline
+references do not charge shared child payload twice. Compiler/allocator headers,
+allocator slack, hash-table buckets and RSS are outside this logical metric.
+Token counts and guessed input multipliers are never byte leases.
+
+Reserve before materialization, growth, transform or COW clone. Shared immutable
+backing retains one lease; mutation of shared backing admits its concrete logical
+capacity before copying. Both buffers remain charged during migration; refund
+obsolete scratch when its owner ends. A private immutable identity marker may
+track collection write uniqueness. Rejection leaves the previous snapshot intact.
+Reservation-array metadata has its concrete capacity cost; accountant-internal
+allocation is outside parser-managed storage. No slab, arena or new allocator is
+required merely to meter existing values.
+
+The owned result keeps netlist and leases together. Extraction of raw ParsedNetlist
+or diagnostic payload is an explicit caller-owned boundary: bounded callers retain
+the owner through that use. The PDK adapter deep-copies exported facts under its
+accountant before releasing the lower result. Input-derived failures retain only
+immutable owners needed by their payload; static resource/cancellation failures do
+not retain an entire parse. No partial netlist authenticates successful facts.
+
+Bounded dependency/model/subcircuit origins carry occurrence IDs alongside
+content join keys. Dependency records retain original physical UTF-8 statement
+offset, source-local statement ordinal, actual child section and child-entry
+identity. Merged lexical order stays depth first. Repeated content reuse never
+collapses edges or origins. Occurrence IDs/paths are not canonical profile identity.
+
+Verification owner: focused source-resource tests in
+[ParsedIRTests](../../Tests/CoreSpiceParsedIRTests/) and actual bounded grammar
+proof in [ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md). Prove overflow/refusal
+before allocation, final-copy release, same-capacity COW clone, migration overlap
+and repeated-content origin distinction. Native proof does not establish
+WASM/Embedded allocator or synchronization behavior.

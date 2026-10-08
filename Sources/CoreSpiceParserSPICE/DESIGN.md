@@ -220,8 +220,9 @@ Scalar option/measurement/expression consumers reject vectors explicitly.
 
 ### Exact-profile dependency and work contract
 
-Status: implemented. The parser produces the dependency events owned by
-[ParsedIR](../CoreSpiceParsedIR/DESIGN.md#proposed-source-dependency-values)
+Status: implemented post-await dependency/work evidence. The parser produces
+the dependency events owned by
+[ParsedIR](../CoreSpiceParsedIR/DESIGN.md#exact-source-dependency-values)
 from actual include/library parse branches, preserving original physical positions
 and lexical precedence. Local library sections and external library directives
 remain distinct. Every active resolution records its returned source document;
@@ -231,8 +232,8 @@ and numerical execution remain separate.
 
 The parser accepts a CoreSpice-owned synchronous work/cancellation accounting
 interface through its public source-intake path. Charge lexical bytes, tokens,
-retained elements, dependency expansions, conditional evaluation and section
-materialization before the corresponding work/allocation; check between bounded
+retained element counts, dependency expansions, conditional evaluation and section
+materialization counts before corresponding work; these are not byte leases; check between bounded
 chunks. Do not import PDK accounting or silently use an unbounded parser in a
 required bounded scope. Existing parser configuration limits remain separate
 caller-owned ceilings. The same grammar implements ordinary and exact intake.
@@ -251,10 +252,111 @@ occurrences retain lexical depth-first ordinals and inherited/local parameter
 expressions. Repeated source identity is not itself a cycle; include-depth and
 expansion ceilings terminate recursion.
 
-Checked top-level and quoted-interior token counts prepay a conservative retained
-value/AST allowance before statement or expression construction. Subcircuit
+Checked top-level and quoted-interior token counts prepay an element-count
+allowance before statement or expression construction. This limits counted work;
+it neither measures AST byte capacity nor reserves temporary/retained storage. Subcircuit
 default preprocessing, quoted expression lexing and recursive conditional
 evaluation forward the same accountant. Native regressions reject token and
 retention exhaustion inside those paths. Local library end matching stops at
 the next local opener; an unrelated section cannot suppress an earlier bare
 external library resolution.
+
+
+### Bounded profile grammar
+
+Status: designed, not implemented. This module owns grammar integration for the
+[Parser contextual contract](../CoreSpiceParser/DESIGN.md#bounded-contextual-source-contract)
+and [ParsedIR storage values](../CoreSpiceParsedIR/DESIGN.md#bounded-source-storage-and-occurrence-values).
+The proposed protocol `SPICEProfileSourceParsing` requires
+`parseProfile(document:configuration:environment:resolver:resources:) async throws
+-> SPICEOwnedParseResult`. SPICEParser is its concrete implementation and reuses
+ordinary lexer, expression parser, section and conditional grammar. Environment is
+the checked Core value, resolver is SPICEContextualFileResolver, resources is
+SPICESourceResourceAccounting. No whole expected graph is required: the injected
+provider owns exact-approved or candidate-discovery selection. Parser authenticates
+syntax/context, not approval, PDK admission or filesystem availability.
+
+Existing parse/parseChecked remain their documented standalone/count-budget scope.
+The new bounded API requires `configuration.resolveIncludes == true`; disabling
+resolution is typed capability refusal before parsing, never a successful leaf
+classification for an active include/lib. It refuses unowned document storage or
+missing resource capability;
+it does not downgrade to the legacy entry point. A successful owned result requires
+no error/unresolved active conditional and a final resource/cancel check. Inspect
+first error without ParseResult.errors/filter allocation. Resource/resolver failures
+propagate their actual cause instead of interpolating it into diagnostic text.
+
+Before each active include/external-lib await, build the source-local physical
+statement identity, actual child-entry snapshot and request. Parent document
+preprocessing already ran to completion. Snapshot inheritance is exactly current
+initial conditionalParameterExpressions overlaid by currently parsed parameters,
+with lowercase keys and existing ParsedExpression.description meaning. In subckt
+body parsing, parser parameters are the saved/reset body-local map; header defaults
+and parent functions are not added. Child Processor starts fresh function/frame
+scopes. Merge child parameters back in the existing order; do not re-evaluate
+parent conditionals or transfer child functions into parent preprocessing.
+
+One checked snapshot supplies both request fingerprint and child construction.
+Parent branch evidence comes from actual preprocessor local scopes and conditional
+events, not the child-entry map. Includes select full child/nil section; external
+libs select their explicit child section. Allocate fresh occurrence IDs before
+child parsing even when content key repeats. Model/subckt origins and physical
+positions retain that occurrence. Post-merge lexical events remain depth-first,
+including repeated nonrecursive edges. The original statement offset map survives
+section/conditional blanking and continuation token relocation. Offsets/ordinals
+are grammar-owned, never reconstructed by an adapter scanning SPICE text.
+
+#### Concrete allocation and cooperative work boundaries
+
+| Existing production path | Required bounded owner/check |
+|---|---|
+| SPICELexer token array, scanned names/numbers/quoted strings, escapes/comments | Reserve concrete UTF-8/slot capacity before grow/copy; chunk scan/check; continuation trimming refunds removed owned scratch |
+| scanDotOperator remaining-tail lowercased probe | Compare only finite operator spelling with cooperative case handling; no full-tail normalization/allocation |
+| SPICEExpressionParser and quoted-interior relocated tokens | Reserve relocated token capacity and each constructed concrete expression payload/argument capacity; same accountant for nested parsing |
+| ParsedExpression.description for inherited parameters | Accounted cooperative formatter preserving exact existing output, including parentheses/operators; size before allocation instead of recursive map/join intermediates |
+| Conditional Processor scopes, frame/output/event arrays, assignment/function parsing | Account scope/map entry and string payload capacities, header join, line copy and output join; loop checks in helper scans as well as main source scan |
+| Merged parameter/function maps and evaluator resolving sets/argument maps | Admit transform/clone capacity before operation; current nested lookup/function semantics unchanged; recursive evaluation checks each node |
+| Parser component/model/subckt/node/parameter/control/analysis values and vectors | Admit their actual element/entry payload capacities before append/insert/AST construction; scratch lifetime distinct from result storage |
+| parseSubcircuit saved buffers, parseIncludedContent append/merge | Detect shared backing before mutation; reserve COW clone even without capacity growth; both snapshots charged through migration |
+| resistorRoles/resistorSubcircuitRoles Set/map/union/final netlist | Charge concrete output and lookup entry capacities before transform; account each cooperative lookup/compare, preserve model precedence |
+| Diagnostics and malformed/quoted expression payload | Charge derived text/entry capacity, or use static typed payload; retained failure owns required immutable backing only |
+
+Use small ownership/capacity helpers in the existing owners, not another lexer,
+container framework, slab/arena or allocator. Pre-size one-shot transforms from
+actual counts using checked arithmetic; incremental buffers choose explicit
+geometric logical capacity with overflow/refusal before growth. Copies sharing
+immutable backing share leases; mutations admit separate capacity using a private
+identity/uniqueness marker. Fixed-size scalar formatting uses a backend-established
+bound, not a guessed multiplier; variable output uses accounted sizing/copy passes.
+When a fixed backend cannot cooperatively bound a normalization/conversion, return
+`SPICEBoundedSourceError.unsupportedBudgetCapability` with a static capability
+name before the operation. In particular a Unicode operation must not silently
+use ASCII equality or an unaccounted Foundation whole-string conversion.
+
+All helper scans/transforms charge examined work and check at bounded chunks;
+a top-level token charge does not cover an arbitrary whole-tail/string/set pass.
+Collection/hash/fingerprint arithmetic is checked. Work and logical storage are
+separate counters. Explicit caller policy supplies limits/chunk sizes; no guessed
+production defaults or machine-capacity selection. Parser state is invocation-local;
+any escaped/shared owner uses immutable backing or Mutex/actor, uniformly Sendable.
+No task, callback or I/O runs under a storage-accountant lock. Nested parser awaits
+are structured; failure completes awaited resolver cleanup and publishes no result.
+
+The first profile result supports structural declarations, actual ordered subckt
+ports and conditional/section/dependency evidence. Model types do not declare
+terminals; no model-terminal or complete source-PVT facts are synthesized. Constant
+TEMP/TNOM observations may be projected from their actual controls/parameters.
+Expression-dependent temperature stays explicit unsupported until bounded
+Core-owned option evaluation is supplied; do not call unaccounted analysis option
+resolution or use its defaults in this path. Unsupported required meaning blocks,
+while unused numerical physics is not qualified or executed here.
+
+Verification owner: dedicated new bounded-profile fixture files in
+[ParserSPICETests](../../Tests/CoreSpiceParserSPICETests/). Real grammar must prove
+pre-await coordinates/refusal, selected-parent/full-child section, exact inherited
+snapshot, no parent-function/header-scope inheritance, no parent re-evaluation after
+child merge, repeated origins, physical CRLF/continuation offsets, cumulative
+capacity/work exhaustion, same-capacity COW, long-dot-token cancellation, unsupported
+Unicode and final result/failure owner release. Compare supported ordinary/bounded
+IR facts to protect unchanged semantics, and reject disabled include resolution
+before an active dependency can disappear; no numerical/GPU/foundry proof is implied.

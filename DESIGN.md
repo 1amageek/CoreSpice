@@ -169,3 +169,19 @@ owns active grammar events and cooperative parsing; [Parser](Sources/CoreSpicePa
 owns location-preserving projection. No target depends on PDKKit. Native exact
 intake and ordinary parser/IO behavioral tests establish only source admission,
 not numerical support, foundry qualification or cross-platform execution.
+
+
+### Designed bounded profile source boundary
+
+Status: designed, not implemented. Existing exact loader proves post-resolution
+expected-graph comparison and finite work counts; it does not prove pre-await
+contextual authorization or retained/temporary byte capacity. The next lower
+contract composes [ParsedIR owned storage/occurrences](Sources/CoreSpiceParsedIR/DESIGN.md#bounded-source-storage-and-occurrence-values),
+[Parser contextual source/environment](Sources/CoreSpiceParser/DESIGN.md#bounded-contextual-source-contract),
+[ParserSPICE bounded grammar](Sources/CoreSpiceParserSPICE/DESIGN.md#bounded-profile-grammar)
+and [IO Span intake/proof sprints](Sources/CoreSpiceIO/DESIGN.md#bounded-profile-source-intake).
+It supports exact-approved and candidate-discovery providers using the same actual
+grammar, without requiring a whole expected graph. The optional PDK adapter owns
+PDK approval/availability; CoreSpice owns actual parser context and storage.
+This adds no PDK dependency, numerical qualification, new allocator or implicit
+filesystem fallback. Source design/proof does not change model physics or Engine.
