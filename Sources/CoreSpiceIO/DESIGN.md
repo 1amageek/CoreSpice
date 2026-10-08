@@ -171,3 +171,43 @@ Sky130 parser still refuses runtime-dependent resistor grammar; full graph parsi
 must not be reported as successful from this inventory alone. Batch record source
 inventory persistence and per-phase/TQ emission remain the next CLI composition
 slice; this slice returns captured references without asserting those capabilities.
+
+### Proposed caller-owned exact source intake
+
+Status: proposed API, not existing SPICEDeckLoader capability. The current
+loadFile/load APIs own filesystem discovery and capture; they do not enforce a
+PDK producer's expected dependency graph. Add a protocol-first exact intake
+entry point, `SPICEDeckSourceLoading`, implemented by the existing loader pipeline.
+Its request supplies a root source binding, explicit section/preprocessing
+configuration, expected source bindings and finite source/parser policy. Inject
+`SPICEExactSourceProviding` and `SPICESourceWorkAccounting` requirements rather
+than letting the loader reopen original paths. All operations invoked through
+existentials are protocol requirements.
+
+The source provider returns immutable full-file bytes, their full expected
+ArtifactReference and the selected source key/document together. A public checked
+source-admission factory verifies the same bytes, count and content identity;
+arbitrary receipts cannot construct a checked input. The loader retains these
+bindings and source owners, the actual grammar-owned dependency events, section
+selection, conditional context and effective policy in LoadedSPICEDeck. Resolver
+failures cannot be hidden by a partial parser result. This path uses the same
+SPICEParser, library projection and coverage gate as ordinary loading.
+
+The CoreSpice-owned work interface is independent of PDK; the optional
+[PDK adapter](../../../PDKKit/Sources/PDKSpiceProfileInspection/DESIGN.md)
+forwards costs/checks to the invocation accountant. Text/projection copies and
+retained parsed elements count against that policy. Parsed input references
+propagate into the actual execution provenance; returning only the root netlist
+reference is insufficient when included sources contribute. Changed/missing/extra
+source, section or preprocessing context blocks before numerical dispatch.
+Domain execution still checks model/options/capability and records actual model
+selection; this intake cannot qualify unsupported BSIM or other numerical paths.
+
+Source capture/discovery from the future public
+[Foundation API](../../../CircuiteFoundation/Sources/CircuiteFoundationFileSystem/SourceDiscovery/DESIGN.md)
+is generic acquisition, not a PDK selection authority. Ordinary source discovery
+may adopt it independently; exact profile intake uses supplied expected sources.
+No CoreSpice target depends on PDKKit. CoreSpiceIOTests owns real source-factory,
+loader/event, source drift, configuration, work/cancellation and capture-lifetime
+proof before PDK adapter tests. Native simulation composition must retain the
+loaded graph and actual model/operating-condition evidence.

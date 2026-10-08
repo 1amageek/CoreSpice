@@ -81,3 +81,16 @@ foundry-qualified model type is introduced by the resistor declaration.
 [SPICEIOEndToEndTests](../../Tests/CoreSpiceIOTests/SPICEIOEndToEndTests.swift)
 executes voltage/current PWL parsing, serialization, lowering, binding and actual
 CPU transient output. Changes require parser, lowering and scalar consumer checks.
+
+### Proposed source dependency values
+
+Status: proposed exact-profile integration. Add grammar-owned
+`SPICESourceDependencyEvent` values retaining parent/child capture IDs, original
+physical SourceLocation, include versus external-library directive, selected
+section, lexical occurrence ordinal and preprocessing context. Conditional event
+evidence distinguishes active/inactive and unresolved selection. Capture IDs are
+parse-local join keys, not canonical graph identity. ParsedIR remains independent
+of PDK and host filesystem identity; consumers join events to their exact source
+bindings. This is syntax evidence, not numerical model or qualification evidence.
+[ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md) owns event production;
+[IO](../CoreSpiceIO/DESIGN.md) owns checked capture/intake composition.

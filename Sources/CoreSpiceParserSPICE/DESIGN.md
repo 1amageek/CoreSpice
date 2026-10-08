@@ -217,3 +217,27 @@ parses and serializes this vector, lowering retains `ParameterValue.realVector`,
 and device admission owns strict time/value validation. Partial/unknown source
 waveforms produce typed parse/binding failure, never successful DC substitution.
 Scalar option/measurement/expression consumers reject vectors explicitly.
+
+### Proposed exact-profile dependency and work contract
+
+Status: proposed migration. Produce the dependency events owned by
+[ParsedIR](../CoreSpiceParsedIR/DESIGN.md#proposed-source-dependency-values)
+from actual include/library parse branches, preserving original physical positions
+and lexical precedence. Local library sections and external library directives
+remain distinct. Every active resolution records its returned source document;
+missing sources/sections and unresolved required conditional grammar fail.
+Repeated inclusion is not a cycle solely because content repeats. Source parsing
+and numerical execution remain separate.
+
+The parser accepts a CoreSpice-owned synchronous work/cancellation accounting
+interface through its public source-intake path. Charge lexical bytes, tokens,
+retained elements, dependency expansions, conditional evaluation and section
+materialization before the corresponding work/allocation; check between bounded
+chunks. Do not import PDK accounting or silently use an unbounded parser in a
+required bounded scope. Existing parser configuration limits remain separate
+caller-owned ceilings. The same grammar implements ordinary and exact intake.
+
+Parser tests must reproduce local/external lib, active/inactive/unknown branches,
+physical positions, repeated includes, depth/work exhaustion and cancellation.
+A successful static source inventory or permissive partial parse does not meet
+this contract. The optional PDK adapter translates events only after these checks.
