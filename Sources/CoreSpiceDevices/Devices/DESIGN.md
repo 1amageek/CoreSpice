@@ -5,8 +5,9 @@
 This component owns descriptor and bound-device implementations. Its parent is
 [CoreSpiceDevices](../DESIGN.md). The verified Level 3 MOS contract and independent
 source admission remain unchanged. The resistor section separately defines the
-target B8.6.5.4 static/runtime resistor contracts; it does not claim that
-the currently missing implementation or whole-process qualification is complete.
+B8.6.5.4 static/runtime resistor contracts. Runtime implementation and focused
+behavioral fixtures are present; execution evidence is recorded independently by
+the task executor and does not imply whole-process qualification.
 
 ## Responsibilities and Boundaries
 
@@ -162,8 +163,9 @@ flowchart LR
 ```
 
 Runtime-dependent resistance is retained as canonical behavioral IR and referenced
-nodes in lowering. Its callable binding branch remains a marked typed refusal
-until the independently owned runtime current/Jacobian/noise contract is complete.
+nodes in lowering. `ResistorDescriptor` selects immutable `BoundRuntimeResistor`,
+which owns the current/Jacobian/noise law and reuses the checked scalar AD evaluator.
+`RuntimeResistorPolicy` admits bounded AST/dependency/work before publication.
 
 ### Current Facts and Fixed Scope
 
@@ -172,8 +174,8 @@ binds immutable conductance/noise values. DC/transient share the prepared
 conductance; AC may use a separate admitted resistance. Binding resolves CSR
 indices once. Original ideal-R meaning and terminal orientation are retained.
 Temperature, geometry, multiplicity, resistance scale and thermal/flicker noise
-now have explicit numerical paths; runtime-dependent R remains a marked typed
-binding refusal. Focused native CPU execution evidence is recorded by the task
+have explicit numerical paths, including the separate runtime profile below.
+Focused native CPU execution evidence is recorded by the task
 executor, independently of this implementation description.
 
 B8.6.5.4 fixes two target responsibilities: complete native static resistor
@@ -246,13 +248,12 @@ behavioral nominal temperature **300.15 K**, independently of an unused resistor
 model's `tnom`. Preserve its supplied instance `tc1/tc2` and admitted multiplicity
 in the reference law `I = m*V_terminal/(R_expression*F)`. Runtime multiplicity
 is a required target regardless of whether the observed card supplies it.
-The reference rewrite copies main-current multiplicity but not multiplicity to
-its noise auxiliaries. This is a source-authority difference, not permission to
-guess a multiplicity-scaled noise law. Runtime noise/multiplicity composition
-must be resolved against the actual original auxiliary algorithm before that
-target is implemented or claimed complete. A supplied parameter that the current
-implementation cannot honor is an interim typed refusal, not inherited from an
-unrelated model or permanently excluded from the required runtime target.
+The fixed rewrite copies main-current multiplicity only to the main behavioral
+source. Its noise-transfer source has gain `1/sqrt(R_expression)` and its 1-ohm
+noise resistor receives `tc1/tc2`, but retains circuit nominal temperature and
+unit multiplicity. These are distinct, verified authorities. The complete
+admitted runtime profile is defined below; unsupported source combinations fail
+explicitly instead of inheriting coefficients from a discarded model.
 
 The pinned reference applies document `.options scale` to source instance `l/w`,
 while R-instance `scale` multiplies resistance. They must never alias. The required
@@ -289,11 +290,15 @@ the reference `enable_noisy_r`. This choice must survive lowering and binding.
 Ordinary thermal current PSD uses the selected temperature and conductance law,
 `4*kB*T_noise*G`. Its temperature authority and overrides must follow the original
 noise path, not an assumed equality with another nominal temperature. For the
-reference runtime rewrite with default multiplicity and temperature, the auxiliary
-law gives `4*kB*T_operating/(R_expression*F)` at the operating point. This is not
-`4*kB*T*dI/dV` for a nonlinear R. Extending this to multiplicity or other supplied
-runtime parameters is an unresolved algorithm boundary until original auxiliary
-semantics are verified; do not multiply that PSD by m merely from the current law.
+reference runtime rewrite, terminal-current PSD is
+`4*kB*T_operating/(R_expression*F_aux)`, where
+`F_aux = 1 + tc1*(T_operating-T_nominal_circuit) + tc2*(T_operating-T_nominal_circuit)^2`.
+The main-current factor uses the separate fixed 300.15 K nominal. PSD does not
+include multiplicity; output noise does depend on the main Jacobian's transfer.
+It is not `4*kB*T*dI/dV`. CoreSpice retains its existing modern SI Boltzmann
+constant 1.380649e-23 J/K; a source-law comparison against ngspice46 accounts for
+its older 1.38064852e-23 value explicitly rather than changing physical constants.
+
 Noise-disabled and noise-unsupported states are different: a requested capability
 outside the profile fails through the existing noise admission boundary before
 successful analysis. It cannot disappear because a device lacks `NoisyDevice`.
@@ -322,6 +327,74 @@ flowchart LR
     Bound --> Noise[Explicit noise selection and checked PSD]
     Noise --> NoiseAnalysis[Noise analysis]
 ```
+
+### Complete Admitted Runtime Resistor Profile
+
+Status: contract fixed by [pinned-source and concrete-path analysis](../../../../.verification/runs/b865-runtime-resistor-20261009/contract-analysis.json);
+implementation is present with [RuntimeResistorTests](../../../Tests/CoreSpiceDevicesTests/RuntimeResistorTests.swift);
+behavioral execution proof remains B8.6.5.13-owned. This profile closes
+the previously unresolved auxiliary-noise/multiplicity algorithm. It does not
+claim arbitrary runtime function support or physical process qualification.
+
+| Boundary | Contract and owner |
+|---|---|
+| Source intake | Parser consumes the complete named unquoted R expression, respecting the next assignment, continuation, original location and owned decode work |
+| Runtime temperature | IR retains an explicit ambient Celsius variable; Lowering recognizes `temper` as runtime; binding supplies `OperatingConditions.temperatureCelsius`, never a lowering-time constant |
+| Runtime source profile | Required R/resistance canonical expression; optional finite tc/tc1, tc2, positive m, and boolean noisy/noise. Conflicting aliases, model references, or supplied static-only ac/temp/dtemp/tce/scale/geometry/model-noise values are typed profile refusals; the fixed reference discards their meaning, so native cannot silently accept them |
+| Current | `I=m*V/(R*F_main)` with fixed 300.15 K main nominal; require finite positive R and F_main, finite current/equivalent current and every derivative |
+| Full Jacobian | Union both resistor terminal indices with all AST node/branch dependencies; differentiate V and R, including third-node and branch dependence |
+| AC / transient | AC linearizes the same full law at the actual OP and time zero; transient uses IntegrationState.currentTime. The resistor has no history or shared mutable state |
+| Convergence | Candidate physical-residual checking belongs to NewtonRaphsonSolver at actual analysis time. The device introduces no time-zero convergence evaluation or mutable last-time cache |
+| Noise | Runtime default is explicitly noiseless; source boolean overrides the descriptor policy's default. Enabled thermal PSD uses the separate circuit-nominal F_aux, with no intrinsic m or flicker term; invalid enabled-noise factors and nonfinite PSD throw |
+| Bounds | RuntimeResistorPolicy owns finite binding/evaluation ceilings and default noise selection; each policy validates positive/overflow-safe AST nodes, depth, dependencies and per-stamp work before allocation/evaluation. Default depth is the validated bounded recursion preset; changing any default requires boundary and representative runtime tests, without changing the physical law |
+| Failure | Binding rejects malformed AST arity, missing topology and unsupported parameters before device publication. Checked evaluation rejects invalid state indices, nonfinite time/value/derivatives, nonpositive R and overflow using typed errors. Throwing stamps/noise propagate through existing analysis APIs; no success, partial result or canonical case is emitted on failure |
+
+RuntimeResistorPolicy is an immutable caller-selected operational ceiling, distinct
+from physical parameters. Its default preset admits 4096 AST nodes, depth 64,
+256 solution dependencies and 1,052,672 AST visits per stamp (4096 * 257).
+All ceilings must be positive; depth may not exceed the owner-supported recursion
+ceiling of 64. Binding counts before recursive evaluation and checks the
+node-count * (dependency-count + 1) product without overflow. Callers may reduce
+work ceilings or raise node/dependency/work ceilings within checked arithmetic;
+the recursion ceiling changes only with owner validation. The preset is an
+operational selection, not an accuracy limit; boundary tests and the real runtime
+card establish the admitted path, without generalizing to other platforms.
+
+`ResistorDescriptor(runtimePolicy:)` remains the existing DeviceDescriptor
+boundary. It selects independently prepared static or runtime values without
+reinterpreting static coefficient precedence. Immutable `BoundRuntimeResistor`
+implements BoundDevice and NoisyDevice; checked scalar AD remains inside this
+Devices owner. Policy construction throws `RuntimeResistorPolicyError` for
+invalid ceilings or capacity overflow. `SolutionState.checkedBoundValue` rejects
+missing, out-of-range or remapped node/branch identities before checked stamps;
+`SolutionStateAccessError.variableIndexMismatch` prevents a value/Jacobian map mismatch. There is no new analysis
+engine, global evaluator cache, shared mutable history, C backend or platform
+synchronization branch. Prebound sparse indices and owned AST are reused; each
+stamp reads the solution owner without materializing solution arrays or derivative
+arrays. Admitted work is O(AST nodes * (dependency count + 1)) and retained
+storage is bounded at binding. Noise computation evaluates the same owned R at
+its OP and returns the existing explicit NoiseSource boundary.
+
+The fixed reference's division regularization and source-stepping internals are
+not transplanted into native device equations. Native positive-domain admission
+and its existing solver remain authoritative. Numerical/source-law comparisons
+state their tolerances and constant normalization separately from any physical
+acceptance criterion.
+
+### Runtime Closure Evidence
+
+| Requirement | Behavioral owner and falsifiable check |
+|---|---|
+| Original runtime grammar | ResistorParserTests: unmodified named continuation expression, following parameter boundary, malformed/location refusal |
+| Bound ambient authority | ResistorLoweringTests + runtime device tests: same retained AST rebound at two actual temperatures; nested scope/node/branch identities survive |
+| Current and all derivatives | RuntimeResistorTests: independent analytic derivative checks for both terminals, third node and referenced branch; actual Newton/DC and AC OP path |
+| Actual transient time | Public IO transient memoryless expression with time dependency and actual residual checking |
+| Distinct main/aux nominal | Native noise/DC at 77 C, tc1/tc2, m=4, and circuit nominal 27/17 C: current unchanged by nominal while thermal spectrum changes |
+| PSD versus differential conductance | Nonlinear R=1000*(1+Vout), DC/AC/noise comparison using independently derived terminal PSD and actual transfer; no m factor in terminal PSD |
+| Explicit source choices | noiseless default, enabled/disabled source flag and policy default override; discarded-reference inputs are native typed refusals |
+| Resource/domain safety | AST depth/node/work/dependency ceilings, malformed direct IR arity, missing/out-of-range state, R<=0, temperature-factor/derivative/current/PSD overflow; failure publishes no result |
+| Preserved static contract | Existing static resistor and affected behavioral-source tests, once after the frozen implementation/review |
+| Real adopted input | Current untouched Sky130 CLI path advances through grammar/runtime admission; later scale/bin/version gaps stay explicit rather than gaining qualification |
 
 ### Ownership, Failures and Completion Evidence
 
@@ -364,5 +437,22 @@ area and frequency laws, aliases, noise disable, CSR/transient reuse and failure
 checks lexical models, separate maps, runtime dependency retention, document scale
 and incomplete MOS refusal. [SPICEIOEndToEndTests](../../../Tests/CoreSpiceIOTests/SPICEIOEndToEndTests.swift)
 executes actual DC/AC/noise and nominal-temperature/geometry compositions.
+[RuntimeResistorTests](../../../Tests/CoreSpiceDevicesTests/RuntimeResistorTests.swift)
+checks independent analytical full Jacobians, coordinate/CSR/AC/transient laws,
+bound ambient temperature, distinct main/auxiliary nominals, explicit noise
+selection without intrinsic multiplicity, typed domain/state/arity failures and
+policy depth/node/dependency/work boundaries. Checked evaluation validates every
+active AST intermediate; a singular derivative such as `sqrt(0)` is refused
+when its scalar AD is nonfinite. These source fixtures are not execution evidence.
 Evidence remains local to the native CPU paths executed by the task executor;
-WASM/Embedded, runtime resistor physics and foundry-wide accuracy are unqualified.
+WASM/Embedded and foundry-wide accuracy are unqualified.
+
+### Independent Current Excitation Consistency
+
+The runtime resistor OP/AC oracle uses an independent current excitation. Its
+existing SPICE orientation is identical in DC, AC and transient: current is
+drawn from the positive terminal and injected into the negative terminal.
+BoundCurrentSource stamps this direction explicitly through bound indices;
+the generic complex current-injection helper uses the opposite injection
+convention and must not be substituted for the source terminal law. Public
+nonlinear resistor AC correlation rejects a reversed stimulus sign.

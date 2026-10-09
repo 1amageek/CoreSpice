@@ -432,3 +432,18 @@ capacity/work exhaustion, same-capacity COW, long-dot-token cancellation, unsupp
 Unicode and final result/failure owner release. Compare supported ordinary/bounded
 IR facts to protect unchanged semantics, and reject disabled include resolution
 before an active dependency can disappear; no numerical/GPU/foundry proof is implied.
+
+## Named Unquoted Runtime Resistance
+
+A named resistor R value may begin with a scoped identifier and continue with
+operators/function calls without quotes/braces, including physical continuation
+lines. The existing expression token parser owns the full AST; numeric-role
+intake must not return after the first identifier. The next named assignment
+closes that value. Existing source locations, parsing work/storage accounting,
+role preservation and explicit malformed-expression refusal remain authoritative.
+[Devices runtime resistor contract](../CoreSpiceDevices/Devices/DESIGN.md#complete-admitted-runtime-resistor-profile)
+owns the later runtime law. ResistorParserTests owns complete-expression,
+following-parameter and failure-location proofs. Intake is implemented using the
+original token stream and existing ordinary/bounded AST ownership. Named R and
+resistance stop at the next assignment or statement boundary; an unexplained
+trailing token fails at its original location. Focused verification is pending.

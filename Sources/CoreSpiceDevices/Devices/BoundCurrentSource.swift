@@ -53,8 +53,9 @@ public struct BoundCurrentSource: BoundDevice, Sendable {
     }
 
     public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
-        // AC current source: stamp the AC stimulus magnitude.
-        stamper.stampCurrentSource(posNode: posNode, negNode: negNode, real: acMagnitude, imag: 0.0)
+        // Preserve the same SPICE terminal orientation as DC and transient.
+        if let posIdx { stamper.stampRHS(posIdx, -acMagnitude, 0) }
+        if let negIdx { stamper.stampRHS(negIdx, acMagnitude, 0) }
     }
 
     public func stampTransient(

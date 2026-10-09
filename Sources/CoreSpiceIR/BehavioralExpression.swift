@@ -20,6 +20,8 @@ public enum BehavioralVariable: Sendable {
     case nodeVoltage(positive: Node, negative: Node)
     case branchCurrentReference(Int)
     case time
+    /// Binding-time ambient temperature in Celsius; this is not a matrix variable.
+    case ambientTemperatureCelsius
 }
 
 public enum BehavioralUnaryOperator: Sendable {

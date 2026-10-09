@@ -193,8 +193,15 @@ of `expandModels`. Scoped references and static expressions use the existing
 resolver. Unknown or mismatched models fail explicitly. Runtime-dependent R
 expressions consume `BehavioralExpressionLowerer` and preserve read-only node
 and branch dependencies; subcircuit remapping uses the existing voltage-reference
-mapper. Binding remains a marked typed refusal until runtime resistor physics is
-implemented. Static geometry and temperature/noise physics belong to
+mapper. The runtime contract now explicitly includes `temper` as a binding-time ambient
+Celsius variable. It must survive lowering/rebinding rather than resolving from
+LoweringContext.temperature. Runtime frequency (`hertz`) is classified as runtime
+and explicitly refused, even when a same-named parameter exists. Nested expansion
+propagates the already-mapped-node contract into child subcircuits so ports and
+read-only dependencies retain canonical identities. Frontend implementation is
+complete; focused and public execution verification remain pending. Binding is
+owned by the complete admitted Devices runtime profile. Static geometry and
+temperature/noise physics belong to
 [Devices](../CoreSpiceDevices/Devices/DESIGN.md#resistor-execution-contract).
 
 The focused owners are [ResistorParserTests](../../Tests/CoreSpiceParserSPICETests/ResistorParserTests.swift),

@@ -20,15 +20,6 @@ struct ResistorPreparation {
         for key in model.keys.sorted() where !modelKeys.contains(key) {
             throw invalid(device, key, "Unsupported resistor model parameter")
         }
-        // FIXME(INCOMPLETE_IMPLEMENTATION):
-        // Public parse/lower preserves runtime resistance and its canonical dependencies.
-        // Registry binding refuses this branch until current, complete Jacobian, AC,
-        // transient and original runtime noise semantics have behavioral evidence.
-        for key in ["r", "resistance"] {
-            if case .behavioralExpression = supplied[key] {
-                throw invalid(device, key, "Runtime-dependent resistance is not implemented")
-            }
-        }
         func read(_ names: [String], _ values: [String: ParameterValue]) throws -> Double? {
             var result: Double?
             for name in names {

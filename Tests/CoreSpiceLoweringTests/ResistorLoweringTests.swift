@@ -103,9 +103,9 @@ struct ResistorLoweringTests {
         #expect(scalar(ir.instances.first { $0.name.lowercased() == "r3" }?.parameters["r"]) == 120)
     }
 
-    @Test func runtimeResistanceRetainsDependenciesAndBindingRefuses() async throws {
+    @Test func runtimeResistanceRetainsDependenciesAndBindingSucceeds() async throws {
         let parsed = try await SPICEParser().parse(source: """
-        runtime resistor refusal
+        runtime resistor binding
         .subckt cell a b c
         R1 a b r={100+V(c,b)}
         .ends
@@ -123,7 +123,82 @@ struct ResistorLoweringTests {
             (MNAVariable.nodeVoltage($0.element), $0.offset)
         })
         var context = BindingContext(variableMap: map, matrixDimension: map.count)
-        #expect(throws: DeviceBindingError.self) { _ = try ResistorDescriptor().bind(instance: instance, context: &context) }
+        let bound = try ResistorDescriptor().bind(instance: instance, context: &context)
+        #expect(bound.instance.referencedNodes == instance.referencedNodes)
+    }
+
+    @Test func functionTemperatureRemainsRuntimeAcrossLoweringTemperatures() async throws {
+        let parsed = try await SPICEParser().parse(source: """
+        ambient temperature is runtime
+        .param rv=100 temper=999
+        .func thermal(x) {x*(1+.01*(temper-27))}
+        R1 a 0 r=thermal(rv)
+        .end
+        """).get()
+        for temperature in [27.0, 85.0] {
+            let ir = try NetlistLowering(configuration: .init(temperature: temperature)).lower(parsed)
+            let instance = try #require(ir.instances.first)
+            guard case .behavioralExpression(.binary(.multiply, .constant(100),
+                .binary(.add, .constant(1), .binary(.multiply, .constant(0.01),
+                    .binary(.subtract, .variable(.ambientTemperatureCelsius), .constant(27))))))
+                = instance.parameters["r"] else {
+                Issue.record("Ambient temperature must survive function inlining and lowering configuration")
+                continue
+            }
+            #expect(instance.referencedNodes.isEmpty)
+            #expect(instance.referencedBranches.isEmpty)
+        }
+    }
+
+    @Test func nestedRuntimeResistanceKeepsCanonicalPortsBranchAndModelProvenance() async throws {
+        let parsed = try await SPICEParser().parse(source: """
+        nested runtime resistance
+        .model rm R r=400 tnom=20
+        .subckt inner a b s
+        R1 a b rm r=100+max(V(a,s),I(Vprobe))+temper
+        Vprobe s b 0
+        .ends
+        .subckt outer x y z
+        Xinner x y z inner
+        .ends
+        Xouter out 0 sense outer
+        .end
+        """).get()
+        let ir = try NetlistLowering().lower(parsed)
+        let resistor = try #require(ir.instances.first { $0.name.lowercased() == "xouter.xinner.r1" })
+        let probe = try #require(ir.instances.first { $0.name.lowercased() == "xouter.xinner.vprobe" })
+        #expect(resistor.nodes.map { ir.nodeNames[$0] } == ["out", "0"])
+        #expect(Set(resistor.referencedNodes.compactMap { ir.nodeNames[$0] }) == ["out", "sense"])
+        #expect(resistor.referencedBranches == probe.ownedBranches)
+        #expect(scalar(resistor.model?.parameters["r"]) == 400)
+        #expect(scalar(resistor.model?.parameters["tnom"]) == 20)
+        guard case .behavioralExpression(.binary(.add, .binary(.add, .constant(100),
+            .function(.maximum, let arguments)), .variable(.ambientTemperatureCelsius)))
+            = resistor.parameters["r"], arguments.count == 2,
+            case .variable(.nodeVoltage(let positive, let negative)) = arguments[0],
+            case .variable(.branchCurrentReference(0)) = arguments[1] else {
+            Issue.record("Expected canonical voltage, branch and ambient dependencies")
+            return
+        }
+        #expect(ir.nodeNames[positive] == "out")
+        #expect(ir.nodeNames[negative] == "sense")
+    }
+
+    @Test func runtimeFrequencyRefusesEvenIfNamedParameterExists() async throws {
+        for expression in ["100+hertz", "100+V(a)+hertz"] {
+            let parsed = try await SPICEParser().parse(source: "frequency refusal\n.param hertz=10\nR1 a 0 r=\(expression)\n.end\n").get()
+            do {
+                _ = try NetlistLowering().lower(parsed)
+                Issue.record("Unsupported runtime frequency must not be frozen as a parameter")
+            } catch let error as LoweringError {
+                guard case .expressionEvaluationFailed(_, let reason) = error else {
+                    Issue.record("Expected explicit frequency diagnostic: \(error)")
+                    continue
+                }
+                #expect(reason.contains("hertz"))
+                #expect(reason.contains("not supported"))
+            }
+        }
     }
 
     @Test func unknownAndMismatchedModelRefuse() async throws {

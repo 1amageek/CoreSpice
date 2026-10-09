@@ -56,3 +56,15 @@ BSIM3 integration tests trace provenance, private identities, and actual sparse 
 Netlist/Instance state. Independent source descriptors interpret `pwl` as alternating
 time/value pairs; IR does not own waveform admission or device physics. Parsed IR,
 SPICE parsing/serialization and lowering preserve this vector without scalarizing it.
+
+## Runtime Ambient Variable Contract
+
+The canonical behavioral-variable target includes ambient temperature in Celsius,
+separate from time, canonical node voltage and branch-current references. Its
+value is supplied by Devices binding from OperatingConditions, not captured as a
+lowering-time constant. It creates no matrix dependency and no shared state.
+[Devices runtime resistor contract](../CoreSpiceDevices/Devices/DESIGN.md#complete-admitted-runtime-resistor-profile)
+owns the physical current/noise law; IR owns only this preserved meaning. The
+variable is implemented as `BehavioralVariable.ambientTemperatureCelsius`; proof
+remains B8.6.5.13-owned. IR/Lowering/device tests must verify
+that one retained expression can be rebound at different operating temperatures.

@@ -679,7 +679,9 @@ private struct SPICEParserImpl {
                             try advance()
                         }
                     } else {
-                        let value = try parseParameterValue()
+                        let value = type == .resistor && (lower == "r" || lower == "resistance")
+                            ? try parseNamedResistanceValue()
+                            : try parseParameterValue()
                         try params.set(value, for: lower)
                     }
                 } else if type == .mosfet && lower == "off" {
@@ -1128,6 +1130,32 @@ private struct SPICEParserImpl {
             return nil
         }
         return sign * value
+    }
+
+    private mutating func parseNamedResistanceValue() throws -> ParsedParameterValue {
+        switch currentToken {
+        case .leftBrace, .quotedExpression:
+            return try parseParameterValue()
+        default:
+            break
+        }
+        // Parse the original accounted token stream so continuation locations survive.
+        let expression = try parseExpression()
+        let nextAssignment: Bool
+        if case .identifier = currentToken, current + 1 < tokens.count {
+            nextAssignment = tokens[current + 1].token == .equals
+        } else {
+            nextAssignment = false
+        }
+        guard isAtEnd || isNewline || nextAssignment else {
+            throw ParserDiagnostic.error("Unexpected token after named resistance expression", at: currentLocation)
+        }
+        switch expression {
+        case .literal(let value): return .numeric(value)
+        case .unaryOperation(.negate, .literal(let value)): return .numeric(-value)
+        case .unaryOperation(.plus, .literal(let value)): return .numeric(value)
+        default: return .expression(expression)
+        }
     }
 
     private mutating func parseParameterValue() throws -> ParsedParameterValue {

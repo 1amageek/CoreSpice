@@ -171,10 +171,14 @@ The adopted immutable graph's static inventory is TT 171 sources/7,134,157 bytes
 SS 171/7,145,502 and FF 171/7,153,041, all below hostDefault. This is inventory
 admission evidence, not a completed parser or numerical execution. The focused
 loader tests prove actual loading for their complete synthetic graphs. The current
-Sky130 parser still refuses runtime-dependent resistor grammar; full graph parsing
-must not be reported as successful from this inventory alone. Batch record source
-inventory persistence and per-phase/TQ emission remain the next CLI composition
-slice; this slice returns captured references without asserting those capabilities.
+Runtime resistor grammar, canonical ambient temperature and immutable binding
+are now implemented under the [Devices runtime contract](../CoreSpiceDevices/Devices/DESIGN.md#complete-admitted-runtime-resistor-profile).
+Their public numerical proof is owned by [RuntimeResistorIntegrationTests](../../Tests/CoreSpiceIOTests/RuntimeResistorIntegrationTests.swift).
+Full adopted-graph parsing and compact-model execution must still be established
+from actual CLI evidence, independently of this inventory; this runtime change
+does not establish complete PDK physical qualification. Batch source inventory persistence and per-phase case issuance are composed by
+the [CLI owner](../CoreSpiceCLI/DESIGN.md). This IO boundary supplies captured
+references and does not issue tool qualification.
 
 ### Caller-owned exact source intake
 

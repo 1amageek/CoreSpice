@@ -7,6 +7,27 @@ import Testing
 struct ProfileGrammarTests {
     private let configuration = ParserConfiguration(resolveIncludes: true)
 
+    @Test func boundedNamedResistanceMatchesOrdinaryASTAndReleasesOwners() async throws {
+        let resources = GrammarTestResources()
+        let text = """
+        R0 r0 r1 r=rspwres*((l+dl)/w)*(1-av*(max(v(r0),v(r1))-min(v(r0),v(r1))))*
+        + (1+bv*(v(b)-min(v(r0),v(r1))))*(1+local_vt*(temper-tref)+ut*(temper-tref)*(temper-tref)) tc1=.01 m=2 noisy=0
+        """
+        let ordinary = try await SPICEParser().parse(source: "bounded reference\n" + text).get()
+        do {
+            let document = try source("bounded reference\n" + text, key: "runtime-resistor", occurrence: 0, resources)
+            let resolver = FixtureResolver(resources: resources, sources: [:])
+            let result = try await SPICEParser().parseProfile(document: document, configuration: configuration,
+                environment: empty(resources), resolver: resolver, resources: resources)
+            #expect(result.netlist.components.first?.parameters == ordinary.components.first?.parameters)
+            #expect(resources.work(.retainedElements) > 0)
+            #expect(resources.used(.liveOwnedBytes) > 0)
+            #expect(resources.used(.temporaryBytes) == 0)
+        }
+        #expect(resources.used(.liveOwnedBytes) == 0)
+        #expect(resources.used(.temporaryBytes) == 0)
+    }
+
     @Test func requestPrecedesChildParsingAndCarriesActualInheritedSnapshot() async throws {
         let resources = GrammarTestResources()
         let environment = try empty(resources)

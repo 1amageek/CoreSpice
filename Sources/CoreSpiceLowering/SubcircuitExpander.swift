@@ -38,7 +38,7 @@ public struct SubcircuitExpander: Sendable {
 
         // Handle subcircuit instances specially
         if component.type == .subcircuitInstance {
-            try expandSubcircuitInstance(component, into: &builder, prefix: prefix)
+            try expandSubcircuitInstance(component, into: &builder, prefix: prefix, mapNodes: mapNodes)
             return
         }
 
@@ -269,7 +269,8 @@ public struct SubcircuitExpander: Sendable {
         switch expression {
         case .literal: return false
         case .identifier(let name):
-            return name.lowercased() == "time" && !boundNames.contains(name.lowercased())
+            let key = name.lowercased()
+            return ["time", "temper", "hertz"].contains(key) && !boundNames.contains(key)
         case .unaryOperation(_, let operand):
             return hasRuntimeDependency(operand, visitedFunctions: visitedFunctions, boundNames: boundNames)
         case .binaryOperation(_, let lhs, let rhs):
@@ -474,7 +475,8 @@ public struct SubcircuitExpander: Sendable {
     private func expandSubcircuitInstance(
         _ component: ParsedComponent,
         into builder: inout Netlist,
-        prefix: String
+        prefix: String,
+        mapNodes: Bool
     ) throws {
         guard let subcircuitName = component.modelName else {
             throw LoweringError.invalidComponent(
@@ -534,7 +536,7 @@ public struct SubcircuitExpander: Sendable {
             let externalNode: String
             if node.isGround {
                 externalNode = node.name
-            } else if prefix.isEmpty {
+            } else if prefix.isEmpty || !mapNodes {
                 externalNode = node.name
             } else {
                 externalNode = "\(prefix).\(node.name)"

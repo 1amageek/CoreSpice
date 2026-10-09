@@ -138,6 +138,22 @@ public struct SolutionState: Sendable {
         return variables[index]
     }
 
+    /// Checks that the solution map preserves the variable identity admitted at binding.
+    func checkedBoundValue(at index: Int, for variable: MNAVariable) throws -> Double {
+        guard let actual = variableMap[variable] else {
+            switch variable {
+            case .nodeVoltage(let node):
+                throw SolutionStateAccessError.missingNodeVoltage(nodeID: node.id)
+            case .branchCurrent(let branch):
+                throw SolutionStateAccessError.missingBranchCurrent(branchID: branch.id)
+            }
+        }
+        guard actual == index else {
+            throw SolutionStateAccessError.variableIndexMismatch(expected: index, actual: actual)
+        }
+        return try checkedValue(at: index)
+    }
+
     /// Returns the previous solution value at a pre-resolved index.
     ///
     /// Falls back to the current value when no previous state exists.

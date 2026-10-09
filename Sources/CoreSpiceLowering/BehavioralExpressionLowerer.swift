@@ -65,13 +65,19 @@ struct BehavioralExpressionLowerer {
             if name.caseInsensitiveCompare("time") == .orderedSame {
                 return .variable(.time)
             }
+            if name.caseInsensitiveCompare("temper") == .orderedSame {
+                return .variable(.ambientTemperatureCelsius)
+            }
+            if name.caseInsensitiveCompare("hertz") == .orderedSame {
+                throw invalid(expression, "Runtime frequency variable 'hertz' is not supported")
+            }
             if name.caseInsensitiveCompare("pi") == .orderedSame {
                 return .constant(.pi)
             }
             guard let value = context.parameter(name), value.isFinite else {
                 throw invalid(
                     expression,
-                    "Identifier '\(name)' is neither a finite parameter nor the time variable"
+                    "Identifier '\(name)' is neither a finite parameter nor a supported runtime variable"
                 )
             }
             return .constant(value)

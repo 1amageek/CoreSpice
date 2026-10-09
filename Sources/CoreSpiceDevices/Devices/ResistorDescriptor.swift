@@ -1,6 +1,6 @@
 import CoreSpiceIR
 
-/// Descriptor for a two-terminal static semiconductor resistor.
+/// Descriptor for a two-terminal static or runtime semiconductor resistor.
 public struct ResistorDescriptor: DeviceDescriptor, Sendable {
 
     public let typeName = "resistor"
@@ -20,13 +20,33 @@ public struct ResistorDescriptor: DeviceDescriptor, Sendable {
         ParameterDescriptor(name: "noisy", defaultValue: nil, description: "Noise enabled (1) or disabled (0)"),
     ]
 
-    public init() {}
+    private let runtimePolicy: RuntimeResistorPolicy
+
+    public init(runtimePolicy: RuntimeResistorPolicy = .default) {
+        self.runtimePolicy = runtimePolicy
+    }
 
     public func bind(instance: Instance, context: inout BindingContext) throws -> any BoundDevice {
         guard instance.nodes.count == 2 else {
             throw DeviceBindingError.portCountMismatch(
                 device: instance.name, expected: 2, got: instance.nodes.count
             )
+        }
+
+        var supplied: [String: ParameterValue] = [:]
+        for (key, value) in instance.parameters {
+            let normalized = key.lowercased()
+            guard supplied[normalized] == nil else {
+                throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: key,
+                    message: "Duplicate case-insensitive parameter")
+            }
+            supplied[normalized] = value
+        }
+        for key in ["r", "resistance"] {
+            if case .behavioralExpression(let expression) = supplied[key] {
+                return try BoundRuntimeResistor(instance: instance, expression: expression,
+                    parameters: supplied, context: context, policy: runtimePolicy)
+            }
         }
 
         let parameters = try ResistorPreparation.prepare(instance: instance, conditions: context.operatingConditions)

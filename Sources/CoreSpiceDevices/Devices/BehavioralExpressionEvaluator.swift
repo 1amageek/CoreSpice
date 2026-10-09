@@ -10,14 +10,18 @@ struct BehavioralExpressionEvaluator: Sendable {
 
     let dependencyIndices: [Int]
 
+    private let instanceName: String
+    private let ambientTemperatureCelsius: Double
     private let expression: BehavioralExpression
     private let nodeIndices: [Node: Int]
+    private let branchReferences: [Branch]
     private let branchReferenceIndices: [Int]
 
     init(
         expression: BehavioralExpression,
         instance: Instance,
-        context: BindingContext
+        context: BindingContext,
+        dependencyLimit: Int? = nil
     ) throws {
         var dependencies: Set<Int> = []
         var nodeIndices: [Node: Int] = [:]
@@ -31,6 +35,10 @@ struct BehavioralExpressionEvaluator: Sendable {
                     ownedIndex: branchReferenceIndices.count
                 )
             }
+            if dependencyLimit != nil, index < 0 || index >= context.matrixDimension {
+                throw DeviceBindingError.invalidParameterValue(device: instance.name,
+                    parameter: "expression", message: "Referenced branch index is outside the compiled topology")
+            }
             branchReferenceIndices.append(index)
         }
 
@@ -40,11 +48,15 @@ struct BehavioralExpressionEvaluator: Sendable {
             context: context,
             nodeIndices: &nodeIndices,
             branchReferenceIndices: branchReferenceIndices,
-            dependencies: &dependencies
+            dependencies: &dependencies,
+            dependencyLimit: dependencyLimit
         )
 
+        self.instanceName = instance.name
+        self.ambientTemperatureCelsius = context.operatingConditions.temperatureCelsius
         self.expression = expression
         self.nodeIndices = nodeIndices
+        self.branchReferences = instance.referencedBranches
         self.branchReferenceIndices = branchReferenceIndices
         self.dependencyIndices = dependencies.sorted()
     }
@@ -54,12 +66,39 @@ struct BehavioralExpressionEvaluator: Sendable {
         time: Double,
         differentiating variableIndex: Int? = nil
     ) -> Evaluation {
-        evaluate(
-            expression,
-            state: state,
-            time: time,
-            variableIndex: variableIndex
-        )
+        do {
+            return try evaluate(expression, state: state, time: time,
+                variableIndex: variableIndex, checked: false)
+        } catch {
+            preconditionFailure("Unchecked behavioral evaluation cannot throw")
+        }
+    }
+
+    /// Uses the same scalar AD with checked active values, derivatives and solution access.
+    func evaluateChecked(
+        state: SolutionState,
+        time: Double,
+        differentiating variableIndex: Int? = nil
+    ) throws -> Evaluation {
+        guard time.isFinite else { throw invalid("Evaluation time must be finite") }
+        return try evaluate(expression, state: state, time: time,
+            variableIndex: variableIndex, checked: true)
+    }
+
+    /// Validates every retained input identity once at a checked operation boundary.
+    func validateState(_ state: SolutionState) throws {
+        for (node, index) in nodeIndices {
+            let value = try state.checkedBoundValue(at: index, for: .nodeVoltage(node))
+            guard value.isFinite else { throw invalid("Referenced node voltage must be finite") }
+        }
+        for (offset, branch) in branchReferences.enumerated() {
+            let value = try state.checkedBoundValue(at: branchReferenceIndices[offset], for: .branchCurrent(branch))
+            guard value.isFinite else { throw invalid("Referenced branch current must be finite") }
+        }
+    }
+
+    private func invalid(_ message: String) -> DeviceBindingError {
+        .invalidParameterValue(device: instanceName, parameter: "expression", message: message)
     }
 
     private static func collectDependencies(
@@ -68,8 +107,18 @@ struct BehavioralExpressionEvaluator: Sendable {
         context: BindingContext,
         nodeIndices: inout [Node: Int],
         branchReferenceIndices: [Int],
-        dependencies: inout Set<Int>
+        dependencies: inout Set<Int>,
+        dependencyLimit: Int?
     ) throws {
+        func admit(_ index: Int) throws {
+            if let dependencyLimit {
+                guard index >= 0, index < context.matrixDimension,
+                      dependencies.contains(index) || dependencies.count < dependencyLimit else {
+                    throw DeviceBindingError.invalidParameterValue(device: instanceName,
+                        parameter: "runtimePolicy", message: "Invalid topology index or dependency ceiling exceeded")
+                }
+            }
+        }
         switch expression {
         case .constant:
             return
@@ -84,6 +133,7 @@ struct BehavioralExpressionEvaluator: Sendable {
                             message: "Referenced positive node is absent from the compiled topology"
                         )
                     }
+                    try admit(index)
                     nodeIndices[positive] = index
                     dependencies.insert(index)
                 }
@@ -95,6 +145,7 @@ struct BehavioralExpressionEvaluator: Sendable {
                             message: "Referenced negative node is absent from the compiled topology"
                         )
                     }
+                    try admit(index)
                     nodeIndices[negative] = index
                     dependencies.insert(index)
                 }
@@ -106,8 +157,9 @@ struct BehavioralExpressionEvaluator: Sendable {
                         message: "Branch-current reference index \(referenceIndex) is unresolved"
                     )
                 }
+                try admit(branchReferenceIndices[referenceIndex])
                 dependencies.insert(branchReferenceIndices[referenceIndex])
-            case .time:
+            case .time, .ambientTemperatureCelsius:
                 return
             }
         case .unary(_, let operand):
@@ -117,7 +169,8 @@ struct BehavioralExpressionEvaluator: Sendable {
                 context: context,
                 nodeIndices: &nodeIndices,
                 branchReferenceIndices: branchReferenceIndices,
-                dependencies: &dependencies
+                dependencies: &dependencies,
+                dependencyLimit: dependencyLimit
             )
         case .binary(_, let lhs, let rhs):
             try collectDependencies(
@@ -126,7 +179,8 @@ struct BehavioralExpressionEvaluator: Sendable {
                 context: context,
                 nodeIndices: &nodeIndices,
                 branchReferenceIndices: branchReferenceIndices,
-                dependencies: &dependencies
+                dependencies: &dependencies,
+                dependencyLimit: dependencyLimit
             )
             try collectDependencies(
                 rhs,
@@ -134,7 +188,8 @@ struct BehavioralExpressionEvaluator: Sendable {
                 context: context,
                 nodeIndices: &nodeIndices,
                 branchReferenceIndices: branchReferenceIndices,
-                dependencies: &dependencies
+                dependencies: &dependencies,
+                dependencyLimit: dependencyLimit
             )
         case .function(_, let arguments):
             for argument in arguments {
@@ -144,7 +199,8 @@ struct BehavioralExpressionEvaluator: Sendable {
                     context: context,
                     nodeIndices: &nodeIndices,
                     branchReferenceIndices: branchReferenceIndices,
-                    dependencies: &dependencies
+                    dependencies: &dependencies,
+                    dependencyLimit: dependencyLimit
                 )
             }
         case .conditional(let condition, let then, let `else`):
@@ -154,7 +210,8 @@ struct BehavioralExpressionEvaluator: Sendable {
                 context: context,
                 nodeIndices: &nodeIndices,
                 branchReferenceIndices: branchReferenceIndices,
-                dependencies: &dependencies
+                dependencies: &dependencies,
+                dependencyLimit: dependencyLimit
             )
             try collectDependencies(
                 then,
@@ -162,7 +219,8 @@ struct BehavioralExpressionEvaluator: Sendable {
                 context: context,
                 nodeIndices: &nodeIndices,
                 branchReferenceIndices: branchReferenceIndices,
-                dependencies: &dependencies
+                dependencies: &dependencies,
+                dependencyLimit: dependencyLimit
             )
             try collectDependencies(
                 `else`,
@@ -170,7 +228,8 @@ struct BehavioralExpressionEvaluator: Sendable {
                 context: context,
                 nodeIndices: &nodeIndices,
                 branchReferenceIndices: branchReferenceIndices,
-                dependencies: &dependencies
+                dependencies: &dependencies,
+                dependencyLimit: dependencyLimit
             )
         }
     }
@@ -179,86 +238,77 @@ struct BehavioralExpressionEvaluator: Sendable {
         _ expression: BehavioralExpression,
         state: SolutionState,
         time: Double,
-        variableIndex: Int?
-    ) -> Evaluation {
+        variableIndex: Int?,
+        checked: Bool
+    ) throws -> Evaluation {
+        let result: Evaluation
         switch expression {
         case .constant(let value):
-            return Evaluation(value: value, derivative: 0)
+            result = Evaluation(value: value, derivative: 0)
         case .variable(let variable):
-            return evaluate(
-                variable,
-                state: state,
-                time: time,
-                variableIndex: variableIndex
-            )
+            result = try evaluate(variable, state: state, time: time,
+                variableIndex: variableIndex, checked: checked)
         case .unary(let operation, let operand):
-            return evaluate(
-                operation,
-                operand: evaluate(
-                    operand,
-                    state: state,
-                    time: time,
-                    variableIndex: variableIndex
-                )
-            )
+            result = evaluate(operation, operand: try evaluate(operand, state: state, time: time,
+                variableIndex: variableIndex, checked: checked))
         case .binary(let operation, let lhs, let rhs):
-            return evaluate(
-                operation,
-                lhs: evaluate(lhs, state: state, time: time, variableIndex: variableIndex),
-                rhs: evaluate(rhs, state: state, time: time, variableIndex: variableIndex)
-            )
+            result = evaluate(operation,
+                lhs: try evaluate(lhs, state: state, time: time, variableIndex: variableIndex, checked: checked),
+                rhs: try evaluate(rhs, state: state, time: time, variableIndex: variableIndex, checked: checked))
         case .function(let function, let arguments):
-            return evaluate(
-                function,
-                arguments: arguments,
-                state: state,
-                time: time,
-                variableIndex: variableIndex
-            )
+            result = try evaluate(function, arguments: arguments, state: state, time: time,
+                variableIndex: variableIndex, checked: checked)
         case .conditional(let condition, let then, let `else`):
-            let conditionValue = evaluate(
-                condition,
-                state: state,
-                time: time,
-                variableIndex: variableIndex
-            )
-            return evaluate(
-                conditionValue.value != 0 ? then : `else`,
-                state: state,
-                time: time,
-                variableIndex: variableIndex
-            )
+            let conditionValue = try evaluate(condition, state: state, time: time,
+                variableIndex: variableIndex, checked: checked)
+            result = try evaluate(conditionValue.value != 0 ? then : `else`, state: state, time: time,
+                variableIndex: variableIndex, checked: checked)
         }
+        if checked, !result.value.isFinite || !result.derivative.isFinite {
+            throw invalid("Active expression value or derivative is nonfinite")
+        }
+        return result
     }
 
     private func evaluate(
         _ variable: BehavioralVariable,
         state: SolutionState,
         time: Double,
-        variableIndex: Int?
-    ) -> Evaluation {
+        variableIndex: Int?,
+        checked: Bool
+    ) throws -> Evaluation {
+        func value(_ index: Int?) -> Double {
+            guard let index else { return 0 }
+            return state.value(at: index)
+        }
+        func nodeValue(_ node: Node, index: Int?) throws -> Double {
+            guard let index else { return 0 }
+            return checked ? try state.checkedBoundValue(at: index, for: .nodeVoltage(node)) : state.value(at: index)
+        }
         switch variable {
         case .nodeVoltage(let positive, let negative):
             let positiveIndex = nodeIndices[positive]
             let negativeIndex = nodeIndices[negative]
-            let value = (positiveIndex.map { state.value(at: $0) } ?? 0)
-                - (negativeIndex.map { state.value(at: $0) } ?? 0)
+            let positiveValue = try nodeValue(positive, index: positiveIndex)
+            let negativeValue = try nodeValue(negative, index: negativeIndex)
+            let voltage = positiveValue - negativeValue
+            if checked, !positiveValue.isFinite || !negativeValue.isFinite {
+                throw invalid("Referenced node voltage must be finite")
+            }
             var derivative = 0.0
-            if positiveIndex == variableIndex {
-                derivative += 1
+            if let variableIndex {
+                if positiveIndex == variableIndex { derivative += 1 }
+                if negativeIndex == variableIndex { derivative -= 1 }
             }
-            if negativeIndex == variableIndex {
-                derivative -= 1
-            }
-            return Evaluation(value: value, derivative: derivative)
+            return Evaluation(value: voltage, derivative: derivative)
         case .branchCurrentReference(let referenceIndex):
             let index = branchReferenceIndices[referenceIndex]
-            return Evaluation(
-                value: state.value(at: index),
-                derivative: index == variableIndex ? 1 : 0
-            )
+            let current = checked ? try state.checkedBoundValue(at: index, for: .branchCurrent(branchReferences[referenceIndex])) : value(index)
+            return Evaluation(value: current, derivative: index == variableIndex ? 1 : 0)
         case .time:
             return Evaluation(value: time, derivative: 0)
+        case .ambientTemperatureCelsius:
+            return Evaluation(value: ambientTemperatureCelsius, derivative: 0)
         }
     }
 
@@ -307,7 +357,7 @@ struct BehavioralExpressionEvaluator: Sendable {
         case .power:
             return ordinaryPower(base: lhs, exponent: rhs)
         case .modulo:
-            let quotient = floor(lhs.value / rhs.value)
+            let quotient = (lhs.value / rhs.value).rounded(.towardZero)
             return Evaluation(
                 value: lhs.value.truncatingRemainder(dividingBy: rhs.value),
                 derivative: lhs.derivative - quotient * rhs.derivative
@@ -336,18 +386,20 @@ struct BehavioralExpressionEvaluator: Sendable {
         arguments: [BehavioralExpression],
         state: SolutionState,
         time: Double,
-        variableIndex: Int?
-    ) -> Evaluation {
-        func argument(_ index: Int) -> Evaluation {
-            evaluate(
+        variableIndex: Int?,
+        checked: Bool
+    ) throws -> Evaluation {
+        func argument(_ index: Int) throws -> Evaluation {
+            try evaluate(
                 arguments[index],
                 state: state,
                 time: time,
-                variableIndex: variableIndex
+                variableIndex: variableIndex,
+                checked: checked
             )
         }
 
-        let first = argument(0)
+        let first = try argument(0)
         switch function {
         case .sine:
             return chain(value: sin(first.value), slope: cos(first.value), argument: first)
@@ -379,7 +431,7 @@ struct BehavioralExpressionEvaluator: Sendable {
                 argument: first
             )
         case .arcTangent2:
-            let second = argument(1)
+            let second = try argument(1)
             let denominator = first.value * first.value + second.value * second.value
             return Evaluation(
                 value: atan2(first.value, second.value),
@@ -427,7 +479,7 @@ struct BehavioralExpressionEvaluator: Sendable {
         case .minimum:
             var selected = first
             for index in arguments.indices.dropFirst() {
-                let candidate = argument(index)
+                let candidate = try argument(index)
                 if candidate.value < selected.value {
                     selected = candidate
                 }
@@ -436,15 +488,15 @@ struct BehavioralExpressionEvaluator: Sendable {
         case .maximum:
             var selected = first
             for index in arguments.indices.dropFirst() {
-                let candidate = argument(index)
+                let candidate = try argument(index)
                 if candidate.value > selected.value {
                     selected = candidate
                 }
             }
             return selected
         case .clamp:
-            let lower = argument(1)
-            let upper = argument(2)
+            let lower = try argument(1)
+            let upper = try argument(2)
             if first.value < lower.value {
                 return lower
             }
@@ -453,11 +505,11 @@ struct BehavioralExpressionEvaluator: Sendable {
             }
             return first
         case .power:
-            return ordinaryPower(base: first, exponent: argument(1))
+            return ordinaryPower(base: first, exponent: try argument(1))
         case .positivePower:
-            return power(base: first, exponent: argument(1), signed: false)
+            return power(base: first, exponent: try argument(1), signed: false)
         case .signedPower:
-            return power(base: first, exponent: argument(1), signed: true)
+            return power(base: first, exponent: try argument(1), signed: true)
         }
     }
 
@@ -509,7 +561,8 @@ struct BehavioralExpressionEvaluator: Sendable {
         slope: Double,
         argument: Evaluation
     ) -> Evaluation {
-        Evaluation(value: value, derivative: slope * argument.derivative)
+        // An independent argument has zero solution derivative even at a vertical slope.
+        Evaluation(value: value, derivative: argument.derivative == 0 ? 0 : slope * argument.derivative)
     }
 
     private func boolean(_ value: Bool) -> Evaluation {
