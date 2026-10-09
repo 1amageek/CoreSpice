@@ -112,3 +112,21 @@ executes actual public NoiseAnalysis and publishes output/input densities and
 integrated output RMS through the existing waveform conversion. Typed refusal
 for late unprepared topology, invalid modes/gains/numerics and cancellation
 remains failure. Mode1 qualification metadata is never promoted by execution.
+
+## Prepared Native Command
+
+`prepared` explicitly captures declared catalog files once under finite read,
+copy/hash and invocation policies. Include/library route arguments grant exact
+lookup availability. Parsing, context, source settings, binding and numerical
+dispatch belong directly to the [IO preparation](../CoreSpiceIO/SimulationPreparation/DESIGN.md)
+and [NativeExecution](../CoreSpice/NativeExecution/DESIGN.md) owners. The CLI has no
+prepared-lane numerical dispatch algorithm and no implicit filesystem include search.
+The same retained native owner is executed after preparation; an immutable output
+reports computed identities and actual completion counts. Existing ordinary batch
+and interactive analyses preserve their independent API/capability contracts.
+
+The CPU same-owner behavior, real catalog/library parse, and original-file mutation
+refusal are verified by
+[PreparedCLIExecutionTests](../../Tests/CoreSpiceNativeExecutionTests/PreparedCLIExecutionTests.swift).
+The finite CLI developer policy is versioned in the command, enters effective
+native configuration identity, and does not claim workload/model qualification.

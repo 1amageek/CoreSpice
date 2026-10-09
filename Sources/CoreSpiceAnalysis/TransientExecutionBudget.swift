@@ -1,7 +1,7 @@
 import Synchronization
 
 /// One run retains this owner; no callback, device operation or I/O executes under its lock.
-final class TransientExecutionBudget: Sendable {
+package final class TransientExecutionBudget: Sendable {
     private struct State: Sendable {
         var acceptedSteps = 0
         var rejectedSteps = 0
@@ -15,7 +15,7 @@ final class TransientExecutionBudget: Sendable {
     let dimension: Int
     private let iterationWork: Int
 
-    init(limits: TransientExecutionLimits, dimension: Int, nonZeroCount: Int, deviceCount: Int) throws {
+    package init(limits: TransientExecutionLimits, dimension: Int, nonZeroCount: Int, deviceCount: Int) throws {
         try limits.validate()
         try Self.admit(dimension, limit: limits.maximumMatrixDimension, resource: "matrixDimension")
         guard dimension > 0, nonZeroCount >= 0, deviceCount >= 0 else {
@@ -55,7 +55,7 @@ final class TransientExecutionBudget: Sendable {
         }
     }
 
-    func admitSavedPoint(accepted: Bool) throws {
+    package func admitSavedPoint(accepted: Bool) throws {
         try state.withLock { state in
             let steps = try Self.add(state.acceptedSteps, accepted ? 1 : 0, "acceptedSteps")
             let scalars = try Self.add(state.savedScalars, dimension + 1, "savedScalars")
@@ -71,7 +71,7 @@ final class TransientExecutionBudget: Sendable {
         try state.withLock { $0.rejectedSteps = try Self.add($0.rejectedSteps, 1, "rejectedSteps") }
     }
 
-    var statistics: TransientExecutionStatistics {
+    package var statistics: TransientExecutionStatistics {
         state.withLock { TransientExecutionStatistics(acceptedSteps: $0.acceptedSteps,
             rejectedSteps: $0.rejectedSteps, solveAttempts: $0.solveAttempts,
             newtonIterations: $0.newtonIterations, savedScalars: $0.savedScalars,

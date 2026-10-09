@@ -2,7 +2,7 @@
 
 ## Purpose and Scope
 
-Status: proposed, not implemented. Parent: [CoreSpiceIO](../DESIGN.md). No children.
+Status: implemented Native CPU capability; see supported domain below. Parent: [CoreSpiceIO](../DESIGN.md). No children.
 Own domain intake that turns actual immutable SPICE sources into a retained parsed
 and lowered input with effective analysis intent. No PDKKit dependency is added.
 
@@ -108,7 +108,7 @@ records a supply schedule; other voltage/current sweeps record stimulus schedule
 Report prescribed source values separately from solved node voltages. Arbitrary
 node measurements do not redefine nominal supply.
 
-`SPICEOperatingConditionPolicy` has two proposed cases: `recordActual` records actual
+`SPICEOperatingConditionPolicy` has two cases: `recordActual` records actual
 conditions without nominal-match assurance; `requireExactReference` carries finite
 reference temperature, positive supply voltage and nonempty explicit supply bindings.
 The latter requires actual effective temperature and every prescribed supply point
@@ -118,7 +118,7 @@ not a passed comparison. Neither policy asserts a process operating range or
 qualification; no guessed operating envelope is introduced. Host policy choice is
 explicit and enters configuration identity. It cannot be inferred from corner names.
 
-Proposed interface (types and concrete implementation remain unimplemented):
+Implemented checked interface:
 
 ```swift
 public protocol SPICESimulationPreparing: Sendable {
@@ -166,7 +166,7 @@ Native CPU proof does not establish Metal/WASM/Embedded semantics.
 
 ## Verification and Change Impact
 
-Proposed `CoreSpiceSimulationPreparationTests` target depends only on IO and its
+`CoreSpiceNativeExecutionTests` preparation fixtures target depends only on IO and its
 domain dependencies, without PDK/Xcircuite. Prove real include/section/context
 selection, missing include refusal, stable relocation, input/config digest drift,
 source-backed/defaulted TEMP distinction, TNOM separation, input versus supply DC
@@ -175,3 +175,78 @@ behavior. Existing grammar/resolver proof is reused. NativeExecution owns wavefo
 application; host owns expected profile matching, full lineage and resume.
 Implementation updates IO dependencies/excludes and migrates actual CLI/native host
 intake together; do not label the legacy exact loader as the bounded implementation.
+
+## Implemented Native CPU Capability
+
+The checked implementation is [SPICESimulationPreparer](SPICESimulationPreparer.swift).
+`SPICESourceCatalogRoute` is availability only and has no fabricated coordinates;
+actual edges/context remain `SPICEOwnedParseResult.netlist.dependencyEvents`.
+`SPICECheckedSource` full binding and invocation admission are both checked before
+an accounted document is created. Root occurrence is zero; every actual child
+acquisition receives a distinct occurrence. Repeated content retains one checked
+source owner and multiple grammar occurrences. Catalog entries that are not read
+remain availability and are excluded from actual input identity.
+
+The initial supported transform is flat R/C/L/V/I with two terminals, literal global
+parameters, literal numeric settings and instance values (or references to literal
+global parameters), source PWL numeric vectors, and resistor model declarations.
+Recursive hierarchy, functions/statistical transforms, other model physics and
+nonliteral bounded values refuse with typed capability errors before ordinary
+lowering/evaluation. Existing numerical and lowering implementations remain unchanged
+for ordinary users. No claim is made for model families refused by preparation.
+
+| New storage/work | Admission owner | Lifetime / refusal |
+|---|---|---|
+| Catalog resolver references | Preparation reserves bounded catalog slots | Invocation scratch |
+| Flat options/lowering/IC dictionary/sweep storage | Before transformation, source bytes ×64 plus bounded element slots ×4096; both retained and simultaneous temporary reservations | Retained with prepared copy; resource refusal before transform |
+| Flat work | Bounded element-pair envelope and original byte scan, cancellation at each component/control and bounded byte interval | Refusal before transform |
+| Semantic encoding | Length-framed, fixed reserved capacity before byte append; hash budget before hash | Temporary; finite/overflow/capacity failure |
+| Native compile/device/numerical/output | [NativeExecution](../../CoreSpice/NativeExecution/DESIGN.md) | Separate prepare/execute admission |
+
+The flat envelope covers copied names and parameter keys, builder/context maps,
+arrays, IR nodes/branches/instances, options, sweep schedules and IC dictionaries.
+The restriction excludes recursive allocation and arbitrary evaluator work. The
+encoding versions are `CoreSpice.prepared-input.v1` and
+`CoreSpice.effective-settings.v1.defaults-v1`. Input identity frames full content
+and descriptor identity, ordered captured sources, initial environment identity,
+actual parent/child source indices and occurrence IDs, physical byte offset and
+statement ordinal, section and inherited preprocessing identity. Availability paths,
+source keys, capture locations and run observations are excluded. Configuration
+frames every admitted effective convergence, temperature, geometry, analysis,
+transient, UIC/IC/nodeset, supply/policy, seed and numerical limit setting.
+
+| Assignment / policy | Supported behavior |
+|---|---|
+| IC + transient UIC | Materialized admitted voltages passed to TransientConfig, actual initial waveform retained |
+| IC + op/DC/transient without UIC | Typed refusal; no ignored assignment |
+| Nodeset + op/DC/transient without UIC | Actual DC starting guess |
+| Nodeset + UIC | Typed refusal because UIC skips DC |
+| Supply | Exact source ID and ordered actual node IDs validated; prescribed DC values remain distinct from solved voltages |
+| Nonconstant bound supply | Missing bounded schedule coverage, typed refusal |
+| recordActual | Records actual conditions; no reference assurance |
+| requireExactReference | Requires finite reference and nonempty binding coverage, and compares every prescribed point and runtime temperature before dispatch |
+
+Public interfaces and immutable owner constructors are implemented; ownership is
+not Codable. Source files are neither reread nor replaced after preparation.
+[Native tests](../../../Tests/CoreSpiceNativeExecutionTests/PreparedNativeExecutionTests.swift)
+exercise actual numerical behavior; the CLI fixture exercises the same domain owner.
+
+Effective per-instance conditions are retained in configuration, including resistor
+instance TEMP/DTEMP and selected-model TNOM precedence. Source model TNOM overrides
+circuit nominal temperature for that binding; it does not change runtime TEMP.
+`requireExactReference` compares every admitted instance runtime temperature as well
+as global TEMP and every prescribed supply point. The default-rule version and
+source/default origin enter configuration identity. This prevents a source instance
+override from silently passing a global-only temperature comparison.
+
+`PreparedSPICESimulation.sourceOccurrences` retains the complete checked binding
+beside each actual document occurrence and the owned entering environment. Child
+entries are created from the grammar's contextual request, with actual parent ID,
+physical statement coordinate, kind and selected section. The circuit root has no
+invented library section. This exposes inherited parameter values without inferring
+an empty dictionary from the older count-only dependency-event compatibility field.
+
+Verified preparation and actual execution evidence is owned by the
+[NativeExecution evidence](../../CoreSpice/NativeExecution/DESIGN.md#verified-evidence).
+The dedicated test registry and matching event census are part of completion,
+including retained-last-copy release and failed-admission cleanup.

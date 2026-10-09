@@ -91,10 +91,11 @@ let package = Package(
         .target(name: "CoreSpice",
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
                                "CoreSpiceAnalysis", "CoreSpiceBackend", "CoreSpiceEvent",
-                               "CoreSpiceOptoelectronics",
+                               "CoreSpiceOptoelectronics", "CoreSpiceIO", "CoreSpiceWaveform",
                                .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
                                .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation"),
-                               .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation")]),
+                               .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation")],
+                exclude: ["DESIGN.md", "NativeExecution/DESIGN.md"]),
 
         // --- Production external-process simulation backend ---
         .target(
@@ -158,7 +159,7 @@ let package = Package(
                                "CoreSpiceExporterRAW", "CoreSpiceExporterCSV",
                                "CoreSpiceExporterPSF",
                                .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
-                               .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")], exclude: ["DESIGN.md", "InitialConditions/DESIGN.md"]),
+                               .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")], exclude: ["DESIGN.md", "InitialConditions/DESIGN.md", "SimulationPreparation/DESIGN.md"]),
 
         // CLI core and executable entry
         .target(
@@ -177,6 +178,7 @@ let package = Package(
                 "CoreSpiceExporterPSF",
                 "CoreSpiceBackend",
                 .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+                .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation"),
                 .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation"),
                 .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation")
             ],
@@ -240,6 +242,9 @@ let package = Package(
         // Focused owned source-boundary tests; no numerical or GPU tests.
         .testTarget(name: "CoreSpiceSourceBoundaryTests", dependencies: ["CoreSpiceParsedIR", "CoreSpiceParser", "CoreSpiceIO",
             .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+            .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
+
+        .testTarget(name: "CoreSpiceNativeExecutionTests", dependencies: ["CoreSpice", "CoreSpiceIO", "CoreSpiceCLICore",
             .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
 
         .testTarget(name: "CoreSpiceInitialConditionTests", dependencies: ["CoreSpiceIO", "CoreSpiceIR", "CoreSpiceParsedIR", "CoreSpiceLowering"]),

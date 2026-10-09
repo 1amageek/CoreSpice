@@ -545,3 +545,23 @@ private topology before lowering/binding; this choice is also recorded. Noise
 uses the original correlated gate/drain equations and public sampled trapezoidal
 band integration on the actual CPU AC transfer. Mode1 retains its original
 conditional warning and immutable maintainer qualification limitation.
+
+## Prepared native execution
+
+`corespice prepared <root-path>` uses the checked immutable source owner, the shared
+owned grammar, effective source settings, and native prepare/execute APIs. The
+root's catalog key is `root`. Include availability is explicitly declared with
+`--source <key> <path>` and `--include <parent-key> <literal-route> <child-key>`;
+external library availability uses `--library <parent-key> <literal-route>
+<child-key> <section>`. These routes supply availability, while the grammar owns
+actual source occurrences, physical coordinates, sections and inherited contexts.
+Undeclared includes fail without filesystem search.
+
+This lane supports flat R/C/L/V/I circuits and resistor models, and `.op`, one-source
+`.dc`, and `.tran`. IC is supported with transient UIC; nodeset is applied to the
+operating point solve for `.op`, `.dc`, and transient without UIC. Other assignment
+combinations, recursive circuits, nonliteral expressions, other model physics and
+unapplied options fail explicitly. Complete source numerical limits override the
+finite CLI developer policy; partial limits fail. The output reports computed
+input/configuration identities and actual point/Newton counts. CPU proof applies
+to this lane only.

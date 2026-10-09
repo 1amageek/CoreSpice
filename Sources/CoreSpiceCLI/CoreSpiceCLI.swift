@@ -61,6 +61,11 @@ struct CLI {
   }
 
   mutating func run() async throws {
+    if args.first == "prepared" {
+      let output = try await CoreSpicePreparedCommand(arguments: Array(args.dropFirst())).execute()
+      print("input=\(output.sourceInputIdentity.hexadecimalValue) configuration=\(output.configurationIdentity.hexadecimalValue) points=\(output.waveform.pointCount) iterations=\(output.statistics.newtonIterations)")
+      return
+    }
     if let convergenceObjectiveIndex = args.firstIndex(where: {
       $0 == "convergence-recovery-objective" || $0 == "--convergence-recovery-objective"
     }) {
@@ -371,6 +376,7 @@ struct CLI {
     print(
       """
       Usage:
+        corespice prepared <root.cir> [--source key path] [--include parent route child] [--library parent route child section]
         corespice --action-domain [--json]
         corespice metric-improvement-objective --measurement-report report.json --specification spec.json --parameter-space bounds.json [--output problem.json] [--problem-id id] [--created-at timestamp] [--pretty]
         corespice convergence-recovery-objective --diagnostic-report diagnostics.json --netlist deck.cir --analysis-options options.json [--retry-policy policy.json] [--output problem.json] [--problem-id id] [--created-at timestamp] [--pretty]

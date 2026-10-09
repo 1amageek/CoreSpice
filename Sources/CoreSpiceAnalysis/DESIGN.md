@@ -155,3 +155,12 @@ a successful waveform. Cancellation is checked during added node solves and
 before completion. Public integration remains trapezoidal on output V²/Hz,
 with zero bandwidth for one frequency; independent oracle spectra are integrated
 with that same documented method, not original ngspice Nintegrate.
+
+### Prepared native DC budget composition
+
+[NativeExecution](../CoreSpice/NativeExecution/DESIGN.md) uses the package-scoped
+`TransientExecutionBudget` owner with DCAnalysis. This shares pre-operation
+solve/Newton/work/saved-scalar admission across the complete `.op` or `.dc` schedule,
+including convergence recovery. The underlying numerical algorithm and public
+ordinary DC API are unchanged. The owner retains its common `Mutex<State>` storage;
+package visibility does not expose direct mutable counter access.

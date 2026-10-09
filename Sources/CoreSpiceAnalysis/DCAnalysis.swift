@@ -13,7 +13,7 @@ import CoreSpiceEvent
 public struct DCAnalysis: Analysis, Sendable {
 
     public typealias Result = DCResult
-    var executionBudget: TransientExecutionBudget?
+    package var executionBudget: TransientExecutionBudget?
 
     /// Convergence configuration for the Newton-Raphson solver.
     public let config: ConvergenceConfig
