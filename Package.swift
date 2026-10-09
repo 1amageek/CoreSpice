@@ -3,7 +3,7 @@ import PackageDescription
 
 let circuiteFoundationDependency: Package.Dependency = .package(
     url: "https://github.com/1amageek/CircuiteFoundation.git",
-    exact: "26.812.0"
+    revision: "ae88104c556f5802819713ed741f5b2fffffc2d9"
 )
 
 let signoffToolSupportDependency: Package.Dependency = .package(
