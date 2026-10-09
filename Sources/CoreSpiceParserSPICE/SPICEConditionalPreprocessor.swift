@@ -57,13 +57,13 @@ private struct Processor {
     private let inputOwner: SPICEParseStorage?
     private let source: String
     private let fileName: String?
-    private var frames = ConditionalBuffer<ConditionalFrame>()
-    private var parameterScopes = ConditionalBuffer<ConditionalMap<String>>()
-    private var functionScopes = ConditionalBuffer<ConditionalMap<ConditionalFunctionDefinition>>()
-    private var outputLines = ConditionalBuffer<String>()
-    private var events = ConditionalBuffer<SPICEPreprocessingEvent>()
-    private var diagnostics = ConditionalBuffer<ParserDiagnostic>()
-    private var pendingSubcircuitHeader: ConditionalBuffer<String>?
+    private var frames = SPICEParserStack<ConditionalFrame>()
+    private var parameterScopes = SPICEParserStack<ConditionalMap<String>>()
+    private var functionScopes = SPICEParserStack<ConditionalMap<ConditionalFunctionDefinition>>()
+    private var outputLines = SPICEParserStack<String>()
+    private var events = SPICEParserStack<SPICEPreprocessingEvent>()
+    private var diagnostics = SPICEParserStack<ParserDiagnostic>()
+    private var pendingSubcircuitHeader: SPICEParserStack<String>?
 
     init(source: String, fileName: String?, initialParameters: [String: String],
          work: (any SPICESourceWorkAccounting)?, storage: SPICEParseStorage? = nil,
@@ -121,7 +121,7 @@ private struct Processor {
         if let inputOwner { try finalStorage!.hold(inputOwner) }
         let finalFile = try ConditionalText.copy(fileName ?? "<input>", storage: &finalStorage)
         let finalSource = try ConditionalText.join(outputLines, separator: "\n", storage: &finalStorage)
-        var finalEvents = ConditionalBuffer<SPICEPreprocessingEvent>()
+        var finalEvents = SPICEParserStack<SPICEPreprocessingEvent>()
         for index in events.indices {
             try resources.checkCancellation()
             let event = events[index]
@@ -132,7 +132,7 @@ private struct Processor {
             try finalEvents.append(SPICEPreprocessingEvent(kind: event.kind, expression: expression,
                 active: event.active, location: location, resolved: event.resolved), resources: resources)
         }
-        var finalDiagnostics = ConditionalBuffer<ParserDiagnostic>()
+        var finalDiagnostics = SPICEParserStack<ParserDiagnostic>()
         for index in diagnostics.indices {
             try resources.checkCancellation()
             let diagnostic = diagnostics[index]
@@ -335,7 +335,7 @@ private struct Processor {
         case "subckt":
             try parameterScopes.append(ConditionalMap(), resources: storage?.resources)
             try functionScopes.append(ConditionalMap(), resources: storage?.resources)
-            var header = ConditionalBuffer<String>()
+            var header = SPICEParserStack<String>()
             try header.append(SPICEInlineCommentStripper.strip(from: directive.body, storage: &storage), resources: storage?.resources)
             pendingSubcircuitHeader = header
         case "ends":
@@ -566,7 +566,7 @@ private struct FunctionDefinitionParser {
         }
         index = text.index(after: index)
 
-        var parameters = ConditionalBuffer<String>()
+        var parameters = SPICEParserStack<String>()
         try skipWhitespace(in: text, index: &index, storage: &storage)
         if index < text.endIndex, text[index] != ")" {
             while true {
@@ -640,9 +640,9 @@ private struct FunctionDefinitionParser {
 
 private struct ParameterAssignmentParser {
 
-    static func parse(_ body: String, storage: inout SPICEParseStorage?) throws -> ConditionalBuffer<ParameterAssignment> {
+    static func parse(_ body: String, storage: inout SPICEParseStorage?) throws -> SPICEParserStack<ParameterAssignment> {
         let text = try SPICEInlineCommentStripper.strip(from: body, storage: &storage)
-        var assignments = ConditionalBuffer<ParameterAssignment>()
+        var assignments = SPICEParserStack<ParameterAssignment>()
         var index = text.startIndex
 
         while index < text.endIndex {
@@ -847,7 +847,7 @@ private struct SPICEConditionalExpressionEvaluator {
             let right = try evaluate(rhs)
             return try evaluateBinaryOperation(operation, left: left, right: right)
         case .functionCall(let name, let arguments):
-            var values = ConditionalBuffer<Double>()
+            var values = SPICEParserStack<Double>()
             for argument in arguments { try values.append(evaluate(argument), resources: storage?.resources) }
             return try evaluateFunction(name: ConditionalText.lower(name, storage: &storage), arguments: values)
         case .conditional(let condition, let thenExpression, let elseExpression):
@@ -945,7 +945,7 @@ private struct SPICEConditionalExpressionEvaluator {
         return value
     }
 
-    private mutating func evaluateFunction(name: String, arguments: ConditionalBuffer<Double>) throws -> Double {
+    private mutating func evaluateFunction(name: String, arguments: SPICEParserStack<Double>) throws -> Double {
         switch name {
         case "abs":
             try requireArgumentCount(1, for: name, arguments: arguments)
@@ -1033,7 +1033,7 @@ private struct SPICEConditionalExpressionEvaluator {
         }
     }
 
-    private mutating func evaluateUserFunction(name: String, arguments: ConditionalBuffer<Double>) throws -> Double {
+    private mutating func evaluateUserFunction(name: String, arguments: SPICEParserStack<Double>) throws -> Double {
         guard let function = try functions.value(for: name, resources: storage?.resources) else {
             throw SPICEConditionalExpressionError(message: try ConditionalText.message("Unsupported conditional function '", name, "'", storage: &storage), storage: storage)
         }
@@ -1073,7 +1073,7 @@ private struct SPICEConditionalExpressionEvaluator {
     private mutating func requireArgumentCount(
         _ count: Int,
         for name: String,
-        arguments: ConditionalBuffer<Double>
+        arguments: SPICEParserStack<Double>
     ) throws {
         guard arguments.count == count else {
             throw SPICEConditionalExpressionError(
@@ -1085,7 +1085,7 @@ private struct SPICEConditionalExpressionEvaluator {
     private mutating func requireMinimumArgumentCount(
         _ count: Int,
         for name: String,
-        arguments: ConditionalBuffer<Double>
+        arguments: SPICEParserStack<Double>
     ) throws {
         guard arguments.count >= count else {
             throw SPICEConditionalExpressionError(
@@ -1094,7 +1094,7 @@ private struct SPICEConditionalExpressionEvaluator {
         }
     }
 
-    private func extremum(_ arguments: ConditionalBuffer<Double>, minimum: Bool) throws -> Double {
+    private func extremum(_ arguments: SPICEParserStack<Double>, minimum: Bool) throws -> Double {
         var value = arguments[0]
         for index in arguments.indices.dropFirst() {
             try work?.checkCancellation()
@@ -1115,50 +1115,6 @@ private struct SPICEConditionalExpressionEvaluator {
 
     private func isTrue(_ value: Double) -> Bool {
         value != 0
-    }
-}
-
-/// Conditional scratch stack; nil slots release popped values without allocating a new stack.
-private struct ConditionalBuffer<Element: Sendable>: Sendable {
-    private var ordinary: [Element] = []
-    private var owned = SPICEAccountedCollection<Element?>(storageKind: .temporaryBytes)
-    private var ownedCount = 0
-    private var isOwned = false
-    var count: Int { isOwned ? ownedCount : ordinary.count }
-    var isEmpty: Bool { count == 0 }
-    var indices: Range<Int> { 0..<count }
-    var last: Element? { isEmpty ? nil : self[count - 1] }
-    subscript(index: Int) -> Element {
-        if isOwned { return owned[index]! }
-        return ordinary[index]
-    }
-    mutating func append(_ value: Element, resources: (any SPICESourceResourceAccounting)?) throws {
-        guard let resources else { ordinary.append(value); return }
-        isOwned = true
-        if ownedCount < owned.count { try owned.replace(at: ownedCount, with: value, resources: resources) }
-        else { try owned.append(value, resources: resources) }
-        ownedCount += 1
-    }
-    mutating func replace(at index: Int, with value: Element,
-                          resources: (any SPICESourceResourceAccounting)?) throws {
-        guard let resources else { ordinary[index] = value; return }
-        try owned.replace(at: index, with: value, resources: resources)
-    }
-    mutating func removeLast(resources: (any SPICESourceResourceAccounting)?) throws -> Element? {
-        guard !isEmpty else { return nil }
-        guard let resources else { return ordinary.popLast() }
-        let value = self[ownedCount - 1]
-        try owned.replace(at: ownedCount - 1, with: nil, resources: resources)
-        ownedCount -= 1
-        return value
-    }
-    func export(storage: inout SPICEParseStorage?) throws -> [Element] {
-        guard let resources = storage?.resources else { return ordinary }
-        var builder = SPICEAccountedCollection<Element>(storageKind: .temporaryBytes)
-        try builder.reserveCapacity(count, resources: resources)
-        for index in indices { try builder.append(self[index], resources: resources) }
-        let output = try storage!.ownArray(builder)
-        return output
     }
 }
 
@@ -1257,7 +1213,7 @@ private enum ConditionalText {
         try storage!.retain(output, reservation: reservation)
         return output
     }
-    static func join(_ values: ConditionalBuffer<String>, separator: String,
+    static func join(_ values: SPICEParserStack<String>, separator: String,
                      storage: inout SPICEParseStorage?) throws -> String {
         guard let resources = storage?.resources else {
             var result = ""
@@ -1297,7 +1253,7 @@ private enum ConditionalText {
     }
     static func message(_ prefix: String, _ value: String, _ suffix: String = "",
                         storage: inout SPICEParseStorage?) throws -> String {
-        var pieces = ConditionalBuffer<String>()
+        var pieces = SPICEParserStack<String>()
         try pieces.append(prefix, resources: storage?.resources)
         try pieces.append(value, resources: storage?.resources)
         try pieces.append(suffix, resources: storage?.resources)

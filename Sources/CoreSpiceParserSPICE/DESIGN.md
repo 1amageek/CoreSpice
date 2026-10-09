@@ -27,6 +27,50 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### Conditional delimiters and reference names
+
+The shared lexer owns punctuation boundaries. In the unchanged Sky130
+`res_high_po.model.spice:52`, the then branch ends in `weff/leff:300`; treating
+`leff:300` as one identifier loses the required conditional delimiter. The existing
+expression parser already owns low-precedence, right-associative conditional ASTs.
+The [pinned ngspice grammar](https://github.com/imr/ngspice/blob/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/spicelib/parser/inpptree-parser.y#L57-L68)
+and actual reference probes confirm unspaced and nested conditionals.
+
+The lexer tracks invocation-local conditional scopes by parenthesis/brace depth.
+Once a scope contains a question token, colons in that same scope end identifiers
+and remain punctuation, including an extra colon that the parser must reject.
+Deeper reference-name scopes such as `q?v(x:y):i(vbranch:r)` retain their colon
+names. Ordinary card names, ports and `params:` remain unchanged. Quoted interiors
+use their independent existing expression lexer; comments and opaque strings do
+not modify surrounding delimiter state. Reference naming is CoreSpice-owned and
+does not adopt ngspice's different subcircuit qualification convention.
+
+Physical newlines defer the logical-statement boundary. Comments, blank lines and
+`+` continuations preserve the scope; the next substantive non-continuation card
+resets it. Closing a delimiter releases its inner conditional frames; malformed
+conditional syntax remains an explicit parser failure.
+
+Ordinary and bounded tokenization call the same scanner. The existing accounted
+preprocessor scratch stack becomes a shared internal parser stack without changing
+its COW, reservation, failure or export semantics. Lexer frames use that stack,
+reuse capacity within a statement, and release all scratch on tokenization success
+or failure even while the lexer remains alive. Frame growth is admitted before
+allocation; work/cancellation failures propagate through the existing checked
+tokenization boundary. Scanning is linear in source/tokens and scratch is bounded
+by conditional delimiter nesting; no suffix rescan or source rewrite is introduced.
+
+```text
+Source -> common lexer -> scope-aware colon tokens -> existing conditional AST
+                  |
+                  +-> ordinary names and deeper v/i reference names preserved
+```
+
+Verification compares exact ASTs, physical token locations, nested then/else,
+comment-interrupted LF/CRLF continuation, extra/missing delimiters and unchanged
+hierarchy references. Bounded tests additionally prove token/AST parity, reservation
+refusal, cancellation and scratch release. Public CLI replay uses unchanged PDK
+inputs and records the next execution boundary without claiming model physics.
+
 ### Resolved source documents
 
 Root and included parsers consume [Parser source documents](../CoreSpiceParser/DESIGN.md).

@@ -6,6 +6,46 @@ import Testing
 
 @Suite("Bounded lexer and expression grammar", .timeLimit(.minutes(1)))
 struct LexerExpressionOwnedTests {
+    @Test func conditionalScopeTokensLocationsAndASTMatchWithReleasedScratch() throws {
+        for newline in ["\n", "\r\n"] {
+            let source = [".param value={q?v(x:y)", "* ignored ? :", "", "+ :i(vbranch:r)}", "R1 a:b 0 1k"].joined(separator: newline)
+            let resources = GrammarTestResources()
+            var ordinary = SPICELexer(source: source, fileName: "conditional.sp")
+            var bounded = SPICELexer(source: source, fileName: "conditional.sp")
+            do {
+                let owned = try bounded.tokenizeOwned(resources: resources)
+                #expect(owned.tokens == ordinary.tokenize())
+                #expect(owned.tokens.contains { $0.token == .identifier("a:b") })
+                let colon = try #require(owned.tokens.first { $0.token == .colon })
+                #expect(colon.location.line == 4)
+                #expect(colon.location.column == 3)
+                #expect(resources.used(.temporaryBytes) == 0)
+            }
+            #expect(resources.used(.liveOwnedBytes) == 0)
+            for expression in ["q?a:b", "q?a?b:c:d", "q?a:b?c:d", "q?(a?b:c):d", "q?v(x:y):i(vbranch:r)"] {
+                do {
+                    var storage = SPICEParseStorage(resources: resources)
+                    #expect(try SPICEExpressionParser().parse(expression, storage: &storage)
+                        == SPICEExpressionParser().parse(expression))
+                    #expect(resources.used(.temporaryBytes) == 0)
+                }
+                #expect(resources.used(.liveOwnedBytes) == 0)
+            }
+        }
+    }
+
+    @Test func conditionalScopeReservationAndLateCancellationReleaseWhileLexerLives() {
+        for point in [2, 3] {
+            let resources = ConditionalScopeTestResources(failingTemporaryReservation: point)
+            var lexer = SPICELexer(expressionSource: "?", fileName: nil)
+            let error = point == 2 ? GrammarTestError.limit(.temporaryBytes) : .cancelled
+            #expect(throws: error) { try lexer.tokenizeOwned(resources: resources) }
+            #expect(resources.temporaryReservations == point)
+            #expect(resources.backing.used(.temporaryBytes) == 0)
+            #expect(resources.backing.used(.liveOwnedBytes) == 0)
+        }
+    }
+
     @Test func lexerPreservesOrdinaryTokensEscapesAndPhysicalContinuations() throws {
         let source = ".param A='2+max(3,4)' T=\"escaped\\\"text\\\\tail\"\r\n * comment\r\n\r\n + B=2MEG C=4.8.1\r\nR1 n1 0 5mil\r\n"
         var ordinary = SPICELexer(source: source, fileName: "owned.sp")

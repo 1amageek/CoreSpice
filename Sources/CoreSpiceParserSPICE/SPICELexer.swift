@@ -18,6 +18,9 @@ public struct SPICELexer: Sendable {
     private var isLinePrefixWhitespace: Bool = true
     private var line: Int = 1
     private var column: Int = 1
+    private var delimiterDepth = 0
+    private var conditionalScopes = SPICEParserStack<Int>()
+    private var pendingStatementBoundary = false
 
     public init(
         source: String,
@@ -45,6 +48,7 @@ public struct SPICELexer: Sendable {
     /// Token storage is charged before scanning; cancellation is cooperative even inside long tokens.
     public mutating func tokenizeChecked(work: (any SPICESourceWorkAccounting)?) throws -> [SPICEToken.Located] {
         self.work = work
+        defer { resetExpressionScope() }
         try work?.checkCancellation()
         try work?.charge(.lexicalBytes, units: UInt64(source.utf8.count))
         var tokens: [SPICEToken.Located] = []
@@ -86,7 +90,7 @@ public struct SPICELexer: Sendable {
         }
         var lexemes = SPICEAccountedCollection<OwnedLexeme>(storageKind: .temporaryBytes)
         var statementEnd: Int?
-        defer { scanStorage = nil }
+        defer { scanStorage = nil; resetExpressionScope() }
         while !isAtEnd {
             try resources.charge(.tokens, units: 1)
             if lexemes.count == lexemes.managedCapacity {
@@ -155,15 +159,22 @@ public struct SPICELexer: Sendable {
 
         // Handle newlines
         if isAtNewline {
+            pendingStatementBoundary = true
             advance()
             return SPICEToken.Located(token: .newline, location: startLocation)
         }
 
         // Handle continuation at start of line (after newline)
         if char == "+" && isLinePrefixWhitespace {
+            pendingStatementBoundary = false
             advance()
             return SPICEToken.Located(token: .continuation, location: startLocation)
         }
+
+        if char == "*" && isLinePrefixWhitespace {
+            return scanLineComment(startLocation: startLocation)
+        }
+        if pendingStatementBoundary { resetExpressionScope() }
 
         // Handle numbers. A leading +/- is emitted as a separate token here; the
         // parser reassembles the sign in value contexts (see parseSignedNumber),
@@ -200,15 +211,19 @@ public struct SPICELexer: Sendable {
             advance()
             return SPICEToken.Located(token: .comma, location: startLocation)
         case "(":
+            enterDelimiter()
             advance()
             return SPICEToken.Located(token: .leftParen, location: startLocation)
         case ")":
+            leaveDelimiter()
             advance()
             return SPICEToken.Located(token: .rightParen, location: startLocation)
         case "{":
+            enterDelimiter()
             advance()
             return SPICEToken.Located(token: .leftBrace, location: startLocation)
         case "}":
+            leaveDelimiter()
             advance()
             return SPICEToken.Located(token: .rightBrace, location: startLocation)
         case "+":
@@ -254,6 +269,7 @@ public struct SPICELexer: Sendable {
             advance()
             return SPICEToken.Located(token: .pipe, location: startLocation)
         case "?":
+            beginConditional()
             advance()
             return SPICEToken.Located(token: .question, location: startLocation)
         case ":":
@@ -434,10 +450,42 @@ public struct SPICELexer: Sendable {
     private mutating func scanIdentifier(startLocation: SourceLocation) -> SPICEToken.Located {
         let start = index
         while !isAtEnd && (current.isLetter || current.isNumber || current == "_" || current == ":" || current == ".") {
+            if current == ":", conditionalScopes.last == delimiterDepth { break }
             advance()
         }
         return SPICEToken.Located(token: .identifier(materialize(start..<index,
             lowercase: configuration.caseInsensitive)), location: startLocation)
+    }
+
+    private mutating func resetExpressionScope() {
+        conditionalScopes = SPICEParserStack()
+        delimiterDepth = 0
+        pendingStatementBoundary = false
+    }
+
+    private mutating func enterDelimiter() {
+        let (next, overflow) = delimiterDepth.addingReportingOverflow(1)
+        if overflow { workFailure = SPICESourceStorageError.arithmeticOverflow }
+        else { delimiterDepth = next }
+    }
+
+    private mutating func leaveDelimiter() {
+        if delimiterDepth > 0 { delimiterDepth -= 1 }
+        do {
+            while let depth = conditionalScopes.last, depth > delimiterDepth {
+                _ = try conditionalScopes.removeLast(resources: scanStorage?.resources)
+            }
+        } catch { workFailure = error }
+    }
+
+    private mutating func beginConditional() {
+        guard conditionalScopes.last != delimiterDepth else { return }
+        do {
+            let resources = scanStorage?.resources
+            if resources == nil { try work?.charge(.retainedElements, units: 1) }
+            // Retain the depth until scope exit so an extra colon remains punctuation.
+            try conditionalScopes.append(delimiterDepth, resources: resources)
+        } catch { workFailure = error }
     }
 
     private mutating func scanString(startLocation: SourceLocation) -> SPICEToken.Located {
