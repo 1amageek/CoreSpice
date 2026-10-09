@@ -4,6 +4,7 @@
 public enum ModelType: String, Sendable, Hashable, Codable {
 
     case resistor = "R"
+    case capacitor = "C"
 
     // Diode models
     case diode = "D"

@@ -19,6 +19,22 @@ public struct CapacitorDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
+        if let model = instance.model {
+            guard model.typeName == typeName else {
+                throw DeviceBindingError.invalidParameterValue(
+                    device: instance.name, parameter: "model",
+                    message: "Model type '\(model.typeName)' does not match capacitor"
+                )
+            }
+            // FIXME(INCOMPLETE_IMPLEMENTATION): Model-backed capacitor numerical preparation is absent.
+            // SPICENativeSimulation.bind reaches this through DeviceRegistry; direct IR callers also bind here.
+            // Admit model-backed C only after coefficients are prepared and success/failure numerical tests pass.
+            throw DeviceBindingError.invalidParameterValue(
+                device: instance.name, parameter: "model",
+                message: "Model-backed capacitor numerical preparation is not implemented"
+            )
+        }
+
         let capacitance: Double
         if let param = instance.parameters["c"] {
             guard case .real(let c) = param else {

@@ -48,12 +48,12 @@ struct ResistorLoweringTests {
         .end
         """
         let unresolved = try await SPICEParser().parse(source: includedSource).get()
-        #expect(unresolved.subcircuits[0].body.components[0].resistorModelCandidate == "rv")
-        #expect(unresolved.subcircuits[0].body.components[1].resistorModelCandidate == nil)
+        #expect(unresolved.subcircuits[0].body.components[0].passiveModelCandidate == "rv")
+        #expect(unresolved.subcircuits[0].body.components[1].passiveModelCandidate == nil)
         let serialized = SPICESerializer().serialize(unresolved)
         let roundTrip = try await SPICEParser().parse(source: serialized).get()
-        #expect(roundTrip.subcircuits[0].body.components[0].resistorModelCandidate == "rv")
-        #expect(roundTrip.subcircuits[0].body.components[1].resistorModelCandidate == nil)
+        #expect(roundTrip.subcircuits[0].body.components[0].passiveModelCandidate == "rv")
+        #expect(roundTrip.subcircuits[0].body.components[1].passiveModelCandidate == nil)
         let root = try await SPICEParser().parse(source: """
         included scope
         .param rv=100
@@ -74,7 +74,7 @@ struct ResistorLoweringTests {
             #expect(bare.parameters["r"] == nil)
             #expect(numeric.model == nil)
             #expect(scalar(numeric.parameters["r"]) == 100)
-            #expect(bare.parameters["resistorModelCandidate"] == nil)
+            #expect(bare.parameters["passiveModelCandidate"] == nil)
         }
     }
     @Test func scopedForwardModelIdentityAndStaticExpression() async throws {

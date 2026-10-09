@@ -46,14 +46,8 @@ scalar default. Source descriptors own finite, strictly increasing PWL admission
 
 ### Resistor Source Provenance
 
-`ParsedComponent.resistorModelCandidate` records only an ambiguous bare positional
-identifier from resistor source syntax. Braced, quoted and named numeric values
-never acquire this metadata, even when their expression is a single identifier.
-Parser and scoped/include lowering resolve a candidate against visible model
-declarations; its same-shaped numeric expression is never sufficient evidence
-for reclassification. Unresolved candidates serialize as bare tokens and retain
-the metadata through subcircuit node remapping. This source-only metadata never
-enters model coefficients or physical instance parameter maps.
+R source metadata follows the shared [passive source candidate contract](#passive-source-candidate-contract).
+The resistor-specific model and expression boundaries remain below.
 
 `ModelType.resistor` preserves source identity `R`. Declaration intake does
 not by itself establish numerical execution. `ParsedModel` retains the
@@ -173,3 +167,19 @@ proof in [ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md). Prove overflow/refusa
 before allocation, final-copy release, same-capacity COW clone, migration overlap
 and repeated-content origin distinction. Native proof does not establish
 WASM/Embedded allocator or synchronization behavior.
+
+## Passive Source Candidate Contract
+
+`ParsedComponent.passiveModelCandidate` replaces the resistor-only field. It records
+an ambiguous bare R/C positional symbol independently from its provisional primary
+value expression. The component type identifies `r` versus `c`; no runtime model
+coefficient carries this source metadata. Explicit numeric, quoted, braced or named
+values have no candidate. `ModelType.capacitor` preserves declaration identity `C`,
+all supplied model values and origin without authorizing numerical execution.
+
+Serialization and component reconstruction preserve candidate/name/value roles.
+Only the corresponding provisional primary expression is omitted when emitting
+the bare candidate. Scoped resolution consumes the candidate without merging model
+and instance maps. [ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md#capacitor-source-intake)
+owns syntax; [Lowering](../CoreSpiceLowering/DESIGN.md#capacitor-source-resolution-and-admission)
+owns parameter-versus-model selection.

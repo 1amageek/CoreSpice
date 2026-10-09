@@ -181,7 +181,7 @@ Noise capability and resource policy are separate from physical model parameters
 
 ## Static Resistor Composition
 
-Scoped/include model resolution consumes only `ParsedComponent.resistorModelCandidate`
+Scoped/include model resolution consumes only `ParsedComponent.passiveModelCandidate`
 for ambiguous bare tokens. An explicit numeric identifier keeps its original role
 when an equally named model exists. Subcircuit remapping preserves the candidate
 without adding it to physical parameter dictionaries. A braced, quoted or named
@@ -210,3 +210,26 @@ The focused owners are [ResistorParserTests](../../Tests/CoreSpiceParserSPICETes
 [public IO execution](../../Tests/CoreSpiceIOTests/SPICEIOEndToEndTests.swift).
 Their planned paths are native CPU DC, independent AC and thermal/flicker noise;
 compilation or parser intake is not physical qualification.
+
+## Capacitor Source Resolution and Admission
+
+Bare C `passiveModelCandidate` resolution occurs after global and invocation-local
+parameters have resolved and entered LoweringContext. `context.parameter(name)`
+presence wins over `context.model(name)`, regardless of parameter numeric sign or
+zero. Unresolved/cyclic parameters fail before this choice; functions alone do not
+count as bare parameter declarations. If expression evaluation is disabled and no
+resolved parameter exists, ambiguous C cannot be classified safely and fails
+explicitly. Reserved bare `c` does not resolve to a same-named model.
+
+For an actual model reference, missing and mismatched types are typed failures.
+Matching C models are also explicitly refused before model flattening, even with
+an explicit positive instance capacitance: model-backed C numerical preparation
+is not implemented. No model reference may silently become ideal C. Unused C
+declarations remain independent of this instance gate. Subcircuit remapping keeps
+source candidates. R source roles and URC-generated ideal capacitors retain their
+existing execution and selected-source provenance.
+
+Focused lowering/public IO tests own forward/include/scoped resolution, parameter
+precedence, disabled-expression refusal, explicit-value-plus-model refusal and
+unchanged ideal/URC execution. [Devices](../CoreSpiceDevices/Devices/DESIGN.md#capacitor-model-binding-admission)
+owns direct IR binding refusal.

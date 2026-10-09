@@ -456,3 +456,18 @@ BoundCurrentSource stamps this direction explicitly through bound indices;
 the generic complex current-injection helper uses the opposite injection
 convention and must not be substituted for the source terminal law. Public
 nonlinear resistor AC correlation rejects a reversed stimulus sign.
+
+## Capacitor Model Binding Admission
+
+`CapacitorDescriptor.bind` owns the direct IR numerical-admission boundary. An
+`Instance.model` with a mismatched type fails with typed DeviceBindingError; a
+matching capacitor model also fails explicitly until model-backed C numerical
+preparation is implemented. Positive explicit `c` cannot bypass this gate or
+discard model coefficients. The refusal branch carries INCOMPLETE_IMPLEMENTATION.
+
+`Instance.model == nil` retains the existing ideal capacitor companion/stamp path.
+`ModelConsumption.selected` is provenance, not a physical model binding map:
+URC-generated ideal capacitors legitimately retain selected URC evidence while
+model is nil and must continue to bind/stamp. Tests reject same/wrong-type models
+with explicit values and exercise ideal transient stamps with selected URC
+provenance. No model-C physics qualification follows from declaration intake.

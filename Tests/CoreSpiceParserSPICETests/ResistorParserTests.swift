@@ -22,7 +22,7 @@ struct ResistorParserTests {
             #expect(component.parameters["m"] == .numeric(2))
             #expect(component.parameters["noisy"] == .numeric(0))
             #expect(component.modelName == nil)
-            #expect(component.resistorModelCandidate == nil)
+            #expect(component.passiveModelCandidate == nil)
         }
     }
 

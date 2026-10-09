@@ -77,6 +77,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         )
 
         let topLevelModels = modelLookup(netlist.models)
+        let topLevelParameters = Set(netlist.parameters.keys.map { $0.lowercased() })
         let behavioralFunctions = behavioralFunctionLookup(netlist.controls)
         for analysis in netlist.analyses {
             items.append(coverageItem(for: analysis))
@@ -87,6 +88,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
                     component,
                     scope: nil,
                     models: topLevelModels,
+                    parameters: topLevelParameters,
                     behavioralFunctions: behavioralFunctions
                 )
             )
@@ -118,6 +120,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         appendSubcircuitComponentCoverage(
             netlist.subcircuits,
             parentModels: topLevelModels,
+            parentParameters: topLevelParameters,
             behavioralFunctions: behavioralFunctions,
             into: &items
         )
@@ -326,12 +329,14 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         _ component: ParsedComponent,
         scope: String?,
         models: [String: ParsedModel],
+        parameters: Set<String>,
         behavioralFunctions: [String: BehavioralFunctionDefinition]
     ) -> SPICEDeckCoverageItem {
         let itemName = scope.map { "\($0)/component:\(component.name)" } ?? "component:\(component.name)"
         if let blockedReason = blockedComponentReason(
             component,
             models: models,
+            parameters: parameters,
             behavioralFunctions: behavioralFunctions
         ) {
             return SPICEDeckCoverageItem(
@@ -406,6 +411,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
     private static func appendSubcircuitComponentCoverage(
         _ subcircuits: [ParsedSubcircuit],
         parentModels: [String: ParsedModel],
+        parentParameters: Set<String>,
         behavioralFunctions: [String: BehavioralFunctionDefinition],
         into items: inout [SPICEDeckCoverageItem]
     ) {
@@ -414,6 +420,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
                 subcircuit.body,
                 scope: "subckt:\(subcircuit.name)",
                 parentModels: parentModels,
+                parentParameters: parentParameters.union(subcircuit.parameters.keys.map { $0.lowercased() }),
                 behavioralFunctions: behavioralFunctions,
                 into: &items
             )
@@ -473,16 +480,19 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         _ body: ParsedNetlistBody,
         scope: String,
         parentModels: [String: ParsedModel],
+        parentParameters: Set<String>,
         behavioralFunctions: [String: BehavioralFunctionDefinition],
         into items: inout [SPICEDeckCoverageItem]
     ) {
         let scopedModels = mergedModelLookup(parentModels, body.models)
+        let scopedParameters = parentParameters.union(body.parameters.keys.map { $0.lowercased() })
         for component in body.components {
             items.append(
                 componentCoverageItem(
                     component,
                     scope: scope,
                     models: scopedModels,
+                    parameters: scopedParameters,
                     behavioralFunctions: behavioralFunctions
                 )
             )
@@ -493,6 +503,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
                 nested.body,
                 scope: "\(scope)/subckt:\(nested.name)",
                 parentModels: scopedModels,
+                parentParameters: scopedParameters.union(nested.parameters.keys.map { $0.lowercased() }),
                 behavioralFunctions: behavioralFunctions,
                 into: &items
             )
@@ -553,6 +564,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
     private static func blockedComponentReason(
         _ component: ParsedComponent,
         models: [String: ParsedModel],
+        parameters: Set<String>,
         behavioralFunctions: [String: BehavioralFunctionDefinition]
     ) -> String? {
         if let reason = unsupportedComponentTypeReason(component.type) {
@@ -565,6 +577,24 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             return reason
         }
 
+        if component.type == .capacitor {
+            let modelName: String?
+            if let explicit = component.modelName { modelName = explicit }
+            else if let candidate = component.passiveModelCandidate,
+                    !parameters.contains(candidate.lowercased()) {
+                guard candidate.lowercased() != "c" else {
+                    return "Bare reserved capacitor token requires an explicit value"
+                }
+                modelName = candidate
+            } else { return nil }
+            guard let modelName, let model = models[modelName.lowercased()] else {
+                return "Capacitor value/model reference is not defined in the visible source scope"
+            }
+            guard model.type == .capacitor else {
+                return "Capacitor reference requires a capacitor model"
+            }
+            return blockedModelReason(model)
+        }
         guard component.type.requiresModelForNativeExecution else {
             return nil
         }
@@ -636,6 +666,11 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
 
     private static func blockedModelReason(_ model: ParsedModel) -> String? {
         switch model.type {
+        case .capacitor:
+            // FIXME(INCOMPLETE_IMPLEMENTATION):
+            // Source coverage preserves C declarations; it cannot authorize model-backed
+            // execution until native preparation and numerical correlation are implemented.
+            return "Model-backed capacitor execution is not implemented"
         case .resistor, .diode, .npn, .pnp:
             return nil
         case .nmos, .pmos:

@@ -33,8 +33,8 @@ public struct SubcircuitExpander: Sendable {
         prefix: String,
         mapNodes: Bool = true
     ) throws {
-        let component = resolveResistorSourceRole(inputComponent)
-        let fullName = prefix.isEmpty ? component.name : "\(prefix).\(component.name)"
+        let fullName = prefix.isEmpty ? inputComponent.name : "\(prefix).\(inputComponent.name)"
+        let component = try resolvePassiveSourceRole(inputComponent, fullName: fullName)
 
         // Handle subcircuit instances specially
         if component.type == .subcircuitInstance {
@@ -254,12 +254,20 @@ public struct SubcircuitExpander: Sendable {
         )
     }
 
-    private func resolveResistorSourceRole(_ component: ParsedComponent) -> ParsedComponent {
-        guard component.type == .resistor, component.modelName == nil,
-              let candidate = component.resistorModelCandidate,
-              context.model(candidate) != nil else { return component }
+    private func resolvePassiveSourceRole(_ component: ParsedComponent, fullName: String) throws -> ParsedComponent {
+        guard component.type == .resistor || component.type == .capacitor,
+              component.modelName == nil,
+              let candidate = component.passiveModelCandidate else { return component }
+        if component.type == .capacitor {
+            if context.parameter(candidate) != nil || candidate.lowercased() == "c" { return component }
+            guard configuration.evaluateExpressions else {
+                throw LoweringError.invalidComponent(name: fullName,
+                    reason: "Ambiguous capacitor value requires scoped parameter evaluation")
+            }
+        }
+        guard context.model(candidate) != nil else { return component }
         var parameters = component.parameters
-        parameters.removeValue(forKey: "r")
+        parameters.removeValue(forKey: component.type == .resistor ? "r" : "c")
         return ParsedComponent(name: component.name, type: component.type, nodes: component.nodes,
             modelName: candidate, parameters: parameters, location: component.location)
     }
@@ -588,7 +596,7 @@ public struct SubcircuitExpander: Sendable {
                     type: bodyComponent.type,
                     nodes: mappedNodes,
                     modelName: bodyComponent.modelName,
-                    resistorModelCandidate: bodyComponent.resistorModelCandidate,
+                    passiveModelCandidate: bodyComponent.passiveModelCandidate,
                     parameters: mappedParameters,
                     location: bodyComponent.location
                 )
@@ -756,6 +764,16 @@ public struct SubcircuitExpander: Sendable {
         _ component: ParsedComponent,
         fullName: String
     ) throws {
+        if component.type == .capacitor, component.modelName != nil {
+            guard let model = try resolvedModel(for: component), model.type == .capacitor else {
+                throw LoweringError.invalidComponent(name: fullName, reason: "Capacitor requires a capacitor model reference")
+            }
+            // FIXME(INCOMPLETE_IMPLEMENTATION):
+            // Public parse/lower and native CLI retain C model references but cannot
+            // execute them until capacitor model preparation and independent numerical
+            // success/failure correlation exist; explicit C must not select ideal fallback.
+            throw LoweringError.invalidComponent(name: fullName, reason: "Model-backed capacitor execution is not implemented")
+        }
         if component.type == .resistor, component.modelName != nil {
             guard let model = try resolvedModel(for: component), model.type == .resistor else {
                 throw LoweringError.invalidComponent(name: fullName, reason: "Resistor requires a resistor model reference")
@@ -854,6 +872,8 @@ public struct SubcircuitExpander: Sendable {
 
     private func unsupportedModelReason(_ model: ParsedModel) -> String? {
         switch model.type {
+        case .capacitor:
+            return "Model-backed capacitor execution is not implemented"
         case .resistor, .diode, .npn, .pnp:
             return nil
         case .nmos, .pmos:

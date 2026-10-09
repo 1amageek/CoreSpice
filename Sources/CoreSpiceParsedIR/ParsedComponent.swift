@@ -16,8 +16,8 @@ public struct ParsedComponent: Sendable, Hashable {
     /// The model name if this component uses a model.
     public let modelName: String?
 
-    /// Ambiguous bare resistor token awaiting lexical model lookup; absent for explicit numeric syntax.
-    public let resistorModelCandidate: String?
+    /// Ambiguous bare R/C source symbol awaiting scoped resolution; absent for explicit numeric syntax.
+    public let passiveModelCandidate: String?
 
     /// Parameter values for this component.
     public let parameters: [String: ParsedParameterValue]
@@ -30,7 +30,7 @@ public struct ParsedComponent: Sendable, Hashable {
         type: ComponentType,
         nodes: [ParsedNodeRef],
         modelName: String? = nil,
-        resistorModelCandidate: String? = nil,
+        passiveModelCandidate: String? = nil,
         parameters: [String: ParsedParameterValue] = [:],
         location: SourceLocation? = nil
     ) {
@@ -38,7 +38,7 @@ public struct ParsedComponent: Sendable, Hashable {
         self.type = type
         self.nodes = nodes
         self.modelName = modelName
-        self.resistorModelCandidate = resistorModelCandidate
+        self.passiveModelCandidate = passiveModelCandidate
         self.parameters = parameters
         self.location = location
     }
@@ -49,13 +49,17 @@ extension ParsedComponent: CustomStringConvertible {
         var result = "\(name) \(nodes.map { $0.name }.joined(separator: " "))"
         if let model = modelName {
             result += " \(model)"
-        } else if let candidate = resistorModelCandidate {
+        } else if let candidate = passiveModelCandidate {
             result += " \(candidate)"
         }
         if !parameters.isEmpty {
-            let params = parameters.filter { resistorModelCandidate == nil || $0.key != "r" }
+            let primaryKey = type == .capacitor ? "c" : "r"
+            let params = parameters.filter { name, value in
+                guard let candidate = passiveModelCandidate else { return true }
+                return name != primaryKey || value != .expression(.identifier(candidate))
+            }
                 .map { "\($0.key)=\($0.value)" }.joined(separator: " ")
-            result += " \(params)"
+            if !params.isEmpty { result += " \(params)" }
         }
         return result
     }

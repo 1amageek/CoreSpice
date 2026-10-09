@@ -333,3 +333,14 @@ proof; upper PDK adapter proof follows verified lower contracts.
 Boundary verification is owned by
 [CheckedSpanSourceTests](../../Tests/CoreSpiceSourceBoundaryTests/CheckedSpanSourceTests.swift).
 Its native evidence does not qualify WASM/Embedded or bounded grammar parsing.
+
+## Capacitor Source Coverage
+
+Source coverage distinguishes preserved C declaration syntax from numerical
+capability. C model declarations and explicit model-backed C instances cannot be
+reported as native executable. Ambiguous bare C candidates require scoped source
+resolution; coverage must not infer model-free success from a nil modelName.
+Visible parameter declarations retain their precedence over model names. Reporting
+uses lexical global/default/body parameter scope, without executing parameters or
+claiming the later binding result. Numerical admission remains owned by
+[Lowering](../CoreSpiceLowering/DESIGN.md#capacitor-source-resolution-and-admission).

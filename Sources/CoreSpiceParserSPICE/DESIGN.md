@@ -194,7 +194,7 @@ consumer checks rather than proof of new device support.
 
 ## Resistor Declaration and Instance Intake
 
-Ambiguous bare identifiers carry `ParsedComponent.resistorModelCandidate`; numeric
+Ambiguous bare identifiers carry `ParsedComponent.passiveModelCandidate`; numeric
 braces, quotes and named `r=` values retain an explicit numeric role with no
 candidate. Role resolution consumes only that source metadata, never expression
 shape. Serializer output preserves an unresolved candidate as its original bare
@@ -491,3 +491,27 @@ following-parameter and failure-location proofs. Intake is implemented using the
 original token stream and existing ordinary/bounded AST ownership. Named R and
 resistance stop at the next assignment or statement boundary; an unexplained
 trailing token fails at its original location. Focused verification is pending.
+
+## Capacitor Source Intake
+
+The frontend retains unused `.model C` declarations, including original Sky130
+`cox/capsw/w/tnom/tc1/tc2` source values. A declaration is not executable-device
+admission. The [pinned INP2C grammar](https://github.com/imr/ngspice/blob/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/spicelib/parser/inp2c.c#L73-L143)
+separates optional leading capacitance, model reference and optional post-model
+capacitance. A post-model value replaces an earlier leading value. Named `c=`
+accepts the complete expression and cannot silently discard its remaining tokens.
+`model c=value` retains both roles; `c=value model` is rejected. Extra positional
+values/tokens are rejected rather than ignored. Model-free ideal C is unchanged.
+
+Bare C symbols retain `passiveModelCandidate` until fully scoped lowering because
+a visible parameter wins over an equally named model. Parse-local model discovery
+cannot decide against later included/global/body/default/actual parameter scope.
+R keeps its existing model-selection contract. Explicit numeric syntax never
+acquires a candidate. A bare reserved `c` cannot select a same-named C model.
+
+Ordinary and bounded paths share this grammar and source metadata. Source-only
+candidate references reuse admitted token strings and existing component storage;
+no unaccounted parallel model/parameter table is introduced. Parser, bounded parity
+and serializer tests inspect exact model/candidate/value roles, complete named
+expressions, malformed tails and declaration origins. Public IO verifies unused
+declarations execute independently of model-backed C refusal.

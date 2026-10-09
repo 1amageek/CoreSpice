@@ -318,7 +318,7 @@ private struct SPICEParserImpl {
     private func resistorRoles(in values: [ParsedComponent], models: Set<String>) -> [ParsedComponent] {
         values.map { component in
             guard component.type == .resistor, component.modelName == nil,
-                  let candidate = component.resistorModelCandidate,
+                  let candidate = component.passiveModelCandidate,
                   models.contains(candidate.lowercased()) else { return component }
             var parameters = component.parameters
             parameters.removeValue(forKey: "r")
@@ -345,7 +345,7 @@ private struct SPICEParserImpl {
             try profileResources?.charge(.retainedElements, units: 1)
             try profileResources?.checkCancellation()
             guard component.type == .resistor, component.modelName == nil,
-                  let candidate = component.resistorModelCandidate,
+                  let candidate = component.passiveModelCandidate,
                   try models[normalized(candidate)] != nil else {
                 try output.append(component); continue
             }
@@ -569,7 +569,7 @@ private struct SPICEParserImpl {
 
         var nodes = SPICEParserBuffer<ParsedNodeRef>(resources: profileResources)
         var modelName: String?
-        var resistorModelCandidate: String?
+        var passiveModelCandidate: String?
         var params = SPICEParserMap<ParsedParameterValue>(resources: profileResources)
 
         // Parse nodes
@@ -641,14 +641,18 @@ private struct SPICEParserImpl {
             }
         }
 
+        if type == .capacitor {
+            try parseCapacitorParameters(modelName: &modelName, candidate: &passiveModelCandidate, params: &params)
+        }
+
         // Parse parameters
-        while !isAtEnd && !isNewline {
+        while type != .capacitor && !isAtEnd && !isNewline {
             if type == .resistor, modelName == nil,
-               let candidate = resistorModelCandidate {
+               let candidate = passiveModelCandidate {
                 switch currentToken {
                 case .number, .leftBrace, .quotedExpression, .plus, .minus:
                     modelName = candidate
-                    resistorModelCandidate = nil
+                    passiveModelCandidate = nil
                     try params.removeValue(forKey: "r")
                 default: break
                 }
@@ -662,9 +666,9 @@ private struct SPICEParserImpl {
                 if case .equals = currentToken {
                     try advance()
                     if type == .resistor, lower == "r" || lower == "resistance",
-                       let candidate = resistorModelCandidate, modelName == nil {
+                       let candidate = passiveModelCandidate, modelName == nil {
                         modelName = candidate
-                        resistorModelCandidate = nil
+                        passiveModelCandidate = nil
                         try params.removeValue(forKey: "r")
                     }
                     if type == .mosfet && lower == "ic" {
@@ -680,7 +684,7 @@ private struct SPICEParserImpl {
                         }
                     } else {
                         let value = type == .resistor && (lower == "r" || lower == "resistance")
-                            ? try parseNamedResistanceValue()
+                            ? try parseNamedPassiveValue()
                             : try parseParameterValue()
                         try params.set(value, for: lower)
                     }
@@ -715,7 +719,7 @@ private struct SPICEParserImpl {
                             try params.set(.numeric(value), for: key)
                         } else {
                             try params.set(.expression(try identifierExpression(paramName)), for: key)
-                            if type == .resistor { resistorModelCandidate = paramName }
+                            if type == .resistor { passiveModelCandidate = paramName }
                         }
                     } else if type == .voltageSource || type == .currentSource {
                         throw ParserDiagnostic.error((profileResources == nil ? "Unsupported source waveform or parameter '\(paramName)'" : "Unsupported source waveform or parameter ''"), at: currentLocation)
@@ -724,7 +728,7 @@ private struct SPICEParserImpl {
                             throw ParserDiagnostic.error((profileResources == nil ? "Unexpected resistor token '\(paramName)'" : "Unexpected resistor token ''"), at: currentLocation)
                         }
                         modelName = paramName
-                        resistorModelCandidate = nil
+                        passiveModelCandidate = nil
                     }
                 }
             } else if case .quotedExpression = currentToken {
@@ -782,15 +786,80 @@ private struct SPICEParserImpl {
         if type == .resistor, try nodes.count != 2 || (params["r"] == nil && params["resistance"] == nil && modelName == nil) {
             throw ParserDiagnostic.error("Resistor requires two nodes and resistance or model", at: loc)
         }
+        if type == .capacitor, try nodes.count != 2 || (params["c"] == nil && modelName == nil) {
+            throw ParserDiagnostic.error("Capacitor requires two nodes and capacitance or model", at: loc)
+        }
         try components.append(ParsedComponent(
             name: name,
             type: type,
             nodes: try nodes.export(storage: &profileStorage),
             modelName: modelName,
-            resistorModelCandidate: resistorModelCandidate,
+            passiveModelCandidate: passiveModelCandidate,
             parameters: try params.export(storage: &profileStorage),
             location: loc
         ))
+    }
+
+    private mutating func parseCapacitorParameters(
+        modelName: inout String?,
+        candidate: inout String?,
+        params: inout SPICEParserMap<ParsedParameterValue>
+    ) throws {
+        var hasNamedCapacitance = false
+        var hasPostModelValue = false
+        while !isAtEnd && !isNewline {
+            if case .identifier(let name) = currentToken {
+                let location = currentLocation
+                let lower = try normalized(name)
+                try advance()
+                if case .equals = currentToken {
+                    try advance()
+                    if lower == "c" {
+                        if let symbol = candidate {
+                            modelName = symbol
+                            candidate = nil
+                            try params.removeValue(forKey: "c")
+                        }
+                        try params.set(try parseNamedPassiveValue(), for: lower)
+                        hasNamedCapacitance = true
+                    } else {
+                        try params.set(try parseParameterValue(), for: lower)
+                    }
+                } else {
+                    guard !hasNamedCapacitance, modelName == nil, candidate == nil else {
+                        throw ParserDiagnostic.error("Unexpected capacitor model or positional token", at: location)
+                    }
+                    if try params["c"] == nil {
+                        if let value = try parseNumberFromIdentifier(name) {
+                            try params.set(.numeric(value), for: "c")
+                        } else {
+                            // Preserve ambiguity until lowering can see the complete parameter scope.
+                            candidate = name
+                            try params.set(.expression(try identifierExpression(name)), for: "c")
+                        }
+                    } else {
+                        modelName = name
+                    }
+                }
+                continue
+            }
+            switch currentToken {
+            case .number, .plus, .minus, .leftBrace, .quotedExpression:
+                if let symbol = candidate {
+                    modelName = symbol
+                    candidate = nil
+                    try params.removeValue(forKey: "c")
+                }
+                guard !hasNamedCapacitance, !hasPostModelValue,
+                      try modelName != nil || params["c"] == nil else {
+                    throw ParserDiagnostic.error("Unexpected extra capacitor value", at: currentLocation)
+                }
+                try params.set(try parseParameterValue(), for: "c")
+                if modelName != nil { hasPostModelValue = true }
+            default:
+                throw ParserDiagnostic.error("Unexpected capacitor token", at: currentLocation)
+            }
+        }
     }
 
     private mutating func parseCurrentControlledSourceComponent(
@@ -1132,7 +1201,7 @@ private struct SPICEParserImpl {
         return sign * value
     }
 
-    private mutating func parseNamedResistanceValue() throws -> ParsedParameterValue {
+    private mutating func parseNamedPassiveValue() throws -> ParsedParameterValue {
         switch currentToken {
         case .leftBrace, .quotedExpression:
             return try parseParameterValue()
@@ -1148,7 +1217,7 @@ private struct SPICEParserImpl {
             nextAssignment = false
         }
         guard isAtEnd || isNewline || nextAssignment else {
-            throw ParserDiagnostic.error("Unexpected token after named resistance expression", at: currentLocation)
+            throw ParserDiagnostic.error("Unexpected token after named passive expression", at: currentLocation)
         }
         switch expression {
         case .literal(let value): return .numeric(value)
