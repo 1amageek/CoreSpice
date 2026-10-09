@@ -36,6 +36,20 @@ extension CoreSpiceCLIFailure {
   /// typed error.
   init(error: any Error) {
     switch error {
+    case is CancellationError:
+      self.init(code: "case.cancelled", message: "Case execution was cancelled", stage: "execution")
+
+    case let caseError as CoreSpiceCLICaseError:
+      let code: String
+      switch caseError {
+      case .missingModelOrigin: code = "case.missing-model-origin"
+      case .unrecordedModelConsumption: code = "case.unrecorded-model-consumption"
+      case .incompleteOutput: code = "case.incomplete-output"
+      case .publication: code = "case.publication"
+      case .unsupportedAnalysis: code = "case.unsupported-phase-evidence"
+      }
+      self.init(code: code, message: caseError.localizedDescription, stage: "case-publication")
+
     case let cliError as CLIError:
       self.init(cliError: cliError)
 

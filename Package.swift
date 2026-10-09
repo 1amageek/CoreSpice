@@ -24,6 +24,7 @@ let package = Package(
         .executable(name: "corespice", targets: ["CoreSpiceCLI"]),
     ],
     dependencies: [
+        .package(url: "https://github.com/1amageek/ToolQualification.git", revision: "b37087c7c4bdf97c9c66065c8373a7774a2064b6"),
         circuiteFoundationDependency,
         signoffToolSupportDependency,
     ],
@@ -165,6 +166,8 @@ let package = Package(
         .target(
             name: "CoreSpiceCLICore",
             dependencies: [
+                .product(name: "ToolQualification", package: "ToolQualification"),
+                .product(name: "ToolQualificationCLICore", package: "ToolQualification"),
                 "CoreSpice",
                 "CoreSpiceIO",
                 "CoreSpiceAnalysis",

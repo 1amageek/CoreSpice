@@ -6,6 +6,8 @@ struct CoreSpiceBatchOptions {
   let overrideAnalysis: AnalysisCommand?
   let jsonOutput: Bool
   let randomSeed: UInt64?
+  let caseOutput: String?
+  let caseID: String?
 
   init(arguments: [String]) throws {
     var cursor = CoreSpiceCLIArgumentCursor(arguments: arguments)
@@ -14,6 +16,8 @@ struct CoreSpiceBatchOptions {
     var overrideAnalysis: AnalysisCommand?
     var jsonOutput: Bool?
     var randomSeed: UInt64?
+    var caseOutput: String?
+    var caseID: String?
 
     while !cursor.isAtEnd {
       let argument = cursor.current
@@ -50,6 +54,12 @@ struct CoreSpiceBatchOptions {
         try Self.rejectDuplicate(jsonOutput, argument: argument)
         jsonOutput = true
         cursor.advance()
+      case "--case-output":
+        try Self.rejectDuplicate(caseOutput, argument: argument)
+        caseOutput = try cursor.nonOptionValue(after: argument)
+      case "--case-id":
+        try Self.rejectDuplicate(caseID, argument: argument)
+        caseID = try cursor.nonOptionValue(after: argument)
       case "--seed":
         try Self.rejectDuplicate(randomSeed, argument: argument)
         let rawSeed = try cursor.nonOptionValue(after: argument)
@@ -68,6 +78,11 @@ struct CoreSpiceBatchOptions {
       throw CLIError.invalidArguments("missing deck path after --batch")
     }
 
+    guard (caseOutput == nil) == (caseID == nil) else {
+      throw CLIError.invalidArguments("--case-output and --case-id must be supplied together")
+    }
+    self.caseOutput = caseOutput
+    self.caseID = caseID
     self.deckPath = deckPath
     self.outputs = outputs
     self.overrideAnalysis = overrideAnalysis

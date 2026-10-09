@@ -160,6 +160,7 @@ struct CLI {
     let inputArtifacts = loadedDeck.captures.map { capture in
       artifactReferencer.input(capture: capture, kind: .netlist, format: .spice)
     }
+    let executableCapture = try options.caseOutput.map { _ in try CoreSpiceCLICasePublisher.captureExecutable() }
     var outputArtifacts: [ArtifactReference] = []
     if let coveragePath = options.outputs.coverageJSON {
       try writeCoverageReport(loadedDeck.coverage, path: coveragePath)
@@ -168,6 +169,7 @@ struct CLI {
       )
     }
     try session.loadNetlist(loadedDeck, randomSeed: options.randomSeed)
+    if options.caseOutput != nil { session.phaseCollector = try CoreSpiceCLIPhaseCollector() }
     reportOptionDiagnostics(session.analysisOptions.diagnostics)
     let analyses: [String]
     let waveformSummary: CoreSpiceCLIWaveformSummary?
@@ -203,6 +205,10 @@ struct CLI {
         variables: waveform.variables.map(\.name),
         points: waveform.pointCount
       )
+    }
+    if let directory = options.caseOutput, let caseID = options.caseID, let phases = session.phaseCollector {
+      outputArtifacts += try CoreSpiceCLICasePublisher().publish(directory: directory, caseID: caseID,
+        loadedDeck: loadedDeck, phases: phases, referencer: artifactReferencer, executableCapture: executableCapture)
     }
     return CoreSpiceCLIBatchRunRecord(
       producer: artifactReferencer.producer,
@@ -380,7 +386,7 @@ struct CLI {
         corespice --action-domain [--json]
         corespice metric-improvement-objective --measurement-report report.json --specification spec.json --parameter-space bounds.json [--output problem.json] [--problem-id id] [--created-at timestamp] [--pretty]
         corespice convergence-recovery-objective --diagnostic-report diagnostics.json --netlist deck.cir --analysis-options options.json [--retry-policy policy.json] [--output problem.json] [--problem-id id] [--created-at timestamp] [--pretty]
-        corespice -b <deck.cir> [--json] [--tran tstep tstop | --ac dec|lin points start stop | --dc source start stop step] [-r out.raw] [--csv out.csv] [--psf out.psf] [--coverage-json report.json]
+        corespice -b <deck.cir> [--json] [--tran tstep tstop | --ac dec|lin points start stop | --dc source start stop step] [-r out.raw] [--csv out.csv] [--psf out.psf] [--coverage-json report.json] [--case-output new-directory --case-id id]
         corespice measure --waveform <path.csv> --measure "<spec>" [--measure "<spec>" ...] [--json]
         corespice            # interactive shell
 
@@ -395,6 +401,13 @@ struct CLI {
         Level 54 exact 4.8.3 requires .options bsim4stressiterations=<positive UInt32>.
         This bounds original stress preprocessing and is retained in JSON run records.
         Parsed .noise intent prepares the original noise-dependent private topology.
+
+      Canonical case output:
+        --case-output publishes exact captured inputs, executable, model receipts,
+        execution.json and availability.json in a new directory. Completed phase
+        observations retain actual DC points and Monte Carlo seeds. This emits
+        original evidence; it does not issue qualification. Sensitivity case output
+        is refused until complete perturbation evidence is available.
 
       JSON records:
         Batch success records contain a replayable ExecutionInvocation plus
@@ -451,6 +464,7 @@ struct CLI {
 // MARK: - Session and Analysis
 
 struct Session {
+  var phaseCollector: CoreSpiceCLIPhaseCollector?
   private(set) var plan: ExecutionPlan?
   private var registry: DeviceRegistry {
     var registry = analysisOptions.deviceRegistry()
@@ -518,6 +532,7 @@ struct Session {
     // Build optical network graph if circuit contains optical devices
     compiled = try Self.integrateOpticalNetwork(plan: compiled, devices: bound)
 
+    self.phaseCollector = nil
     self.plan = compiled
     self.devices = bound
     self.lastWaveform = nil
@@ -527,11 +542,11 @@ struct Session {
     self.nodeSetVoltages = resolvedNodeSetVoltages
   }
 
-  mutating func run(_ command: AnalysisCommand) async throws -> WaveformData {
+  mutating func run(_ command: AnalysisCommand, cancellation: CancellationToken = CancellationToken()) async throws -> WaveformData {
     guard let plan else { throw CLIError.state("no netlist loaded") }
-    let cancellation = CancellationToken()
     let solver = SparseLUSolver()
 
+    phaseCollector = try phaseCollector?.emptyCopy()
     let waveform: WaveformData
     switch command {
     case .op:
@@ -559,6 +574,10 @@ struct Session {
       )
     }
 
+    if case .dcSweep = command {} else {
+      try phaseCollector?.record(id: command.analysisIdentifier, devices: devices,
+        conditions: analysisOptions.operatingConditions(), waveform: waveform)
+    }
     let measurements = try evaluateMeasurements(for: waveform)
     let projected = try SPICEOutputProjector.project(
       waveform,
@@ -567,6 +586,8 @@ struct Session {
     self.lastWaveform = projected
     self.lastParametric = nil
     self.lastMeasurements = measurements
+    try phaseCollector?.measurements(measurements, prefix: "", phaseIDs: phaseCollector?.phases.map(\.id) ?? [])
+    phaseCollector?.finish()
     return projected
   }
 
@@ -649,12 +670,13 @@ struct Session {
     cancellation: CancellationToken
   ) async throws -> WaveformData {
     guard step != 0 else { throw CLIError.invalidArguments("dc sweep step cannot be zero") }
-    let values = strideInclusive(from: start, through: stop, by: step)
+    let values = try strideInclusive(from: start, through: stop, by: step,
+      maximumCount: phaseCollector == nil ? nil : 10_000)
     try Self.validateDCSweepSource(plan: plan, source: source)
     var results: [DCResult] = []
     results.reserveCapacity(values.count)
 
-    for value in values {
+    for (pointIndex, value) in values.enumerated() {
       let devices = try bindDevices(plan: plan, overrideSource: (source, value))
       let result = try await DCAnalysis(
         config: analysisOptions.convergence,
@@ -666,6 +688,9 @@ struct Session {
         observer: nil,
         cancellation: cancellation
       )
+      try phaseCollector?.record(id: "dc:\(source):point:\(pointIndex):value:\(value)", devices: devices,
+        conditions: analysisOptions.operatingConditions(),
+        waveform: WaveformData.from(dcResult: result, topology: plan.topology.circuitTopology, title: "DC Point"))
       results.append(result)
     }
 
@@ -748,6 +773,7 @@ struct Session {
   /// applied). This avoids re-parsing the raw source string in the CLI.
   mutating func runParsed(_ analysis: ParsedAnalysisCommand) async throws -> WaveformData {
     guard let plan else { throw CLIError.state("no netlist loaded") }
+    phaseCollector = try phaseCollector?.emptyCopy()
     let waveform = try await Self.runParsedAnalysis(
       analysis,
       plan: plan,
@@ -760,7 +786,8 @@ struct Session {
       transientSpec: parsedNetlist?.analyses.compactMap {
         if case .transient(let spec) = $0 { return spec }
         return nil
-      }.first
+      }.first,
+      phaseCollector: phaseCollector
     )
     let measurements = try evaluateMeasurements(for: waveform)
     let projected = try SPICEOutputProjector.project(
@@ -770,6 +797,8 @@ struct Session {
     self.lastWaveform = projected
     self.lastParametric = nil
     self.lastMeasurements = measurements
+    try phaseCollector?.measurements(measurements, prefix: "", phaseIDs: phaseCollector?.phases.map(\.id) ?? [])
+    phaseCollector?.finish()
     return projected
   }
 
@@ -781,10 +810,14 @@ struct Session {
     guard let netlist = parsedNetlist else {
       throw CLIError.state("no parsed netlist for Monte Carlo")
     }
+    if phaseCollector != nil, spec.iterations > 10_000 {
+      throw CoreSpiceCLICaseError.incompleteOutput("Monte Carlo phase budget exceeded")
+    }
     guard spec.iterations > 0 else {
       throw CLIError.invalidArguments("Monte Carlo iterations must be positive")
     }
 
+    phaseCollector = try phaseCollector?.emptyCopy()
     var runs: [ParametricWaveformData.Run] = []
     let baseSeed = seedOverride ?? UInt64(spec.seed ?? 1)
 
@@ -826,9 +859,12 @@ struct Session {
         transientSpec: netlist.analyses.compactMap {
           if case .transient(let spec) = $0 { return spec }
           return nil
-        }.first
+        }.first,
+        phaseCollector: phaseCollector, phasePrefix: "mc-seed:\(seed):"
       )
       let measurements = try evaluateMeasurements(for: fullWaveform)
+      try phaseCollector?.measurements(measurements, prefix: "mc-seed:\(seed):",
+        phaseIDs: phaseCollector?.phases.filter { $0.id.hasPrefix("mc-seed:\(seed):") }.map(\.id) ?? [])
       let waveform = try SPICEOutputProjector.project(
         fullWaveform,
         controls: netlist.controls
@@ -851,6 +887,7 @@ struct Session {
       parameterNames: ["run"]
     )
 
+    phaseCollector?.finish()
     self.lastParametric = parametric
     self.lastWaveform = runs.first?.waveform
     if runs.isEmpty {
@@ -868,7 +905,36 @@ struct Session {
     initialNodeVoltages: [Node: Double],
     nodeSetVoltages: [Node: Double],
     evaluator: ExpressionEvaluator,
-    transientSpec: TransientAnalysisSpec?
+    transientSpec: TransientAnalysisSpec?,
+    phaseCollector: CoreSpiceCLIPhaseCollector? = nil,
+    phasePrefix: String = ""
+  ) async throws -> WaveformData {
+    if phaseCollector != nil, case .sensitivity = analysis {
+      throw CoreSpiceCLICaseError.unsupportedAnalysis("sensitivity")
+    }
+    let waveform = try await runParsedAnalysisImplementation(analysis, plan: plan, devices: devices,
+      registry: registry, options: options, initialNodeVoltages: initialNodeVoltages,
+      nodeSetVoltages: nodeSetVoltages, evaluator: evaluator, transientSpec: transientSpec,
+      phaseCollector: phaseCollector, phasePrefix: phasePrefix)
+    if case .dc = analysis {} else {
+      try phaseCollector?.record(id: "\(phasePrefix)\(analysisName(analysis))", devices: devices,
+        conditions: options.operatingConditions(), waveform: waveform)
+    }
+    return waveform
+  }
+
+  private static func runParsedAnalysisImplementation(
+    _ analysis: ParsedAnalysisCommand,
+    plan: ExecutionPlan,
+    devices: [any BoundDevice],
+    registry: DeviceRegistry,
+    options: SPICEAnalysisOptions,
+    initialNodeVoltages: [Node: Double],
+    nodeSetVoltages: [Node: Double],
+    evaluator: ExpressionEvaluator,
+    transientSpec: TransientAnalysisSpec?,
+    phaseCollector: CoreSpiceCLIPhaseCollector? = nil,
+    phasePrefix: String = ""
   ) async throws -> WaveformData {
     let cancellation = CancellationToken()
     let solver = SparseLUSolver()
@@ -913,6 +979,7 @@ struct Session {
         spec: spec,
         plan: plan,
         registry: registry,
+        phaseCollector: phaseCollector, phasePrefix: phasePrefix,
         options: options,
         nodeSetVoltages: nodeSetVoltages,
         evaluator: evaluator,
@@ -1179,6 +1246,7 @@ struct Session {
     spec: DCAnalysisSpec,
     plan: ExecutionPlan,
     registry: DeviceRegistry,
+    phaseCollector: CoreSpiceCLIPhaseCollector?, phasePrefix: String,
     options: SPICEAnalysisOptions,
     nodeSetVoltages: [Node: Double],
     evaluator: ExpressionEvaluator,
@@ -1189,10 +1257,11 @@ struct Session {
     let stop = try numericValue(spec.stopValue, field: "dc.stop", evaluator: evaluator)
     let step = try numericValue(spec.stepValue, field: "dc.step", evaluator: evaluator)
     guard step != 0 else { throw CLIError.invalidArguments("dc sweep step cannot be zero") }
-    let values = strideInclusive(from: start, through: stop, by: step)
+    let values = try strideInclusive(from: start, through: stop, by: step,
+      maximumCount: phaseCollector == nil ? nil : 10_000)
     try validateDCSweepSource(plan: plan, source: spec.source)
     var results: [DCResult] = []
-    for value in values {
+    for (pointIndex, value) in values.enumerated() {
       let devices = try bindDevices(
         plan: plan,
         registry: registry,
@@ -1209,6 +1278,9 @@ struct Session {
         observer: nil,
         cancellation: cancellation
       )
+      try phaseCollector?.record(id: "\(phasePrefix)dc:\(spec.source):point:\(pointIndex):value:\(value)",
+        devices: devices, conditions: options.operatingConditions(),
+        waveform: WaveformData.from(dcResult: result, topology: plan.topology.circuitTopology, title: "DC Point"))
       results.append(result)
     }
     let sweepResult = SweepResult(parameterName: spec.source, values: values, results: results)
@@ -1422,7 +1494,7 @@ struct Session {
           typeName: instance.typeName,
           nodes: instance.nodes,
           parameters: params,
-          model: instance.model,
+          model: instance.model, modelConsumption: instance.modelConsumption,
           ownedNodes: instance.ownedNodes,
           ownedBranches: instance.ownedBranches,
           referencedBranches: instance.referencedBranches,
@@ -1555,20 +1627,38 @@ func parseSPICENumber(_ string: String) -> Double? {
   return nil
 }
 
-private func strideInclusive(from start: Double, through stop: Double, by step: Double) -> [Double]
+private func strideInclusive(from start: Double, through stop: Double, by step: Double,
+                             maximumCount: Int? = nil) throws -> [Double]
 {
   guard step != 0 else { return [] }
+  if let maximumCount {
+    let span = (stop - start) / step
+    guard start.isFinite, stop.isFinite, step.isFinite, span.isFinite,
+          span >= 0, span < Double(maximumCount) else {
+      throw CoreSpiceCLICaseError.incompleteOutput("DC phase budget exceeded or invalid schedule")
+    }
+  }
   var values: [Double] = []
   var current = start
   if step > 0 {
     while current <= stop + step * 0.5 {
+      if let maximumCount, values.count >= maximumCount {
+        throw CoreSpiceCLICaseError.incompleteOutput("DC phase budget exceeded")
+      }
       values.append(current)
-      current += step
+      let next = current + step
+      if maximumCount != nil, next == current { throw CoreSpiceCLICaseError.incompleteOutput("DC schedule cannot advance") }
+      current = next
     }
   } else {
     while current >= stop + step * 0.5 {
+      if let maximumCount, values.count >= maximumCount {
+        throw CoreSpiceCLICaseError.incompleteOutput("DC phase budget exceeded")
+      }
       values.append(current)
-      current += step
+      let next = current + step
+      if maximumCount != nil, next == current { throw CoreSpiceCLICaseError.incompleteOutput("DC schedule cannot advance") }
+      current = next
     }
   }
   return values

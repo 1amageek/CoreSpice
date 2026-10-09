@@ -14,6 +14,7 @@ struct UniformRCExpander: Sendable {
         name: String,
         nodeNames: [String],
         parameters: [String: ParameterValue],
+        modelConsumption: ModelConsumption,
         into builder: inout Netlist
     ) throws {
         guard nodeNames.count == 3 else {
@@ -95,13 +96,15 @@ struct UniformRCExpander: Sendable {
                 name: "\(name).rlo\(index)",
                 typeName: "resistor",
                 nodes: [leftNode, lowNode],
-                parameters: ["r": .real(resistance)]
+                parameters: ["r": .real(resistance)],
+                modelConsumption: modelConsumption
             )
             try builder.addInstance(
                 name: "\(name).rhi\(index)",
                 typeName: "resistor",
                 nodes: [highNode, rightNode],
-                parameters: ["r": .real(resistance)]
+                parameters: ["r": .real(resistance)],
+                modelConsumption: modelConsumption
             )
             try addShunt(
                 name: "\(name).lo\(index)",
@@ -111,6 +114,7 @@ struct UniformRCExpander: Sendable {
                 saturationCurrent: scale * firstSaturationCurrent,
                 diodeSeriesResistance: diodeSeriesResistance / scale,
                 usesJunctionShunt: usesJunctionShunts,
+                modelConsumption: modelConsumption,
                 into: &builder
             )
             if index != lumpCount {
@@ -122,6 +126,7 @@ struct UniformRCExpander: Sendable {
                     saturationCurrent: scale * firstSaturationCurrent,
                     diodeSeriesResistance: diodeSeriesResistance / scale,
                     usesJunctionShunt: usesJunctionShunts,
+                modelConsumption: modelConsumption,
                     into: &builder
                 )
             }
@@ -189,6 +194,7 @@ struct UniformRCExpander: Sendable {
         saturationCurrent: Double,
         diodeSeriesResistance: Double,
         usesJunctionShunt: Bool,
+        modelConsumption: ModelConsumption,
         into builder: inout Netlist
     ) throws {
         guard usesJunctionShunt else {
@@ -196,7 +202,8 @@ struct UniformRCExpander: Sendable {
                 name: "\(name).c",
                 typeName: "capacitor",
                 nodes: [lineNode, referenceNode],
-                parameters: ["c": .real(capacitance)]
+                parameters: ["c": .real(capacitance)],
+                modelConsumption: modelConsumption
             )
             return
         }
@@ -208,7 +215,8 @@ struct UniformRCExpander: Sendable {
                 name: "\(name).rs",
                 typeName: "resistor",
                 nodes: [lineNode, shuntNode],
-                parameters: ["r": .real(diodeSeriesResistance)]
+                parameters: ["r": .real(diodeSeriesResistance)],
+                modelConsumption: modelConsumption
             )
         } else {
             shuntNode = lineNode
@@ -219,7 +227,8 @@ struct UniformRCExpander: Sendable {
                 name: "\(name).c",
                 typeName: "capacitor",
                 nodes: [shuntNode, referenceNode],
-                parameters: ["c": .real(capacitance)]
+                parameters: ["c": .real(capacitance)],
+                modelConsumption: modelConsumption
             )
             return
         }
@@ -230,7 +239,8 @@ struct UniformRCExpander: Sendable {
             parameters: [
                 "is": .real(saturationCurrent),
                 "cjo": .real(capacitance),
-            ]
+            ],
+            modelConsumption: modelConsumption
         )
     }
 

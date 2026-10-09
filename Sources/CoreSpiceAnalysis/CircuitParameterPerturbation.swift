@@ -56,7 +56,7 @@ struct CircuitParameterPerturbation: Sendable {
                         typeName: instance.typeName,
                         nodes: instance.nodes,
                         parameters: parameters,
-                        model: instance.model,
+                        model: instance.model, modelConsumption: instance.modelConsumption,
                         ownedNodes: instance.ownedNodes,
                         ownedBranches: instance.ownedBranches,
                         referencedBranches: instance.referencedBranches,

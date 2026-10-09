@@ -33,13 +33,13 @@ that actual value, including last declaration precedence. Same names in differen
 sources are not interchangeable origins. Physical maps retain their existing
 semantics; uncaptured origins remain nil. [IO](../CoreSpiceIO/DESIGN.md#consumed-source-capture-required-migration)
 owns the full captured-source inventory.
-Current origin transport covers instances retaining ResolvedDeviceModel
-(semiconductor resistors and native BSIM3/4). Other model families still flatten
-model parameters, and generated FET/URC instances do not retain their source
-declaration. This existing loss is explicitly incomplete: the CLI case-emission
-slice must retain those actual model origins before issuing complete receipts.
-It cannot classify those executions as model-free from an absent IR model field.
-
+Every executable lowered instance records `Instance.modelConsumption` as
+explicitly model-free or selected source model. Flattened parameters retain their
+existing physical behavior; source model provenance remains separate from
+`Instance.model`. Generated FET core/series elements and every URC ladder/shunt
+inherit the selected model's resolved parameters and declaration identity.
+Cloning must retain this metadata. Missing origin remains unavailable, never an
+inferred model-free execution.
 
 Document geometry scale has one immutable semantic value for a lowering run.
 `Configuration.geometryScale` explicitly overrides the deck; otherwise the last

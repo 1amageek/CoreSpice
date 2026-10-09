@@ -82,6 +82,12 @@ public struct SubcircuitExpander: Sendable {
         let evaluator = ExpressionEvaluator(context: context, randomUniform: randomUniform)
         var evaluatedParams: [String: ParameterValue] = [:]
         var deviceModel: ResolvedDeviceModel?
+        var modelConsumption: ModelConsumption = .modelFree
+        if let modelName = component.modelName, let model = context.model(modelName) {
+            // With expansion disabled only model selection, not numeric model parameters, is consumed.
+            modelConsumption = .selected(ResolvedDeviceModel(name: model.name, typeName: typeName,
+                parameters: [:], declarationID: model.origin?.declarationID))
+        }
         let nativeBSIM3 = typeName == "nmos_l49" || typeName == "pmos_l49"
         let nativeBSIM4 = typeName == "nmos_l54" || typeName == "pmos_l54"
         let nativeCompactModel = nativeBSIM3 || nativeBSIM4
@@ -94,6 +100,10 @@ public struct SubcircuitExpander: Sendable {
             var numeric = model.parameters
             let version = nativeCompactModel ? numeric.removeValue(forKey: "version") : nil
             let modelParameters = try resolver.resolveInTemporaryScope(numeric)
+            var sourceParameters = modelParameters.mapValues { ParameterValue.real($0) }
+            if let version, case .string(let identity) = version { sourceParameters["version"] = .string(identity) }
+            modelConsumption = .selected(ResolvedDeviceModel(name: model.name, typeName: typeName,
+                parameters: sourceParameters, declarationID: model.origin?.declarationID))
             if preservesModelRoles {
                 var resolved = modelParameters.mapValues { ParameterValue.real($0) }
                 if let version {
@@ -104,12 +114,6 @@ public struct SubcircuitExpander: Sendable {
                 }
                 deviceModel = ResolvedDeviceModel(name: model.name, typeName: typeName, parameters: resolved, declarationID: model.origin?.declarationID)
             } else {
-                // FIXME(INCOMPLETE_IMPLEMENTATION):
-                // SPICEIO and the CLI still flatten non-compact model parameters
-                // without retaining their selected declaration in executed IR,
-                // including generated FET/URC instances. Qualified case emission
-                // must refuse this path until it retains complete model provenance;
-                // absence of IR model metadata does not prove model-free execution.
                 for (name, value) in modelParameters { evaluatedParams[name] = .real(value) }
             }
         }
@@ -193,6 +197,7 @@ public struct SubcircuitExpander: Sendable {
                 nodeNames: nodeNames,
                 parameters: evaluatedParams,
                 familyName: component.type == .jfet ? "JFET" : "MESFET",
+                modelConsumption: modelConsumption,
                 into: &builder
             )
             return
@@ -202,6 +207,7 @@ public struct SubcircuitExpander: Sendable {
                 name: fullName,
                 nodeNames: nodeNames,
                 parameters: evaluatedParams,
+                modelConsumption: modelConsumption,
                 into: &builder
             )
             return
@@ -240,6 +246,7 @@ public struct SubcircuitExpander: Sendable {
             nodes: nodeNames,
             parameters: evaluatedParams,
             model: deviceModel,
+            modelConsumption: modelConsumption,
             ownedNodeCount: auxiliaryNodeCount,
             ownedBranches: ownedBranches,
             referencedBranchNames: referencedBranchNames + behavioralReferencedBranchNames,
@@ -291,6 +298,7 @@ public struct SubcircuitExpander: Sendable {
         nodeNames: [String],
         parameters: [String: ParameterValue],
         familyName: String,
+        modelConsumption: ModelConsumption,
         into builder: inout Netlist
     ) throws {
         guard nodeNames.count == 3 else {
@@ -338,7 +346,8 @@ public struct SubcircuitExpander: Sendable {
                 name: "\(fullName).rd",
                 typeName: "resistor",
                 nodes: [nodeNames[0], coreDrain],
-                parameters: ["r": .real(drainResistance / scale)]
+                parameters: ["r": .real(drainResistance / scale)],
+                modelConsumption: modelConsumption
             )
         }
 
@@ -348,7 +357,8 @@ public struct SubcircuitExpander: Sendable {
                 name: "\(fullName).rs",
                 typeName: "resistor",
                 nodes: [nodeNames[2], coreSource],
-                parameters: ["r": .real(sourceResistance / scale)]
+                parameters: ["r": .real(sourceResistance / scale)],
+                modelConsumption: modelConsumption
             )
         }
 
@@ -356,7 +366,8 @@ public struct SubcircuitExpander: Sendable {
             name: fullName,
             typeName: typeName,
             nodes: [coreDrain, gate, coreSource],
-            parameters: coreParameters
+            parameters: coreParameters,
+            modelConsumption: modelConsumption
         )
     }
 
@@ -408,6 +419,7 @@ public struct SubcircuitExpander: Sendable {
             typeName: "mutual",
             nodes: [],
             parameters: mutualParameters,
+            modelConsumption: .modelFree,
             referencedBranchNames: referencedBranchNames
         )
     }

@@ -161,7 +161,7 @@ public struct SPICENativeSimulation: SPICENativePreparing, SPICENativeExecuting 
                 var parameters = instance.parameters
                 parameters[instance.typeName == "vsource" ? "v" : "i"] = .real(override.1)
                 resolved = Instance(name: instance.name, typeName: instance.typeName, nodes: instance.nodes,
-                    parameters: parameters, model: instance.model, ownedNodes: instance.ownedNodes,
+                    parameters: parameters, model: instance.model, modelConsumption: instance.modelConsumption, ownedNodes: instance.ownedNodes,
                     ownedBranches: instance.ownedBranches, referencedBranches: instance.referencedBranches,
                     referencedNodes: instance.referencedNodes, opticalNodes: instance.opticalNodes)
             } else { resolved = instance }

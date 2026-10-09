@@ -565,3 +565,23 @@ unapplied options fail explicitly. Complete source numerical limits override the
 finite CLI developer policy; partial limits fail. The output reports computed
 input/configuration identities and actual point/Newton counts. CPU proof applies
 to this lane only.
+
+## Canonical Original Case Evidence
+
+Use `corespice -b <deck.cir> --case-output <new-directory> --case-id <id> --json`
+to publish canonical original execution and model-receipt schema v2 artifacts.
+The directory contains the exact parser inputs, the executable captured before
+execution, `execution.json`, `model-receipt-*.json`, and a ToolQualification CLI
+`availability.json` inventory. Existing destinations and incomplete publication
+are refused. `execution.json` records actual completed DC point and Monte Carlo
+seed phases, numeric observations and their phase contributors. `.measure`
+aggregates bind every contributing DC point; each Monte Carlo seed owns its own
+measurements. Selected declarations belong to the actual consumed instance set,
+including generated FET series resistors and URC ladder elements. Loaded unused
+models do not produce receipts.
+
+This command emits original evidence only. ToolQualification owns comparison,
+acceptance policies and qualification issuance. Missing source origin, unrecorded
+model consumption, failed or cancelled execution, phase/output budget exhaustion,
+and sensitivity without complete internal perturbation evidence refuse case
+publication. Ordinary numerical execution remains available without case output.

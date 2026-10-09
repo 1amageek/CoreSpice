@@ -29,7 +29,10 @@ flowchart LR
 ResolvedDeviceModel.declarationID is the opaque identity copied from the actual
 selected parsed declaration. Nil means source origin is unavailable; it cannot
 be reconstructed from name/type/parameters. It remains separate from physical
-maps and survives instance cloning. IO owns the origin inventory and bytes;
+maps and survives instance cloning.
+`Instance.modelConsumption` records unrecorded, explicitly model-free, or selected
+source model consumption independently of physical `Instance.model`. Generated
+elements retain the source model here while preserving their own physical maps. IO owns the origin inventory and bytes;
 IR does not depend on ParsedIR, filesystem access or qualification schemas.
 
 

@@ -9,6 +9,7 @@ public struct Instance: Sendable {
     public let typeName: String
     public let nodes: [Node]
     public let model: ResolvedDeviceModel?
+    public let modelConsumption: ModelConsumption
 
     /// Private auxiliary nodes allocated by this instance, in model-defined order.
     public let ownedNodes: [Node]
@@ -33,6 +34,7 @@ public struct Instance: Sendable {
         nodes: [Node],
         parameters: [String: ParameterValue],
         model: ResolvedDeviceModel? = nil,
+        modelConsumption: ModelConsumption? = nil,
         ownedNodes: [Node] = [],
         ownedBranches: [Branch] = [],
         referencedBranches: [Branch] = [],
@@ -44,6 +46,7 @@ public struct Instance: Sendable {
         self.nodes = nodes
         self.parameters = parameters
         self.model = model
+        self.modelConsumption = modelConsumption ?? model.map(ModelConsumption.selected) ?? .unrecorded
         self.ownedNodes = ownedNodes
         self.ownedBranches = ownedBranches
         self.referencedBranches = referencedBranches

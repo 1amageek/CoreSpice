@@ -35,20 +35,25 @@ The target record must derive that binding from the actual lowered and bound
 instances and verified input sources, retaining effective geometry, temperature,
 analysis profile and original result identity. It must not copy requested model
 IDs or infer execution from included declarations. Rebinding observations belong
-to their own execution phase. Failed preparation or analysis cannot publish a
+to their own execution phase. The same lexical declaration may resolve different
+numeric model parameters in distinct subcircuit scopes; those consumed instances
+belong to separate receipts rather than inheriting the first resolved map. Failed preparation or analysis cannot publish a
 successful model receipt. Public CLI execution tests own this proof; changing
 record structure alone does not establish the contract.
 
-Current `ResolvedDeviceModel` retains name, type and evaluated parameters but
-drops the parsed declaration's source location. Current `LoadedSPICEDeck`
-records paths, while `executeBatch` hashes those paths after parsing. These
-facts do not establish that a retained model source is the exact content consumed
-by the parser. Receipt integration must retain the selected declaration origin
-and bind each consumed source to its captured content; a later read of the same
-path cannot substitute for that identity. Model names alone cannot disambiguate
-same-named declarations in different scopes. Path/availability metadata must
-remain separate from content identity. Missing or changed source bindings refuse
-qualification, rather than publishing an inferred receipt.
+`LoadedSPICEDeck` retains the bytes consumed by parsing and the declaration
+origin inventory. `ResolvedDeviceModel.declarationID` already carries exact
+selected origins for semiconductor resistor and BSIM3/4 physical models.
+`Instance.modelConsumption` separately records selected source models for all
+flattened families and generated FET/URC elements, without altering physical
+model-role maps. Unrecorded consumption is distinct from explicitly model-free
+lowering and refuses canonical case emission.
+
+`--case-output <directory> --case-id <id>` publishes captured inputs, actual
+executable bytes, canonical model receipts and `execution.json` in one new,
+immutable directory. Publication is bounded by the captured-input policy and
+finite output byte budget. A failed/partial publication cannot produce a success
+envelope; an existing directory is refused. CLI does not issue qualification.
 
 The actual deck option bsim4stressiterations is the caller's positive UInt32 work
 budget. Session uses one resolved options object for lowering, initial binding,
@@ -63,17 +68,19 @@ failed JSON records.
 
 ## State, Ownership, and Lifecycle
 
-### Completed analysis phases: required migration
+### Completed analysis phases
 
-DC sweep rebinds each point, and Monte Carlo re-lowers each seed. The current
+DC sweep rebinds each point, and Monte Carlo re-lowers each seed. The
 baseline `devices` snapshot is not evidence of those completed phases. Session
-must retain the actual plan, consumed model/instance parameters, operating
+retains the actual plan, consumed model/instance parameters, operating
 conditions and seed/source overrides passed to each successful analysis. Phase
 records are appended only after that analysis and its required observations
 complete; failure or cancellation cannot publish a successful case envelope.
 DC aggregate measurements retain their complete contributing point set. Monte
-Carlo retains observations for every reported seed instead of attributing the
-first seed's measurements to later runs.
+Carlo retains observations for every reported seed. Each observation binds only
+to the completed phase(s) it consumed; source value and seed identity are
+recorded in phase identity and effective instance conditions. Sensitivity case
+publication refuses until its internal perturbations expose complete receipts.
 
 The direct CLI case-output path consumes ToolQualification's canonical schemas
 in the host CLI target only. IR, Parser, Lowering and IO stay independent from
@@ -81,6 +88,24 @@ ToolQualification. This path emits explicit case ID, actual executable/input
 identities, original observations and phase-bound selected-model receipts; it
 does not issue qualification or choose physical acceptance criteria. Captured
 input availability and output publication are explicit, immutable and bounded.
+Case-output v1 CLI policy admits at most 10,000 phases, 100,000 cumulative bound
+instance records, 100,000 observation scalars and a conservative 64 MiB retained
+history charge (128 bytes per parameter/observation entry plus UTF-8 identities
+and vector storage). DC schedules and Monte Carlo iteration counts are admitted
+before phase retention; aggregate histories fail before the next append. These
+operational ceilings belong to CLI evidence, apply only when case-output is
+requested, and may change with the same finite-budget refusal tests. Duplicate emitted metric identities refuse canonical output rather than replacing
+a completed observation. Measurement identities, retained contributor handles and the repeated UTF-8 phase
+inventory expansion are charged before insertion; a conservative JSON bound allows
+six encoded bytes per UTF-8 byte plus finite numeric/reference envelopes. Publisher
+pre-admits receipt input duplication, instance/model numeric maps, execution
+metric-to-phase expansion and availability before serialization. Publication
+admits at most 256 MiB including exact captured inputs, executable and all outputs.
+Serialization materializes at the bounded output boundary. The destination is
+published by exclusive atomic rename only after canonical execution/receipts and
+availability inventory exist; partial staging cannot be mistaken for a case.
+Cancellation is checked per retained instance/output boundary and immediately
+before final rename, with staging cleanup on refusal.
 Source capture follows the IO contract rather than a second CLI-owned reader.
 
 Public CLI tests must exercise actual static model calculations, DC rebinds and
