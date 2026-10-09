@@ -62,6 +62,7 @@ public struct ParsedModel: Sendable, Hashable {
     public let location: SourceLocation?
 
     public let origin: ParsedModelOrigin?
+    public let parameterAssignments: [ParsedParameterAssignment]
 
     public init(
         name: String,
@@ -69,7 +70,8 @@ public struct ParsedModel: Sendable, Hashable {
         level: Int? = nil,
         parameters: [String: ParsedParameterValue] = [:],
         location: SourceLocation? = nil,
-        origin: ParsedModelOrigin? = nil
+        origin: ParsedModelOrigin? = nil,
+        parameterAssignments: [ParsedParameterAssignment] = []
     ) {
         self.name = name
         self.type = type
@@ -77,6 +79,7 @@ public struct ParsedModel: Sendable, Hashable {
         self.parameters = parameters
         self.location = location
         self.origin = origin
+        self.parameterAssignments = parameterAssignments
     }
 }
 

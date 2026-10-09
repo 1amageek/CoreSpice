@@ -19,6 +19,7 @@ public struct ParsedSubcircuit: Sendable, Hashable {
     /// The source location of this subcircuit definition.
     public let location: SourceLocation?
     public let origin: ParsedSubcircuitOrigin?
+    public let parameterAssignments: [ParsedParameterAssignment]
 
     public init(
         name: String,
@@ -26,7 +27,8 @@ public struct ParsedSubcircuit: Sendable, Hashable {
         parameters: [String: ParsedParameterValue] = [:],
         body: ParsedNetlistBody,
         location: SourceLocation? = nil,
-        origin: ParsedSubcircuitOrigin? = nil
+        origin: ParsedSubcircuitOrigin? = nil,
+        parameterAssignments: [ParsedParameterAssignment] = []
     ) {
         self.name = name
         self.ports = ports
@@ -34,6 +36,7 @@ public struct ParsedSubcircuit: Sendable, Hashable {
         self.body = body
         self.location = location
         self.origin = origin
+        self.parameterAssignments = parameterAssignments
     }
 }
 
@@ -56,19 +59,25 @@ public struct ParsedNetlistBody: Sendable, Hashable {
 
     /// Source-level local parameter declarations in body order.
     public let parameterDefinitions: [ParsedParameterDefinition]
+    public let controls: [ParsedControlStatement]
+    public let functionDefinitions: [ParsedFunctionDefinition]
 
     public init(
         components: [ParsedComponent] = [],
         models: [ParsedModel] = [],
         subcircuits: [ParsedSubcircuit] = [],
         parameters: [String: ParsedExpression] = [:],
-        parameterDefinitions: [ParsedParameterDefinition] = []
+        parameterDefinitions: [ParsedParameterDefinition] = [],
+        controls: [ParsedControlStatement] = [],
+        functionDefinitions: [ParsedFunctionDefinition] = []
     ) {
         self.components = components
         self.models = models
         self.subcircuits = subcircuits
         self.parameters = parameters
         self.parameterDefinitions = parameterDefinitions
+        self.controls = controls
+        self.functionDefinitions = functionDefinitions
     }
 
     /// An empty body.

@@ -80,9 +80,15 @@ resolver paths keep their existing expression environment: a model value such as
 does not redefine model parameter names as instance-local declarations.
 Expression evaluation retains the existing Mutex-owned context API;
 no raw shared state, platform branch or new synchronization owner is introduced.
-A temporary scope and then the expansion scope are released by existing `defer`
-paths on success or failure. No resolved parameter or scoped model escapes to a
-sibling instance or parent. Exact model versions and model/instance role separation
+A single invocation scope registers body function controls before resolving
+header/body defaults and explicit actuals, then retains those resolved parameters
+through body expansion. Function lookup searches the nearest invocation scope
+before global functions. `LoweringContext` owns the function stack in its existing
+Mutex alongside parameter/model stacks; scope admission is atomic and all stacks
+are released by the same `defer` on success or failure. Caller self-reference
+continues to read the enclosing binding before local publication. No resolved
+parameter, scoped function or model escapes to a sibling instance or parent.
+Exact model versions and model/instance role separation
 remain governed by the device contracts.
 
 ```mermaid
@@ -104,6 +110,11 @@ flowchart LR
 | Function formal matches pending local name | formal argument remains lexical |
 | Missing reference or local cycle | typed failure and unchanged parent scope |
 | Repeated/sibling invocations | deterministic independent values and model scope |
+
+[MOSFunctionScopeIntakeTests](../../Tests/CoreSpiceLoweringTests/MOSFunctionScopeIntakeTests.swift)
+owns parse-to-lower local-function shadowing in defaults/body values, sibling
+isolation, and expansion-failure restoration. Parser function metadata retains
+source identity; executable function registration consumes each body control once.
 
 This contract follows the pinned ngspice46
 [declaration/default transformation](https://raw.githubusercontent.com/imr/ngspice/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/frontend/inpcom.c)

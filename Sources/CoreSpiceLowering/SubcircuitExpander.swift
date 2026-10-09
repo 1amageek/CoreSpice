@@ -276,7 +276,8 @@ public struct SubcircuitExpander: Sendable {
         var parameters = component.parameters
         parameters.removeValue(forKey: component.type == .resistor ? "r" : "c")
         return ParsedComponent(name: component.name, type: component.type, nodes: component.nodes,
-            modelName: candidate, parameters: parameters, location: component.location)
+            modelName: candidate, parameters: parameters, location: component.location,
+            origin: component.origin, parameterAssignments: component.parameterAssignments)
     }
 
     private func hasRuntimeDependency(_ expression: ParsedExpression,
@@ -540,11 +541,6 @@ public struct SubcircuitExpander: Sendable {
         for name in component.parameters.keys.sorted() {
             parameterValues[name.lowercased()] = component.parameters[name]
         }
-        let instanceParams = try ParameterExpressionResolver(
-            context: context,
-            randomUniform: randomUniform
-        ).resolveInstanceParameters(parameterValues, callerReferenceNames: callerReferenceNames)
-
         // Create port mapping
         var portMapping: [String: String] = [:]
         for (port, node) in zip(subcircuit.ports, component.nodes) {
@@ -560,7 +556,16 @@ public struct SubcircuitExpander: Sendable {
         }
 
         // Expand subcircuit body with new scope
-        try context.withScope(parameters: instanceParams) {
+        try context.withScope {
+            for control in subcircuit.body.controls {
+                if case .function(let name, let parameters, let body, _) = control {
+                    try context.registerScopedFunction(name: name, parameters: parameters, body: body)
+                }
+            }
+            try ParameterExpressionResolver(
+                context: context,
+                randomUniform: randomUniform
+            ).resolveInstanceParametersIntoCurrentScope(parameterValues, callerReferenceNames: callerReferenceNames)
             for model in subcircuit.body.models {
                 try context.registerScopedModel(model)
             }
@@ -605,7 +610,9 @@ public struct SubcircuitExpander: Sendable {
                     modelName: bodyComponent.modelName,
                     passiveModelCandidate: bodyComponent.passiveModelCandidate,
                     parameters: mappedParameters,
-                    location: bodyComponent.location
+                    location: bodyComponent.location,
+                    origin: bodyComponent.origin,
+                    parameterAssignments: bodyComponent.parameterAssignments
                 )
 
                 // Nodes are already resolved (ports -> external, internals ->

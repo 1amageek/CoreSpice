@@ -21,6 +21,7 @@ public struct ParsedNetlist: Sendable, Hashable {
 
     /// Control statements.
     public let controls: [ParsedControlStatement]
+    public let functionDefinitions: [ParsedFunctionDefinition]
 
     /// Source-level global parameter declarations in deck order.
     public let parameterDefinitions: [ParsedParameterDefinition]
@@ -68,7 +69,8 @@ public struct ParsedNetlist: Sendable, Hashable {
         globalNodes: [String] = [],
         pvtCorners: [PVTCorner] = [],
         mcVariations: [MCVariation] = [],
-        sourcePath: String? = nil
+        sourcePath: String? = nil,
+        functionDefinitions: [ParsedFunctionDefinition] = []
     ) {
         self.title = title
         self.components = components
@@ -76,6 +78,7 @@ public struct ParsedNetlist: Sendable, Hashable {
         self.subcircuits = subcircuits
         self.analyses = analyses
         self.controls = controls
+        self.functionDefinitions = functionDefinitions
         self.parameterDefinitions = parameterDefinitions
         self.parameters = parameters
         self.preprocessingEvents = preprocessingEvents
@@ -98,7 +101,9 @@ public struct ParsedNetlist: Sendable, Hashable {
             models: models,
             subcircuits: subcircuits,
             parameters: parameters,
-            parameterDefinitions: parameterDefinitions
+            parameterDefinitions: parameterDefinitions,
+            controls: controls,
+            functionDefinitions: functionDefinitions
         )
     }
 

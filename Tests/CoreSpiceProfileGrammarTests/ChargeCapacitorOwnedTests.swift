@@ -29,8 +29,10 @@ struct ChargeCapacitorOwnedTests {
                 configuration: configuration, resources: resources, maximumPageByteCount: 256)
             let result = try await SPICEParser().parseProfile(document: document, configuration: configuration,
                 environment: environment, resolver: ChargeNoDependencyResolver(), resources: resources)
-            #expect(result.netlist.components == ordinary.components)
-            #expect(result.netlist.subcircuits.first?.body.components == ordinary.subcircuits.first?.body.components)
+            expectComponentSemanticParity(owned: result.netlist.components, ordinary: ordinary.components)
+            let ownedCell = try #require(result.netlist.subcircuits.first)
+            let ordinaryCell = try #require(ordinary.subcircuits.first)
+            expectComponentSemanticParity(owned: ownedCell.body.components, ordinary: ordinaryCell.body.components)
             #expect(result.netlist.subcircuits.first?.origin?.occurrenceID == SPICEParseOccurrenceID(0))
             for component in result.netlist.components {
                 #expect(component.parameters.count == 1)

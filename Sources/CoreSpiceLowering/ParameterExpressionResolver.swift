@@ -54,9 +54,18 @@ public struct ParameterExpressionResolver: Sendable {
         callerReferenceNames: Set<String>
     ) throws -> [String: Double] {
         try context.withScope(parameters: [:]) {
-            try resolve(parameters, reservesLocalNames: true, callerReferenceNames: callerReferenceNames) { name, value in
-                try context.setScopedParameter(name, value: value)
-            }
+            try resolveInstanceParametersIntoCurrentScope(parameters, callerReferenceNames: callerReferenceNames)
+        }
+    }
+
+    /// Resolves instance declarations after the invocation's functions are registered.
+    @discardableResult
+    func resolveInstanceParametersIntoCurrentScope(
+        _ parameters: [String: ParsedParameterValue],
+        callerReferenceNames: Set<String>
+    ) throws -> [String: Double] {
+        try resolve(parameters, reservesLocalNames: true, callerReferenceNames: callerReferenceNames) { name, value in
+            try context.setScopedParameter(name, value: value)
         }
     }
 

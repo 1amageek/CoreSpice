@@ -24,6 +24,8 @@ public struct ParsedComponent: Sendable, Hashable {
 
     /// The source location of this component definition.
     public let location: SourceLocation?
+    public let origin: ParsedStatementOrigin?
+    public let parameterAssignments: [ParsedParameterAssignment]
 
     public init(
         name: String,
@@ -32,7 +34,9 @@ public struct ParsedComponent: Sendable, Hashable {
         modelName: String? = nil,
         passiveModelCandidate: String? = nil,
         parameters: [String: ParsedParameterValue] = [:],
-        location: SourceLocation? = nil
+        location: SourceLocation? = nil,
+        origin: ParsedStatementOrigin? = nil,
+        parameterAssignments: [ParsedParameterAssignment] = []
     ) {
         self.name = name
         self.type = type
@@ -41,6 +45,8 @@ public struct ParsedComponent: Sendable, Hashable {
         self.passiveModelCandidate = passiveModelCandidate
         self.parameters = parameters
         self.location = location
+        self.origin = origin
+        self.parameterAssignments = parameterAssignments
     }
 }
 

@@ -13,14 +13,17 @@ public struct ParsedParameterDefinition: Sendable, Hashable {
 
     /// The source location of the `.param` directive.
     public let location: SourceLocation?
+    public let origin: ParsedStatementOrigin?
 
     public init(
         name: String,
         value: ParsedExpression,
-        location: SourceLocation? = nil
+        location: SourceLocation? = nil,
+        origin: ParsedStatementOrigin? = nil
     ) {
         self.name = name
         self.value = value
         self.location = location
+        self.origin = origin
     }
 }

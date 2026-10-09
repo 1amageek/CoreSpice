@@ -35,8 +35,9 @@ struct CapacitorOwnedTests {
                 configuration: configuration, resources: resources, maximumPageByteCount: 256)
             let result = try await SPICEParser().parseProfile(document: document, configuration: configuration,
                 environment: environment, resolver: CapacitorNoDependencyResolver(), resources: resources)
-            #expect(result.netlist.components == ordinary.components)
-            #expect(result.netlist.subcircuits[0].body.components == ordinary.subcircuits[0].body.components)
+            expectComponentSemanticParity(owned: result.netlist.components, ordinary: ordinary.components)
+            expectComponentSemanticParity(owned: result.netlist.subcircuits[0].body.components,
+                ordinary: ordinary.subcircuits[0].body.components)
             for (owned, plain) in zip(result.netlist.models, ordinary.models) {
                 #expect(owned.type == plain.type)
                 #expect(owned.parameters == plain.parameters)

@@ -128,6 +128,7 @@ private struct SPICEParserImpl {
     private var subcircuits: SPICEParserBuffer<ParsedSubcircuit>
     private var analyses: SPICEParserBuffer<ParsedAnalysisCommand>
     private var controls: SPICEParserBuffer<ParsedControlStatement>
+    private var functionDefinitions: SPICEParserBuffer<ParsedFunctionDefinition>
     private var parameterDefinitions: SPICEParserBuffer<ParsedParameterDefinition>
     private var parameters: SPICEParserMap<ParsedExpression>
     private var dependencyEvents: SPICEParserBuffer<SPICESourceDependencyEvent>
@@ -162,6 +163,7 @@ private struct SPICEParserImpl {
         self.subcircuits = SPICEParserBuffer<ParsedSubcircuit>(resources: resources)
         self.analyses = SPICEParserBuffer<ParsedAnalysisCommand>(resources: resources)
         self.controls = SPICEParserBuffer<ParsedControlStatement>(resources: resources)
+        self.functionDefinitions = SPICEParserBuffer<ParsedFunctionDefinition>(resources: resources)
         self.parameterDefinitions = SPICEParserBuffer<ParsedParameterDefinition>(resources: resources)
         self.parameters = SPICEParserMap<ParsedExpression>(resources: resources)
         self.dependencyEvents = SPICEParserBuffer<SPICESourceDependencyEvent>(resources: resources)
@@ -272,7 +274,8 @@ private struct SPICEParserImpl {
             dependencyEvents: try dependencyEvents.export(storage: &profileStorage),
             initialConditions: try initialConditions.export(storage: &profileStorage),
             nodeSets: try nodeSets.export(storage: &profileStorage),
-            globalNodes: try globalNodes.export(storage: &profileStorage), sourcePath: fileName)
+            globalNodes: try globalNodes.export(storage: &profileStorage), sourcePath: fileName,
+            functionDefinitions: try functionDefinitions.export(storage: &profileStorage))
         try profileResources?.checkCancellation()
         return ParseResult(netlist: netlist, diagnostics: try diagnostics.export(storage: &profileStorage))
     }
@@ -333,7 +336,8 @@ private struct SPICEParserImpl {
             var parameters = component.parameters
             parameters.removeValue(forKey: "r")
             return ParsedComponent(name: component.name, type: component.type, nodes: component.nodes,
-                modelName: candidate, parameters: parameters, location: component.location)
+                modelName: candidate, parameters: parameters, location: component.location,
+                origin: component.origin, parameterAssignments: component.parameterAssignments)
         }
     }
 
@@ -343,9 +347,11 @@ private struct SPICEParserImpl {
             let body = ParsedNetlistBody(components: resistorRoles(in: subcircuit.body.components, models: models),
                 models: subcircuit.body.models,
                 subcircuits: resistorSubcircuitRoles(subcircuit.body.subcircuits, inheritedModels: models),
-                parameters: subcircuit.body.parameters, parameterDefinitions: subcircuit.body.parameterDefinitions)
+                parameters: subcircuit.body.parameters, parameterDefinitions: subcircuit.body.parameterDefinitions,
+                controls: subcircuit.body.controls, functionDefinitions: subcircuit.body.functionDefinitions)
             return ParsedSubcircuit(name: subcircuit.name, ports: subcircuit.ports,
-                parameters: subcircuit.parameters, body: body, location: subcircuit.location, origin: subcircuit.origin)
+                parameters: subcircuit.parameters, body: body, location: subcircuit.location, origin: subcircuit.origin,
+                parameterAssignments: subcircuit.parameterAssignments)
         }
     }
 
@@ -363,7 +369,8 @@ private struct SPICEParserImpl {
             for (name, value) in component.parameters { try parameters.set(value, for: name) }
             try parameters.removeValue(forKey: "r")
             try output.append(ParsedComponent(name: component.name, type: component.type, nodes: component.nodes,
-                modelName: candidate, parameters: try parameters.export(storage: &profileStorage), location: component.location))
+                modelName: candidate, parameters: try parameters.export(storage: &profileStorage), location: component.location,
+                origin: component.origin, parameterAssignments: component.parameterAssignments))
         }
         return try output.export(storage: &profileStorage)
     }
@@ -378,9 +385,11 @@ private struct SPICEParserImpl {
             let body = ParsedNetlistBody(components: try accountedResistorRoles(in: subcircuit.body.components, models: models),
                 models: subcircuit.body.models,
                 subcircuits: try accountedResistorSubcircuitRoles(subcircuit.body.subcircuits, inheritedModels: models),
-                parameters: subcircuit.body.parameters, parameterDefinitions: subcircuit.body.parameterDefinitions)
+                parameters: subcircuit.body.parameters, parameterDefinitions: subcircuit.body.parameterDefinitions,
+                controls: subcircuit.body.controls, functionDefinitions: subcircuit.body.functionDefinitions)
             try output.append(ParsedSubcircuit(name: subcircuit.name, ports: subcircuit.ports,
-                parameters: subcircuit.parameters, body: body, location: subcircuit.location, origin: subcircuit.origin))
+                parameters: subcircuit.parameters, body: body, location: subcircuit.location, origin: subcircuit.origin,
+                parameterAssignments: subcircuit.parameterAssignments))
         }
         return try output.export(storage: &profileStorage)
     }
@@ -566,6 +575,7 @@ private struct SPICEParserImpl {
 
     private mutating func parseComponent(name: String) throws {
         let loc = currentLocation
+        let origin = try statementOrigin(loc)
         try advance() // skip name
 
         try checkASCIIText(name, capability: "Cooperative Unicode component prefix")
@@ -581,6 +591,7 @@ private struct SPICEParserImpl {
         var modelName: String?
         var passiveModelCandidate: String?
         var params = SPICEParserMap<ParsedParameterValue>(resources: profileResources)
+        var parameterAssignments = SPICEParserBuffer<ParsedParameterAssignment>(resources: profileResources)
 
         // Parse nodes
         let nodeCount = type.standardNodeCount ?? 2
@@ -671,6 +682,7 @@ private struct SPICEParserImpl {
                 throw ParserDiagnostic.error((profileResources == nil ? "Version literal '\(text)' is not a numerical component value" : "Version literal '' is not a numerical component value"), at: currentLocation)
             }
             if case .identifier(let paramName) = currentToken {
+                let assignmentLocation = currentLocation
                 let lower = try normalized(paramName)
                 try advance()
                 if case .equals = currentToken {
@@ -684,22 +696,34 @@ private struct SPICEParserImpl {
                     if type == .mosfet && lower == "ic" {
                         let keys = try fixedStrings(count: 3) { ["ic_vds", "ic_vgs", "ic_vbs"] }
                         for key in keys { try params.set(.numeric(0), for: key) }
+                        var supplied = SPICEParserBuffer<ParsedParameterValue>(resources: profileResources)
                         for index in 0..<3 {
-                            try params.set(try parseParameterValue(), for: keys[index])
+                            let value = try parseParameterValue()
+                            try supplied.append(value)
+                            try params.set(value, for: keys[index])
                             guard case .comma = currentToken else { break }
                             if index == 2 {
                                 throw ParserDiagnostic.error("MOS IC requires one to three values", at: currentLocation)
                             }
                             try advance()
                         }
+                        var additional = SPICEParserBuffer<ParsedParameterValue>(resources: profileResources)
+                        for index in 1..<supplied.count { try additional.append(supplied[index]) }
+                        try parameterAssignments.append(.init(name: paramName, value: supplied[0],
+                            location: assignmentLocation, origin: origin,
+                            additionalValues: try additional.export(storage: &profileStorage)))
                     } else {
                         let value = type == .resistor && (lower == "r" || lower == "resistance")
                             ? try parseNamedPassiveValue()
                             : try parseParameterValue()
                         try params.set(value, for: lower)
+                        try parameterAssignments.append(.init(name: paramName, value: value,
+                            location: assignmentLocation, origin: origin))
                     }
                 } else if type == .mosfet && lower == "off" {
                     try params.set(.boolean(true), for: lower)
+                    try parameterAssignments.append(.init(name: paramName, value: .boolean(true),
+                        location: assignmentLocation, origin: origin))
                 } else if (type == .voltageSource || type == .currentSource),
                           lower == "dc" || lower == "ac" {
                     // SPICE source syntax: V1 n1 n2 dc <value> ac <value>
@@ -806,7 +830,9 @@ private struct SPICEParserImpl {
             modelName: modelName,
             passiveModelCandidate: passiveModelCandidate,
             parameters: try params.export(storage: &profileStorage),
-            location: loc
+            location: loc,
+            origin: origin,
+            parameterAssignments: try parameterAssignments.export(storage: &profileStorage)
         ))
     }
 
@@ -1351,6 +1377,7 @@ private struct SPICEParserImpl {
     private mutating func parseSubcircuit(location: SourceLocation?) async throws {
         let declarationOrdinal = activeStatementOrdinal
         let declarationOffset = try originalStatementOffset(location)
+        let origin = try statementOrigin(location)
         guard case .identifier(let name) = currentToken else {
             throw ParserDiagnostic.error("Expected subcircuit name", at: currentLocation)
         }
@@ -1376,6 +1403,7 @@ private struct SPICEParserImpl {
 
         // Parse parameters
         var params = SPICEParserMap<ParsedParameterValue>(resources: profileResources)
+        var parameterAssignments = SPICEParserBuffer<ParsedParameterAssignment>(resources: profileResources)
         if case .identifier(let id) = currentToken, try isParamsKeyword(id) {
             try advance()
             if case .colon = currentToken { try advance() }
@@ -1384,12 +1412,16 @@ private struct SPICEParserImpl {
             guard case .identifier(let pname) = currentToken else {
                 throw ParserDiagnostic.error("Expected subcircuit parameter name", at: currentLocation)
             }
+            let assignmentLocation = currentLocation
             try advance()
             guard case .equals = currentToken else {
                 throw ParserDiagnostic.error("Expected '=' after subcircuit parameter name", at: currentLocation)
             }
             try advance()
-            try params.set(try parseParameterValue(), for: pname)
+            let value = try parseParameterValue()
+            try params.set(value, for: pname)
+            try parameterAssignments.append(.init(name: pname, value: value,
+                location: assignmentLocation, origin: origin))
         }
 
         try skipNewlinesAndComments()
@@ -1400,6 +1432,8 @@ private struct SPICEParserImpl {
         var bodySubcircuits = SPICEParserBuffer<ParsedSubcircuit>(resources: profileResources)
         var bodyParams = SPICEParserMap<ParsedExpression>(resources: profileResources)
         var bodyParameterDefinitions = SPICEParserBuffer<ParsedParameterDefinition>(resources: profileResources)
+        var bodyControls = SPICEParserBuffer<ParsedControlStatement>(resources: profileResources)
+        var bodyFunctions = SPICEParserBuffer<ParsedFunctionDefinition>(resources: profileResources)
 
         // Save current state
         let savedComponents = components
@@ -1407,12 +1441,28 @@ private struct SPICEParserImpl {
         let savedSubcircuits = subcircuits
         let savedParams = parameters
         let savedParameterDefinitions = parameterDefinitions
+        let savedControls = controls
+        let savedFunctions = functionDefinitions
+        var bodyStateRestored = false
+        defer {
+            if !bodyStateRestored {
+                components = savedComponents
+                models = savedModels
+                subcircuits = savedSubcircuits
+                parameters = savedParams
+                parameterDefinitions = savedParameterDefinitions
+                controls = savedControls
+                functionDefinitions = savedFunctions
+            }
+        }
 
         components = SPICEParserBuffer<ParsedComponent>(resources: profileResources)
         models = SPICEParserBuffer<ParsedModel>(resources: profileResources)
         subcircuits = SPICEParserBuffer<ParsedSubcircuit>(resources: profileResources)
         parameters = SPICEParserMap<ParsedExpression>(resources: profileResources)
         parameterDefinitions = SPICEParserBuffer<ParsedParameterDefinition>(resources: profileResources)
+        controls = SPICEParserBuffer<ParsedControlStatement>(resources: profileResources)
+        functionDefinitions = SPICEParserBuffer<ParsedFunctionDefinition>(resources: profileResources)
 
         // Parse until .ends. Skip leading newlines/comments before the .ends
         // check, otherwise parseStatement (which skips them itself) would consume
@@ -1434,6 +1484,8 @@ private struct SPICEParserImpl {
         bodySubcircuits = subcircuits
         bodyParams = parameters
         bodyParameterDefinitions = parameterDefinitions
+        bodyControls = controls
+        bodyFunctions = functionDefinitions
 
         // Restore state
         components = savedComponents
@@ -1441,13 +1493,18 @@ private struct SPICEParserImpl {
         subcircuits = savedSubcircuits
         parameters = savedParams
         parameterDefinitions = savedParameterDefinitions
+        controls = savedControls
+        functionDefinitions = savedFunctions
+        bodyStateRestored = true
 
         let body = ParsedNetlistBody(
             components: try bodyComponents.export(storage: &profileStorage),
             models: try bodyModels.export(storage: &profileStorage),
             subcircuits: try bodySubcircuits.export(storage: &profileStorage),
             parameters: try bodyParams.export(storage: &profileStorage),
-            parameterDefinitions: try bodyParameterDefinitions.export(storage: &profileStorage)
+            parameterDefinitions: try bodyParameterDefinitions.export(storage: &profileStorage),
+            controls: try bodyControls.export(storage: &profileStorage),
+            functionDefinitions: try bodyFunctions.export(storage: &profileStorage)
         )
 
         try subcircuits.append(ParsedSubcircuit(
@@ -1456,11 +1513,13 @@ private struct SPICEParserImpl {
             parameters: try params.export(storage: &profileStorage),
             body: body,
             location: location,
-            origin: subcircuitOrigin(location, offset: declarationOffset, statementOrdinal: declarationOrdinal)
+            origin: subcircuitOrigin(location, offset: declarationOffset, statementOrdinal: declarationOrdinal),
+            parameterAssignments: try parameterAssignments.export(storage: &profileStorage)
         ))
     }
 
     private mutating func parseModel(location: SourceLocation?) throws {
+        let origin = try statementOrigin(location)
         guard case .identifier(let name) = currentToken else {
             throw ParserDiagnostic.error("Expected model name", at: currentLocation)
         }
@@ -1477,6 +1536,7 @@ private struct SPICEParserImpl {
 
         var level: Int?
         var params = SPICEParserMap<ParsedParameterValue>(resources: profileResources)
+        var parameterAssignments = SPICEParserBuffer<ParsedParameterAssignment>(resources: profileResources)
 
         // Skip optional parenthesis
         if case .leftParen = currentToken {
@@ -1489,6 +1549,7 @@ private struct SPICEParserImpl {
                 break
             }
             if case .identifier(let pname) = currentToken {
+                let assignmentLocation = currentLocation
                 try advance()
                 if case .equals = currentToken {
                     try advance()
@@ -1513,6 +1574,8 @@ private struct SPICEParserImpl {
                     } else {
                         value = try parseParameterValue()
                     }
+                    try parameterAssignments.append(.init(name: pname, value: value,
+                        location: assignmentLocation, origin: origin))
                     if try normalized(pname) == "level" {
                         let number: Double
                         switch value {
@@ -1542,7 +1605,8 @@ private struct SPICEParserImpl {
             level: level,
             parameters: try params.export(storage: &profileStorage),
             location: location,
-            origin: try modelOrigin(location)
+            origin: try modelOrigin(location),
+            parameterAssignments: try parameterAssignments.export(storage: &profileStorage)
         ))
     }
 
@@ -1648,6 +1712,7 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseParam(location: SourceLocation?) throws {
+        let origin = try statementOrigin(location)
         while !isAtEnd && !isNewline {
             if case .identifier(let name) = currentToken {
                 try advance()
@@ -1658,7 +1723,8 @@ private struct SPICEParserImpl {
                     try parameterDefinitions.append(ParsedParameterDefinition(
                         name: name,
                         value: expression,
-                        location: location
+                        location: location,
+                        origin: origin
                     ))
                 }
             } else {
@@ -1745,6 +1811,13 @@ private struct SPICEParserImpl {
     private func modelOrigin(_ location: SourceLocation?) throws -> ParsedModelOrigin? {
         guard let captureID, let location else { return nil }
         return ParsedModelOrigin(captureID: captureID, location: location, ordinal: models.count,
+            occurrenceID: document.occurrenceID, statementByteOffset: try originalStatementOffset(location),
+            statementOrdinal: profileResources == nil ? nil : activeStatementOrdinal)
+    }
+
+    private func statementOrigin(_ location: SourceLocation?) throws -> ParsedStatementOrigin? {
+        guard let captureID, let location else { return nil }
+        return ParsedStatementOrigin(captureID: captureID, location: location,
             occurrenceID: document.occurrenceID, statementByteOffset: try originalStatementOffset(location),
             statementOrdinal: profileResources == nil ? nil : activeStatementOrdinal)
     }
@@ -1855,6 +1928,7 @@ private struct SPICEParserImpl {
             try subcircuits.append(contentsOf: netlist.subcircuits)
             try analyses.append(contentsOf: netlist.analyses)
             try controls.append(contentsOf: netlist.controls)
+            try functionDefinitions.append(contentsOf: netlist.functionDefinitions)
             try parameterDefinitions.append(contentsOf: netlist.parameterDefinitions)
             try preprocessingEvents.append(contentsOf: netlist.preprocessingEvents)
             for event in netlist.dependencyEvents {
@@ -2860,6 +2934,7 @@ private struct SPICEParserImpl {
 
     /// Parses .func name(arg, ...) = expression.
     private mutating func parseFunction(location: SourceLocation?) throws {
+        let origin = try statementOrigin(location)
         guard case .identifier(let name) = currentToken else {
             throw ParserDiagnostic.error("Expected function name", at: currentLocation)
         }
@@ -2890,7 +2965,10 @@ private struct SPICEParserImpl {
         }
 
         let body = try parseParameterExpression()
-        try controls.append(.function(name: name, parameters: try parameters.export(storage: &profileStorage), body: body, location: location))
+        let suppliedParameters = try parameters.export(storage: &profileStorage)
+        try controls.append(.function(name: name, parameters: suppliedParameters, body: body, location: location))
+        try functionDefinitions.append(.init(name: name, parameters: suppliedParameters, body: body,
+            location: location, origin: origin))
         try skipToEndOfLine()
     }
 

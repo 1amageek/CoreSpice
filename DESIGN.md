@@ -72,7 +72,9 @@ digests or provenance.
 | [CoreSpiceParserSPICE](Sources/CoreSpiceParserSPICE/DESIGN.md) | child | Exact SPICE syntax and quoted-value role preservation | Parser-owned syntax contract | Revalidate direct consumers and serialization |
 | [CoreSpiceParser](Sources/CoreSpiceParser/DESIGN.md) | child | Source-document and resolver contracts | Atomic selected path/content identity | Revalidate include/library and memory adapters |
 | [CoreSpiceCLICore](Sources/CoreSpiceCLI/DESIGN.md) | child | Completed phase evidence and explicit case output | Direct developer execution | Baseline binding does not prove sweep or Monte Carlo execution |
-| [CoreSpiceLowering](Sources/CoreSpiceLowering/DESIGN.md) | child | Cold model admission and instance-local parameter resolution | Model/instance roles and scoped default/override binding | Revalidate direct consumers when syntax or binding contracts change |
+| [CoreSpiceMOSContracts](Sources/CoreSpiceMOSContracts/DESIGN.md) | child | Explicit MOS input profiles, exact release/schema and staged values | Portable semantic dependency floor | Selection is distinct from preparation and physical qualification |
+| [CoreSpiceMOSResolution](Sources/CoreSpiceMOSResolution/DESIGN.md) | child | Immutable declaration snapshot and checked one-evaluation resolution | Independent scoped MOS interpretation | No numerical device/kernel dependency |
+| [CoreSpiceLowering](Sources/CoreSpiceLowering/DESIGN.md) | child | Parsed declaration/program projection and circuit lowering | Source-preserving adapter to MOS resolution | Device preparation belongs to execution composition |
 | [CoreSpiceCompile](Sources/CoreSpiceCompile/DESIGN.md) | child | Auxiliary sparse topology | CPU solver structure | Revalidate direct consumers |
 | [CoreSpiceAnalysis](Sources/CoreSpiceAnalysis/DESIGN.md) | child | Fallible stamps and session lifetime | Numerical execution | Revalidate direct consumers |
 | [CoreSpiceDevices](Sources/CoreSpiceDevices/DESIGN.md) | child | Bound-device stamping | Native electrical models | Revalidate affected analyses when device derivatives change |
@@ -101,6 +103,40 @@ authorities. Loaded declarations cannot supply executed-model coverage.
 Native L3 MOS DC, AC, and transient analyses use the same device current and its
 linearization. A non-finite numerical result is a failure, never completed
 simulation evidence. L3 binding rejects unsupported parameter domains.
+
+## MOS Boundary Migration
+
+The approved migration fixes one semantic authority: source declarations become an
+immutable snapshot; checked resolution determines an exact declaration, release,
+schema and normalized supplied values. Devices prepares that result once for
+explicit execution conditions. Preparation supplies auxiliary topology before the
+existing compiler, and the prepared owner is consumed by binding. Resolution is
+reusable; an executable owner belongs to one run. The solver algorithm is unchanged.
+
+```mermaid
+flowchart LR
+    Parser --> Snapshot[MOSResolution snapshot]
+    Snapshot --> Resolve[Checked resolution]
+    Resolve --> Result[ResolvedMOSInstance]
+    Result --> Inspection
+    Result --> Prepare[Devices preparation]
+    Prepare --> Topology
+    Topology --> Compiler
+    Prepare --> Bind[Consuming binding]
+    Compiler --> Bind
+    Bind --> Analysis
+    Analysis --> Receipts[Completed execution evidence]
+```
+
+This section specifies the target boundary, not completed implementation evidence.
+The current migration status is owned solely by the workspace PROGRESS.md,
+B8.6.5.18. The semantic contracts and their local counterexamples are owned by
+MOSContracts and MOSResolution. Parser owns source retention, Lowering owns the
+adapter, Devices owns preparation and executable lifetime, and the native/CLI
+composition owns complete run ordering. Each owner design records its local
+requirement mapping. BSIM4.5 inspection must succeed independently of executable
+support; numerical preparation must reject that exact unsupported release.
+No loaded or selected declaration is counted as executed model coverage.
 
 ## Verification and Change Impact
 

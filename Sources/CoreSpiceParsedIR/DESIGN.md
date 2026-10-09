@@ -29,6 +29,29 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### MOS declaration intake
+
+Parsed declarations retain ordered named assignments independently from the
+executable dictionaries. Model assignments include level and version; component
+assignments and subcircuit header defaults retain their grammar name, value,
+location and statement origin. A statement origin records the parser's actual
+capture and optional occurrence/physical statement coordinates, never a fabricated
+content identity. Component and `.param` declarations retain the same origin.
+
+Subcircuit bodies own their controls, including local function declarations.
+Ordered function definitions retain their statement origins alongside controls,
+so repeated inclusion does not collapse their source occurrence identities.
+Serialization consumes controls once; function definitions are source metadata.
+Parsing a body isolates and restores its declaration/control builders on both
+success and failure. Reconstruction of parsed bodies/components preserves these
+fields. The standard-only MOS adapter consumes this retained syntax once; it must
+not reconstruct ordered source roles from executable dictionaries.
+
+Verification owner: `MOSDeclarationIntakeTests` in ParserSPICE tests proves ordered
+duplicate assignments, scoped functions, actual include occurrence coordinates,
+header/instance assignment roles, and failure isolation. Bounded grammar tests
+own managed storage/work and final-owner release for these retained payloads.
+
 ### Captured model declaration origin
 
 ParsedModel.origin currently retains the capture identity, actual declaration start

@@ -260,6 +260,10 @@ public struct SPICESerializer: NetlistSerializer {
             lines.append(serializeComponent(component, options))
         }
 
+        for control in subckt.body.controls {
+            if let line = serializeControl(control, options) { lines.append(line) }
+        }
+
         lines.append(".ends \(subckt.name)")
 
         return lines

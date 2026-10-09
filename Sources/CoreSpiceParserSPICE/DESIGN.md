@@ -27,6 +27,19 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### MOS declaration intake
+
+The existing grammar appends ordered model/component/header assignments when it
+consumes them, using its original located token stream and accounted buffers.
+Component and `.param` origins use the existing capture/occurrence and physical
+statement context. No source reparse, expression evaluation or model selection is
+performed to recover this information. Subcircuit controls are body-owned and
+all body builders are restored by defer when parsing exits or throws.
+
+[ParsedIR](../CoreSpiceParsedIR/DESIGN.md#mos-declaration-intake) owns the preserved
+fields. `MOSDeclarationIntakeTests` owns source order, source coordinates and
+scope isolation proofs; later MOS resolution owns release/profile admission.
+
 ### Conditional delimiters and reference names
 
 The shared lexer owns punctuation boundaries. In the unchanged Sky130

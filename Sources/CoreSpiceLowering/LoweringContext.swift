@@ -16,6 +16,7 @@ public final class LoweringContext: Sendable {
         var functions: [String: UserFunctionDefinition] = [:]
         var scopeStack: [[String: Double]] = []
         var modelScopeStack: [[String: ParsedModel]] = []
+        var functionScopeStack: [[String: UserFunctionDefinition]] = []
         var depth: Int = 0
         var temperature: Double = 27.0
         var evaluatingParameters: Set<String> = []
@@ -153,7 +154,33 @@ public final class LoweringContext: Sendable {
 
     /// Gets a user-defined SPICE function by name.
     public func function(_ name: String) -> UserFunctionDefinition? {
-        state.withLock { $0.functions[name.lowercased()] }
+        state.withLock { state in
+            let lowered = name.lowercased()
+            for scope in state.functionScopeStack.reversed() {
+                if let function = scope[lowered] {
+                    return function
+                }
+            }
+            return state.functions[lowered]
+        }
+    }
+
+    /// Registers a user-defined function in the current local scope.
+    public func registerScopedFunction(name: String, parameters: [String], body: ParsedExpression) throws {
+        try state.withLock { state in
+            guard !state.functionScopeStack.isEmpty else {
+                throw LoweringError.expressionEvaluationFailed(
+                    expression: name,
+                    reason: "No active function scope"
+                )
+            }
+            let index = state.functionScopeStack.index(before: state.functionScopeStack.endIndex)
+            state.functionScopeStack[index][name.lowercased()] = UserFunctionDefinition(
+                name: name,
+                parameters: parameters.map { $0.lowercased() },
+                body: body
+            )
+        }
     }
 
     /// Marks a function as currently being evaluated for recursion detection.
@@ -178,12 +205,13 @@ public final class LoweringContext: Sendable {
     /// Enters a new scope for subcircuit expansion.
     public func enterScope(parameters: [String: Double] = [:]) throws {
         try state.withLock { state in
-            state.depth += 1
-            if state.depth > maxDepth {
+            if state.depth >= maxDepth {
                 throw LoweringError.maxExpansionDepthExceeded(depth: maxDepth)
             }
+            state.depth += 1
             state.scopeStack.append(parameters)
             state.modelScopeStack.append([:])
+            state.functionScopeStack.append([:])
         }
     }
 
@@ -195,6 +223,9 @@ public final class LoweringContext: Sendable {
             }
             if !state.modelScopeStack.isEmpty {
                 state.modelScopeStack.removeLast()
+            }
+            if !state.functionScopeStack.isEmpty {
+                state.functionScopeStack.removeLast()
             }
             state.depth = max(0, state.depth - 1)
         }

@@ -18,6 +18,8 @@ let package = Package(
         .library(name: "CoreSpice", targets: ["CoreSpice"]),
         .library(name: "CoreSpiceCompactModels", targets: ["CoreSpiceCompactModels"]),
         .library(name: "CoreSpiceIR", targets: ["CoreSpiceIR"]),
+        .library(name: "CoreSpiceMOSContracts", targets: ["CoreSpiceMOSContracts"]),
+        .library(name: "CoreSpiceMOSResolution", targets: ["CoreSpiceMOSResolution"]),
         .library(name: "CoreSpiceIO", targets: ["CoreSpiceIO"]),
         .library(name: "CoreSpiceProcessBackend", targets: ["CoreSpiceProcessBackend"]),
         .library(name: "PluginsPhotonic", targets: ["PluginsPhotonic"]),
@@ -34,6 +36,11 @@ let package = Package(
 
         // --- Event, observer, and cancellation primitives ---
         .target(name: "CoreSpiceEvent", exclude: ["README.md"]),
+
+        // --- Portable MOS interpretation boundary ---
+        .target(name: "CoreSpiceMOSContracts", exclude: ["DESIGN.md", "Values/DESIGN.md", "Schema/DESIGN.md"]),
+        .target(name: "CoreSpiceMOSResolution", dependencies: ["CoreSpiceMOSContracts"],
+                exclude: ["DESIGN.md", "Declarations/DESIGN.md"]),
 
         // --- IR ---
         .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent"], exclude: ["README.md", "DESIGN.md"]),
@@ -205,6 +212,8 @@ let package = Package(
         .testTarget(name: "CoreSpiceBSIM4KernelTests", dependencies: ["CoreSpiceCompactModels"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceCompactModelsTests", dependencies: ["CoreSpiceCompactModels"],
             resources: [.copy("Fixtures")]),
+        .testTarget(name: "CoreSpiceMOSContractsTests", dependencies: ["CoreSpiceMOSContracts"]),
+        .testTarget(name: "CoreSpiceMOSResolutionTests", dependencies: ["CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),
         .testTarget(name: "CoreSpiceIRTests", dependencies: ["CoreSpiceIR"]),
         .testTarget(
             name: "CoreSpiceDevicesTests",
