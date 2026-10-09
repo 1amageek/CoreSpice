@@ -909,6 +909,8 @@ struct Session {
     phaseCollector: CoreSpiceCLIPhaseCollector? = nil,
     phasePrefix: String = ""
   ) async throws -> WaveformData {
+    // FIXME(INCOMPLETE_IMPLEMENTATION): Ordinary CLI case export lacks sensitivity perturbation receipts.
+    // This production export branch refuses until every actual perturbation exposes its completed phase and model consumption.
     if phaseCollector != nil, case .sensitivity = analysis {
       throw CoreSpiceCLICaseError.unsupportedAnalysis("sensitivity")
     }
