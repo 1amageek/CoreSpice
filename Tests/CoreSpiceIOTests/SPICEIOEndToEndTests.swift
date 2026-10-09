@@ -7,6 +7,42 @@ import CoreSpiceIO
 @Suite("SPICEIO end-to-end tests")
 struct SPICEIOEndToEndTests {
 
+    @Test("Model quote elision preserves flat precedence through scoped execution and roundtrip")
+    func modelBracedQuotesRetainScopedNumericalMeaning() async throws {
+        let source = """
+        Model numeric quote elision
+        .param a=1k b=2k
+        .model sheet R rsh={2*"a+b"}
+        V1 in 0 1
+        Rglobal in global sheet l=1u w=1u
+        RglobalLoad global 0 1k
+        Xlocal in local cell a=200 b=300
+        RlocalLoad local 0 1k
+        .subckt cell p n params: a=100 b=200
+        .model sheet R rsh={2*"a+b"}
+        R1 p n sheet l=1u w=1u
+        .ends
+        .end
+        """
+        let parsed = try await SPICEIO.parse(source).get()
+        let serialized = SPICESerializer().serialize(parsed, options: .default)
+        for text in [source, serialized] {
+            let ir = try await SPICEIO.parseAndLower(text)
+            for (name, expected) in [("rglobal", 4000.0), ("xlocal.r1", 700.0)] {
+                let instance = try #require(ir.instances.first { $0.name == name })
+                guard case .real(let rsh) = try #require(instance.model?.parameters["rsh"]) else {
+                    Issue.record("Missing scoped model coefficient"); return
+                }
+                #expect(rsh == expected)
+            }
+            let circuit = try compileAndBindElectricalCircuit(ir)
+            let result = try await DCAnalysis().run(plan: circuit.plan, devices: circuit.devices,
+                solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            #expect(abs(try result.voltage(at: node(fromInstance: "rglobalload", terminal: 0, in: ir)) - 0.2) < 1e-9)
+            #expect(abs(try result.voltage(at: node(fromInstance: "rlocalload", terminal: 0, in: ir)) - 1000.0 / 1700.0) < 1e-9)
+        }
+    }
+
     @Test("Document scale reaches source dimensions once and circuit nominal temperature reaches binding")
     func staticResistorGeometryScaleAndCircuitNominalTemperature() async throws {
         let parsed = try await SPICEIO.parse("""

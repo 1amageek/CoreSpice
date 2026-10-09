@@ -107,6 +107,10 @@ private struct SPICEParserImpl {
     private let work: (any SPICESourceWorkAccounting)?
     private let selectedSection: String?
     private let source: String
+    private var modelExpressionSource: String
+    private var modelSourceCursor: String.Index
+    private var modelSourceLine = 1
+    private var modelSourceColumn = 1
     private let captureID: String?
     private let fileName: String?
     private let configuration: ParserConfiguration
@@ -167,6 +171,8 @@ private struct SPICEParserImpl {
         self.globalNodes = SPICEParserBuffer<String>(resources: resources)
         self.selectedSection = document.librarySection
         self.source = document.text
+        self.modelExpressionSource = document.text
+        self.modelSourceCursor = document.text.startIndex
         self.fileName = document.resolvedPath
         self.captureID = document.captureID
         self.configuration = configuration
@@ -194,6 +200,10 @@ private struct SPICEParserImpl {
         }
         try preprocessingEvents.append(contentsOf: conditionalResult.events)
         try diagnostics.append(contentsOf: conditionalResult.diagnostics)
+        modelExpressionSource = conditionalResult.source
+        modelSourceCursor = modelExpressionSource.startIndex
+        modelSourceLine = 1
+        modelSourceColumn = 1
 
         // Tokenize
         var lexer = SPICELexer(
@@ -1498,6 +1508,8 @@ private struct SPICEParserImpl {
                         default:
                             throw ParserDiagnostic.error("Expected exact model version", at: currentLocation)
                         }
+                    } else if try normalized(pname) != "level", currentToken == .leftBrace {
+                        value = try parseModelBracedCoefficient()
                     } else {
                         value = try parseParameterValue()
                     }
@@ -1532,6 +1544,107 @@ private struct SPICEParserImpl {
             location: location,
             origin: try modelOrigin(location)
         ))
+    }
+
+    private mutating func parseModelBracedCoefficient() throws -> ParsedParameterValue {
+        guard let opening = currentLocation else {
+            throw ParserDiagnostic.error("Missing model expression source location")
+        }
+        var closingIndex = current + 1
+        var depth = 1
+        var hasDoubleQuotes = false
+        while closingIndex < tokens.count {
+            try work?.checkCancellation()
+            try work?.charge(.tokens, units: 1)
+            switch tokens[closingIndex].token {
+            case .leftBrace: depth += 1
+            case .rightBrace: depth -= 1
+            case .string: hasDoubleQuotes = true
+            case .newline, .endOfFile:
+                if hasDoubleQuotes {
+                    throw ParserDiagnostic.error("Expected '}'", at: tokens[closingIndex].location)
+                }
+                return try parseParameterValue()
+            default: break
+            }
+            if depth == 0 { break }
+            closingIndex += 1
+        }
+        guard hasDoubleQuotes else { return try parseParameterValue() }
+        guard closingIndex < tokens.count else {
+            throw ParserDiagnostic.error("Expected '}'", at: opening)
+        }
+
+        // Projected lexical source retains physical positions without reviving inactive lines.
+        // A monotonic cursor visits its undecoded characters at most once.
+        let lower = try modelSourceIndex(at: opening)
+        let upper = try modelSourceIndex(at: tokens[closingIndex].location)
+        guard modelExpressionSource[lower] == "{", modelExpressionSource[upper] == "}" else {
+            throw ParserDiagnostic.error("Invalid model expression source span", at: opening)
+        }
+        // Keep the opening brace as a continuation anchor, outside the parsed AST.
+        var lexer = SPICELexer(modelExpressionSource: modelExpressionSource, range: lower..<upper,
+            opening: opening, configuration: configuration)
+        let expression: ParsedExpression
+        if let resources = profileResources {
+            let owned = try lexer.tokenizeOwned(resources: resources)
+            try rejectModelQuotedSubstrings(in: owned.tokens)
+            var scope = SPICEParseStorage(resources: resources)
+            try scope.hold(owned.storage)
+            var parser = SPICEExpressionTokenParser(tokens: owned.tokens, currentIndex: 1,
+                allowedEndTokens: [.endOfFile], work: resources)
+            expression = try parser.parseExpression(storage: &scope)
+            try parser.requireEnd()
+            try resources.checkCancellation()
+            try profileStorage!.hold(scope)
+        } else {
+            let scanned = try lexer.tokenizeChecked(work: work)
+            try rejectModelQuotedSubstrings(in: scanned)
+            try work?.charge(.retainedElements, units: UInt64(scanned.count))
+            var parser = SPICEExpressionTokenParser(tokens: scanned, currentIndex: 1,
+                allowedEndTokens: [.endOfFile], work: work)
+            expression = try parser.parseExpression()
+            try parser.requireEnd()
+        }
+        current = closingIndex + 1
+        return .expression(expression)
+    }
+
+    private mutating func modelSourceIndex(at location: SourceLocation) throws -> String.Index {
+        guard location.line > modelSourceLine ||
+                (location.line == modelSourceLine && location.column >= modelSourceColumn) else {
+            throw ParserDiagnostic.error("Invalid model expression source order", at: location)
+        }
+        while modelSourceLine < location.line || modelSourceColumn < location.column {
+            try work?.checkCancellation()
+            guard modelSourceCursor < modelExpressionSource.endIndex else {
+                throw ParserDiagnostic.error("Invalid model expression source location", at: location)
+            }
+            let character = modelExpressionSource[modelSourceCursor]
+            try work?.charge(.lexicalBytes, units: UInt64(character.utf8.count))
+            if character == "\n" || character == "\r\n" {
+                modelSourceLine += 1
+                modelSourceColumn = 1
+            } else {
+                modelSourceColumn += 1
+            }
+            modelSourceCursor = modelExpressionSource.index(after: modelSourceCursor)
+        }
+        guard modelSourceCursor < modelExpressionSource.endIndex else {
+            throw ParserDiagnostic.error("Invalid model expression source location", at: location)
+        }
+        return modelSourceCursor
+    }
+
+    private func rejectModelQuotedSubstrings(in tokens: [SPICEToken.Located]) throws {
+        for token in tokens {
+            try work?.checkCancellation()
+            try work?.charge(.tokens, units: 1)
+            if case .quotedExpression = token.token {
+                throw ParserDiagnostic.error("Single-quoted substrings are not supported in model quote-elision expressions",
+                    at: token.location)
+            }
+        }
     }
 
     private mutating func parseParam(location: SourceLocation?) throws {

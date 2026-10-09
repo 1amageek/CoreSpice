@@ -15,6 +15,8 @@ public struct SPICELexer: Sendable {
     private let fileName: String?
     private let configuration: ParserConfiguration
     private var index: String.Index
+    private var sourceEnd: String.Index
+    private var elideModelNumericQuotes = false
     private var isLinePrefixWhitespace: Bool = true
     private var line: Int = 1
     private var column: Int = 1
@@ -31,12 +33,25 @@ public struct SPICELexer: Sendable {
         self.fileName = fileName
         self.configuration = configuration
         self.index = source.startIndex
+        self.sourceEnd = source.endIndex
     }
 
     /// Expression interiors have operators, not card continuation/comment prefixes.
     init(expressionSource: String, fileName: String?) {
         self.init(source: expressionSource, fileName: fileName)
         isLinePrefixWhitespace = false
+    }
+
+    /// Borrows the original model span; quote spaces retain physical coordinates.
+    init(modelExpressionSource: String, range: Range<String.Index>, opening: SourceLocation,
+         configuration: ParserConfiguration = .default) {
+        self.init(source: modelExpressionSource, fileName: opening.file, configuration: configuration)
+        index = range.lowerBound
+        sourceEnd = range.upperBound
+        line = opening.line
+        column = opening.column
+        isLinePrefixWhitespace = false
+        elideModelNumericQuotes = true
     }
 
     /// Tokenizes the entire source.
@@ -50,7 +65,7 @@ public struct SPICELexer: Sendable {
         self.work = work
         defer { resetExpressionScope() }
         try work?.checkCancellation()
-        try work?.charge(.lexicalBytes, units: UInt64(source.utf8.count))
+        try work?.charge(.lexicalBytes, units: UInt64(source[index..<sourceEnd].utf8.count))
         var tokens: [SPICEToken.Located] = []
         var statementEnd: Int?
         while !isAtEnd {
@@ -80,7 +95,7 @@ public struct SPICELexer: Sendable {
         workFailure = nil
         try resources.checkCancellation()
         var byteCount: UInt64 = 0
-        for byte in source.utf8 {
+        for byte in source[index..<sourceEnd].utf8 {
             if byteCount.isMultiple(of: 256) { try resources.checkCancellation() }
             try resources.charge(.lexicalBytes, units: 1)
             guard byte < 128 else {
@@ -584,7 +599,7 @@ public struct SPICELexer: Sendable {
             let char = current
 
             // Skip spaces and tabs (but not newlines)
-            if char == " " || char == "\t" || char == "\r" {
+            if char == " " || char == "\t" || char == "\r" || (elideModelNumericQuotes && char == "\"") {
                 advance()
                 continue
             }
@@ -612,7 +627,7 @@ public struct SPICELexer: Sendable {
     // MARK: - Character Access
 
     private var isAtEnd: Bool {
-        workFailure != nil || index >= source.endIndex
+        workFailure != nil || index >= sourceEnd
     }
 
     private var current: Character {
@@ -625,7 +640,7 @@ public struct SPICELexer: Sendable {
 
     private func peek() -> Character? {
         let nextIndex = source.index(after: index)
-        guard nextIndex < source.endIndex else { return nil }
+        guard nextIndex < sourceEnd else { return nil }
         return source[nextIndex]
     }
 
@@ -643,7 +658,7 @@ public struct SPICELexer: Sendable {
             isLinePrefixWhitespace = true
         } else {
             column += 1
-            if !current.isWhitespace {
+            if !current.isWhitespace && !(elideModelNumericQuotes && current == "\"") {
                 isLinePrefixWhitespace = false
             }
         }

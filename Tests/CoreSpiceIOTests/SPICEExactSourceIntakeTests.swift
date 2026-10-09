@@ -243,6 +243,21 @@ struct SPICEExactSourceIntakeTests {
         #expect(throws: LoweringError.self) { _ = try SPICEIO.lower(selectedDeck.netlist) }
     }
 
+    @Test func exactModelBracedQuotesRetainCapturedSourceAndFlatPrecedence() async throws {
+        let text = "exact model quote elision\n.param a=1k b=2k\n.model sheet R rsh={2*\"a+b\"}\nR1 out 0 sheet l=1u w=1u\n.end\n"
+        let source = try binding("root", text)
+        let loaded = try await SPICEExactDeckLoader().load(request: request([source]),
+            provider: ExactTestProvider(bytes: ["root": Data(text.utf8)]),
+            work: SPICEBoundedSourceWork(limits: limits()))
+        #expect(loaded.inputReferences == [source.reference])
+        #expect(loaded.captures.first?.bytes == Data(text.utf8))
+        let ir = try SPICEIO.lower(loaded.netlist)
+        guard case .real(let value) = try #require(ir.instances.first?.model?.parameters["rsh"]) else {
+            Issue.record("Missing actual model coefficient"); return
+        }
+        #expect(value == 4000)
+    }
+
     @Test func exactRootIntentRefusesBeforeSelectedNumerics() async throws {
         let text = "exact blocked\n.model cm C cap=1n\n.alter R1 resistance=2k\n.end\n"
         let source = try binding("root", text)

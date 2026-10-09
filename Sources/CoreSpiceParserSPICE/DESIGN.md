@@ -539,3 +539,49 @@ The [Lowering charge contract](../CoreSpiceLowering/DESIGN.md#charge-capacitor-n
 owns execution admission. The pinned source/probe evidence is retained in the
 workspace charge-source verification run; the installed ngspice binary's exact
 commit is not independently established.
+
+
+## Model Braced Numeric Quote Elision
+
+The unchanged Sky130 `sky130_fd_pr__model__r+c.model.spice:130` contains
+`dw={"-tol_nfom/2-nfom_dw/2"}`. The pinned ngspice `inp_casefix` replaces double
+quote delimiters with spaces on ordinary model cards before numerical parsing.
+This is lexical elision, not expression grouping: `{2*"a+b"}` means `2*a+b`,
+`{a"+"b}` means `a+b`, and `{1"k"}` cannot become `1k`. The reference contract is
+[inpcom.c](https://github.com/imr/ngspice/blob/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/frontend/inpcom.c#L3442),
+called by [inp.c](https://github.com/imr/ngspice/blob/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/frontend/inp.c#L814).
+
+This source repair is owned by the braced coefficient entrance in `parseModel`.
+`version` and structural `level` keep their existing contracts. Bare quoted
+parameters, `.param`, subcircuit headers/actuals, paths and opaque metadata keep
+[their existing roles](#quoted-values-and-source-diagnostics). This exception
+neither adds a string primary to the expression grammar nor implements general
+ngspice string substitution or card-wide rewriting.
+
+```text
+Model coefficient {...} -> original undecoded numeric source range
+                        -> quote delimiters treated as equal-width spaces
+                        -> one lexical scope and flat tokens
+                        -> existing precedence parser -> complete expression AST
+Other source roles       -> existing quoted-value entrance
+```
+
+The complete undecoded, conditionally projected interior must be scanned as one scope, including conditional
+operators spanning a quote boundary. Splicing separately grouped ASTs or reusing
+escape-decoded string tokens is invalid. Original physical positions, continuation
+folding and token boundaries must survive. Do not repeatedly search from the start
+of the source for each coefficient. Raw spans belong to the invocation's existing
+source owner; any added range/index, temporary source and token storage must be
+admitted before allocation and release on failure/cancellation. Ordinary and
+bounded parsing use the same caller configuration, scanner and AST construction.
+The new elision scope rejects single-quoted substrings instead of adding numeric
+grouping that the reference refuses. Removed conditional lines remain removed.
+No public API, shared
+mutable state, canonical source identity or numerical model contract changes.
+
+Parser tests own full original AST, lexical precedence/token boundaries, malformed
+expressions, numeric/text-role isolation and serializer roundtrip. Bounded tests
+own parity, cross-quote conditionals, LF/CRLF physical diagnostics, accounting
+refusal/cancellation and last-owner release. IO tests own scoped model-coefficient
+evaluation before and after serialization. The actual CLI replays unchanged PDK
+bytes and records the next boundary; intake success does not qualify its models.
