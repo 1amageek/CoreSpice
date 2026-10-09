@@ -4,7 +4,8 @@ import CoreSpiceParser
 import CoreSpiceParserSPICE
 import Foundation
 
-/// A fully resolved SPICE deck that is safe to pass to lowering and execution.
+/// A captured, parsed source graph admitted for actual selected lowering.
+/// Successful loading does not establish numerical model/component capability.
 public struct LoadedSPICEDeck: Sendable {
     public let exactRequest: SPICEExactLoadRequest?
     public let exactSources: [SPICEExactSourceBinding]
@@ -136,7 +137,7 @@ public enum SPICEDeckLoader {
         if let failure = await resolver.captureFailure() { throw failure }
         let netlist = try parseResult.get()
         let coverage = SPICEDeckCoverageReport.generate(from: parseResult)
-        let blocked = coverage.items.filter { $0.status == .blocked }
+        let blocked = coverage.globalExecutionBlockers
         guard blocked.isEmpty else {
             throw SPICEDeckLoadError.blockedExecutionIntent(items: blocked)
         }

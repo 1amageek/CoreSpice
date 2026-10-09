@@ -515,3 +515,27 @@ no unaccounted parallel model/parameter table is introduced. Parser, bounded par
 and serializer tests inspect exact model/candidate/value roles, complete named
 expressions, malformed tails and declaration origins. Public IO verifies unused
 declarations execute independently of model-backed C refusal.
+
+## Charge Capacitor Intake
+
+The parser accepts two nodes and a single Q expression in quoted, braced or full
+named-expression form. It retains the complete AST and serializer round trip in
+ordinary and bounded parsing, using the existing accounted token stream. A bare
+numeric Q value requires quotes/braces. Q-only syntax does not create a `c` value
+or a model candidate. Missing values, duplicate Q and extra tokens are errors.
+
+Mixed Q/C, positional values, model candidates/references and additional instance
+attributes are explicitly unsupported source combinations. The fixed ngspice
+frontend chooses its first braced expression and discards/rewrites other fields;
+current unordered parameter storage cannot preserve that order-dependent meaning.
+The parser refuses such forms instead of inventing precedence or silently dropping
+fields. This incomplete mixed-form capability must remain marked and cannot be
+reported as complete native source support. The unchanged Sky130 varactor card is
+an unambiguous Q-only expression.
+
+Parser/profile tests own complete named expressions, nested functions, malformed
+and mixed forms, serialization, ordinary/bounded parity, origins and owner release.
+The [Lowering charge contract](../CoreSpiceLowering/DESIGN.md#charge-capacitor-numerical-admission)
+owns execution admission. The pinned source/probe evidence is retained in the
+workspace charge-source verification run; the installed ngspice binary's exact
+commit is not independently established.

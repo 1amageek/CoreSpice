@@ -233,3 +233,19 @@ Focused lowering/public IO tests own forward/include/scoped resolution, paramete
 precedence, disabled-expression refusal, explicit-value-plus-model refusal and
 unchanged ideal/URC execution. [Devices](../CoreSpiceDevices/Devices/DESIGN.md#capacitor-model-binding-admission)
 owns direct IR binding refusal.
+
+## Charge Capacitor Numerical Admission
+
+The actual selected-component validation rejects a capacitor containing `q` before
+passive-role resolution, parameter evaluation, model preparation or topology
+publication. This applies with or without an explicit C value, model or expression
+evaluation, including manually constructed parsed input. Unselected subcircuit Q
+bodies are retained without numerical evaluation. Q is not C or Q/V. No source
+coverage result bypasses this owner. The independent direct IR gate is owned by
+[Devices](../CoreSpiceDevices/Devices/DESIGN.md#charge-capacitor-binding-admission).
+
+A future numerical implementation must supply i=dQ/dt, the complete dQ/dV
+Jacobian, AC linearization and accepted charge/current history with rejected-step
+isolation, plus independent successful and failing numerical tests. Until then
+public selected Q lowering is a marked typed refusal. Focused tests pair unused
+Q definitions with selected Q failure and direct parsed C+Q refusal.

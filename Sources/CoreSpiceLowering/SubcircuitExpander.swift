@@ -34,6 +34,13 @@ public struct SubcircuitExpander: Sendable {
         mapNodes: Bool = true
     ) throws {
         let fullName = prefix.isEmpty ? inputComponent.name : "\(prefix).\(inputComponent.name)"
+        if inputComponent.type == .capacitor, inputComponent.parameters["q"] != nil {
+            // FIXME(INCOMPLETE_IMPLEMENTATION): Native charge-capacitor execution is absent.
+            // Public selected lowering reaches this before any C/model/value evaluation.
+            // Admit Q only after i=dQ/dt, Jacobian, AC and accepted-history tests exist.
+            throw LoweringError.invalidComponent(name: fullName,
+                reason: "Charge-based capacitor execution is not implemented")
+        }
         let component = try resolvePassiveSourceRole(inputComponent, fullName: fullName)
 
         // Handle subcircuit instances specially

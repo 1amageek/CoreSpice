@@ -15,8 +15,20 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
     public let items: [SPICEDeckCoverageItem]
     public let diagnostics: [SPICEDeckCoverageDiagnostic]
 
+    /// Unsupported whole-source capability, independently of selected execution.
     public var hasBlockedItems: Bool {
         summary.blockedItems > 0 || summary.parserErrors > 0
+    }
+
+    /// Numerical component/model admission belongs to actual selected lowering and binding.
+    var globalExecutionBlockers: [SPICEDeckCoverageItem] {
+        items.filter { item in
+            guard item.status == .blocked else { return false }
+            switch item.kind {
+            case .component, .model: return false
+            default: return true
+            }
+        }
     }
 
     public init(
@@ -625,6 +637,14 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         behavioralFunctions: [String: BehavioralFunctionDefinition]
     ) -> String? {
         switch component.type {
+        case .capacitor:
+            if component.parameters["q"] != nil {
+                // FIXME(INCOMPLETE_IMPLEMENTATION): Charge-capacitor numerical execution is absent.
+                // Coverage reports source capability; actual selected lowering/binding must
+                // refuse Q until charge/Jacobian/history success and failure tests exist.
+                return "Charge-based capacitor execution is not implemented"
+            }
+            return nil
         case .behavioral:
             let outputKeys = component.parameters.keys.filter { $0 == "v" || $0 == "i" }
             guard outputKeys.count == 1, component.parameters.count == 1 else {

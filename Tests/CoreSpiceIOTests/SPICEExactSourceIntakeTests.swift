@@ -225,6 +225,39 @@ struct SPICEExactSourceIntakeTests {
                 work: SPICEBoundedSourceWork(limits: limits()))
         }
     }
+    @Test func exactSourceIntakeRetainsUnusedUnsupportedDefinitions() async throws {
+        let text = "exact unused\nV1 out 0 1\nR1 out 0 1k\n.model cm C cap={missing}\n.subckt cell a\nCq a 0 q={missing*v(a)}\n.ends\n.op\n.end\n"
+        let source = try binding("root", text)
+        let loaded = try await SPICEExactDeckLoader().load(request: request([source]),
+            provider: ExactTestProvider(bytes: ["root": Data(text.utf8)]),
+            work: SPICEBoundedSourceWork(limits: limits()))
+        #expect(loaded.coverage.hasBlockedItems)
+        #expect(loaded.inputReferences == [source.reference])
+        #expect(loaded.captures.first?.bytes == Data(text.utf8))
+        #expect(try SPICEIO.lower(loaded.netlist).instances.count == 2)
+        let selected = text.replacingOccurrences(of: ".op\n", with: "X1 out cell\n.op\n")
+        let selectedBinding = try binding("root", selected)
+        let selectedDeck = try await SPICEExactDeckLoader().load(request: request([selectedBinding]),
+            provider: ExactTestProvider(bytes: ["root": Data(selected.utf8)]),
+            work: SPICEBoundedSourceWork(limits: limits()))
+        #expect(throws: LoweringError.self) { _ = try SPICEIO.lower(selectedDeck.netlist) }
+    }
+
+    @Test func exactRootIntentRefusesBeforeSelectedNumerics() async throws {
+        let text = "exact blocked\n.model cm C cap=1n\n.alter R1 resistance=2k\n.end\n"
+        let source = try binding("root", text)
+        do {
+            _ = try await SPICEExactDeckLoader().load(request: request([source]),
+                provider: ExactTestProvider(bytes: ["root": Data(text.utf8)]),
+                work: SPICEBoundedSourceWork(limits: limits()))
+            Issue.record("Exact root control bypassed intake")
+        } catch let error as SPICEDeckLoadError {
+            guard case .blockedExecutionIntent(let items) = error else { throw error }
+            #expect(items.count == 1)
+            #expect(items.first?.name.hasPrefix("alter:") == true)
+        }
+    }
+
 }
 
 private enum ExactTestError: Error, Equatable { case missing(String) }

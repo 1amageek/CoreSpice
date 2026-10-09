@@ -64,7 +64,7 @@ struct BSIM4ProductionRecordTests {
         for (text, code) in [
             (source(policy: ""), "device.bsim4.missing-preparation-policy"),
             (source(policy: ".options bsim4stressiterations=0"), "deck.blocked-intent"),
-            (source().replacingOccurrences(of: "version=4.8.3", with: "version=4.8.2"), "deck.blocked-intent"),
+            (source().replacingOccurrences(of: "version=4.8.3", with: "version=4.8.2"), "device.bsim4.version"),
             (source(analysis: ".noise V(d) VG dec 1 1k 1Meg").replacingOccurrences(of: "toxe=10n", with: "toxe=10n fnoimod=0 kf=-1").replacingOccurrences(of: "VD d 0 1", with: "VD supply 0 1\nRL supply d 1k"), "device.bsim4.non-finite")
         ] {
             do { _ = try await run(text); Issue.record("Failed input produced success") }

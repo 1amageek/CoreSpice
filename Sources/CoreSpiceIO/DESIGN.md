@@ -344,3 +344,41 @@ Visible parameter declarations retain their precedence over model names. Reporti
 uses lexical global/default/body parameter scope, without executing parameters or
 claiming the later binding result. Numerical admission remains owned by
 [Lowering](../CoreSpiceLowering/DESIGN.md#capacitor-source-resolution-and-admission).
+
+## Source Intake and Selected Execution Admission
+
+Ordinary and exact loaders admit the captured, parsed source graph and root
+execution intent. They retain the whole-source coverage report, including blocked
+model and component definitions that are not selected. `hasBlockedItems` continues
+to report unsupported source capability; it is not selected execution admission.
+Load success does not assert numerical executability.
+
+The shared report projection used by both loaders rejects blocked analysis,
+directive, option, measurement and preprocessing items. Model/component items are
+diagnostics. Selected numerical admission is owned by the actual configured
+[Lowering](../CoreSpiceLowering/DESIGN.md) and descriptor binding; no second closure
+walk, speculative pre-lowering or duplicate evaluation occurs in IO. Root controls
+are the parser's root collections even when encountered inside a subcircuit.
+Invalid global expressions retain existing lowering failures; unused body-local
+expressions are not evaluated.
+
+```text
+Captured graph -> parse -> root intent admission -> LoadedSPICEDeck
+                       -> whole-source coverage diagnostics retained
+Actual options/overrides/seed -> one selected lowering -> compile/bind -> execution
+```
+
+Q component coverage remains blocked until numerical charge support exists. The
+public source loader may retain unused Q bodies and unsupported model declarations;
+selecting them must fail in the lower/device owner. Loaders never relabel them as
+supported. Exact graph comparison, capture lifetime, source accounting and failure
+propagation are unchanged.
+
+[SelectedExecutionAdmissionTests](../../Tests/CoreSpiceIOTests/SelectedExecutionAdmissionTests.swift)
+owns ordinary/exact unused-definition admission, retained blocked diagnostics,
+root control refusal and actual selected failure. CLI tests own real successful
+ideal execution/case output with unused unsupported definitions, selected Q/model
+refusal and continued root intent refusal. A selected unsupported BSIM version now
+reports the actual numerical preparation failure, rather than a source-coverage
+parse error. This diagnostic change is intentional; backward compatibility is not
+required. Revalidate the CLI and exact-loader consumers whenever this split changes.

@@ -330,4 +330,41 @@ struct CaseExecutionTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
     }
 
+    @Test func unusedUnsupportedSourceNeverCreatesExecutedModelReceipts() async throws {
+        let root = try directory(); defer { cleanup(root) }
+        let (execution, receipts, session) = try await batch("""
+        Ideal execution with retained unsupported source
+        .param cv=1n
+        V1 out 0 1
+        R1 out 0 1k
+        C1 out 0 c=cv*2
+        .model unused C cox={missing}
+        .subckt unselected a
+        .param impossible=missing
+        Cq a 0 q={missing*v(a)}
+        .ends
+        .op
+        .end
+        """, in: root)
+        #expect(execution.phaseIDs == ["op"])
+        #expect(receipts.isEmpty)
+        #expect(abs(try #require(execution.observedMetrics["op:last:V(out)"]) - 1) < 1e-9)
+        #expect(session.plan?.ir.instances.count == 3)
+    }
+
+    @Test func selectedChargeAndPhysicalCapacitorPublishNoCompletedCase() async throws {
+        for component in ["Cq out 0 q={missing*v(out)}", "C1 out 0 cm\n.model cm C cap=1n"] {
+            let root = try directory(); defer { cleanup(root) }
+            do {
+                _ = try await batch("unsupported selected capacitor\nV1 out 0 1\nR1 out 0 1k\n\(component)\n.op\n.end\n", in: root)
+                Issue.record("Unsupported capacitor published success")
+            } catch {
+                let failure = CoreSpiceCLIFailure(error: error)
+                #expect(failure.code == "deck.lower")
+                #expect(failure.stage == "lower")
+            }
+            #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("case").path))
+        }
+    }
+
 }

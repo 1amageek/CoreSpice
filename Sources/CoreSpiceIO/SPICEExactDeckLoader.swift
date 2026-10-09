@@ -19,7 +19,7 @@ public struct SPICEExactDeckLoader: SPICEDeckSourceLoading {
         let netlist = try result.get()
         try await resolver.verify(events: netlist.dependencyEvents)
         let coverage = SPICEDeckCoverageReport.generate(from: result)
-        let blocked = coverage.items.filter { $0.status == .blocked }
+        let blocked = coverage.globalExecutionBlockers
         guard blocked.isEmpty else { throw SPICEDeckLoadError.blockedExecutionIntent(items: blocked) }
         try budget.checkCancellation()
         return LoadedSPICEDeck(source: root.text, netlist: netlist, coverage: coverage,

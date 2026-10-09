@@ -471,3 +471,12 @@ URC-generated ideal capacitors legitimately retain selected URC evidence while
 model is nil and must continue to bind/stamp. Tests reject same/wrong-type models
 with explicit values and exercise ideal transient stamps with selected URC
 provenance. No model-C physics qualification follows from declaration intake.
+
+## Charge Capacitor Binding Admission
+
+`CapacitorDescriptor.bind` rejects any direct IR capacitor with a `q` parameter
+before reading C or model values. A positive C cannot authorize dropping charge.
+The incomplete charge law is explicit and requires the numerical guarantees in
+[Lowering](../../CoreSpiceLowering/DESIGN.md#charge-capacitor-numerical-admission)
+before admission. Direct IR tests cover Q alone, Q plus C and Q plus a physical
+model. Existing ideal and URC-generated C stamping remains unchanged.

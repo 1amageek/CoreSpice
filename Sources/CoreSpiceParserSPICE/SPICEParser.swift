@@ -786,8 +786,8 @@ private struct SPICEParserImpl {
         if type == .resistor, try nodes.count != 2 || (params["r"] == nil && params["resistance"] == nil && modelName == nil) {
             throw ParserDiagnostic.error("Resistor requires two nodes and resistance or model", at: loc)
         }
-        if type == .capacitor, try nodes.count != 2 || (params["c"] == nil && modelName == nil) {
-            throw ParserDiagnostic.error("Capacitor requires two nodes and capacitance or model", at: loc)
+        if type == .capacitor, try nodes.count != 2 || (params["c"] == nil && params["q"] == nil && modelName == nil) {
+            throw ParserDiagnostic.error("Capacitor requires two nodes and capacitance, charge expression or model", at: loc)
         }
         try components.append(ParsedComponent(
             name: name,
@@ -814,7 +814,23 @@ private struct SPICEParserImpl {
                 try advance()
                 if case .equals = currentToken {
                     try advance()
-                    if lower == "c" {
+                    if lower == "q" {
+                        guard params.isEmpty, modelName == nil, candidate == nil else {
+                            throw unsupportedMixedChargeCapacitor(at: location)
+                        }
+                        let value = try parseNamedPassiveValue()
+                        guard case .expression = value else {
+                            throw ParserDiagnostic.error("Numeric charge requires quotes or braces", at: location)
+                        }
+                        try params.set(value, for: lower)
+                        guard isAtEnd || isNewline else {
+                            if case .identifier(let next) = currentToken, try normalized(next) == "q",
+                               current + 1 < tokens.count, tokens[current + 1].token == .equals {
+                                throw ParserDiagnostic.error("Duplicate capacitor charge expression", at: currentLocation)
+                            }
+                            throw unsupportedMixedChargeCapacitor(at: currentLocation)
+                        }
+                    } else if lower == "c" {
                         if let symbol = candidate {
                             modelName = symbol
                             candidate = nil
@@ -860,6 +876,13 @@ private struct SPICEParserImpl {
                 throw ParserDiagnostic.error("Unexpected capacitor token", at: currentLocation)
             }
         }
+    }
+
+    // FIXME(INCOMPLETE_IMPLEMENTATION): Mixed charge/capacitance/model/attribute source forms are unsupported.
+    // Ordinary and bounded public SPICE parsing reach this source-profile refusal.
+    // Admit these forms only after ordered source roles preserve the verified frontend selection semantics.
+    private func unsupportedMixedChargeCapacitor(at location: SourceLocation?) -> ParserDiagnostic {
+        .error("Mixed capacitor charge/value/model/attribute source forms are not implemented", at: location)
     }
 
     private mutating func parseCurrentControlledSourceComponent(

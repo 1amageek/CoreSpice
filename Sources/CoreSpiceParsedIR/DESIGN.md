@@ -183,3 +183,12 @@ the bare candidate. Scoped resolution consumes the candidate without merging mod
 and instance maps. [ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md#capacitor-source-intake)
 owns syntax; [Lowering](../CoreSpiceLowering/DESIGN.md#capacitor-source-resolution-and-admission)
 owns parameter-versus-model selection.
+
+## Charge Capacitor Source Role
+
+A supported unambiguous charge capacitor stores one complete `q` expression in
+`ParsedComponent.parameters`, independently of `c`. It has no provisional primary
+value or model candidate. Q is charge, not capacitance, and cannot be converted to
+an ideal C value. The parser owns supported source combinations; selected lowering
+and direct IR binding own explicit numerical refusal until charge execution is
+implemented. Exact captured bytes remain available for unsupported source forms.

@@ -5,6 +5,38 @@ import Synchronization
 
 @Suite("Capacitor model binding admission")
 struct CapacitorModelAdmissionTests {
+    @Test("Charge cannot become an ideal capacitor or be discarded before model admission",
+          arguments: [ParameterValue.real(1.0e-6), .string("V(1)"), .behavioralExpression(.constant(1.0e-6))],
+          ["q", "q+c", "q+model"])
+    func chargeIsRejected(charge: ParameterValue, configuration: String) {
+        var parameters: [String: ParameterValue] = ["q": charge]
+        if configuration == "q+c" {
+            parameters["c"] = .real(1.0e-6)
+        }
+        let model: ResolvedDeviceModel? = configuration == "q+model"
+            ? ResolvedDeviceModel(name: "CM", typeName: "capacitor", parameters: [:]) : nil
+        let instance = Instance(
+            name: "CQ", typeName: "capacitor", nodes: [Node(id: 1), .ground],
+            parameters: parameters, model: model
+        )
+        var context = BindingContext(variableMap: [.nodeVoltage(Node(id: 1)): 0], matrixDimension: 1)
+
+        do {
+            _ = try CapacitorDescriptor().bind(instance: instance, context: &context)
+            Issue.record("Expected charge-based capacitor admission to fail")
+        } catch let error as DeviceBindingError {
+            guard case .invalidParameterValue(let device, let parameter, let message) = error else {
+                Issue.record("Unexpected binding failure: \(error)")
+                return
+            }
+            #expect(device == "CQ")
+            #expect(parameter == "q")
+            #expect(message == "Charge-based capacitor numerical preparation is not implemented")
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test("Explicit capacitance cannot discard a physical model", arguments: ["capacitor", "resistor"])
     func physicalModelIsRejected(modelType: String) {
         let instance = Instance(

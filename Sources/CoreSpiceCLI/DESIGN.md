@@ -155,3 +155,18 @@ refusal are verified by
 [PreparedCLIExecutionTests](../../Tests/CoreSpiceNativeExecutionTests/PreparedCLIExecutionTests.swift).
 The finite CLI developer policy is versioned in the command, enters effective
 native configuration identity, and does not claim workload/model qualification.
+
+## Source Diagnostics and Actual Execution Admission
+
+Batch and REPL consume the source-admitted deck defined by
+[IO](../CoreSpiceIO/DESIGN.md#source-intake-and-selected-execution-admission), retain
+whole-source diagnostics and use actual options/overrides/seed in one lowering and
+binding path. Included unsupported declarations remain diagnostic facts and cannot
+produce model receipts without actual selected execution. Root blocked controls
+continue to fail at intake. Unsupported selected model versions now expose their
+actual numerical preparation code; source coverage is not that authority.
+
+Case publication uses the same captured input graph and actual completed phase
+instances. A successful ideal circuit with unused Q/C definitions has model-free
+receipts; selecting unsupported Q/C must produce no completed case. CLI tests own
+these actual execution boundaries and the unsupported-version diagnostic migration.

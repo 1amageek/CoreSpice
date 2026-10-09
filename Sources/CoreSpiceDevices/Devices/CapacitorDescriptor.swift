@@ -19,6 +19,17 @@ public struct CapacitorDescriptor: DeviceDescriptor, Sendable {
             )
         }
 
+        // FIXME(INCOMPLETE_IMPLEMENTATION): Charge-based capacitor numerical preparation is absent.
+        // SPICENativeSimulation.bind reaches this through DeviceRegistry; direct IR callers also bind here.
+        // Admission requires i=dQ/dt, the full dQ/dV Jacobian, AC linearization and accepted charge/current
+        // history with rejected-step isolation, verified by independent successful and failing numerical tests.
+        if instance.parameters["q"] != nil {
+            throw DeviceBindingError.invalidParameterValue(
+                device: instance.name, parameter: "q",
+                message: "Charge-based capacitor numerical preparation is not implemented"
+            )
+        }
+
         if let model = instance.model {
             guard model.typeName == typeName else {
                 throw DeviceBindingError.invalidParameterValue(
