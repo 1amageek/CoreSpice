@@ -24,7 +24,7 @@ let package = Package(
         .executable(name: "corespice", targets: ["CoreSpiceCLI"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/1amageek/ToolQualification.git", revision: "b37087c7c4bdf97c9c66065c8373a7774a2064b6"),
+        .package(url: "https://github.com/1amageek/ToolQualification.git", revision: "7a69d2ba4e3c4c2262478312f9217de4293a7ab7"),
         circuiteFoundationDependency,
         signoffToolSupportDependency,
     ],
