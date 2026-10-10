@@ -1,4 +1,5 @@
 import Testing
+@testable import CoreSpice
 import Foundation
 @testable import CoreSpiceAnalysis
 @testable import CoreSpiceCompile
@@ -105,27 +106,42 @@ struct SensitivityIntegrationTests {
 
     // MARK: - F5: MOSFET Circuit Sensitivity
 
-    @Test("F5: PMOS common source sensitivity")
+    @Test("F5: PMOS generic sensitivity requires fresh MOS resolution")
     func pmosCircuitSensitivity() async throws {
         // PMOS circuit (converges unlike NMOS)
         let (netlist, drain) = try CircuitFactory.pmosCommonSource(
             vdd: 5.0, rd: 1000, vgate: 3.0,
-            mosParams: ["vto": .real(-0.7), "kp": .real(50e-6),
-                        "w": .real(20e-6), "l": .real(1e-6)]
+            modelParameters: ["vto": -0.7, "kp": 50e-6],
+            instanceParameters: ["w": 20e-6, "l": 1e-6]
         )
-        let result = try await runSensitivity(netlist: netlist, outputNode: drain)
+        let baseline = try await CircuitFactory.runDC(netlist)
+        let voltage = try baseline.voltage(at: drain)
+        #expect(voltage > 0 && voltage < 5.0,
+                "Drain voltage should be in range, got \(voltage)")
 
-        // Baseline should be a reasonable drain voltage
-        #expect(result.baselineValue > 0 && result.baselineValue < 5.0,
-                "Drain voltage should be in range, got \(result.baselineValue)")
+        // Preserve the numerical slope assertion with a fresh source resolution for the perturbation.
+        let delta = 1000.0 * SensitivityAnalysis(outputNode: drain).perturbationFraction
+        let (perturbed, perturbedDrain) = try CircuitFactory.pmosCommonSource(
+            vdd: 5.0, rd: 1000 + delta, vgate: 3.0,
+            modelParameters: ["vto": -0.7, "kp": 50e-6],
+            instanceParameters: ["w": 20e-6, "l": 1e-6]
+        )
+        let perturbedResult = try await CircuitFactory.runDC(perturbed)
+        let slope = (try perturbedResult.voltage(at: perturbedDrain) - voltage) / delta
+        #expect(slope > 0, "dVd/dRd should be positive with a fresh MOS resolution, got \(slope)")
 
-        // dVd/dRd: as Rd increases, drain voltage increases (Vd = Ids × Rd)
-        let rdSens = result.sensitivities.first(where: {
-            $0.deviceName == "RD" && $0.parameterName == "r"
-        })
-        #expect(rdSens != nil, "Should have sensitivity for RD")
-        #expect(rdSens!.sensitivity > 0,
-                "dVd/dRd should be positive (more Rd → more Vd), got \(rdSens!.sensitivity)")
+        // Test the generic algorithm's refusal with a prepared baseline, retaining its owner record.
+        let circuit = try AnalysisMOSFixture.prepare(netlist)
+        let (record, devices) = circuit.takeState()
+        defer { withExtendedLifetime(record) {} }
+        let analysis = SensitivityAnalysis(outputNode: drain)
+        do {
+            _ = try await analysis.run(plan: record.plan, devices: devices, solver: SparseLUSolver(),
+                observer: nil, cancellation: CancellationToken())
+            Issue.record("MOS sensitivity requires a fresh resolver-backed perturbation")
+        } catch AnalysisError.requiresFreshMOSResolution(let instance) {
+            #expect(instance == "M1")
+        }
     }
 
     // MARK: - F6: Multi-Parameter Sensitivity (3-Resistor Chain)

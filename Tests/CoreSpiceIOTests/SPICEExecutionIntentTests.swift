@@ -17,7 +17,7 @@ struct SPICEExecutionIntentTests {
 
         let parseResult = await SPICEIO.parse(source, fileName: "options.cir")
         let netlist = try parseResult.get()
-        let options = try SPICEAnalysisOptions.resolve(from: netlist)
+        let options = try IOTestFrontend.options(netlist)
 
         #expect(approximately(options.convergence.reltol, 1e-4))
         #expect(approximately(options.convergence.abstol, 2e-12))
@@ -91,7 +91,7 @@ struct SPICEExecutionIntentTests {
         let netlist = try parseResult.get()
 
         do {
-            _ = try SPICEAnalysisOptions.resolve(from: netlist)
+            _ = try IOTestFrontend.options(netlist)
             Issue.record("expected maxord to fail loudly")
         } catch let error as SPICEAnalysisOptionError {
             guard case .unsupportedOptionValue(let name, _, _) = error else {
@@ -112,7 +112,7 @@ struct SPICEExecutionIntentTests {
 
         let parseResult = await SPICEIO.parse(source, fileName: "tnom.cir")
         let netlist = try parseResult.get()
-        let options = try SPICEAnalysisOptions.resolve(from: netlist)
+        let options = try IOTestFrontend.options(netlist)
 
         #expect(options.temperatureCelsius == nil)
         #expect(options.nominalTemperatureCelsius == 25)
@@ -423,14 +423,14 @@ struct SPICEExecutionIntentTests {
         )
 
         #expect(report.summary.totalItems > 0)
-        #expect(report.summary.appliedItems >= 2)
+        #expect(report.summary.appliedItems >= 1)
         #expect(report.summary.supportedItems >= 3)
         #expect(report.summary.warningItems == 1)
         #expect(report.summary.blockedItems == 2)
         #expect(report.hasBlockedItems)
 
-        #expect(item(named: "reltol", in: report)?.status == .applied)
-        #expect(item(named: "tnom", in: report)?.status == .applied)
+        #expect(item(named: "reltol", in: report)?.status == .supported)
+        #expect(item(named: "tnom", in: report)?.status == .supported)
         #expect(item(named: "unknownoption", in: report)?.status == .warning)
         #expect(item(named: "maxord", in: report)?.status == .blocked)
         #expect(item(named: "vmax", in: report)?.status == .supported)

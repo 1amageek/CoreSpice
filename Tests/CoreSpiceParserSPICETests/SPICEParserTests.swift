@@ -1702,6 +1702,166 @@ struct AdvancedAnalysisParserTests {
         }
     }
 
+    @Test(.timeLimit(.minutes(1)), arguments: ["", " seed=17"])
+    func parseMonteCarloTransientExpressions(seedTail: String) async throws {
+        let result = await SPICEParser().parse(
+            source: "MC Transient Expressions\n.mc 2 tran {duration/10} {duration}\(seedTail)\n.end\n"
+        )
+        #expect(result.isSuccess)
+        let command = try #require(result.netlist?.analyses.first)
+        guard case .monteCarlo(let spec) = command,
+              case .transient(let inner) = spec.analysis else {
+            Issue.record("Expected Monte Carlo transient analysis")
+            return
+        }
+        #expect(spec.iterations == 2)
+        #expect(spec.seed == (seedTail.isEmpty ? nil : 17))
+        #expect(inner.stepTime == .expression(.binaryOperation(.divide, .identifier("duration"), .literal(10))))
+        #expect(inner.stopTime == .expression(.identifier("duration")))
+        #expect(inner.startTime == nil)
+        #expect(inner.maxStep == nil)
+        #expect(!inner.useInitialConditions)
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: ["", " seed=17"])
+    func parseMonteCarloACExpressions(seedTail: String) async throws {
+        let result = await SPICEParser().parse(
+            source: "MC AC Expressions\n.mc 2 ac oct 7 {fstart} {fstart*100}\(seedTail)\n.end\n"
+        )
+        #expect(result.isSuccess)
+        let command = try #require(result.netlist?.analyses.first)
+        guard case .monteCarlo(let spec) = command,
+              case .ac(let inner) = spec.analysis else {
+            Issue.record("Expected Monte Carlo AC analysis")
+            return
+        }
+        #expect(spec.seed == (seedTail.isEmpty ? nil : 17))
+        #expect(inner.scaleType == .octave)
+        #expect(inner.numberOfPoints == 7)
+        #expect(inner.startFrequency == .expression(.identifier("fstart")))
+        #expect(inner.stopFrequency == .expression(.binaryOperation(.multiply, .identifier("fstart"), .literal(100))))
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: ["", " seed=17"])
+    func parseMonteCarloDCExpressions(seedTail: String) async throws {
+        let result = await SPICEParser().parse(
+            source: "MC DC Expressions\n.mc 2 dc V1 {vstart} {vstop} {vstop/10}\(seedTail)\n.end\n"
+        )
+        #expect(result.isSuccess)
+        let command = try #require(result.netlist?.analyses.first)
+        guard case .monteCarlo(let spec) = command,
+              case .dc(let inner) = spec.analysis else {
+            Issue.record("Expected Monte Carlo DC analysis")
+            return
+        }
+        #expect(spec.seed == (seedTail.isEmpty ? nil : 17))
+        #expect(inner.source == "v1")
+        #expect(inner.startValue == .expression(.identifier("vstart")))
+        #expect(inner.stopValue == .expression(.identifier("vstop")))
+        #expect(inner.stepValue == .expression(.binaryOperation(.divide, .identifier("vstop"), .literal(10))))
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: [
+        "tran 1n 1u", "ac lin 7 1 1meg", "dc V1 0 1.8 0.1",
+        "tran", "ac dec 10", "dc V1"
+    ])
+    func preserveMonteCarloNumericValuesAndDefaults(analysis: String) async throws {
+        let result = await SPICEParser().parse(
+            source: "MC Numeric Equivalence\n.\(analysis)\n.mc 2 \(analysis) seed=17\n.end\n"
+        )
+        #expect(result.isSuccess)
+        let commands = try #require(result.netlist?.analyses)
+        #expect(commands.count == 2)
+        let wrapped = try #require(commands.last)
+        guard case .monteCarlo(let spec) = wrapped else {
+            Issue.record("Expected Monte Carlo analysis")
+            return
+        }
+        #expect(spec.analysis == commands.first)
+        #expect(spec.seed == 17)
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: [
+        "tran {duration/} {duration}", "ac dec 10 {fstart/} {fstop}",
+        "dc V1 {vstart/} {vstop} {vstep}", "tran {duration/10 {duration}"
+    ])
+    func rejectMalformedMonteCarloExpression(analysis: String) async throws {
+        let result = await SPICEParser().parse(
+            source: "MC Malformed Expression\n.mc 2 \(analysis)\n.end\n"
+        )
+        #expect(!result.isSuccess)
+        let diagnostic = try #require(result.errors.first)
+        #expect(diagnostic.severity == .error)
+        #expect(diagnostic.location?.line == 2)
+        #expect(diagnostic.message != "Unsupported Monte Carlo option; expected seed")
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func rejectUnknownMonteCarloOption() async throws {
+        let result = await SPICEParser().parse(
+            source: "MC Unknown Option\n.mc 1 tran 1n 1u unknown=1\n.end\n",
+            fileName: "mc-unknown-option.cir"
+        )
+        #expect(!result.isSuccess)
+        let diagnostic = try #require(result.errors.first {
+            $0.message == "Unsupported Monte Carlo option; expected seed"
+        })
+        #expect(diagnostic.severity == .error)
+        #expect(diagnostic.location?.line == 2)
+        #expect(diagnostic.location?.column == 18)
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: ["uic", "42", "=", "+", "\"unknown\""])
+    func rejectUnexpectedMonteCarloOptionTokens(option: String) async throws {
+        let result = await SPICEParser().parse(
+            source: "MC Unexpected Option\n.mc 1 tran 1n 1u \(option)\n.end\n",
+            fileName: "mc-unexpected-option.cir"
+        )
+        #expect(!result.isSuccess)
+        let diagnostic = try #require(result.errors.first {
+            $0.message == "Unsupported Monte Carlo option; expected seed"
+        })
+        #expect(diagnostic.severity == .error)
+        #expect(diagnostic.location?.line == 2)
+        #expect(diagnostic.location?.column == 18)
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: ["seed=42", "SEED 42", "seed = 42"])
+    func parseMonteCarloSeedSyntax(option: String) async throws {
+        let result = await SPICEParser().parse(
+            source: "MC Seed\n.mc 1 tran 1n 1u \(option)\n.end\n"
+        )
+        #expect(result.isSuccess)
+        let command = try #require(result.netlist?.analyses.first)
+        guard case .monteCarlo(let spec) = command else {
+            Issue.record("Expected Monte Carlo analysis")
+            return
+        }
+        #expect(spec.iterations == 1)
+        #expect(spec.seed == 42)
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: ["0", "-1", "0.5", ""])
+    func validateMonteCarloSeedValue(value: String) async throws {
+        let result = await SPICEParser().parse(
+            source: "MC Seed Value\n.mc 1 tran 1n 1u seed=\(value)\n.end\n"
+        )
+        if value == "0" {
+            #expect(result.isSuccess)
+            let command = try #require(result.netlist?.analyses.first)
+            guard case .monteCarlo(let spec) = command else {
+                Issue.record("Expected Monte Carlo analysis")
+                return
+            }
+            #expect(spec.seed == 0)
+        } else {
+            #expect(!result.isSuccess)
+            #expect(result.errors.contains {
+                $0.message.contains("Expected nonnegative integer Monte Carlo seed")
+            })
+        }
+    }
+
     @Test
     func rejectZeroMonteCarloIterationCount() async {
         let source = """

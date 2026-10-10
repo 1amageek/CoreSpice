@@ -6,7 +6,8 @@ import Foundation
 ///
 /// Stores one complex solution vector per frequency point, along with
 /// convenience accessors for magnitude (in dB) and phase (in degrees).
-public struct ACResult: Sendable {
+public struct ACResult: Sendable, AnalysisResultStorageRetaining {
+    private let retainedStorage: (any Sendable)?
 
     /// The frequency values at which the AC analysis was evaluated.
     public let frequencies: [Double]
@@ -53,6 +54,19 @@ public struct ACResult: Sendable {
         self.frequencies = frequencies
         self.solutions = solutions
         self.variableMap = variableMap
+        self.retainedStorage = nil
+    }
+
+    /// Returns the same numerical values while retaining their native invocation capacity.
+    package func retainingStorage(_ owner: any Sendable) -> Self {
+        Self(retaining: self, owner: owner)
+    }
+
+    private init(retaining result: Self, owner: any Sendable) {
+        self.frequencies = result.frequencies
+        self.solutions = result.solutions
+        self.variableMap = result.variableMap
+        self.retainedStorage = owner
     }
 
     /// Returns the complex voltage at the given node for a specific frequency index.

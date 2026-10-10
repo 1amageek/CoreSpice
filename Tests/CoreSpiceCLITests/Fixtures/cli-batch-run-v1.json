@@ -52,6 +52,9 @@
     "minor" : 0,
     "patch" : 0
   },
+  "resolutionProfile" : "pinnedNgspiceNormalV1",
+  "resolutionSeed" : 1,
+  "resolutionPolicy" : "corespice-cli-developer-v1",
   "status" : "succeeded",
   "waveform" : {
     "points" : 32,

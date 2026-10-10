@@ -8,7 +8,7 @@ struct MOSResultBudgetTests {
         var fixture = try MOSSelectionFixture()
         _ = try fixture.builder.addModel(name: "n", scope: fixture.root, polarity: .nmos,
             level: 1, version: nil, coefficients: [], source: MOSSelectionFixture.source("n"))
-        let snapshot = try fixture.builder.finish()
+        let snapshot = try fixture.finish()
         let graph = try fixture.graph(snapshot)
         let limits = try MOSResolutionLimits(maximumRetainedBytes: 8_000_000, maximumDiagnosticBytes: 4096,
             maximumScopeDepth: 32, maximumSymbols: 256, maximumScopes: 32,

@@ -5,6 +5,7 @@ import CoreSpiceIR
 
 /// Frequency-dependent finite-difference sensitivity analysis.
 public struct ACSensitivityAnalysis: Analysis, Sendable {
+    package var executionBudget: TransientExecutionBudget?
     public typealias Result = ACSensitivityResult
 
     public let outputPositiveNode: Node
@@ -58,7 +59,8 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
         )))
 
         do {
-            let acAnalysis = ACAnalysis(sweep: sweep, dcConfig: dcConfig)
+            var acAnalysis = ACAnalysis(sweep: sweep, dcConfig: dcConfig)
+            acAnalysis.executionBudget = executionBudget
             let baseline = try await acAnalysis.run(
                 plan: plan,
                 devices: devices,
@@ -66,6 +68,7 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
                 observer: nil,
                 cancellation: cancellation
             )
+            try executionBudget?.admitSavedScalars(TransientExecutionBudget.multiply(baseline.solutions.count, 2, "AC sensitivity baseline scalars"))
             let baselineValues = baseline.solutions.map {
                 outputVoltage($0, variableMap: baseline.variableMap)
             }
@@ -76,6 +79,7 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
                 if cancellation.isCancelled {
                     throw AnalysisError.cancelled
                 }
+                try executionBudget?.chargeWork(TransientExecutionBudget.multiply(devices.count, 2, "AC sensitivity rebind work"))
                 var instances = plan.ir.instances
                 instances[perturbation.instanceIndex] = perturbation.perturbedInstance
                 let prepared = try deviceBinding.bind(plan: plan, instances: instances)
@@ -92,6 +96,9 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
                     )
                 }
 
+                try executionBudget?.chargeWork(TransientExecutionBudget.multiply(baselineValues.count, 32, "AC sensitivity derivative work"))
+                try executionBudget?.admitSavedScalars(TransientExecutionBudget.add(
+                    TransientExecutionBudget.multiply(baselineValues.count, 4, "AC sensitivity derivative scalars"), 1, "AC sensitivity nominal scalar"))
                 let perturbedValues = perturbed.solutions.map {
                     outputVoltage($0, variableMap: perturbed.variableMap)
                 }

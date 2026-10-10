@@ -171,6 +171,28 @@ Reservation-array metadata has its concrete capacity cost; accountant-internal
 allocation is outside parser-managed storage. No slab, arena or new allocator is
 required merely to meter existing values.
 
+`SPICEAccountedCollection.truncate(to:resources:)` removes an admitted trailing
+range while preserving logical slot capacity and its reservation. A unique owner
+clears only removed slots; it never rebuilds the retained prefix. Shared snapshots
+first admit and migrate the existing capacity through the same COW boundary as
+append/replace. Range validation, cooperative cancellation and removal work
+admission precede mutation; a refused clone or cancelled migration preserves both
+snapshots and refunds the unpublished replacement. Once admission succeeds,
+clearing slots and publishing the new end index form a nonthrowing commit.
+Removed payload owners release when their last snapshot ends; the reusable slot
+reservation remains until collection destruction or `removeAll()`.
+
+| Truncation path | Work and storage guarantee |
+|---|---|
+| Unique backing | O(removed count), unchanged capacity/reservation |
+| Shared backing | One admitted same-capacity clone, immutable original snapshot |
+| Invalid index, work/storage refusal, cancellation | No content/count publication; unpublished capacity refunded |
+
+Behavioral ownership/admission tests are in
+[AccountedCollectionTruncationTests](../../Tests/CoreSpiceSourceBoundaryTests/AccountedCollectionTruncationTests.swift).
+The lexer consumer's linear continuation proof is owned by
+[ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md).
+
 The owned result keeps netlist and leases together. Extraction of raw ParsedNetlist
 or diagnostic payload is an explicit caller-owned boundary: bounded callers retain
 the owner through that use. The PDK adapter deep-copies exported facts under its

@@ -8,14 +8,17 @@ physics equations, solver or correlated noise implementation.
 
 ## Responsibilities and Boundaries
 
-The approved S3 preparation/binding boundary is owned by
-[MOSPreparation](../MOSPreparation/DESIGN.md). The historical descriptor path
-prepares during Lowering and repeats preparation during binding; it is the
-pre-migration implementation, not the target owner contract.
-
-Preparation retains separate model and instance scopes, exact version and IC.
-A caller-supplied preparation policy bounds original stress work. The descriptor
-maps every original auxiliary role to fresh canonical owned nodes. BoundBSIM4
+The checked preparation/binding boundary is owned by
+[MOSPreparation](../MOSPreparation/DESIGN.md). BSIM4Descriptor retains registry
+metadata and refuses raw bind with MOSBindingFailure.missingPreparedReceipt.
+Its initializer selects polarity only; registry construction accepts no numerical
+policy or noise request. Explicit MOS preparation conditions own those choices.
+NativeMOSDevicePreparer admits separate resolved model/instance roles, exact
+version, IC and explicit conditions/stress policy. Consuming BSIM4PreparedDevice
+binding maps every original auxiliary role to fresh canonical owned nodes.
+The former dictionary-based BSIM4Preparation API is removed because it bypassed
+resolution identity and had no caller beyond the retired descriptor route.
+BoundBSIM4
 owns matrix mapping and exclusive transient history sessions; Analysis owns solve,
 acceptance, cancellation and begin/defer-end lifetime. Kernel qualification limits
 are immutable public metadata, independent of successful electrical execution.
@@ -26,7 +29,7 @@ are immutable public metadata, independent of successful electrical execution.
 |---|---|---|---|---|
 | [Devices](../DESIGN.md) | parent | Registry and throwing stamp protocols | Native selection | No L3 fallback |
 | [Safe kernel](../../CoreSpiceCompactModels/BSIM4/DESIGN.md) | depends on | BSIM4Evaluating | Exact bounded physics | Kernel evidence is not production proof |
-| [MOSPreparation](../MOSPreparation/DESIGN.md) | used by | Exact prepared owner and consuming bind | Single cold setup per run | Lowering/rebind preparation is removed during migration |
+| [MOSPreparation](../MOSPreparation/DESIGN.md) | used by | Exact prepared owner and consuming bind | Single cold setup per run | Raw descriptor binding is intentionally unsupported |
 | [Analysis](../../CoreSpiceAnalysis/DESIGN.md) | used by | Session and acceptance scope | Actual CPU analyses | End on return/throw/cancel |
 | [IO](../../CoreSpiceIO/DESIGN.md) | used by | Explicit caller preparation policy | Deck/CLI composition | Conditions are fixed before cold setup |
 
@@ -116,9 +119,8 @@ BoundBSIM4 applies outer m once to the fourteen V²/Hz channels, retaining origi
 mult_i/mult_fn semantics and AC mult_q/NQS behavior. It consumes immutable gains
 inside its existing owner lock; no solver/callback is retained or called there.
 
-The historical path receives caller noisePreparationRequested before topology
-allocation; S3 derives that choice from the portable requested-analysis capability
-contract before the single cold setup. Electrical-only and noise-capable contexts follow original
+The checked owner derives noise preparation from the portable requested-analysis
+capability contract before topology allocation and the single cold setup. Electrical-only and noise-capable contexts follow original
 b4set semantics, including noise-only series nodes for tnoimod1. Preparation identity and
 consuming binding must preserve that same choice. A later NoiseAnalysis on electrical-only
 preparation fails before OP. Mode1 execution keeps its conditional warning and

@@ -1,5 +1,6 @@
 import CircuiteFoundation
 import CoreSpiceIR
+import CoreSpiceLowering
 import CoreSpiceParsedIR
 
 /// Only the checked preparation algorithm can create this retained owner.
@@ -8,7 +9,8 @@ public struct PreparedSPICESimulation: Sendable {
     public var netlist: ParsedNetlist { parsedResult.netlist }
     public let sourceOccurrences: SPICEAccountedCollection<SPICESimulationSourceOccurrence>
     public let sources: [SPICECheckedSource]
-    public let circuit: CircuitIR
+    public let lowered: LoweredCircuit
+    public var circuit: CircuitIR { lowered.circuit }
     public let configuration: SPICEEffectiveSimulationConfiguration
     public let sourceInputIdentity: ContentDigest
     public let initialConditions: SPICEOwnedNodeVoltages
@@ -16,13 +18,15 @@ public struct PreparedSPICESimulation: Sendable {
     package let resources: any SPICESourceResourceAccounting
     package let maximumTransformBytes: UInt64
     private let reservation: SPICESourceStorageReservation
-    internal init(parsedResult: SPICEOwnedParseResult, sourceOccurrences: SPICEAccountedCollection<SPICESimulationSourceOccurrence>, sources: [SPICECheckedSource], circuit: CircuitIR,
+    private let frontendReservation: SPICESourceStorageReservation
+    internal init(parsedResult: SPICEOwnedParseResult, sourceOccurrences: SPICEAccountedCollection<SPICESimulationSourceOccurrence>, sources: [SPICECheckedSource], lowered: LoweredCircuit,
                   configuration: SPICEEffectiveSimulationConfiguration, sourceInputIdentity: ContentDigest,
                   initialConditions: SPICEOwnedNodeVoltages, nodeSets: SPICEOwnedNodeVoltages,
-                  reservation: SPICESourceStorageReservation, resources: any SPICESourceResourceAccounting,
+                  reservation: SPICESourceStorageReservation, frontendReservation: SPICESourceStorageReservation, resources: any SPICESourceResourceAccounting,
                   maximumTransformBytes: UInt64) {
+        self.frontendReservation = frontendReservation
         self.sourceOccurrences = sourceOccurrences
-        self.parsedResult = parsedResult; self.sources = sources; self.circuit = circuit
+        self.parsedResult = parsedResult; self.sources = sources; self.lowered = lowered
         self.configuration = configuration; self.sourceInputIdentity = sourceInputIdentity
         self.resources = resources; self.maximumTransformBytes = maximumTransformBytes
         self.initialConditions = initialConditions; self.nodeSets = nodeSets; self.reservation = reservation

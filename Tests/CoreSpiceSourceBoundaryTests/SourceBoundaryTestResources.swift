@@ -15,6 +15,7 @@ internal final class SourceBoundaryTestResources: SPICESourceResourceAccounting 
         var totalWork: UInt64 = 0
         var work: [SPICESourceWorkKind: UInt64] = [:]
         var cancelled = false
+        var checksUntilCancellation: Int?
     }
     private let state = Mutex(State())
     private let liveLimit: UInt64
@@ -29,9 +30,17 @@ internal final class SourceBoundaryTestResources: SPICESourceResourceAccounting 
     }
 
     func checkCancellation() throws {
-        if Task.isCancelled || state.withLock({ $0.cancelled }) { throw SourceBoundaryTestError.cancelled }
+        let cancelled = state.withLock { value in
+            if let remaining = value.checksUntilCancellation {
+                value.checksUntilCancellation = remaining - 1
+                if remaining <= 1 { value.cancelled = true }
+            }
+            return value.cancelled
+        }
+        if Task.isCancelled || cancelled { throw SourceBoundaryTestError.cancelled }
     }
     func setCancelled(_ value: Bool) { state.withLock { $0.cancelled = value } }
+    func cancelAfterChecks(_ count: Int) { state.withLock { $0.checksUntilCancellation = count } }
     func used(_ kind: SPICESourceStorageKind) -> UInt64 { state.withLock { kind == .liveOwnedBytes ? $0.live : $0.temporary } }
     var hashedBytes: UInt64 { state.withLock { $0.hashed } }
     var peakLiveBytes: UInt64 { state.withLock { $0.peakLive } }

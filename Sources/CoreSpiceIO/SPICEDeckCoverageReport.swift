@@ -139,6 +139,7 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         for control in orderedControls(netlist.controls) {
             items.append(coverageItem(for: control, netlist: netlist))
         }
+        appendSubcircuitControlCoverage(netlist.subcircuits, netlist: netlist, into: &items)
         for event in orderedPreprocessingEvents(netlist.preprocessingEvents) {
             items.append(coverageItem(for: event))
         }
@@ -405,6 +406,18 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             message: "Parameter expression is part of the executable parameter environment: \(expression)",
             location: location
         )
+    }
+
+    private static func appendSubcircuitControlCoverage(
+        _ subcircuits: [ParsedSubcircuit], netlist: ParsedNetlist,
+        into items: inout [SPICEDeckCoverageItem]
+    ) {
+        for subcircuit in subcircuits {
+            for control in orderedControls(subcircuit.body.controls) {
+                items.append(coverageItem(for: control, netlist: netlist))
+            }
+            appendSubcircuitControlCoverage(subcircuit.body.subcircuits, netlist: netlist, into: &items)
+        }
     }
 
     private static func appendSubcircuitParameterCoverage(
@@ -916,40 +929,50 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
     ) -> SPICEDeckCoverageItem {
         let name = optionName(for: control)
         let location = optionLocation(for: control)
-        let probeNetlist = ParsedNetlist(
-            title: netlist.title,
-            controls: functionControls(from: netlist) + [control],
-            parameters: netlist.parameters,
-            sourcePath: netlist.sourcePath
-        )
-
-        do {
-            let options = try SPICEAnalysisOptions.resolve(from: probeNetlist)
-            if let diagnostic = options.diagnostics.first {
-                return SPICEDeckCoverageItem(
-                    kind: .option,
-                    name: name,
-                    status: .warning,
-                    message: diagnostic.message,
-                    location: location
-                )
+        let status: SPICEDeckCoverageStatus
+        let message: String
+        switch control {
+        case .option(let option, let value, _):
+            let key = option.lowercased().replacingOccurrences(of: "_", with: "")
+            if key == "maxord" {
+                status = .blocked
+                message = "Persistent transient integration order is unsupported"
+            } else if key == "method" {
+                switch value {
+                case .string, .expression(.identifier):
+                    status = .supported
+                    message = "Integration method syntax is retained; the invocation validates its value"
+                case nil:
+                    status = .blocked; message = "Integration method requires a value"
+                default:
+                    status = .blocked; message = "Integration method requires a scalar method name"
+                }
+            } else if SPICEAnalysisOptions.isNumericOption(option) {
+                switch value {
+                case nil:
+                    status = .blocked; message = "Numeric option requires a value"
+                case .string, .numericVector:
+                    status = .blocked; message = "Numeric option requires scalar numeric syntax"
+                default:
+                    status = .supported
+                    message = "Numeric option syntax is retained; only the evaluation invocation applies its value"
+                }
+            } else {
+                status = .warning; message = "SPICE option '\(option)' is not applied by CoreSpice"
             }
-            return SPICEDeckCoverageItem(
-                kind: .option,
-                name: name,
-                status: .applied,
-                message: "SPICE option is applied to analysis configuration",
-                location: location
-            )
-        } catch {
-            return SPICEDeckCoverageItem(
-                kind: .option,
-                name: name,
-                status: .blocked,
-                message: error.localizedDescription,
-                location: location
-            )
+        case .temp(let value, _):
+            switch value {
+            case .string, .numericVector:
+                status = .blocked; message = "Temperature requires scalar numeric syntax"
+            default:
+                status = .supported
+                message = "Temperature syntax is retained; only the evaluation invocation applies its value"
+            }
+        default:
+            status = .blocked; message = "Unsupported option control"
         }
+        return SPICEDeckCoverageItem(kind: .option, name: name, status: status,
+                                     message: message, location: location)
     }
 
     private static func measurementCoverageItem(

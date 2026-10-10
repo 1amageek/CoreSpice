@@ -17,6 +17,7 @@ import CoreSpiceEvent
 /// The result provides gain (Vout/Vin), input impedance (Zin),
 /// and output impedance (Zout).
 public struct TransferFunctionAnalysis: Analysis, Sendable {
+    package var executionBudget: TransientExecutionBudget?
 
     public typealias Result = TransferFunctionResult
 
@@ -62,7 +63,9 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
 
         do {
             // Phase 1: DC operating point
-            let dcAnalysis = DCAnalysis(config: dcConfig)
+            var dcAnalysis = DCAnalysis(config: dcConfig)
+            dcAnalysis.executionBudget = executionBudget
+            try executionBudget?.admitSavedPoint(accepted: false)
             let dcResult = try await dcAnalysis.run(
                 plan: plan,
                 devices: devices,
@@ -88,6 +91,8 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
                     "Output node \(outputNode.id) not found in variable map"
                 )
             }
+
+            try executionBudget?.beginLinearSolve()
 
             // Phase 2: Build the linearized G matrix at the operating point
             var gMatrix = SparseMatrix(structure: plan.matrixStructure)
@@ -152,6 +157,7 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
 
             // Phase 5: Solve for output impedance
             // Inject unit current at the output node (input source is shorted: rhs[branch] = 0)
+            try executionBudget?.beginLinearSolve()
             var zoutRHS = [Double](repeating: 0, count: dim)
             zoutRHS[outputNodeIndex] = 1.0
 
@@ -165,6 +171,7 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
             }
 
             let outputImpedance = zoutSolution[outputNodeIndex]
+            try executionBudget?.admitSavedScalars(3)
 
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,

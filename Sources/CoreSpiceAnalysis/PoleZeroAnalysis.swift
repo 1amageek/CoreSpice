@@ -21,6 +21,7 @@ import CoreSpiceLAPACK
 ///    `G`, `C`, the input vector, and the output vector.
 /// 5. **DC gain**: Solves the linearized DC system with the unit excitation.
 public struct PoleZeroAnalysis: Analysis, Sendable {
+    package var executionBudget: TransientExecutionBudget?
 
     public typealias Result = PoleZeroResult
 
@@ -82,7 +83,9 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
 
         do {
             // Phase 1: DC operating point
-            let dcAnalysis = DCAnalysis(config: dcConfig)
+            var dcAnalysis = DCAnalysis(config: dcConfig)
+            dcAnalysis.executionBudget = executionBudget
+            try executionBudget?.admitSavedPoint(accepted: false)
             let dcResult = try await dcAnalysis.run(
                 plan: plan,
                 devices: devices,
@@ -98,6 +101,8 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
 
             let inputVector = try makeInputVector(plan: plan, dimension: dim)
             let outputVector = try makeOutputVector(plan: plan, dimension: dim)
+
+            try executionBudget?.beginLinearSolve()
 
             // Phase 2: Extract G and C dense matrices from AC stamps at ω = 1
             let (gDense, cDense) = try extractGCMatrices(
@@ -123,6 +128,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
             )))
 
             // Phase 4: Poles — solve G·v = λ·C·v, then s = −λ
+            try executionBudget?.beginLinearSolve()
             let gColMajor = toColumnMajor(gDense, dim: dim)
             let cColMajor = toColumnMajor(cDense, dim: dim)
 
@@ -132,6 +138,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 dimension: dim
             )
 
+            try executionBudget?.admitSavedScalars(TransientExecutionBudget.multiply(poleResult.eigenvalues.count, 2, "pole complex scalars"))
             let poles = poleResult.eigenvalues.map { lambda in
                 ComplexPair(real: -lambda.real, imag: -lambda.imag)
             }
@@ -142,6 +149,8 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 message: "Computing zeros"
             )))
 
+            let augmentedDimension = try TransientExecutionBudget.add(dim, 1, "zero pencil dimension")
+            try executionBudget?.beginLinearSolve(dimension: augmentedDimension)
             let zeroPencil = makeZeroPencil(
                 gDense: gDense,
                 cDense: cDense,
@@ -154,6 +163,8 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 matrixB: zeroPencil.b,
                 dimension: dim + 1
             )
+            try executionBudget?.admitSavedScalars(TransientExecutionBudget.add(
+                TransientExecutionBudget.multiply(zeroResult.eigenvalues.count, 2, "zero complex scalars"), 1, "DC gain scalar"))
             let zeros = zeroResult.eigenvalues.map { lambda in
                 ComplexPair(real: -lambda.real, imag: -lambda.imag)
             }

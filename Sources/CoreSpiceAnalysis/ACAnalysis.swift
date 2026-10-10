@@ -15,6 +15,7 @@ import Foundation
 /// Each device stamps its linearised AC model (conductance + susceptance)
 /// at the DC operating point through ``BoundDevice/stampAC(into:state:omega:)``.
 public struct ACAnalysis: Analysis, Sendable {
+    package var executionBudget: TransientExecutionBudget?
 
     public typealias Result = ACResult
 
@@ -56,7 +57,9 @@ public struct ACAnalysis: Analysis, Sendable {
 
         do {
             // Phase 1: DC operating point (includes optical steady state)
-            let dcAnalysis = DCAnalysis(config: dcConfig)
+            var dcAnalysis = DCAnalysis(config: dcConfig)
+            dcAnalysis.executionBudget = executionBudget
+            try executionBudget?.admitSavedPoint(accepted: false)
             let dcResult = try await dcAnalysis.run(
                 plan: plan,
                 devices: devices,
@@ -72,6 +75,9 @@ public struct ACAnalysis: Analysis, Sendable {
 
             // Phase 2: AC frequency sweep
             var complexSolver = ComplexSparseLUSolver()
+            try executionBudget?.admitSavedScalars(TransientExecutionBudget.multiply(frequencies.count,
+                TransientExecutionBudget.add(TransientExecutionBudget.multiply(dim, 2, "AC complex output scalars"),
+                    1, "AC frequency scalar"), "AC saved sweep scalars"))
             var solutions: [[ComplexPair]] = []
             solutions.reserveCapacity(frequencies.count)
 
@@ -93,6 +99,8 @@ public struct ACAnalysis: Analysis, Sendable {
                     value: freq,
                     parameterName: "frequency"
                 )))
+
+                try executionBudget?.beginLinearSolve(complex: true)
 
                 // Clear the complex system
                 matrix.clear()

@@ -9,7 +9,7 @@ struct MOSSelectionTests {
         _ = try f.bin("n.1")
         let exact = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos,
             level: nil, version: nil, coefficients: [], source: MOSSelectionFixture.source("exact"))
-        let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+        let snapshot = try f.finish(), graph = try f.graph(snapshot)
         var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
         let result = try resolveMOS(f.request([]), from: snapshot, schemas: StandardMOSModelSchemas(), session: &session)
         #expect(result.declaration == exact && result.release == .level1)
@@ -25,7 +25,7 @@ struct MOSSelectionTests {
         let child = try f.builder.addScope(parent: f.root)
         _ = try f.bin("n.1", scope: child)
         let dimensions = try [f.binding("l", 8e-6), f.binding("w", 8e-6)]
-        let snapshot = try f.builder.finish()
+        let snapshot = try f.finish()
         let graph = try f.graph(snapshot, invocations: [
             try MOSScopeInvocation(id: 1, scope: f.root, callerInvocationID: nil, actuals: [], limits: f.limits),
             try MOSScopeInvocation(id: 2, scope: child, callerInvocationID: 1, actuals: [], limits: f.limits)
@@ -43,7 +43,7 @@ struct MOSSelectionTests {
         _ = try f.bin("n.2", bounds: [2e-6, 3e-6, 1e-6, 2e-6])
         let inside = try [f.binding("l", 1.5e-6), f.binding("w", 1e-6)]
         let touching = try [f.binding("l", 2e-6), f.binding("w", 1e-6)]
-        let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+        let snapshot = try f.finish(), graph = try f.graph(snapshot)
         var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
         let result = try resolveMOS(f.request(inside), from: snapshot, schemas: StandardMOSModelSchemas(), session: &session)
         #expect(result.declaration == first && result.candidates.count == 2)
@@ -65,7 +65,7 @@ struct MOSSelectionTests {
         _ = try f.bin("n.1", extras: [MOSExpressionBinding(symbol: vth, program: bad)])
         let second = try f.bin("n.2")
         let dimensions = try [f.binding("l", 1.5e-6), f.binding("w", 1.5e-6)]
-        let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+        let snapshot = try f.finish(), graph = try f.graph(snapshot)
         var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
         let result = try resolveMOS(f.request(dimensions, profile: .pinnedNgspiceNormalV1), from: snapshot,
             schemas: StandardMOSModelSchemas(), session: &session)
@@ -78,7 +78,7 @@ struct MOSSelectionTests {
         let good = try f.bin("n.1", bounds: [1e-6, 1e-6, 1e-6, 1e-6])
         _ = try f.bin("n.2", bounds: [nil, 2e-6, 1e-6, 2e-6])
         let dimensions = try [f.binding("l", 1e-6 + 0.5e-9), f.binding("w", 1e-6)]
-        let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+        let snapshot = try f.finish(), graph = try f.graph(snapshot)
         var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
         let result = try resolveMOS(f.request(dimensions, profile: .pinnedNgspiceNormalV1), from: snapshot,
             schemas: StandardMOSModelSchemas(), session: &session)
@@ -91,7 +91,7 @@ struct MOSSelectionTests {
         var f = try MOSSelectionFixture()
         _ = try f.bin("n.1"); _ = try f.bin("n.1", bounds: [4e-6, 5e-6, 4e-6, 5e-6])
         let dimensions = try [f.binding("l", 1e-6), f.binding("w", 1e-6)]
-        let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+        let snapshot = try f.finish(), graph = try f.graph(snapshot)
         let name = try #require(snapshot.symbol(named: "n.1"))
         var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
         #expect(throws: MOSResolutionFailure.duplicateModel(name)) {
@@ -103,7 +103,7 @@ struct MOSSelectionTests {
         let caller = try f.builder.addScope(parent: f.root), callee = try f.builder.addScope(parent: f.root)
         _ = try f.builder.addModel(name: "n", scope: caller, polarity: .nmos, level: 1,
             version: nil, coefficients: [], source: MOSSelectionFixture.source("caller"))
-        let snapshot = try f.builder.finish()
+        let snapshot = try f.finish()
         let graph = try f.graph(snapshot, invocations: [
             try MOSScopeInvocation(id: 1, scope: f.root, callerInvocationID: nil, actuals: [], limits: f.limits),
             try MOSScopeInvocation(id: 2, scope: caller, callerInvocationID: 1, actuals: [], limits: f.limits),
@@ -127,7 +127,7 @@ struct MOSSelectionTests {
         _ = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos, level: 1, version: nil,
             coefficients: [MOSExpressionBinding(symbol: kp, program: random), MOSExpressionBinding(symbol: vto, program: parameter)],
             source: MOSSelectionFixture.source("root"))
-        let snapshot = try f.builder.finish()
+        let snapshot = try f.finish()
         let graph = try f.graph(snapshot, invocations: [
             try MOSScopeInvocation(id: 1, scope: f.root, callerInvocationID: nil, actuals: [], limits: f.limits),
             try MOSScopeInvocation(id: 2, scope: child, callerInvocationID: 1,
@@ -155,7 +155,7 @@ struct MOSSelectionTests {
         let invalid = try f.builder.addProgram(.reference(missing))
         _ = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos, level: 1, version: nil,
             coefficients: [MOSExpressionBinding(symbol: kp, program: invalid)], source: MOSSelectionFixture.source("second"))
-        let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+        let snapshot = try f.finish(), graph = try f.graph(snapshot)
         var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
         let result = try resolveMOS(f.request([], profile: .pinnedNgspiceNormalV1), from: snapshot,
             schemas: StandardMOSModelSchemas(), session: &session)

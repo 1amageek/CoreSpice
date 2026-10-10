@@ -1,6 +1,7 @@
 import CircuiteFoundation
 import CircuiteFoundationCrypto
-import CoreSpice
+@testable import CoreSpice
+import CoreSpiceMOSContracts
 @testable import CoreSpiceIO
 import Foundation
 import Testing
@@ -42,7 +43,16 @@ struct PreparedNativeExecutionTests {
             provider: Provider(sources: extras), configuration: configuration, analysisIndex: index,
             supplyBindings: supply, operatingPolicy: policy,
             limits: .init(maximumElements: 512, maximumTransformBytes: 8 * 1024 * 1024,
-                maximumSweepPoints: 100, maximumPageByteCount: 64, numerical: numerical)), resources: resources)
+                maximumSweepPoints: 100, maximumPageByteCount: 64, numerical: numerical),
+            profile: .coreStrictV1, seed: 42, resolutionLimits: resolutionLimits()), resources: resources)
+    }
+    func resolutionLimits() throws -> MOSResolutionLimits {
+        try .init(maximumRetainedBytes: 8_000_000, maximumDiagnosticBytes: 4096,
+            maximumScopeDepth: 32, maximumSymbols: 256, maximumScopes: 32,
+            maximumInvocations: 64, maximumInvocationBindings: 512, maximumDeclarations: 128,
+            maximumPrograms: 256, maximumBindings: 256, maximumFunctions: 32, maximumFunctionDepth: 32,
+            maximumExpressionNodes: 256, maximumExpressionDepth: 128, maximumCandidates: 128,
+            maximumCacheEntries: 256, maximumEvaluationSteps: 1_000_000)
     }
     private func native(_ input: PreparedSPICESimulation) throws -> PreparedNativeSPICESimulation {
         try SPICENativeSimulation().prepare(input, limits: .init(maximumDeviceCount: 100,
@@ -172,10 +182,10 @@ struct PreparedNativeExecutionTests {
             _ = try await SPICENativeSimulation().execute(native(base),cancellation:cancellation)
         }
         await #expect(throws: SPICESimulationPreparationError.self) {
-            _ = try await input("unsupported\n.model n NMOS level=1\nM1 d g 0 0 n\n.op\n.end\n")
+            _ = try await input("unsupported\n.model n NMOS level=999\nM1 d g 0 0 n l=1u w=10u\n.op\n.end\n")
         }
         await #expect(throws: SPICESimulationPreparationError.self) {
-            _ = try await input("expression\nR1 out 0 {1+2}\n.op\n.end\n")
+            _ = try await input("expression\nR1 out 0 {missing+2}\n.op\n.end\n")
         }
     }
 }

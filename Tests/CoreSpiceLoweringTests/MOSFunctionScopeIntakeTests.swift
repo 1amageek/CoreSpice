@@ -1,4 +1,5 @@
 import Testing
+import CoreSpiceMOSContracts
 import CoreSpiceParserSPICE
 import CoreSpiceParsedIR
 import CoreSpiceIR
@@ -29,14 +30,14 @@ struct MOSFunctionScopeIntakeTests {
         Rglobal c 0 {resistance(3)}
         .end
         """).get()
-        let circuit = try NetlistLowering(configuration: .init(maxExpansionDepth: 2)).lower(parsed)
+        let circuit = try FrontendTestLowering(configuration: .init(maxExpansionDepth: 2)).lower(parsed)
         let values = Dictionary(uniqueKeysWithValues: circuit.instances.map { ($0.name, resistance($0)) })
         #expect(values["xlocal.rdefault"] == 201)
         #expect(values["xlocal.rbody"] == 202)
         #expect(values["xsibling.rdefault"] == 101)
         #expect(values["rglobal"] == 103)
         let restored = try await SPICEParser().parse(source: SPICESerializer().serialize(parsed)).get()
-        let roundTrip = try NetlistLowering(configuration: .init(maxExpansionDepth: 2)).lower(restored)
+        let roundTrip = try FrontendTestLowering(configuration: .init(maxExpansionDepth: 2)).lower(restored)
         #expect(Dictionary(uniqueKeysWithValues: roundTrip.instances.map { ($0.name, resistance($0)) }) == values)
     }
 
@@ -53,25 +54,17 @@ struct MOSFunctionScopeIntakeTests {
         Rafter a 0 {resistance(3)}
         .end
         """).get()
-        let context = LoweringContext(maxDepth: 2)
-        context.setParameter("value", value: 77)
-        for subcircuit in parsed.subcircuits { context.registerSubcircuit(subcircuit) }
-        for control in parsed.controls {
-            if case .function(let name, let parameters, let body, _) = control {
-                context.registerFunction(name: name, parameters: parameters, body: body)
-            }
-        }
-        let expander = SubcircuitExpander(context: context, configuration: .default, randomUniform: { 0.5 })
-        var builder = Netlist()
-        #expect(throws: LoweringError.self) {
-            try expander.expandComponent(parsed.components[0], into: &builder, prefix: "")
-        }
-        #expect(context.depth == 0)
-        #expect(context.parameter("value") == 77)
-        #expect(context.parameter("leaked") == nil)
-        #expect(try ExpressionEvaluator(context: context).evaluate(.functionCall(name: "resistance", arguments: [.literal(3)])) == 103)
-        try expander.expandComponent(parsed.components[1], into: &builder, prefix: "")
-        let circuit = try builder.build()
+        let limits = try FrontendTestLowering.limits(maxDepth: 2)
+        let compiled = try NetlistLowering.compile(parsed, limits: limits)
+        var session = try NetlistLowering.beginEvaluation(compiled, profile: .pinnedNgspiceNormalV1, limits: limits, seed: 7)
+        do { try session.lower(); Issue.record("Missing local binding must fail") }
+        catch is MOSResolutionFailure { }
+        #expect(session.failureDiagnostic != nil)
+        do { try session.lower(); Issue.record("Failed session must remain terminal") }
+        catch is MOSResolutionFailure { }
+        let following = ParsedNetlist(components: [parsed.components[1]], controls: parsed.controls,
+            functionDefinitions: parsed.functionDefinitions)
+        let circuit = try FrontendTestLowering().lower(following)
         #expect(circuit.instances.map(\.name) == ["rafter"])
         #expect(resistance(circuit.instances[0]) == 103)
     }

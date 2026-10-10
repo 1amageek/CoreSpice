@@ -10,29 +10,36 @@ execution-intake boundary for the explicitly supported Native CPU device domain.
 
 ## Responsibilities and Boundaries
 
-`SPICEAnalysisOptions` translates parsed deck options into analysis configuration.
-The caller owns resource ceilings. IO never selects an implicit unbounded or
-machine-capacity execution policy. Numerical admission belongs to Analysis.
+`SPICEAnalysisOptions` translates checked compiled scalar slots into analysis
+configuration. Every evaluation entry requires an explicit MOSInputProfile, UInt64
+seed and MOSResolutionLimits. The caller owns resource ceilings. IO never selects
+an implicit profile, RNG seed or unbounded execution policy. Numerical admission
+belongs to Analysis; numerical MOS preparation belongs to native composition.
 
 ## Related Designs
 
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [CoreSpice](../../DESIGN.md) | parent | Public package composition | Developer/CLI input | Missing policy is a typed failure |
-| [InitialConditions](InitialConditions/DESIGN.md) | child | Protocol-first ordinary/bounded node-voltage resolution | Shared CLI/host assignment intake | Bounded expressions are limited to literals |
+| [InitialConditions](InitialConditions/DESIGN.md) | child | Protocol-first same-session node-voltage resolution | Shared CLI/host assignment intake | Static expressions use the sole frontend session |
 | [SimulationPreparation](SimulationPreparation/DESIGN.md) | child | Actual source graph, effective intent and IC/nodeset preparation | Shared native CLI/host intake | Legacy exact loading is not whole-invocation capacity proof |
 | [Analysis](../CoreSpiceAnalysis/DESIGN.md) | depends on | TransientExecutionLimits and config | Whole-run admission | DC and recovery share the same budget |
 | [ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md) | depends on | Parsed controls and PWL | Source intent preservation | Malformed sources cannot execute as DC |
-| [Lowering](../CoreSpiceLowering/DESIGN.md) | depends on | Canonical source vectors | Device admission boundary | Preserve numeric pair order |
+| [Lowering](../CoreSpiceLowering/DESIGN.md) | depends on | CompiledNetlist, exclusive session and LoweredCircuit | Sole scalar/MOS resolution authority | Preserve exact snapshot/graph and numeric pair order |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  Deck[SPICE options or typed caller policy] --> IO[SPICEAnalysisOptions]
-  IO --> Config[TransientConfig with explicit limits]
-  Config --> Run[Budgeted CPU execution]
-  Run --> Result[Exact waveform and execution statistics]
+  Deck[Parsed deck] --> Compile[CompiledNetlist]
+  Policy[Explicit profile / seed / limits] --> Session[Exclusive Lowering session]
+  Compile --> Session
+  Session --> Options[Checked options and TEMP]
+  Options --> Lower[Emit canonical circuit]
+  Lower --> Static[Analysis / IC / nodeset scalar slots]
+  Static --> Finish[Consume session]
+  Finish --> Result[LoweredCircuit: circuit / snapshot / graph / provenance]
+  Result --> Native[Native numerical preparation and execution]
 ```
 
 ## Contracts and Invariants
@@ -75,13 +82,41 @@ Coverage lookup accepts repeated declarations from reused sources and selects
 the last declaration in the same lexical scope, matching native lowering.
 Repeated includes cannot trap while constructing the coverage lookup.
 
-Document geometry scale is resolved by `SPICEAnalysisOptions` and passed as the
-explicit `NetlistLowering.Configuration.geometryScale` value. Direct public
-parse-and-lower delegates source option intake to lowering when that explicit
-value is absent. Both paths use a finite positive dimensionless value. Current
-static resistor consumers scale only supplied instance `l/w`; model geometry
-defaults retain SI units and instance resistance `scale` remains independent.
-The incomplete compact-device consumer refuses nonidentity document scale.
+`SPICEAnalysisOptions.resolve(from:session:)` borrows a CompiledNetlist and the
+same noncopyable NetlistLoweringSession. Entry verifies compiled storage identity,
+including text-only decks. Numeric option and TEMP controls consume their exact
+source-ordinal scalar slots in order. Unknown/text controls remain raw payload;
+method interpretation does not spuriously draw random values. Semantic validation
+failure poisons the session before returning the original typed option error.
+The legacy retry parameter resolver and second ExpressionEvaluator are removed
+from this execution path.
+
+Document geometry scale is evaluated once and passed to session.lower. Model
+bounds, coefficients and BINUNIT retain the MOSResolution scaling contract. IO
+cannot infer scale from units or normalized dimensions. Non-MOS geometry roles
+retain their existing device-owned meaning.
+
+`SPICEIO.lower` and `parseAndLower` require profile, seed and limits and return
+LoweredCircuit. They compile, begin one run, resolve options, emit the circuit and
+consume finish. Callers needing static analysis/IC/nodeset values use the public
+compiled/session primitives and finish after those consumers. No compatibility
+wrapper discards the required evaluation policy. Parsed source backing remains
+retained alongside the exact snapshot, invocation graph and final provenance.
+
+`SPICEAnalysisCommands.resolve(_:at:from:session:)` resolves exactly one selected
+ParsedAnalysisCommand from its compiled source index. It verifies source command
+and compiled storage identity before scalar access. Numeric fields become .numeric
+while output names, source IDs, integer point counts, flags and command shape stay
+intact. Nested Monte Carlo analyses use their existing analysis. slot prefixes;
+AC sensitivity uses acSpec. fields. Unselected commands are not evaluated. The
+same session memo applies to repeated requests, and failure poisons the run. Analysis
+selection, range validation and numerical dispatch remain caller-owned. Recursive
+command traversal is bounded by the explicit session expression-depth limit.
+
+Option source coverage classifies retained syntax without evaluation or RNG.
+Recognized syntax is inventory evidence; actual applied values come only from the
+single invocation's SPICEAnalysisOptions. Loaders cannot fabricate effective option
+success by probing a separate evaluator.
 
 Typed callers supply `executionLimits` directly. CLI/deck callers supply all seven
 positive integer options: `tranmaxaccepted`, `tranmaxattempts`, `tranmaxiterations`,
@@ -108,11 +143,11 @@ Public IO tests distinguish actual, circuit nominal and model nominal authority.
 ### Required PDK geometry composition
 
 IO resolves document `scale` and supplies it once to
-[Lowering](../CoreSpiceLowering/DESIGN.md); static resistor instance geometry
-uses that scale. Compact MOS geometry and scoped bin selection remain incomplete,
-and nonidentity scale is explicitly refused on that path. Model names,
-`BINUNIT` and display units are not alternative scaling authorities. Unsupported
-required options cannot produce qualified execution with altered geometry.
+[Lowering](../CoreSpiceLowering/Frontend/DESIGN.md); static resistor instance geometry
+and resolved MOS geometry consume their respective scaling contracts. Scoped MOS
+selection and normalization belong to MOSResolution. Model names, BINUNIT and
+display units cannot replace the supplied scale. Numerical preparation may refuse
+an inspectable resolved release without replacing its selected source or values.
 
 Included declarations and executed models are separate coverage facts. The
 selected Sky130 library includes R/C definitions; the examined unchanged MOS
@@ -135,22 +170,31 @@ verifies voltage/current PWL roundtrip and actual execution, invalid source reje
 complete policy resolution and missing policy. CLI fixtures explicitly own their
 finite validation policy; changed defaults require direct API/CLI caller migration.
 
+[SPICEFrontendSessionTests](../../Tests/CoreSpiceIOTests/SPICEFrontendSessionTests.swift)
+verifies one scalar/RNG authority across options, TEMP, device parameters, selected
+static analysis and node assignments; exact compiled identity and poisoned failures;
+zero-evaluation syntax inventory; and inspectable resolved MOS retention. Selected
+command shape preservation includes all parsed analysis cases and nested Monte
+Carlo, while an unused failing command must remain unevaluated. Component-owned
+resource and node-binding evidence is indexed in the corresponding child designs.
+
+
 ## BSIM4 preparation policy composition
 
 SPICEAnalysisOptions resolves explicit `.options bsim4stressiterations=<positive UInt32>`
-once into [BSIM4PreparationPolicy](../CoreSpiceDevices/BSIM4/DESIGN.md). Missing
+once through its compiled scalar slot into [BSIM4PreparationPolicy](../CoreSpiceDevices/BSIM4/DESIGN.md). Missing
 policy remains nil and Level54 preparation fails typed. Malformed/zero/overflow
-values fail; no fallback selects a budget. The same options value supplies both
-loweringConfiguration and deviceRegistry, including every CLI rebind. Runtime
+values fail; no fallback selects a budget. The same options value supplies explicit native preparation conditions, including
+every CLI rebind. The standard registry is descriptor metadata only; it owns no MOS
+preparation policy. Lowering no longer performs cold numerical preparation. Runtime
 policy and kernel qualification diagnostics belong to execution provenance,
 not physical model IR. Other model families do not require this policy.
 
 ## BSIM4 Noise Preparation Intent
 
 SPICEAnalysisOptions resolves parsed .noise intent into one explicit
-bsim4NoisePreparationRequested choice. The same options owner supplies lowering
-Configuration and deviceRegistry, including CLI source overrides/Monte Carlo/
-sensitivity rebinds. The choice is execution provenance, not model IR. Direct
+bsim4NoisePreparationRequested choice. The same options owner supplies explicit native preparation conditions, including
+CLI source overrides/Monte Carlo/sensitivity rebinds. The registry is metadata only. The choice is execution provenance, not model IR. Direct
 API callers may request noise capability before lowering/binding; late requests
 on electrical-only topology fail explicitly.
 
@@ -358,7 +402,10 @@ directive, option, measurement and preprocessing items. Model/component items ar
 diagnostics. Selected numerical admission is owned by the actual configured
 [Lowering](../CoreSpiceLowering/DESIGN.md) and descriptor binding; no second closure
 walk, speculative pre-lowering or duplicate evaluation occurs in IO. Root controls
-are the parser's root collections even when encountered inside a subcircuit.
+are projected from both root and recursively retained subcircuit controls. A body
+location cannot hide unsupported execution directives such as alter from global
+intake admission. This syntax-only projection does not apply scoped options or
+evaluate unused body expressions.
 Invalid global expressions retain existing lowering failures; unused body-local
 expressions are not evaluated.
 

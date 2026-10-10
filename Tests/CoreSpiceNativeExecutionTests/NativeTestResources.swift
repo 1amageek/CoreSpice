@@ -15,6 +15,7 @@ internal final class SourceBoundaryTestResources: SPICESourceResourceAccounting 
         var totalWork: UInt64 = 0
         var work: [SPICESourceWorkKind: UInt64] = [:]
         var cancelled = false
+        var checkFailure: SourceBoundaryTestError?
     }
     private let state = Mutex(State())
     private let liveLimit: UInt64
@@ -29,8 +30,13 @@ internal final class SourceBoundaryTestResources: SPICESourceResourceAccounting 
     }
 
     func checkCancellation() throws {
-        if Task.isCancelled || state.withLock({ $0.cancelled }) { throw SourceBoundaryTestError.cancelled }
+        if Task.isCancelled { throw CancellationError() }
+        try state.withLock {
+            if $0.cancelled { throw CancellationError() }
+            if let failure = $0.checkFailure { throw failure }
+        }
     }
+    func setCheckFailure(_ failure: SourceBoundaryTestError) { state.withLock { $0.checkFailure = failure } }
     func setCancelled(_ value: Bool) { state.withLock { $0.cancelled = value } }
     func used(_ kind: SPICESourceStorageKind) -> UInt64 { state.withLock { kind == .liveOwnedBytes ? $0.live : $0.temporary } }
     var hashedBytes: UInt64 { state.withLock { $0.hashed } }

@@ -13,7 +13,11 @@ the task executor and does not imply whole-process qualification.
 
 `MOSL3Channel` owns the common polarity-normalized channel law. NMOS/PMOS bound
 devices own physical-terminal orientation, matrix/RHS stamps, Meyer capacitances,
-and transient history. Descriptors own parameter-domain admission. BSIM3/4 and
+and transient history. Non-MOS descriptors own parameter-domain admission. MOS
+descriptors retain registry metadata and refuse raw binding with
+MOSBindingFailure.missingPreparedReceipt. [MOSPreparation](../MOSPreparation/DESIGN.md)
+owns checked resolved-input admission and consuming binding for every MOS release.
+BSIM3/4 and
 foundry temperature/noise fidelity are not provided by this Level 3 model.
 
 ## Related Designs
@@ -29,7 +33,10 @@ foundry temperature/noise fidelity are not provided by this Level 3 model.
 
 ```mermaid
 flowchart LR
-    Registry[Standard registry] --> Bind[NMOSL3 / PMOSL3 descriptor]
+    Registry[Standard registry] --> Raw[MOS descriptor metadata]
+    Raw --> Refuse[Raw bind: missingPreparedReceipt]
+    Resolved[Checked resolved MOS] --> Prepare[MOSPreparation owner]
+    Prepare --> Bind[Consuming bind]
     Bind --> Bound[Physical terminal mapping]
     Bound --> Channel[MOSL3Channel canonical biases]
     Channel --> DC[Current and analytic Jacobian]
@@ -59,7 +66,9 @@ flowchart LR
 
 ## Runtime Flows
 
-Binding validates the model domain. Each stamp resolves terminal biases, evaluates
+Checked MOS preparation validates the model domain; consuming binding validates
+identity, topology and conditions. Raw descriptor binding always fails before
+parameter extraction or executable-owner allocation. Each stamp resolves terminal biases, evaluates
 the channel, maps current/derivatives back to physical terminals, and adds
 capacitance companions where applicable. Analysis failure remains typed when
 finite admitted parameters and extreme finite biases overflow arithmetic.
@@ -80,13 +89,15 @@ zero current. The model is native pure CPU logic, without a GPU backend change.
 ## Verification and Change Impact
 
 The [MOSL3ConsistencyTests](../../../Tests/CoreSpiceDevicesTests/MOSL3ConsistencyTests.swift)
-suite uses the production registry and both coordinate/CSR stamps. It checks
+suite uses checked MOS preparation and both coordinate/CSR stamps. It checks
 finite-difference derivatives in cutoff/linear/saturation/reverse/body-clamp
 conditions, current KCL and polarity symmetry, AC capacitances, accepted transient
 history, actual DC/AC/transient analyses, and binding/numerical failure.
 Revalidate both bound polarities, parent device contracts, and analysis consumers
 when the channel law changes. Unsupported BSIM model selection stays blocked.
 
+The following historical channel-law evidence preceded the checked preparation
+caller migration; S4 revalidates the migrated fixtures and descriptor refusal.
 Verified on Swift 6.4 RELEASE, arm64 macOS 27, using the native CPU SparseLU
 analysis path: all 9 L3 methods and 12 directly related parameter/capacitance/history
 methods completed successfully (21 selected methods, 21 matching `testEnded`

@@ -1,4 +1,5 @@
 import Testing
+@testable import CoreSpice
 import Foundation
 @testable import CoreSpiceAnalysis
 @testable import CoreSpiceCompile
@@ -87,6 +88,31 @@ struct MonteCarloIntegrationTests {
         for dcResult in result.results {
             let v = try dcResult.voltage(at: anode)
             #expect(v > 0.3 && v < 0.9, "Diode Vf should be in range, got \(v)")
+        }
+    }
+
+    @Test("MOS Monte Carlo requires fresh MOS resolution")
+    func mosMonteCarloRequiresFreshResolution() async throws {
+        let (netlist, _) = try CircuitFactory.pmosCommonSource(
+            vdd: 5.0, rd: 1000, vgate: 3.0,
+            modelParameters: ["vto": -0.7, "kp": 50e-6],
+            instanceParameters: ["w": 20e-6, "l": 1e-6]
+        )
+        // Generic Monte Carlo has no consuming native operation; test its typed refusal internally.
+        let circuit = try AnalysisMOSFixture.prepare(netlist)
+        let (record, devices) = circuit.takeState()
+        defer { withExtendedLifetime(record) {} }
+        let plan = record.plan
+        let analysis = MonteCarloAnalysis<DCAnalysis>(iterations: 2,
+            variations: [ParameterVariation(deviceName: "RD", parameterName: "r",
+                nominalValue: 1000, distribution: .gaussian(sigma: 100))],
+            analysisFactory: { DCAnalysis() }, seed: 42)
+        do {
+            _ = try await analysis.run(plan: plan, devices: devices, solver: SparseLUSolver(),
+                observer: nil, cancellation: CancellationToken())
+            Issue.record("MOS Monte Carlo requires a fresh resolver-backed perturbation")
+        } catch AnalysisError.requiresFreshMOSResolution(let instance) {
+            #expect(instance == "M1")
         }
     }
 

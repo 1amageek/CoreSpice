@@ -3,6 +3,7 @@ import CoreSpiceParsedIR
 import CoreSpiceParserSPICE
 import CoreSpiceLowering
 import Testing
+import CoreSpiceMOSContracts
 
 @Suite("Charge capacitor selected lowering", .timeLimit(.minutes(1)))
 struct ChargeCapacitorLoweringTests {
@@ -18,20 +19,20 @@ struct ChargeCapacitorLoweringTests {
         .end
         """
         let parsed = try await SPICEParser().parse(source: source).get()
-        let ir = try NetlistLowering().lower(parsed)
+        let ir = try FrontendTestLowering().lower(parsed)
         #expect(Set(ir.instances.map(\.name)) == Set(["v1", "r1"]))
         let selected = try await SPICEParser().parse(source: (source + "\n").replacingOccurrences(of: ".end\n", with: "X1 out varactor\n.end\n")).get()
         // Avoid the unrelated local-parameter failure to observe the charge admission owner.
         let charge = try await SPICEParser().parse(source: "charge\nCq out 0 q={unresolved*v(out)}\n.end\n").get()
-        for configuration in [NetlistLowering.Configuration.default,
-                              .init(expandModels: false, evaluateExpressions: false)] {
-            do { _ = try NetlistLowering(configuration: configuration).lower(charge); Issue.record("Charge was executed as capacitance") }
+        for configuration in [FrontendTestLowering.Configuration.default,
+                              .init(expandModels: false)] {
+            do { _ = try FrontendTestLowering(configuration: configuration).lower(charge); Issue.record("Charge was executed as capacitance") }
             catch let error as LoweringError {
                 guard case .invalidComponent(_, let reason) = error else { throw error }
                 #expect(reason == "Charge-based capacitor execution is not implemented")
             }
         }
-        #expect(throws: LoweringError.self) { _ = try NetlistLowering().lower(selected) }
+        #expect(throws: MOSResolutionFailure.self) { _ = try FrontendTestLowering().lower(selected) }
     }
 
     @Test func manuallyParsedMixedRolesCannotBypassChargeAdmission() throws {
@@ -40,7 +41,7 @@ struct ChargeCapacitorLoweringTests {
             parameters["q"] = .expression(.identifier("unresolved"))
             let component = ParsedComponent(name: "cq", type: .capacitor, nodes: ["out", "0"],
                 modelName: "missing_model", passiveModelCandidate: "missing_candidate", parameters: parameters)
-            do { _ = try NetlistLowering().lower(ParsedNetlist(components: [component])); Issue.record("Mixed charge roles bypassed admission") }
+            do { _ = try FrontendTestLowering().lower(ParsedNetlist(components: [component])); Issue.record("Mixed charge roles bypassed admission") }
             catch let error as LoweringError {
                 guard case .invalidComponent(_, let reason) = error else { throw error }
                 #expect(reason == "Charge-based capacitor execution is not implemented")

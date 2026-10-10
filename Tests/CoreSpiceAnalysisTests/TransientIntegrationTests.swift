@@ -1,4 +1,5 @@
 import Testing
+import CoreSpice
 import Foundation
 @testable import CoreSpiceAnalysis
 @testable import CoreSpiceCompile
@@ -508,9 +509,9 @@ struct TransientIntegrationTests {
                                 parameters: ["v": .real(5.0)])
         try netlist.addInstance(name: "RD", typeName: "resistor", nodes: ["vdd", "drain"],
                                 parameters: ["r": .real(1000)])
-        try netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "in", "0", "0"],
-                                parameters: ["vto": .real(0.7), "kp": .real(110e-6),
-                                             "w": .real(10e-6), "l": .real(1e-6)])
+        try AnalysisMOSFixture.add(to: &netlist, name: "M1", polarity: .nmos,
+            nodes: ["drain", "in", "0", "0"], model: ["vto": 0.7, "kp": 110e-6],
+            instance: ["w": 10e-6, "l": 1e-6])
 
         let config = TransientConfig(
             stopTime: 100e-6, executionLimits: .validationFixture,
@@ -829,16 +830,14 @@ struct TransientIntegrationTests {
                                 ])
 
         // PMOS: drain=out, gate=in, source=vdd, bulk=vdd
-        try netlist.addInstance(name: "MP1", typeName: "pmos_l1",
-                                nodes: ["out", "in", "vdd", "vdd"],
-                                parameters: ["w": .real(20e-6), "l": .real(1e-6),
-                                             "vto": .real(-0.7), "kp": .real(5e-5)])
+        try AnalysisMOSFixture.add(to: &netlist, name: "MP1", polarity: .pmos,
+            nodes: ["out", "in", "vdd", "vdd"], model: ["vto": -0.7, "kp": 5e-5],
+            instance: ["w": 20e-6, "l": 1e-6])
 
         // NMOS: drain=out, gate=in, source=0, bulk=0
-        try netlist.addInstance(name: "MN1", typeName: "nmos_l1",
-                                nodes: ["out", "in", "0", "0"],
-                                parameters: ["w": .real(10e-6), "l": .real(1e-6),
-                                             "vto": .real(0.7), "kp": .real(1.1e-4)])
+        try AnalysisMOSFixture.add(to: &netlist, name: "MN1", polarity: .nmos,
+            nodes: ["out", "in", "0", "0"], model: ["vto": 0.7, "kp": 1.1e-4],
+            instance: ["w": 10e-6, "l": 1e-6])
 
         // Load capacitor
         try netlist.addInstance(name: "C1", typeName: "capacitor",
@@ -851,7 +850,8 @@ struct TransientIntegrationTests {
             lteTolerance: 0.5
         )
 
-        let (plan, devices) = try CircuitFactory.compile(netlist)
+        let circuit = try AnalysisMOSFixture.prepare(netlist, numericalLimits: try config.requiredExecutionLimits())
+        let plan = circuit.plan
         let analysis = TransientAnalysis(
             config: config,
             convergenceConfig: CircuitFactory.nonlinearConfig
@@ -866,19 +866,16 @@ struct TransientIntegrationTests {
         }
 
         // Run DC analysis first to verify operating point
-        let dcAnalysis = DCAnalysis(config: CircuitFactory.nonlinearConfig)
-        let dcResult = try await dcAnalysis.run(
-            plan: plan, devices: devices, solver: solver,
-            observer: nil, cancellation: token
-        )
+        let dcResult = try await CircuitFactory.runDC(netlist, config: CircuitFactory.nonlinearConfig)
         print("=== DC OP ===")
         print("  solution: \(dcResult.variables.map { String(format: "%.6f", $0) })")
 
         // Now run transient
-        let result = try await analysis.run(
-            plan: plan, devices: devices, solver: solver,
+        let run = try await analysis.run(
+            circuit: circuit, solver: solver,
             observer: nil, cancellation: token
         )
+        let result = run.result
 
         // Print first 20 time points
         print("=== Waveform ===")
@@ -927,13 +924,9 @@ struct TransientIntegrationTests {
                                     ])
 
             // NMOS with specified capacitance
-            try netlist.addInstance(name: "M1", typeName: "nmos_l1",
-                                    nodes: ["out", "in", "0", "0"],
-                                    parameters: [
-                                        "w": .real(10e-6), "l": .real(1e-6),
-                                        "vto": .real(0.7), "kp": .real(110e-6),
-                                        "cgso": .real(cgso), "cgdo": .real(cgdo)
-                                    ])
+            try AnalysisMOSFixture.add(to: &netlist, name: "M1", polarity: .nmos,
+                nodes: ["out", "in", "0", "0"], model: ["vto": 0.7, "kp": 110e-6, "cgso": cgso, "cgdo": cgdo],
+                instance: ["w": 10e-6, "l": 1e-6])
 
             // Load resistor (pull-up)
             try netlist.addInstance(name: "RD", typeName: "resistor",

@@ -16,6 +16,7 @@ import CoreSpiceEvent
 ///
 /// The analysis performs N+1 DC solves: one baseline plus one per parameter.
 public struct SensitivityAnalysis: Analysis, Sendable {
+    package var executionBudget: TransientExecutionBudget?
 
     public typealias Result = SensitivityResult
 
@@ -75,7 +76,9 @@ public struct SensitivityAnalysis: Analysis, Sendable {
                 minimumDelta: minimumPerturbation
             )
             // Phase 1: Baseline DC operating point
-            let dcAnalysis = DCAnalysis(config: dcConfig)
+            var dcAnalysis = DCAnalysis(config: dcConfig)
+            dcAnalysis.executionBudget = executionBudget
+            try executionBudget?.admitSavedPoint(accepted: false)
             let baselineResult = try await dcAnalysis.run(
                 plan: plan,
                 devices: devices,
@@ -100,6 +103,8 @@ public struct SensitivityAnalysis: Analysis, Sendable {
                     throw AnalysisError.cancelled
                 }
 
+                try executionBudget?.chargeWork(TransientExecutionBudget.multiply(devices.count, 2, "sensitivity rebind work"))
+                try executionBudget?.admitSavedPoint(accepted: false)
                 let perturbedCircuit = try rebindDevices(
                     plan: plan,
                     perturbedInstanceIndex: perturbation.instanceIndex,
@@ -125,6 +130,8 @@ public struct SensitivityAnalysis: Analysis, Sendable {
                     normalizedSensitivity = nil
                 }
 
+                try executionBudget?.chargeWork(8)
+                try executionBudget?.admitSavedScalars(3)
                 sensitivities.append(SensitivityResult.ParameterSensitivity(
                     deviceName: perturbation.deviceName,
                     parameterName: perturbation.parameterName,

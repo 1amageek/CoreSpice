@@ -49,6 +49,29 @@ public struct SPICEAccountedCollection<Element: Sendable>: RandomAccessCollectio
         slots[index] = value
     }
 
+    /// Clears trailing elements without shrinking reserved capacity. Failed admission preserves every snapshot.
+    public mutating func truncate(to newEndIndex: Int,
+                                 resources: any SPICESourceResourceAccounting) throws {
+        guard newEndIndex >= 0 && newEndIndex <= endIndex else {
+            throw SPICESourceStorageError.indexOutOfBounds
+        }
+        try resources.checkCancellation()
+        guard newEndIndex != endIndex else { return }
+        var remaining = endIndex - newEndIndex
+        while remaining > 0 {
+            try resources.checkCancellation()
+            let chunk = Swift.min(256, remaining)
+            try resources.charge(.retainedElements, units: UInt64(chunk))
+            remaining -= chunk
+        }
+        if !isKnownUniquelyReferenced(&identity) {
+            try migrate(to: slots.count, resources: resources)
+        }
+        // All fallible admission precedes this commit; private unique slots cannot trigger an unreserved COW copy.
+        for index in newEndIndex..<endIndex { slots[index] = nil }
+        endIndex = newEndIndex
+    }
+
     public mutating func removeAll() {
         slots = []; reservation = nil; endIndex = 0; identity = Identity()
     }

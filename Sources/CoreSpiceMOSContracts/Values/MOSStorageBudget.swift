@@ -81,6 +81,21 @@ package struct MOSStorageBudget {
         try add(Self.capacityBytes(values.capacity, of: Element.self))
         release(oldBytes)
     }
+    /// Only for private backing held by a noncopyable construction owner until consuming publication.
+    /// Extracted or shared arrays must use the conservative COW reservation instead.
+    package mutating func reserveExclusive<Element>(_ values: inout [Element], required: Int) throws(MOSResolutionFailure) {
+        guard required > 0 else { return }
+        guard UInt64(required) <= maximumSteps - steps else { throw .limitExceeded(.evaluationSteps) }
+        try control?.checkCancellation()
+        guard required > values.capacity else { return }
+        let requestedBytes = try Self.growthBytes(values, required: required)
+        try checkAdding(requestedBytes)
+        let oldBytes = try Self.capacityBytes(values.capacity, of: Element.self)
+        let requested = Int(requestedBytes / UInt64(MemoryLayout<Element>.stride))
+        values.reserveCapacity(requested)
+        try add(Self.capacityBytes(values.capacity, of: Element.self))
+        release(oldBytes)
+    }
     package mutating func reserveSet<Element: Hashable>(_ values: inout Set<Element>, required: Int) throws(MOSResolutionFailure) {
         guard required > 0 else { return }
         guard UInt64(required) <= maximumSteps - steps else { throw .limitExceeded(.evaluationSteps) }

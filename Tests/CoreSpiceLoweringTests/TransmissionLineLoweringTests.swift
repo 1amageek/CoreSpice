@@ -14,7 +14,7 @@ struct TransmissionLineLoweringTests {
             parameters: ["z0": .numeric(50), "td": .numeric(1e-9)]
         )
 
-        let circuit = try NetlistLowering().lower(
+        let circuit = try FrontendTestLowering().lower(
             ParsedNetlist(components: [component])
         )
         let instance = try #require(circuit.instances.first)
@@ -41,7 +41,7 @@ struct TransmissionLineLoweringTests {
         )
 
         #expect(throws: LoweringError.self) {
-            _ = try NetlistLowering().lower(
+            _ = try FrontendTestLowering().lower(
                 ParsedNetlist(components: [component])
             )
         }

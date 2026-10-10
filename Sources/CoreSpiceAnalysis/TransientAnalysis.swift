@@ -22,6 +22,7 @@ import Foundation
 ///    g. Switch to Trapezoidal after the first accepted step.
 /// 4. Return all saved time points and solutions.
 public struct TransientAnalysis: Analysis, Sendable {
+    package var executionBudget: TransientExecutionBudget?
 
     public typealias Result = TransientResult
     private static let maximumReservedTimePoints = 1_000_000
@@ -72,8 +73,16 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
             let executionLimits = try config.requiredExecutionLimits()
-            let budget = try TransientExecutionBudget(limits: executionLimits, dimension: dim,
-                nonZeroCount: plan.matrixStructure.nonZeroCount, deviceCount: devices.count)
+            let budget: TransientExecutionBudget
+            if let executionBudget {
+                guard executionBudget.limits == executionLimits, executionBudget.dimension == dim else {
+                    throw AnalysisError.invalidConfiguration("Injected transient budget does not match the circuit and limits")
+                }
+                budget = executionBudget
+            } else {
+                budget = try TransientExecutionBudget(limits: executionLimits, dimension: dim,
+                    nonZeroCount: plan.matrixStructure.nonZeroCount, deviceCount: devices.count)
+            }
             try budget.admitSavedPoint(accepted: false)
             // Extract branch current indices for LTE normalization
             let branchCurrentIndices: Set<Int> = Set(

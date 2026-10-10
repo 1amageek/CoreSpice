@@ -122,8 +122,8 @@ struct DevicePhysicsTests {
             for vds in vdsValues {
                 let (netlist, drain) = try CircuitFactory.nmosCommonSource(
                     vdd: vds, rd: 1.0, vgs: vgs, // Very small Rd so Vds ≈ Vdd
-                    mosParams: ["vto": .real(vto), "kp": .real(kp),
-                                "w": .real(w), "l": .real(l), "lambda": .real(0.0)]
+                    modelParameters: ["vto": vto, "kp": kp, "lambda": 0.0],
+                    instanceParameters: ["w": w, "l": l]
                 )
                 let result = try await CircuitFactory.runDC(netlist, config: CircuitFactory.nonlinearConfig)
                 let vDrain = try result.voltage(at: drain)
@@ -168,8 +168,8 @@ struct DevicePhysicsTests {
         for vgate in vgateValues {
             let (netlist, drain) = try CircuitFactory.pmosCommonSource(
                 vdd: vdd, rd: rd, vgate: vgate,
-                mosParams: ["vto": .real(vtp), "kp": .real(kp),
-                            "w": .real(w), "l": .real(l), "lambda": .real(0.0)]
+                modelParameters: ["vto": vtp, "kp": kp, "lambda": 0.0],
+                instanceParameters: ["w": w, "l": l]
             )
             let result = try await CircuitFactory.runDC(netlist)
             let vDrain = try result.voltage(at: drain)
@@ -278,8 +278,8 @@ struct DevicePhysicsTests {
         for rd in rdValues {
             let (netlist, drain) = try CircuitFactory.pmosCommonSource(
                 vdd: vdd, rd: rd, vgate: vgate,
-                mosParams: ["vto": .real(vtp), "kp": .real(kp),
-                            "w": .real(w), "l": .real(l), "lambda": .real(lambda)]
+                modelParameters: ["vto": vtp, "kp": kp, "lambda": lambda],
+                instanceParameters: ["w": w, "l": l]
             )
             let result = try await CircuitFactory.runDC(netlist)
             let vDrain = try result.voltage(at: drain)

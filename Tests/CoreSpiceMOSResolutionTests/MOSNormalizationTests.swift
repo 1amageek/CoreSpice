@@ -10,7 +10,7 @@ struct MOSNormalizationTests {
         let model = try f.bin("n.1", bounds: [1e-6, 2e-6, 1e-6, 2e-6], extras: [binunit, oxide])
         let values = try [f.binding("l", 1.5), f.binding("w", 3), f.binding("nf", 2.5),
             f.binding("m", 3), f.binding("ad", 4), f.binding("pd", 5), f.binding("sa", 6)]
-        let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+        let snapshot = try f.finish(), graph = try f.graph(snapshot)
         var strict = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
         #expect(throws: MOSResolutionFailure.noMatchingBin(f.model)) {
             try resolveMOS(f.request(values, scale: 1e-6), from: snapshot, schemas: StandardMOSModelSchemas(), session: &strict)
@@ -38,7 +38,7 @@ struct MOSNormalizationTests {
             var f = try MOSSelectionFixture()
             _ = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos, level: level,
                 version: version, coefficients: [], source: MOSSelectionFixture.source("n"))
-            let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+            let snapshot = try f.finish(), graph = try f.graph(snapshot)
             var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
             let result = try resolveMOS(f.request([]), from: snapshot, schemas: StandardMOSModelSchemas(), session: &session)
             #expect(result.release == expected && result.releaseOrigin == origin)
@@ -51,7 +51,7 @@ struct MOSNormalizationTests {
             var f = try MOSSelectionFixture()
             _ = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos, level: level,
                 version: nil, coefficients: [], source: MOSSelectionFixture.source("n"))
-            let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+            let snapshot = try f.finish(), graph = try f.graph(snapshot)
             var strict = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
             #expect(throws: MOSResolutionFailure.schema(.unsupportedRelease(level: level, version: nil))) {
                 try resolveMOS(f.request([]), from: snapshot, schemas: StandardMOSModelSchemas(), session: &strict)
@@ -70,7 +70,7 @@ struct MOSNormalizationTests {
             _ = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos, level: 1,
                 version: nil, coefficients: [], source: MOSSelectionFixture.source("n"))
             let values = try [f.binding("l", dimension)]
-            let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+            let snapshot = try f.finish(), graph = try f.graph(snapshot)
             var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
             #expect(throws: MOSResolutionFailure.schema(.invalidValue(name: "scale"))) {
                 try resolveMOS(f.request(values, scale: scale), from: snapshot, schemas: StandardMOSModelSchemas(), session: &session)
@@ -86,7 +86,7 @@ struct MOSNormalizationTests {
         _ = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos, level: 54,
             version: "4.8.3", coefficients: [MOSExpressionBinding(symbol: canonical, program: random),
                 MOSExpressionBinding(symbol: alias, program: random)], source: MOSSelectionFixture.source("n"))
-        let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+        let snapshot = try f.finish(), graph = try f.graph(snapshot)
         var strict = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
         #expect(throws: MOSResolutionFailure.duplicateParameter(alias)) {
             try resolveMOS(f.request([]), from: snapshot, schemas: StandardMOSModelSchemas(), session: &strict)

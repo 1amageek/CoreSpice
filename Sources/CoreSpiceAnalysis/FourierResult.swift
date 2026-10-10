@@ -2,7 +2,8 @@
 ///
 /// Contains harmonic components and total harmonic distortion (THD)
 /// computed from the final period of a transient simulation.
-public struct FourierResult: Sendable {
+public struct FourierResult: Sendable, AnalysisResultStorageRetaining {
+    private let retainedStorage: (any Sendable)?
 
     /// A single harmonic component of the Fourier decomposition.
     public struct HarmonicComponent: Sendable {
@@ -58,5 +59,19 @@ public struct FourierResult: Sendable {
         self.harmonics = harmonics
         self.thd = thd
         self.transientResult = transientResult
+        self.retainedStorage = nil
+    }
+
+    /// Returns the same numerical values while retaining their native invocation capacity.
+    package func retainingStorage(_ owner: any Sendable) -> Self {
+        Self(retaining: self, owner: owner)
+    }
+
+    private init(retaining result: Self, owner: any Sendable) {
+        self.fundamentalFrequency = result.fundamentalFrequency
+        self.harmonics = result.harmonics
+        self.thd = result.thd
+        self.transientResult = result.transientResult.retainingStorage(owner)
+        self.retainedStorage = owner
     }
 }

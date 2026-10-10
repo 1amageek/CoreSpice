@@ -99,6 +99,16 @@ admitted arrays. `retainedBytes`, `peakOwnedBufferBytes` and `workUnits` expose 
 counted result, construction peak and work. Program construction within a builder
 uses its remaining budget and returns consumed work even on failure.
 
+The package-only owner-specific array reservation accepts only private backing whose
+exclusive construction owner cannot be copied and whose publication consumes that
+owner. Spare-capacity reuse performs cancellation/step checks without charging a
+nonexistent capacity copy. Actual growth admits the requested old-plus-new peak,
+checks returned capacity before use, and charges the new capacity. Generic array,
+Set and Dictionary reservations keep conservative COW admission; callers cannot
+use the exclusive path for shared or extracted nested backing. The declaration
+[builder](../../CoreSpiceMOSResolution/Declarations/DESIGN.md) owns the proof for its
+private program table.
+
 Composed checked-result construction borrows the evaluation session's work ledger.
 Every text byte and validation iteration consumes that same cumulative work and
 cancellation contract. Its local transitive payload metric does not re-add shared

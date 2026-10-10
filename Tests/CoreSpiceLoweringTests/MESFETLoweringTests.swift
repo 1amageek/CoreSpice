@@ -24,7 +24,7 @@ struct MESFETLoweringTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(
+        let circuit = try FrontendTestLowering().lower(
             ParsedNetlist(components: [component], models: [model])
         )
         let core = try #require(circuit.instances.first { $0.name == "Z1" })
@@ -52,7 +52,7 @@ struct MESFETLoweringTests {
         )
         let model = ParsedModel(name: "model", type: .pmf)
 
-        let circuit = try NetlistLowering().lower(
+        let circuit = try FrontendTestLowering().lower(
             ParsedNetlist(components: [component], models: [model])
         )
 
@@ -74,7 +74,7 @@ struct MESFETLoweringTests {
         )
 
         #expect(throws: LoweringError.self) {
-            _ = try NetlistLowering().lower(
+            _ = try FrontendTestLowering().lower(
                 ParsedNetlist(components: [component], models: [model])
             )
         }

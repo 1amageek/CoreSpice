@@ -28,7 +28,7 @@ struct BSIM4ProductionRecordTests {
             catch { Issue.record("Temporary deck cleanup failed: \(error)") }
         }
         let arguments = ["-b", url.path, "--json"]
-        var session = Session()
+        var session = try Session(policy: .developerV1())
         return try await CLI(arguments: arguments).executeBatch(options: CoreSpiceBatchOptions(arguments: arguments), session: &session)
     }
     @Test func actualBatchPreservesEffectivePolicyAndModeQualification() async throws {
@@ -38,7 +38,7 @@ struct BSIM4ProductionRecordTests {
             #expect(record.bsim4PreparationPolicy?.maximumStressIterations == 8)
             let model = try #require(record.bsim4Models.first)
             #expect(model.device == "m1")
-            #expect(model.phase == "initial_binding")
+            #expect(model.phase == "op")
             #expect(model.maintainerUnsupportedNoiseMode)
             #expect(model.diagnostics.contains { $0.code == .maintainerNoiseModeLimitation } == (paramchk == 1))
             let roundTrip = try JSONDecoder().decode(CoreSpiceCLIBatchRunRecord.self, from: JSONEncoder().encode(record))
@@ -46,16 +46,14 @@ struct BSIM4ProductionRecordTests {
             #expect(roundTrip.bsim4Models == record.bsim4Models)
         }
     }
-    @Test func actualRepeatedBindingRetainsPolicy() async throws {
-        for analysis in [".dc VG 1.0 1.2 0.1", ".mc 2 dc VG 1.0 1.2 0.1", ".sens V(d)", ".sens V(d) ac dec 1 1k 1Meg"] {
-            // Sensitivity perturbs continuous parameters; selector flags are
-            // intentionally absent, so discrete modes cannot be differentiated.
+    @Test func actualSourceSweepsRetainPreparationPolicy() async throws {
+        for analysis in [".dc VG 1.0 1.2 0.1", ".mc 2 dc VG 1.0 1.2 0.1"] {
             let text = source(analysis: analysis).replacingOccurrences(of:
                 " rbodymod=1 rgatemod=3 trnqsmod=1 acnqsmod=1", with: "")
             let record = try await run(text)
             #expect(record.status == "succeeded")
             #expect(record.bsim4PreparationPolicy?.maximumStressIterations == 8)
-            #expect(record.bsim4Models.count == 1)
+            #expect(record.bsim4Models.count == (analysis.contains(".mc") ? 6 : 3))
             #expect((record.waveform?.points ?? 0) > 0)
             if analysis.contains(".mc") { #expect(record.waveform?.runs == 2) }
         }
@@ -63,8 +61,8 @@ struct BSIM4ProductionRecordTests {
     @Test func actualBatchTypedFailuresDoNotBecomeSuccess() async throws {
         for (text, code) in [
             (source(policy: ""), "device.bsim4.missing-preparation-policy"),
-            (source(policy: ".options bsim4stressiterations=0"), "deck.blocked-intent"),
-            (source().replacingOccurrences(of: "version=4.8.3", with: "version=4.8.2"), "device.bsim4.version"),
+            (source(policy: ".options bsim4stressiterations=0"), "deck.analysis-options"),
+            (source().replacingOccurrences(of: "version=4.8.3", with: "version=4.8.2"), "mos.resolution"),
             (source(analysis: ".noise V(d) VG dec 1 1k 1Meg").replacingOccurrences(of: "toxe=10n", with: "toxe=10n fnoimod=0 kf=-1").replacingOccurrences(of: "VD d 0 1", with: "VD supply 0 1\nRL supply d 1k"), "device.bsim4.non-finite")
         ] {
             do { _ = try await run(text); Issue.record("Failed input produced success") }
@@ -95,4 +93,29 @@ struct BSIM4ProductionRecordTests {
         }
     }
 
+}
+
+@Suite("CLI refuses stale MOS sensitivity", .timeLimit(.minutes(1)))
+struct MOSCLISensitivityTests {
+    @Test func dcAndACSensitivityRequireFreshResolution() async throws {
+        for directive in [".sens V(d)", ".sens V(d) ac dec 1 1k 1Meg"] {
+            var session = try Session(policy: .developerV1())
+            try await session.loadNetlist(source: """
+            Fresh MOS sensitivity
+            .model n nmos level=1 vto=.5 kp=1m
+            VG g 0 1
+            VD d 0 1
+            M1 d g 0 0 n l=1u w=2u
+            \(directive)
+            .end
+            """, fileName: nil)
+            do {
+                _ = try await session.runParsed(session.requiredDefaultRunnableAnalysis())
+                Issue.record("MOS sensitivity reused resolved values")
+            } catch {
+                #expect(CoreSpiceCLIFailure(error: error).code == "analysis.requires-fresh-mos-resolution")
+                #expect(session.lastWaveform == nil)
+            }
+        }
+    }
 }

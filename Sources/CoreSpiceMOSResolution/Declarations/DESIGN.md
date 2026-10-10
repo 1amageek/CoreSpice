@@ -40,7 +40,9 @@ encoded by construction.
 
 ## State, Ownership, and Lifecycle
 
-The builder exclusively owns mutable Swift values. finish returns a final immutable Sendable snapshot storage owner with O(1) identity; immutable arrays use COW ownership without borrowed pointers.
+The noncopyable builder exclusively owns mutable Swift values. Consuming `finish`
+transfers them to a final immutable Sendable snapshot with O(1) identity; publication
+cannot leave a mutable builder sharing the snapshot's private program table.
 Index lookups return slices retaining their backing arrays. Construction uses
 the explicit evaluation-step ceiling for its own identifier/node/index work, even
 without an external controller. No shared mutable
@@ -70,7 +72,12 @@ Each record's complete text/nested-array payload and prospective buffer growth
 are preflighted together before charging. Ordinary preflight rejection leaves
 retained-byte bookkeeping unchanged; consumed work is never rolled back.
 Capacity reservation admits a conservative old-plus-new COW/growth peak and checks
-the actual returned capacity before append. If a reservation or charge fails after
+the actual returned capacity before append. The private `programs` table has one
+exclusive builder owner until consuming publication: its owner-specific reservation
+checks cancellation/step admission on reuse, and charges capacity bytes only on
+actual geometric growth. It never exposes its backing array during construction.
+Generic reservation remains conservative for other buffers, including copied nested
+scope binding/function lists. If a reservation or charge fails after
 mutation may have started, the builder records that typed failure and rejects all
 later mutation and finish entry points. No partial snapshot can escape that state.
 Function-formal duplicate scratch has its own preflighted Set capacity before any
@@ -85,3 +92,8 @@ cancellation failures, without hidden sorting buffers.
 Program construction receives the builder's remaining byte and work budget;
 consumed work returns on success and failure. Identifier, model-family and index
 scans share that invocation ceiling. Repeated programs cannot reset it.
+
+`MOSProgramGrowthTests` constructs thousands of actual programs under a retained-byte
+work ceiling proportional to their count. It rejects the former repeated full-capacity
+charges, checks immutable snapshot publication and preserves growth refusal/failure
+state checks. Existing nested-array admission tests remain required.

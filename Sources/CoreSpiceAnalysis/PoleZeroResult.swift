@@ -7,7 +7,8 @@ import CoreSpiceIR
 /// along with the DC gain. Poles are values of the complex frequency
 /// variable `s` where the denominator of the transfer function is zero.
 /// Zeros are values where the numerator is zero.
-public struct PoleZeroResult: Sendable {
+public struct PoleZeroResult: Sendable, AnalysisResultStorageRetaining {
+    private let retainedStorage: (any Sendable)?
 
     /// The poles of the circuit transfer function (complex frequencies in rad/s).
     public let poles: [ComplexPair]
@@ -54,5 +55,19 @@ public struct PoleZeroResult: Sendable {
         self.zeros = zeros
         self.dcGain = dcGain
         self.variableMap = variableMap
+        self.retainedStorage = nil
+    }
+
+    /// Returns the same numerical values while retaining their native invocation capacity.
+    package func retainingStorage(_ owner: any Sendable) -> Self {
+        Self(retaining: self, owner: owner)
+    }
+
+    private init(retaining result: Self, owner: any Sendable) {
+        self.poles = result.poles
+        self.zeros = result.zeros
+        self.dcGain = result.dcGain
+        self.variableMap = result.variableMap
+        self.retainedStorage = owner
     }
 }

@@ -33,7 +33,7 @@ struct RunRecordTests {
   private func batchFailure(arguments: [String]) async throws -> CoreSpiceCLIFailure {
     let options = try CoreSpiceBatchOptions(arguments: arguments)
     let cli = CLI(arguments: arguments)
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     do {
       _ = try await cli.executeBatch(options: options, session: &session)
     } catch {
@@ -127,6 +127,9 @@ struct RunRecordTests {
     )
 
     #expect(record.schemaVersion == .v1)
+    #expect(record.resolutionProfile == "pinnedNgspiceNormalV1")
+    #expect(record.resolutionSeed == 1)
+    #expect(record.resolutionPolicy == "corespice-cli-developer-v1")
     #expect(record.invocation.mode == .externalProcess)
     #expect(record.invocation.executable == "corespice")
     #expect(record.inputArtifacts.first?.descriptor.role == .input)
@@ -149,7 +152,7 @@ struct RunRecordTests {
       V1 in 0 dc 5
       R1 in out 1k
       C1 out 0 100n
-      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
+      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=1000000 tranmaxdimension=256 tranmaxwork=1e15 tranmaxbreakpoints=250000
       .tran 10u 500u
       .meas tran vfinal find V(out) at=400u
       .end
@@ -167,7 +170,7 @@ struct RunRecordTests {
     #expect(options.jsonOutput)
 
     let cli = CLI(arguments: arguments)
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     let summary = try await cli.executeBatch(options: options, session: &session)
 
     #expect(summary.status == "succeeded")
@@ -247,7 +250,7 @@ struct RunRecordTests {
       V1 in 0 dc 5
       R1 in out 1k
       C1 out 0 100n
-      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
+      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=1000000 tranmaxdimension=256 tranmaxwork=1e15 tranmaxbreakpoints=250000
       .tran 10u 100u
       .end
       """

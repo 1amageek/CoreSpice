@@ -19,7 +19,7 @@ struct SelectedExecutionAdmissionTests {
         #expect(loaded.coverage.hasBlockedItems)
         #expect(loaded.coverage.items.contains { $0.kind == .model && $0.status == .blocked })
         #expect(loaded.coverage.items.contains { $0.kind == .component && $0.status == .blocked })
-        let ir = try SPICEIO.lower(loaded.netlist)
+        let ir = try IOTestFrontend.lower(loaded.netlist)
         #expect(Set(ir.instances.map(\.name)) == Set(["v1", "r1"]))
         #expect(ir.instances.allSatisfy { $0.model == nil })
     }
@@ -29,19 +29,21 @@ struct SelectedExecutionAdmissionTests {
                             ".subckt cell a\nCq a 0 q={missing*v(a)}\n.ends\nX1 out cell"] {
             let loaded = try await SPICEDeckLoader.load(source: "selected unsupported\n\(declaration)\n.op\n.end\n")
             #expect(loaded.coverage.hasBlockedItems)
-            #expect(throws: LoweringError.self) { _ = try SPICEIO.lower(loaded.netlist) }
+            #expect(throws: LoweringError.self) { _ = try IOTestFrontend.lower(loaded.netlist) }
         }
     }
 
     @Test func rootIntentStillRefusesEvenWhenNestedInUnusedBody() async throws {
-        for tail in [".alter R1 resistance=2k", ".options bsim4stressiterations=0",
-                     ".subckt unused a\n.alter R1 resistance=2k\n.ends"] {
+        for tail in [".alter R1 resistance=2k",
+                     ".subckt unused a\n.alter R1 resistance=2k\n.ends",
+                     ".subckt unused a\n.subckt inner b\n.alter R1 resistance=2k\n.ends\n.ends"] {
             do {
                 _ = try await SPICEDeckLoader.load(source: "blocked root intent\nR1 out 0 1k\n\(tail)\n.op\n.end\n")
                 Issue.record("Root execution intent bypassed intake")
             } catch let error as SPICEDeckLoadError {
                 guard case .blockedExecutionIntent(let items) = error else { throw error }
                 #expect(!items.isEmpty)
+                #expect(items.contains { $0.name == "alter:r1.resistance" && $0.status == .blocked })
                 #expect(items.allSatisfy { $0.kind != .model && $0.kind != .component })
             }
         }
@@ -59,12 +61,12 @@ struct SelectedExecutionAdmissionTests {
         X1 out cell cv=3n
         .end
         """)
-        let ir = try SPICEIO.lower(loaded.netlist)
+        let ir = try IOTestFrontend.lower(loaded.netlist)
         let cap = try #require(ir.instances.first)
         guard case .real(let value) = cap.parameters["c"] else { Issue.record("Missing actual capacitance"); return }
         #expect(value == 3 * 1e-9)
         #expect(cap.model == nil)
         let invalid = try await SPICEDeckLoader.load(source: "invalid global\n.param invalid=missing\nR1 out 0 1k\n.end\n")
-        #expect(throws: LoweringError.self) { _ = try SPICEIO.lower(invalid.netlist) }
+        #expect(throws: MOSResolutionFailure.self) { _ = try IOTestFrontend.lower(invalid.netlist) }
     }
 }

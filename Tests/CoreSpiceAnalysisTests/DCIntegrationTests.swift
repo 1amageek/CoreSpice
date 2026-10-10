@@ -150,7 +150,8 @@ struct DCIntegrationTests {
     func nmosCommonSourceBias() async throws {
         let (netlist, drain) = try CircuitFactory.nmosCommonSource(
             vdd: 5.0, rd: 1000, vgs: 2.0,
-            mosParams: ["vto": .real(0.7), "kp": .real(110e-6), "w": .real(10e-6), "l": .real(1e-6)]
+            modelParameters: ["vto": 0.7, "kp": 110e-6],
+            instanceParameters: ["w": 10e-6, "l": 1e-6]
         )
         let result = try await CircuitFactory.runDC(netlist)
         let vDrain = try result.voltage(at: drain)
@@ -164,7 +165,8 @@ struct DCIntegrationTests {
     func pmosCommonSourceBias() async throws {
         let (netlist, drain) = try CircuitFactory.pmosCommonSource(
             vdd: 5.0, rd: 1000, vgate: 3.0,
-            mosParams: ["vto": .real(-0.7), "kp": .real(50e-6), "w": .real(20e-6), "l": .real(1e-6)]
+            modelParameters: ["vto": -0.7, "kp": 50e-6],
+            instanceParameters: ["w": 20e-6, "l": 1e-6]
         )
         let result = try await CircuitFactory.runDC(netlist)
         let vDrain = try result.voltage(at: drain)
@@ -178,7 +180,8 @@ struct DCIntegrationTests {
     func mosfetLinearRegion() async throws {
         let (netlist, drain) = try CircuitFactory.nmosCommonSource(
             vdd: 0.5, rd: 100, vgs: 3.0,
-            mosParams: ["vto": .real(0.7), "kp": .real(110e-6), "w": .real(10e-6), "l": .real(1e-6)]
+            modelParameters: ["vto": 0.7, "kp": 110e-6],
+            instanceParameters: ["w": 10e-6, "l": 1e-6]
         )
         let result = try await CircuitFactory.runDC(netlist)
         let vDrain = try result.voltage(at: drain)
@@ -395,12 +398,12 @@ struct DCIntegrationTests {
                                     parameters: ["v": .real(5.0)])
             try netlist.addInstance(name: "VIN", typeName: "vsource", nodes: ["vin", "0"],
                                     parameters: ["v": .real(vin)])
-            try netlist.addInstance(name: "MN", typeName: "nmos_l1", nodes: ["out", "vin", "0", "0"],
-                                    parameters: ["vto": .real(0.7), "kp": .real(110e-6),
-                                                 "w": .real(10e-6), "l": .real(1e-6)])
-            try netlist.addInstance(name: "MP", typeName: "pmos_l1", nodes: ["out", "vin", "vdd", "vdd"],
-                                    parameters: ["vto": .real(-0.7), "kp": .real(50e-6),
-                                                 "w": .real(20e-6), "l": .real(1e-6)])
+            try AnalysisMOSFixture.add(to: &netlist, name: "MN", polarity: .nmos,
+                nodes: ["out", "vin", "0", "0"], model: ["vto": 0.7, "kp": 110e-6],
+                instance: ["w": 10e-6, "l": 1e-6])
+            try AnalysisMOSFixture.add(to: &netlist, name: "MP", polarity: .pmos,
+                nodes: ["out", "vin", "vdd", "vdd"], model: ["vto": -0.7, "kp": 50e-6],
+                instance: ["w": 20e-6, "l": 1e-6])
 
             let result = try await CircuitFactory.runDC(netlist)
             outputs.append(try result.voltage(at: out))

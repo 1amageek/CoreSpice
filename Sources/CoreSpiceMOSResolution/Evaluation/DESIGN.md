@@ -22,6 +22,7 @@ and function evaluation rules.
 | [Values](../../CoreSpiceMOSContracts/Values/DESIGN.md) | depends on | IDs, limits, typed failures | Checked retained payload | No implicit unlimited budget |
 | [Declarations](../Declarations/DESIGN.md) | depends on | Immutable snapshot identity and ordered bindings | Shared declaration storage | Preserve all source occurrences |
 | [Selection](../Selection/DESIGN.md) | coordinates with | Shared session operations | Model/instance evaluation and selection | Selection never owns another RNG or binding cache |
+| [Frontend](../../CoreSpiceLowering/Frontend/DESIGN.md) | used by | Program/binding evaluation and package scalar operators/builtins | Runtime expression constant leaves share arithmetic and RNG authority | No separate random owner |
 
 ## Architecture
 
@@ -65,6 +66,9 @@ when their formals are unused. Conditionals evaluate only their selected branch;
 logical AND/OR short-circuit. The versioned CoreSpice PRNG and explicit root-call
 order are part of evaluation provenance, not an ngspice RNG/macro compatibility
 claim. No implicit temperature parameter exists on this numeric path.
+The shared builtin arithmetic law distinguishes `pwr(x,y) = abs(x)^y` from
+`pwrs(x,y)`, which negates that magnitude when x is negative. Frontend static
+capture and scalar programs consume this same law.
 
 ## Runtime Flows
 

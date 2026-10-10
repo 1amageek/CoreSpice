@@ -18,6 +18,8 @@ and immutable qualification provenance throughout initial and repeated binding.
 |---|---|---|---|---|
 | [CoreSpice](../../DESIGN.md) | parent | CLI artifacts | Developer execution surface | Success records require actual execution |
 | [IO](../CoreSpiceIO/DESIGN.md) | depends on | Resolved SPICEAnalysisOptions | One policy source | No implicit model work budget |
+| [Lowering](../CoreSpiceLowering/DESIGN.md) | depends on | CompiledNetlist and exclusive session | Final scalar and circuit values | Profile, seed and limits are mandatory |
+| [NativeExecution](../CoreSpice/NativeExecution/DESIGN.md) | depends on | Consuming concrete analysis APIs and completed facts | Executable ownership and preparation | No BoundDevice exposure |
 | [Devices BSIM4](../CoreSpiceDevices/BSIM4/DESIGN.md) | depends on | Native registry and diagnostics | Original Level54 | Successful execution does not assert qualification |
 
 ## Architecture
@@ -25,6 +27,67 @@ and immutable qualification provenance throughout initial and repeated binding.
 `deck explicit option -> resolved options -> lowering + configured registry -> analysis -> run record`
 
 ## Contracts and Invariants
+
+### Exclusive source evaluation and native execution
+
+The CLI explicitly selects `CoreSpiceCLIExecutionPolicy.developerV1` or a caller
+policy. Profile, seed, resolution limits, native preparation limits and invocation
+resources are mandatory Session inputs. The finite developer policy is an
+admission policy, not a hardware safety, speed or model qualification claim.
+`--mos-profile` selects the input interpretation; `--seed` selects the root seed
+(otherwise the named policy selects 1). Source numerical options remain explicit.
+
+```text
+Captured source -> CompiledNetlist (reusable immutable snapshot)
+  -> new exclusive session per seed
+  -> options -> lower -> analysis / IC / nodeset scalar slots -> finish
+  -> immutable LoweredCircuit and numeric analysis settings
+  -> fresh PreparedNativeCircuit per run -> consuming concrete analysis
+  -> completed immutable facts -> observations / case publication
+```
+
+Session never retains executable devices or an expression evaluator. Analysis
+fields and node assignments consume the same checked scalar slots as lowering,
+before the exclusive session finishes. Monte Carlo reuses only the compiled
+source snapshot and creates a fresh session and native owner for every seed.
+DC sweep changes only the declared independent source inside the common native
+owner; it cannot rebind MOS from parameter dictionaries. Completed phase facts
+retain actual source values and selected preparation receipts. Preparation
+diagnostics become batch evidence only after a concrete run succeeds. Case
+publication resolves MOS origins through the compiled snapshot's checked origin
+API and serializes receipt-owned final values; it never reevaluates expressions.
+Generic MOS sensitivity refuses with `requiresFreshMOSResolution` until its
+perturbations have a fresh source-resolution contract. Non-MOS sensitivity and
+the existing broad CLI analyses keep their concrete analysis implementations.
+
+The prepared adapter selects its IO transform ceiling from the named developer
+temporary-byte ceiling (64 MiB), independently of the 16 MiB frontend retained
+ceiling. The IO envelope for 8192 entries already requires 32 MiB before source
+text; a smaller transform ceiling would reject every prepared invocation. Actual
+IO and frontend reservations still share the finite resource owner, so their
+combined temporary storage can fail below either individual envelope. No ceiling
+is silently enlarged during execution.
+
+Monte Carlo transient syntax does not support UIC. Successful MC fixtures contain
+no unapplied IC intent; same-session IC scalar proof belongs to the direct frontend
+fixture, and unsupported MC UIC is a parser failure rather than discarded intent.
+The existing ParametricWaveformData contract requires identical axes across runs.
+Seed-dependent schedules may resolve correctly yet fail ensemble validation; the
+CLI preserves that typed refusal without resampling or claiming variable-axis
+ensemble support. Its successful fresh-seed fixture uses expressions over the same
+random binding that produce a common schedule, while geometry varies by seed.
+
+A retained simulation output also retains native preparation and result capacity.
+A rerun fixture releases that output before preparing again and retains only the
+immutable input, explicit native limits and configuration identity. Retaining both
+complete runs is subject to the same shared live-byte ceiling; rerun does not reset
+or enlarge the original input's accounting owner.
+
+The CLI does not execute build or qualification policy. The common native owner
+owns optical graph construction and executable lifetime. Tests must prove fresh
+MC values in circuit and analysis, frontend IC slot reuse, completed source-point facts, exact MOS
+origins/final values, typed sensitivity refusal, and finite policy failure without
+successful publication.
 
 ### Required selected-model receipts
 
@@ -42,7 +105,7 @@ successful model receipt. Public CLI execution tests own this proof; changing
 record structure alone does not establish the contract.
 
 `LoadedSPICEDeck` retains the bytes consumed by parsing and the declaration
-origin inventory. `ResolvedDeviceModel.declarationID` already carries exact
+origin inventory. For non-MOS devices, `ResolvedDeviceModel.declarationID` carries exact
 selected origins for semiconductor resistor and BSIM3/4 physical models.
 `Instance.modelConsumption` separately records selected source models for all
 flattened families and generated FET/URC elements, without altering physical
@@ -56,13 +119,10 @@ finite output byte budget. A failed/partial publication cannot produce a success
 envelope; an existing directory is refused. CLI does not issue qualification.
 
 The actual deck option bsim4stressiterations is the caller's positive UInt32 work
-budget. Session uses one resolved options object for lowering, initial binding,
-source-sweep/MonteCarlo/sensitivity rebinding and operating conditions. The batch
+budget. Each exclusive Session evaluation resolves one options object used by lowering, native preparation and operating conditions. Each Monte Carlo seed has its own evaluation. The batch
 record preserves effective policy separately from physical IR and retains BSIM4
-initial-binding structured diagnostics and immutable maintainer qualification
-limitations. Each model record names its initial-binding phase; Monte Carlo
-rebindings share the policy but their varying diagnostics are not claimed by that
-initial snapshot.
+completed-phase preparation diagnostics and immutable maintainer qualification
+limitations. Each model record names a completed numerical phase; Monte Carlo seeds retain their own preparation diagnostics.
 Missing/invalid policy, unprepared noise topology and invalid noise numerics remain
 failed JSON records.
 
@@ -70,8 +130,7 @@ failed JSON records.
 
 ### Completed analysis phases
 
-DC sweep rebinds each point, and Monte Carlo re-lowers each seed. The
-baseline `devices` snapshot is not evidence of those completed phases. Session
+DC sweep updates only the independent source, and Monte Carlo resolves each seed in a new session. Preparation alone is not evidence of a completed phase. Session
 retains the actual plan, consumed model/instance parameters, operating
 conditions and seed/source overrides passed to each successful analysis. Phase
 records are appended only after that analysis and its required observations
@@ -108,7 +167,7 @@ Cancellation is checked per retained instance/output boundary and immediately
 before final rename, with staging cleanup on refusal.
 Source capture follows the IO contract rather than a second CLI-owned reader.
 
-Public CLI tests must exercise actual static model calculations, DC rebinds and
+Public CLI tests must exercise actual static model calculations, DC source updates and
 different Monte Carlo seeds, plus failure/cancellation/missing origin and
 incomplete output publication. Primary/oracle assessment and direct host/release
 consumer migration are separately verified by their owners.
@@ -147,8 +206,7 @@ dispatch belong directly to the [IO preparation](../CoreSpiceIO/SimulationPrepar
 and [NativeExecution](../CoreSpice/NativeExecution/DESIGN.md) owners. The CLI has no
 prepared-lane numerical dispatch algorithm and no implicit filesystem include search.
 The same retained native owner is executed after preparation; an immutable output
-reports computed identities and actual completion counts. Existing ordinary batch
-and interactive analyses preserve their independent API/capability contracts.
+reports computed identities and actual completion counts. Ordinary batch and interactive analyses use the same source evaluation primitives and native preparation owner, while retaining their broader analysis grammar.
 
 The CPU same-owner behavior, real catalog/library parse, and original-file mutation
 refusal are verified by

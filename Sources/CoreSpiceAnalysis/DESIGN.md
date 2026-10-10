@@ -35,6 +35,17 @@ not actual analysis execution or qualification.
 
 Bound-device stamps and accepted history commits may throw; all actual callers propagate errors. Newton residual re-stamps obey the same throwing contract. Numerical convergence retries handle AnalysisError only, preserving device failures. Noise admission is checked before execution for devices with an explicit unsupported noise contract.
 
+### MOS perturbation authority
+
+IR dictionary perturbation cannot change an immutable MOS resolution or reuse its
+prepared receipt. Generic sensitivity and generic Monte Carlo refuse any circuit
+containing a MOS stage with `AnalysisError.requiresFreshMOSResolution` before
+solving or sampling. Source-level Monte Carlo belongs to the frontend caller:
+each sample opens a new evaluation session and prepares a new executable owner.
+This migration changes no solver or finite-difference algorithm. Focused tests
+must detect refusal even when the requested perturbation names a non-MOS device,
+because generic whole-circuit rebinding would otherwise reprepare the MOS.
+
 ## State, Ownership, and Lifecycle
 
 A transient run begins sessions once after its initial solution; a scope defer ends every acquired session on success, throw, cancellation, or partial acquisition failure. One bound BSIM3 owner admits one transient run; rejected concurrent acquisition cannot reset accepted state. Trial stamps never commit history. Accepted steps re-evaluate the accepted bias and commit only its valid kernel token.
@@ -164,3 +175,33 @@ solve/Newton/work/saved-scalar admission across the complete `.op` or `.dc` sche
 including convergence recovery. The underlying numerical algorithm and public
 ordinary DC API are unchanged. The owner retains its common `Mutex<State>` storage;
 package visibility does not expose direct mutable counter access.
+
+## Native Concrete Operation Budget Transport
+
+Concrete native composition injects one package execution budget into AC, noise,
+TF, PZ, sensitivity and AC sensitivity. Embedded DC, its recovery solves and every
+sensitivity perturbation retain that same owner. Linear phases admit solve attempts
+and the existing dense cubic/stamp/vector work envelope before factorization or
+RHS/eigen solves; complex phases charge four real envelopes. Saved real/complex
+scalars and derivative outputs are admitted before append/reserve. These checks
+preserve numerical algorithms and propagate exhaustion without convergence retry.
+Raw lower analysis entry points retain their existing optional budget contract.
+
+Fourier shares the injected owner with its transient analysis, then admits actual
+completed-sample harmonic work and saved coefficients before column extraction and
+integration. The transient result's statistics describe transient work; the native
+run's statistics describe the complete operation. Harmonic arrays reserve their
+checked component count once.
+
+All concrete native result headers implement the package-only
+`AnalysisResultStorageRetaining` contract. Each header privately retains an opaque
+Sendable storage owner attached by native composition. Copying the complete result
+retains that owner even after its native run/facts are released; the final result
+copy releases the reservation. TF/sensitivity/Fourier typed nested results share
+that owner, and DC sweep point results retain it before invoking callbacks.
+Numerical fields remain immutable and Analysis does not depend on the source
+accounting implementation. Extracting individual Array/Dictionary values, creating
+new result headers with public initializers or materializing derived waveforms is
+a caller-owned value boundary; those values do not inherit an invocation lease.
+Common Mutex storage and admission entry points are identical across target source;
+this change qualifies native CPU behavior only.

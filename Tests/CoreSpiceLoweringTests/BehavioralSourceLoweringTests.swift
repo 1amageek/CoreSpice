@@ -22,7 +22,7 @@ struct BehavioralSourceLoweringTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(
+        let circuit = try FrontendTestLowering().lower(
             ParsedNetlist(components: [component])
         )
         let instance = try #require(circuit.instances.first)
@@ -51,7 +51,7 @@ struct BehavioralSourceLoweringTests {
             parameters: ["v": .numeric(1)]
         )
 
-        let circuit = try NetlistLowering().lower(
+        let circuit = try FrontendTestLowering().lower(
             ParsedNetlist(components: [behavioral, voltageSource])
         )
         let instance = try #require(circuit.instances.first { $0.name == "B1" })
@@ -95,7 +95,7 @@ struct BehavioralSourceLoweringTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(
+        let circuit = try FrontendTestLowering().lower(
             ParsedNetlist(components: [component], controls: [function])
         )
         let instance = try #require(circuit.instances.first)
@@ -134,12 +134,12 @@ struct BehavioralSourceLoweringTests {
         )
 
         #expect(throws: LoweringError.self) {
-            _ = try NetlistLowering().lower(
+            _ = try FrontendTestLowering().lower(
                 ParsedNetlist(components: [missingOutput])
             )
         }
         #expect(throws: LoweringError.self) {
-            _ = try NetlistLowering().lower(
+            _ = try FrontendTestLowering().lower(
                 ParsedNetlist(
                     components: [recursiveSource],
                     controls: [recursiveFunction]

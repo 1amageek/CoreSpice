@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import CoreSpiceMOSContracts
 @testable import CoreSpiceLowering
 @testable import CoreSpiceParsedIR
 @testable import CoreSpiceIR
@@ -395,7 +396,7 @@ struct NetlistLoweringTests {
 
     @Test
     func modelOwnNameExpressionRetainsParentLookup() throws {
-        let circuit = try NetlistLowering().lower(ParsedNetlist(
+        let circuit = try FrontendTestLowering().lower(ParsedNetlist(
             components: [ParsedComponent(
                 name: "M1", type: .mosfet, nodes: ["d", "g", "s", "b"],
                 modelName: "nch", parameters: ["w": .numeric(1e-6), "l": .numeric(1e-6)]
@@ -408,11 +409,10 @@ struct NetlistLoweringTests {
         ))
         let instance = try #require(circuit.instances.first)
         #expect(instance.typeName == "nmos_l1")
-        if case .real(let threshold) = instance.parameters["vto"] {
-            #expect(threshold == 1)
-        } else {
-            Issue.record("Expected model vto to consume the parent parameter")
-        }
+        guard case .resolved(let resolved) = instance.mos else { Issue.record("Missing resolved MOS stage"); return }
+        let threshold = resolved.modelCoefficients.first { resolved.symbolNames[Int($0.symbol.rawValue)] == "vto" }
+        #expect(threshold?.value == 1)
+        #expect(instance.parameters.isEmpty)
     }
 
     @Test
@@ -428,7 +428,7 @@ struct NetlistLoweringTests {
             ]
         )
 
-        let lowering = NetlistLowering()
+        let lowering = FrontendTestLowering()
         let circuit = try lowering.lower(netlist)
 
         #expect(circuit.instances.count == 1)
@@ -450,7 +450,7 @@ struct NetlistLoweringTests {
             parameters: ["rval": .literal(2000)]
         )
 
-        let lowering = NetlistLowering()
+        let lowering = FrontendTestLowering()
         let circuit = try lowering.lower(netlist)
 
         #expect(circuit.instances.count == 1)
@@ -476,7 +476,7 @@ struct NetlistLoweringTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
 
         if case .real(let r) = circuit.instances[0].parameters["r"] {
             #expect(r == 2000.0)
@@ -510,7 +510,7 @@ struct NetlistLoweringTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
 
         let instance = try #require(circuit.instances.first)
         #expect(instance.typeName == "vswitch")
@@ -551,7 +551,7 @@ struct NetlistLoweringTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
 
         let instance = try #require(circuit.instances.first)
         #expect(instance.typeName == "cswitch")
@@ -595,7 +595,7 @@ struct NetlistLoweringTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
         let instance = try #require(circuit.instances.first)
         #expect(instance.typeName == "njfet")
         if case .real(let beta) = instance.parameters["beta"] {
@@ -640,7 +640,7 @@ struct NetlistLoweringTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
         let instances = Dictionary(uniqueKeysWithValues: circuit.instances.map { ($0.name, $0) })
 
         #expect(instances["J1"]?.typeName == "njfet")
@@ -712,7 +712,7 @@ struct NetlistLoweringTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
         let instancesByName = Dictionary(uniqueKeysWithValues: circuit.instances.map { ($0.name, $0) })
 
         #expect(instancesByName["F1"]?.typeName == "cccs_ref")
@@ -758,7 +758,7 @@ struct NetlistLoweringTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
         let instancesByName = Dictionary(uniqueKeysWithValues: circuit.instances.map { ($0.name, $0) })
 
         #expect(circuit.instances.map(\.name) == ["L1", "L2", "K1"])
@@ -809,7 +809,7 @@ struct NetlistLoweringTests {
             parameters: ["base": .literal(1000)]
         )
 
-        let lowering = NetlistLowering()
+        let lowering = FrontendTestLowering()
         let circuit = try lowering.lower(netlist)
 
         #expect(circuit.instances.count == 1)
@@ -855,7 +855,7 @@ struct SubcircuitExpansionTests {
             subcircuits: [subcircuit]
         )
 
-        let lowering = NetlistLowering()
+        let lowering = FrontendTestLowering()
         let circuit = try lowering.lower(netlist)
 
         // Should have expanded to a single resistor with prefixed name
@@ -904,7 +904,7 @@ struct SubcircuitExpansionTests {
             subcircuits: [innerSubcircuit, outerSubcircuit]
         )
 
-        let lowering = NetlistLowering()
+        let lowering = FrontendTestLowering()
         let circuit = try lowering.lower(netlist)
 
         // Should be fully flattened to just the resistor
@@ -942,7 +942,7 @@ struct SubcircuitExpansionTests {
             subcircuits: [subcircuit]
         )
 
-        let lowering = NetlistLowering()
+        let lowering = FrontendTestLowering()
         let circuit = try lowering.lower(netlist)
 
         #expect(circuit.instances.count == 1)
@@ -964,7 +964,7 @@ struct SubcircuitExpansionTests {
         let netlist = ParsedNetlist(components: [instance])
 
         do {
-            _ = try NetlistLowering().lower(netlist)
+            _ = try FrontendTestLowering().lower(netlist)
             Issue.record("Expected missing subcircuit lowering to fail.")
         } catch let error as LoweringError {
             let diagnostic = error.diagnostic
@@ -999,7 +999,7 @@ struct SubcircuitExpansionTests {
         let netlist = ParsedNetlist(components: [instance], subcircuits: [subcircuit])
 
         do {
-            _ = try NetlistLowering().lower(netlist)
+            _ = try FrontendTestLowering().lower(netlist)
             Issue.record("Expected port-count mismatch to fail.")
         } catch let error as LoweringError {
             let diagnostic = error.diagnostic
@@ -1025,7 +1025,7 @@ struct SubcircuitExpansionTests {
         let netlist = ParsedNetlist(components: [mosfet])
 
         do {
-            _ = try NetlistLowering().lower(netlist)
+            _ = try FrontendTestLowering().lower(netlist)
             Issue.record("Expected missing model reference to fail.")
         } catch let error as LoweringError {
             let diagnostic = error.diagnostic
@@ -1063,7 +1063,7 @@ struct SubcircuitExpansionTests {
         )
         let netlist = ParsedNetlist(components: [instance], subcircuits: [subcircuit])
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
 
         if case .real(let r) = circuit.instances[0].parameters["r"] {
             #expect(r == 3000.0)
@@ -1110,7 +1110,7 @@ struct SubcircuitExpansionTests {
             subcircuits: [subcircuit]
         )
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
 
         #expect(circuit.instances.count == 1)
         if case .real(let r) = circuit.instances[0].parameters["r"] {
@@ -1149,7 +1149,7 @@ struct SubcircuitExpansionTests {
             subcircuits: [subcircuit]
         )
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
         let loweredInstance = try #require(circuit.instances.first)
         if case .real(let resistance) = loweredInstance.parameters["r"] {
             #expect(resistance == (hasOverride ? 1500 : 2000))
@@ -1175,7 +1175,7 @@ struct SubcircuitExpansionTests {
                 ]
             )
         )
-        let circuit = try NetlistLowering().lower(ParsedNetlist(
+        let circuit = try FrontendTestLowering().lower(ParsedNetlist(
             components: [ParsedComponent(
                 name: "X1", type: .subcircuitInstance, nodes: ["a", "0"], modelName: "ordered"
             )],
@@ -1201,7 +1201,7 @@ struct SubcircuitExpansionTests {
         )
         let netlist = ParsedNetlist(components: [behavioral])
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
         let instance = try #require(circuit.instances.first)
 
         #expect(instance.typeName == "behavioral_vsource")
@@ -1230,17 +1230,7 @@ struct SubcircuitExpansionTests {
             models: [ParsedModel(name: "bsim", type: .nmos, level: 55)]
         )
 
-        do {
-            _ = try NetlistLowering().lower(netlist)
-            Issue.record("Expected BSIM model lowering to fail.")
-        } catch let error as LoweringError {
-            guard case .invalidComponent(let name, let reason) = error else {
-                Issue.record("Unexpected lowering error: \(error)")
-                return
-            }
-            #expect(name == "M1")
-            #expect(reason.contains("level 55"))
-        }
+        #expect(throws: MOSResolutionFailure.self) { _ = try FrontendTestLowering().lower(netlist) }
     }
 
     @Test
@@ -1254,7 +1244,7 @@ struct SubcircuitExpansionTests {
         let netlist = ParsedNetlist(components: [diode])
 
         do {
-            _ = try NetlistLowering().lower(netlist)
+            _ = try FrontendTestLowering().lower(netlist)
             Issue.record("Expected missing model lowering to fail.")
         } catch let error as LoweringError {
             guard case .undefinedModel(let name, _) = error else {
@@ -1279,7 +1269,7 @@ struct SubcircuitExpansionTests {
         let netlist = ParsedNetlist(components: [mosfet])
 
         do {
-            _ = try NetlistLowering().lower(netlist)
+            _ = try FrontendTestLowering().lower(netlist)
             Issue.record("Expected missing model reference to fail.")
         } catch let error as LoweringError {
             guard case .invalidComponent(let name, let reason) = error else {
@@ -1324,7 +1314,7 @@ struct SubcircuitExpansionTests {
             subcircuits: [subcircuit]
         )
 
-        let circuit = try NetlistLowering().lower(netlist)
+        let circuit = try FrontendTestLowering().lower(netlist)
 
         #expect(circuit.instances.count == 1)
         #expect(circuit.instances[0].typeName == "pmos_l1")
@@ -1332,78 +1322,13 @@ struct SubcircuitExpansionTests {
 }
 
 @Suite
-struct LoweringConfigurationTests {
-
-    @Test
-    func defaultConfiguration() {
-        let config = NetlistLowering.Configuration.default
-        #expect(config.maxExpansionDepth == 64)
-        #expect(config.flattenSubcircuits == true)
-        #expect(config.expandModels == true)
-        #expect(config.evaluateExpressions == true)
-        #expect(config.temperature == 27.0)
-        #expect(config.parameterOverrides.isEmpty)
-    }
-
-    @Test
-    func preserveHierarchyConfiguration() {
-        let config = NetlistLowering.Configuration.preserveHierarchy
-        #expect(config.flattenSubcircuits == false)
-        #expect(config.expandModels == false)
-        #expect(config.evaluateExpressions == true)
-    }
-
-    @Test
-    func parameterOverrides() throws {
-        let netlist = ParsedNetlist(
-            components: [
-                ParsedComponent(
-                    name: "R1",
-                    type: .resistor,
-                    nodes: ["in", "out"],
-                    parameters: ["r": .expression(.identifier("rval"))]
-                )
-            ],
-            parameters: ["rval": .literal(1000)]
-        )
-
-        // Use configuration with parameter override
-        let config = NetlistLowering.Configuration(
-            parameterOverrides: ["rval": 5000]
-        )
-        let lowering = NetlistLowering(configuration: config)
-        let circuit = try lowering.lower(netlist)
-
-        #expect(circuit.instances.count == 1)
-        if case .real(let r) = circuit.instances[0].parameters["r"] {
-            #expect(r == 5000.0) // Override takes precedence
-        }
-    }
-
-    @Test
-    func customTemperature() throws {
-        let config = NetlistLowering.Configuration(temperature: 85.0)
-        let lowering = NetlistLowering(configuration: config)
-
-        let netlist = ParsedNetlist(
-            components: [
-                ParsedComponent(
-                    name: "R1",
-                    type: .resistor,
-                    nodes: ["in", "out"],
-                    parameters: ["r": .numeric(1000)]
-                )
-            ]
-        )
-
-        // Just verify it doesn't throw - temperature is set in context
-        let circuit = try lowering.lower(netlist)
-        #expect(circuit.instances.count == 1)
-    }
-
-    @Test
-    func customMaxDepth() {
-        let config = NetlistLowering.Configuration(maxExpansionDepth: 10)
-        #expect(config.maxExpansionDepth == 10)
+struct FrontendOverrideTests {
+    @Test func rootOverrideUsesTheFinalParameterGraph() throws {
+        let parsed = ParsedNetlist(components: [.init(name: "R1", type: .resistor,
+            nodes: ["a", "0"], parameters: ["r": .expression(.identifier("rval"))])],
+            parameters: ["rval": .literal(1000)])
+        let ir = try FrontendTestLowering(configuration: .init(parameterOverrides: ["rval": 5000])).lower(parsed)
+        guard case .real(let value) = ir.instances[0].parameters["r"] else { Issue.record("Missing resistance"); return }
+        #expect(value == 5000)
     }
 }

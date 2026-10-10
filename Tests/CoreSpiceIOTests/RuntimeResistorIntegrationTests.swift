@@ -34,7 +34,7 @@ struct RuntimeResistorIntegrationTests {
 
     @Test("One canonical IR rebinds actual ambient temperature; main and noise nominal differ")
     func ambientRebindingAndNominalNoiseAuthority() async throws {
-        let ir = try await SPICEIO.parseAndLower("""
+        let ir = try await IOTestFrontend.parseAndLower("""
         runtime temperature authority
         I1 0 out dc .001 ac 1
         R1 out 0 r=1000*(1+temper/100) tc1=.001 tc2=1u m=4 noisy=1
@@ -153,7 +153,7 @@ struct RuntimeResistorIntegrationTests {
     }
 
     private func prepare(_ source: String) async throws -> (plan: ExecutionPlan, devices: [any BoundDevice]) {
-        try bind(try await SPICEIO.parseAndLower(source), conditions: .nominal)
+        try bind(try await IOTestFrontend.parseAndLower(source), conditions: .nominal)
     }
 
     private func bind(_ ir: CircuitIR, conditions: OperatingConditions) throws -> (plan: ExecutionPlan, devices: [any BoundDevice]) {

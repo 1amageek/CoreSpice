@@ -27,6 +27,27 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### Monte Carlo optional seed progress
+
+The `.mc` optional tail accepts a named `seed`, its existing optional `=`, and a
+nonnegative integer. Each loop iteration consumes that seed or throws a located
+`ParserDiagnostic`; unknown identifiers and unexpected numeric, punctuation or
+string tokens cannot hang or disappear. Unsupported `uic` is rejected rather than
+acquiring transient meaning. Valid seed syntax and numerical admission remain
+unchanged. The ordinary public parser and accounted parser share this grammar.
+[AdvancedAnalysisParserTests](../../Tests/CoreSpiceParserSPICETests/SPICEParserTests.swift)
+owns the unknown-option termination regression, unsupported-token rejection and
+valid seed preservation.
+
+The existing inner `tran` step/stop, `ac` frequency and `dc` sweep-value positions
+use the same parameter-value and expression parser as their ordinary directives.
+Their parsed expression trees remain unevaluated; numeric defaults and AC point
+count admission are unchanged. A named seed or assignment tail ends the positional
+values, preserving omitted-value defaults before the optional-seed loop owns
+consumption or rejection. This does not add transient start/max-step or UIC syntax
+to Monte Carlo. `AdvancedAnalysisParserTests` checks exact inner expression trees,
+optional seed boundaries, numeric equivalence and malformed-expression diagnostics.
+
 ### MOS declaration intake
 
 The existing grammar appends ordered model/component/header assignments when it
@@ -444,6 +465,20 @@ environment:resources:)` returns its actual projected source/events/diagnostics
 and immutable storage owner. Parser joins those owners into the checked result.
 The profile entry requires each interface's real storage path; ordinary entries
 retain their existing optional count-only work scope.
+
+Owned lexer continuation uses
+[`SPICEAccountedCollection.truncate(to:resources:)`](../CoreSpiceParsedIR/DESIGN.md)
+at the last significant lexeme boundary. It removes only trailing newline/comment
+lexemes, matching ordinary scanner token and physical-location semantics. The
+unique invocation-local builder keeps its capacity across continuation lines;
+retained prefixes are never reconstructed. Discarded lexeme payload owners end
+immediately, while reusable slot capacity remains reserved. Thus repeated model
+continuations charge linear retained-element work rather than repeatedly charging
+and copying the entire preceding model/deck. Cancellation/refusal publishes no
+owned token result. Shared backing behavior remains the ParsedIR owner's contract.
+The actual scanner comparison, comment/blank-line locations, retained-work bound
+and failure cleanup are verified by
+[OwnedLexerContinuationTests](../../Tests/CoreSpiceProfileGrammarTests/OwnedLexerContinuationTests.swift).
 
 Hook verification is owned by
 [StorageHookTests](../../Tests/CoreSpiceProfileGrammarTests/StorageHookTests.swift).

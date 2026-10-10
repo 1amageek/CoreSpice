@@ -56,24 +56,32 @@ struct ChargeCapacitorOwnedTests {
             let ordinary = await SPICEParser().parse(source: text, fileName: "charge-profile")
             #expect(!ordinary.isSuccess)
             let resources = GrammarTestResources()
-            do {
-                let document = try source(text, resources: resources)
-                let configuration = ParserConfiguration(resolveIncludes: true)
-                let environment = try SPICEPreprocessingEnvironment.empty(policyIdentity: "charge-policy",
-                    configuration: configuration, resources: resources, maximumPageByteCount: 256)
-                do {
-                    _ = try await SPICEParser().parseProfile(document: document, configuration: configuration,
-                        environment: environment, resolver: ChargeNoDependencyResolver(), resources: resources)
-                    Issue.record("Expected charge source refusal")
-                } catch let failure as SPICEProfileParseFailure {
-                    #expect(failure.diagnostic.severity == .error)
-                    #expect(failure.diagnostic.location?.file == "charge-profile")
-                    #expect(failure.diagnostic.location?.line == (tail.contains("\n") ? 3 : 2))
-                    #expect(ordinary.diagnostics.contains { $0.location == failure.diagnostic.location })
-                }
+            try await expectChargeRefusal(text: text, tail: tail, ordinary: ordinary, resources: resources)
+            // The callee's async frame, source and caught diagnostic owner have now ended.
+            #expect(resources.used(.liveOwnedBytes) == 0, "Charge fixture: \(tail)")
+            #expect(resources.used(.temporaryBytes) == 0, "Charge fixture: \(tail)")
+        }
+    }
+
+    private func expectChargeRefusal(text: String, tail: String, ordinary: ParseResult,
+                                     resources: GrammarTestResources) async throws {
+        let document = try source(text, resources: resources)
+        let configuration = ParserConfiguration(resolveIncludes: true)
+        let environment = try SPICEPreprocessingEnvironment.empty(policyIdentity: "charge-policy",
+            configuration: configuration, resources: resources, maximumPageByteCount: 256)
+        do {
+            _ = try await SPICEParser().parseProfile(document: document, configuration: configuration,
+                environment: environment, resolver: ChargeNoDependencyResolver(), resources: resources)
+            Issue.record("Expected charge source refusal")
+        } catch let failure as SPICEProfileParseFailure {
+            #expect(failure.diagnostic.severity == .error)
+            #expect(failure.diagnostic.location?.file == "charge-profile")
+            #expect(failure.diagnostic.location?.line == (tail.contains("\n") ? 3 : 2))
+            #expect(ordinary.diagnostics.contains { $0.location == failure.diagnostic.location })
+            withExtendedLifetime(failure) {
+                #expect(resources.used(.liveOwnedBytes) > 0, "Charge fixture: \(tail)")
+                #expect(resources.used(.temporaryBytes) == 0, "Charge fixture: \(tail)")
             }
-            #expect(resources.used(.liveOwnedBytes) == 0)
-            #expect(resources.used(.temporaryBytes) == 0)
         }
     }
 

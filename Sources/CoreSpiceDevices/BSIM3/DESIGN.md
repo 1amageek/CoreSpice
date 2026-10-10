@@ -8,13 +8,13 @@ verified BSIM3 3.3.0 evaluator through its safe protocol, without importing its 
 
 ## Responsibilities and Boundaries
 
-The approved S3 preparation/binding boundary is owned by
-[MOSPreparation](../MOSPreparation/DESIGN.md). The historical descriptor path
-prepares during Lowering and repeats preparation during binding; it is the
-pre-migration implementation, not the target owner contract.
-
-BSIM3Preparation converts separate resolved model/instance values to an admitted
-kernel configuration. The descriptor binds physical and private auxiliary nodes.
+The checked preparation/binding boundary is owned by
+[MOSPreparation](../MOSPreparation/DESIGN.md). BSIM3Descriptor retains registry
+metadata and refuses raw bind with MOSBindingFailure.missingPreparedReceipt.
+NativeMOSDevicePreparer admits the checked resolved model at explicit conditions;
+consuming BSIM3PreparedDevice binding maps physical and private auxiliary nodes.
+The former dictionary-based BSIM3Preparation API is removed because it bypassed
+resolution identity and had no caller beyond the retired descriptor route.
 BoundBSIM3 owns matrix stamps, accepted-history session admission and atomic
 re-evaluate/commit. The kernel owns official current/charge/NQS equations; the
 analysis owns solve, timestep acceptance and session lifetime.
@@ -27,7 +27,7 @@ analysis owns solve, timestep acceptance and session lifetime.
 | [Compact BSIM3](../../CoreSpiceCompactModels/BSIM3/DESIGN.md) | depends on | BSIM3Evaluating | Official bounded native physics | Exact version, topology and accepted token are authoritative |
 | [IR](../../CoreSpiceIR/DESIGN.md) | depends on | Resolved model and owned nodes | Lossless provenance | No C fields enter IR |
 | [Analysis](../../CoreSpiceAnalysis/DESIGN.md) | used by | Solver-owned transient lifetime | Acceptance and rejection | Begin/end brackets every run exit |
-| [MOSPreparation](../MOSPreparation/DESIGN.md) | used by | Exact prepared owner and consuming bind | Single cold setup per run | Lowering/rebind preparation is removed during migration |
+| [MOSPreparation](../MOSPreparation/DESIGN.md) | used by | Exact prepared owner and consuming bind | Single cold setup per run | Raw descriptor binding is intentionally unsupported |
 
 ## Architecture
 
@@ -72,8 +72,8 @@ flowchart LR
 The approved S3 flow prepares the already resolved exact 3.3.0 release once at
 explicit execution conditions, retains the admitted evaluator and projects its
 exact auxiliary topology. Consuming binding maps that same owner without cold
-setup. The historical Lowering/descriptor repetition remains until migration
-implementation is verified. A transient session initializes charge history
+setup. No Lowering or descriptor path cold-prepares a MOS device. A transient
+session initializes charge history
 from the run initial solution (UIC applies explicit terminal IC through the
 analysis initial-condition hook). Trial stamps only read accepted history.
 Acceptance re-evaluates the final bias using the accepted integration method and

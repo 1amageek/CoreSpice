@@ -7,7 +7,7 @@ import Testing
 @Suite("Capacitor public source admission", .timeLimit(.minutes(1)))
 struct CapacitorSourceAdmissionTests {
     @Test func unusedDeclarationDoesNotExecuteItsCoefficientsAndIdealPathStillSolves() async throws {
-        let ir = try await SPICEIO.parseAndLower("""
+        let ir = try await IOTestFrontend.parseAndLower("""
         unused capacitor model and ideal execution
         .param cv=1n
         I1 0 out dc .001 ac 1

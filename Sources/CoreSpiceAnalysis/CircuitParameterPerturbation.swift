@@ -13,6 +13,10 @@ struct CircuitParameterPerturbation: Sendable {
         fraction: Double,
         minimumDelta: Double
     ) throws -> [CircuitParameterPerturbation] {
+        // FIXME(INCOMPLETE_IMPLEMENTATION): Generic sensitivity callers have no source-level MOS re-resolution provider. Success requires fresh resolved inputs and owners for every perturbation, including unchanged MOS in whole-circuit rebinding.
+        if let instance = instances.first(where: { $0.mos != nil }) {
+            throw AnalysisError.requiresFreshMOSResolution(instance: instance.name)
+        }
         guard fraction.isFinite, fraction > 0 else {
             throw AnalysisError.invalidConfiguration(
                 "Sensitivity perturbation fraction must be positive and finite"

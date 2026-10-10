@@ -1,7 +1,9 @@
 import CircuiteFoundation
 import CircuiteFoundationCrypto
 import CoreSpice
+import CoreSpiceDevices
 import CoreSpiceIO
+import CoreSpiceMOSContracts
 import Foundation
 
 /// Explicit source catalog CLI adapter; all grammar, settings and numerical dispatch belong to CoreSpice.
@@ -13,9 +15,29 @@ struct CoreSpicePreparedCommand {
         }
         var paths: [(String,String)] = [("root",rootPath)]
         var routes: [SPICESourceCatalogRoute] = []
+        var profile: MOSInputProfile = .pinnedNgspiceNormalV1
+        var seed: UInt64 = 1
+        var hasProfile = false
+        var hasSeed = false
         var index = 1
         while index < arguments.count {
             let flag = arguments[index]; index += 1
+            if flag == "--mos-profile" {
+                guard !hasProfile else { throw CLIError.invalidArguments("duplicate --mos-profile") }
+                hasProfile = true
+                guard index < arguments.count, let selected = MOSInputProfile(rawValue: arguments[index]) else {
+                    throw CLIError.invalidArguments("--mos-profile expects coreStrictV1 or pinnedNgspiceNormalV1")
+                }
+                profile = selected; index += 1; continue
+            }
+            if flag == "--seed" {
+                guard !hasSeed else { throw CLIError.invalidArguments("duplicate --seed") }
+                hasSeed = true
+                guard index < arguments.count, let selected = UInt64(arguments[index]) else {
+                    throw CLIError.invalidArguments("--seed expects a nonnegative integer")
+                }
+                seed = selected; index += 1; continue
+            }
             let count: Int
             switch flag { case "--source": count = 2; case "--include": count = 3; case "--library": count = 4
             default: throw CLIError.invalidArguments("unknown prepared argument: \(flag)") }
@@ -26,9 +48,9 @@ struct CoreSpicePreparedCommand {
                 selectedSection:flag == "--library" ? arguments[index+3] : nil)) }
             index += count
         }
+        let policy = try CoreSpiceCLIExecutionPolicy.developerV1(profile: profile, seed: seed)
         // CLI finite developer policy v1; source-declared complete numerical policy remains authoritative.
-        let resources = try SPICESimulationResources(maximumLiveBytes:128*1024*1024,maximumTemporaryBytes:64*1024*1024,
-            maximumWorkUnits:1000000000,maximumHashedBytes:64*1024*1024)
+        let resources = try policy.resources()
         var sources: [SPICECheckedSource] = []
         for (key,path) in paths {
             try resources.checkCancellation()
@@ -50,16 +72,28 @@ struct CoreSpicePreparedCommand {
         let parser = ParserConfiguration(resolveIncludes:true)
         let environment = try SPICEPreprocessingEnvironment.empty(policyIdentity:"corespice-cli-prepared-v1",
             configuration:parser,resources:resources,maximumPageByteCount:4096)
-        let limits = TransientExecutionLimits(maximumAcceptedSteps:100000,maximumSolveAttempts:200000,
-            maximumNewtonIterations:1000000,maximumSavedScalars:1000000,maximumMatrixDimension:256,
-            maximumWorkUnits:1000000000,maximumBreakpoints:100000)
+        let limits = policy.numericalLimits
         let input = try await SPICESimulationPreparer().prepare(.init(root:sources[0],environment:environment,
             catalog:sources.map(\.binding),routes:routes,provider:Provider(sources:sources),configuration:parser,
-            operatingPolicy:.recordActual,limits:.init(maximumElements:8192,maximumTransformBytes:16*1024*1024,
-                maximumSweepPoints:1000,maximumPageByteCount:4096,numerical:limits)),resources:resources)
+            operatingPolicy:.recordActual,limits:.init(maximumElements:policy.maximumElements,maximumTransformBytes:policy.maximumTemporaryBytes,
+                maximumSweepPoints:1000,maximumPageByteCount:4096,numerical:limits),profile:profile,seed:seed,resolutionLimits:policy.resolutionLimits),resources:resources)
         let native = SPICENativeSimulation()
-        let prepared = try native.prepare(input,limits:.init(maximumDeviceCount:1024,
-            maximumMatrixDimension:256,maximumAllocationBytes:64*1024*1024))
+        let conditions = try input.configuration.options.operatingConditions()
+        let capabilities: MOSAnalysisCapabilities
+        switch input.configuration.analysis {
+        case .op, .dc: capabilities = [.dc]
+        case .transient: capabilities = [.dc, .transient]
+        }
+        if input.configuration.options.bsim4PreparationPolicy == nil,
+           let instance = input.circuit.instances.first(where: {
+               if case .resolved(let selected) = $0.mos { return selected.release == .bsim4_4_8_3 }; return false
+           }) { throw CoreSpiceDevices.BSIM4DeviceError.missingPreparationPolicy(instance.name) }
+        let prepared = try native.prepare(input,limits:.init(maximumDeviceCount:policy.maximumElements,
+            maximumMatrixDimension:256,maximumAllocationBytes:policy.maximumAllocationBytes,
+            mosPreparationLimits:policy.preparationLimits,
+            mosPreparationConditions:try .init(ambientKelvin:conditions.temperatureKelvin,
+                nominalKelvin:conditions.nominalTemperatureKelvin,analysisCapabilities:capabilities,
+                maximumStressIterations:input.configuration.options.bsim4PreparationPolicy?.maximumStressIterations ?? 1)))
         return try await native.execute(prepared,cancellation:.init())
     }
     private struct Provider: SPICEExactSourceProviding {

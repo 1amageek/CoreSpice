@@ -76,7 +76,7 @@ struct SPICESourceCaptureTests {
         #expect(declaration.location?.line == 6)
         let origin = try #require(declaration.origin)
         #expect(loaded.modelOrigins[origin.declarationID] == origin)
-        let ir = try SPICEIO.lower(loaded.netlist)
+        let ir = try IOTestFrontend.lower(loaded.netlist)
         let selected = try #require(ir.instances.first?.model)
         #expect(selected.declarationID == origin.declarationID)
         #expect(real(selected.parameters["r"]) == 100)
@@ -97,7 +97,7 @@ struct SPICESourceCaptureTests {
         X1 out cell
         .end
         """)
-        let ir = try SPICEIO.lower(loaded.netlist)
+        let ir = try IOTestFrontend.lower(loaded.netlist)
         let outer = try #require(ir.instances.first { $0.name == "r0" }?.model)
         let inner = try #require(ir.instances.first { $0.name == "x1.r1" }?.model)
         #expect(outer.name == inner.name)
@@ -110,14 +110,14 @@ struct SPICESourceCaptureTests {
         #expect(real(inner.parameters["r"]) == 200)
         let uncaptured = try await SPICEIO.parse("uncaptured\n.model sheet R r=100\nR1 out 0 sheet\n.end\n").get()
         #expect(uncaptured.models.first?.origin == nil)
-        #expect(try SPICEIO.lower(uncaptured).instances.first?.model?.declarationID == nil)
+        #expect(try IOTestFrontend.lower(uncaptured).instances.first?.model?.declarationID == nil)
     }
 
     @Test func wrongSourceBoundModelIsRejectedDespiteSameNameAndType() async throws {
         let first = try await SPICEDeckLoader.load(source: "first\n.model sheet R r=100\nR1 out 0 sheet\n.end\n")
         let second = try await SPICEDeckLoader.load(source: "second\n.model sheet R r=200\nR1 out 0 sheet\n.end\n")
-        let plan = try StandardCompiler().compile(ir: SPICEIO.lower(first.netlist))
-        let other = try SPICEIO.lower(second.netlist)
+        let plan = try StandardCompiler().compile(ir: IOTestFrontend.lower(first.netlist))
+        let other = try IOTestFrontend.lower(second.netlist)
         let instance = try #require(other.instances.first)
         var context = BindingContext(variableMap: plan.topology.variableMap, matrixDimension: plan.topology.dimension,
             stampIndexResolver: { row, column in plan.matrixStructure.index(row: row, col: column) })

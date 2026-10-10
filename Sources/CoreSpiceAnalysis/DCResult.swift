@@ -5,7 +5,8 @@ import CoreSpiceIR
 ///
 /// Provides typed access to node voltages and branch currents
 /// from the converged MNA solution.
-public struct DCResult: Sendable {
+public struct DCResult: Sendable, AnalysisResultStorageRetaining {
+    private let retainedStorage: (any Sendable)?
 
     /// The converged solution vector.
     public let variables: [Double]
@@ -49,6 +50,20 @@ public struct DCResult: Sendable {
         self.variableMap = variableMap
         self.iterations = iterations
         self.opticalState = opticalState
+        self.retainedStorage = nil
+    }
+
+    /// Returns the same numerical values while retaining their native invocation capacity.
+    package func retainingStorage(_ owner: any Sendable) -> Self {
+        Self(retaining: self, owner: owner)
+    }
+
+    private init(retaining result: Self, owner: any Sendable) {
+        self.variables = result.variables
+        self.variableMap = result.variableMap
+        self.iterations = result.iterations
+        self.opticalState = result.opticalState
+        self.retainedStorage = owner
     }
 
     /// Returns the voltage at the given node.

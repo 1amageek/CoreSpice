@@ -122,13 +122,7 @@ public struct SPICELexer: Sendable {
             switch token.token {
             case .continuation:
                 if let statementEnd {
-                    var kept = SPICEAccountedCollection<OwnedLexeme>(storageKind: .temporaryBytes)
-                    try kept.reserveCapacity(statementEnd, resources: resources)
-                    for position in 0..<statementEnd {
-                        try kept.append(lexemes[position], resources: resources)
-                    }
-                    lexemes.removeAll()
-                    lexemes = kept
+                    try lexemes.truncate(to: statementEnd, resources: resources)
                 } else { try lexemes.append(OwnedLexeme(token: token, storage: payload), resources: resources) }
             case .newline, .comment:
                 try lexemes.append(OwnedLexeme(token: token, storage: payload), resources: resources)

@@ -3,6 +3,7 @@ import CoreSpiceCompile
 import CoreSpiceDevices
 import CoreSpiceEvent
 import CoreSpiceIR
+import CoreSpiceMOSContracts
 import Foundation
 import Synchronization
 import Testing
@@ -30,22 +31,19 @@ struct MOSL3ConsistencyTests {
     private var variableMap: [MNAVariable: Int] {
         Dictionary(uniqueKeysWithValues: nodes.enumerated().map { (.nodeVoltage($0.element), $0.offset) })
     }
-    private func parameters(polarity: Double) -> [String: ParameterValue] {
-        ["vto": .real(polarity * 0.7), "kp": .real(2e-4), "gamma": .real(0.5),
-         "phi": .real(0.6), "w": .real(10e-6), "l": .real(1e-6),
-         "theta": .real(0.2), "eta": .real(0.03), "kappa": .real(0.3)]
+    private struct Parameters {
+        var model: [String: Double]
+        var instance: [String: Double]
     }
-    private func bind(polarity: Double, parameters: [String: ParameterValue]? = nil,
-                      csr: Bool = false) throws -> any BoundDevice {
-        let type = polarity == 1 ? "nmos_l3" : "pmos_l3"
-        let descriptor = try #require(DeviceRegistry.standard().descriptor(for: type))
-        let fullResolver: @Sendable (Int, Int) -> Int? = { row, column in row * 4 + column }
-        let resolver = csr ? fullResolver : nil
-        var context = BindingContext(variableMap: variableMap, matrixDimension: 4,
-                                     stampIndexResolver: resolver)
-        return try descriptor.bind(instance: Instance(name: "M1", typeName: type, nodes: nodes,
-                                                      parameters: parameters ?? self.parameters(polarity: polarity)),
-                                   context: &context)
+    private func parameters(polarity: Double) -> Parameters {
+        Parameters(model: ["vto": polarity * 0.7, "kp": 2e-4, "gamma": 0.5,
+            "phi": 0.6, "theta": 0.2, "eta": 0.03, "kappa": 0.3],
+            instance: ["w": 10e-6, "l": 1e-6])
+    }
+    private func bind(polarity: Double, parameters: Parameters? = nil) throws -> any BoundDevice {
+        let values = parameters ?? self.parameters(polarity: polarity)
+        return try PreparedMOSFixture.bind(typeName: polarity == 1 ? "nmos_l3" : "pmos_l3",
+            nodes: nodes, model: values.model, instance: values.instance, variableMap: variableMap)
     }
     private func dc(_ device: any BoundDevice, _ voltage: [Double], csr: Bool = false) throws -> L3Stamps.Values {
         let collector = L3Stamps()
@@ -113,7 +111,7 @@ struct MOSL3ConsistencyTests {
     @Test("Channel regularization contributes the same leakage current and derivative")
     func regularizationCurrentMatchesDerivative() throws {
         for polarity in [1.0, -1.0] {
-            let device = try bind(polarity: polarity, parameters: ["kp": .real(0)])
+            let device = try bind(polarity: polarity, parameters: Parameters(model: ["kp": 0], instance: [:]))
             let v = [0.2, 0.0, 0, 0].map { polarity * $0 }
             let stamp = try dc(device, v)
             close(currents(stamp, v)[0], polarity * 2e-13, absolute: 1e-25)
@@ -126,31 +124,31 @@ struct MOSL3ConsistencyTests {
         for polarity in [1.0, -1.0] {
             for parameter in ["theta", "kappa"] {
                 var p = parameters(polarity: polarity)
-                p[parameter] = .real(-1)
+                p.model[parameter] = -1
                 do {
                     _ = try bind(polarity: polarity, parameters: p)
                     Issue.record("Invalid denominator parameter was admitted")
-                } catch DeviceBindingError.invalidParameterValue(let device, let name, _) {
-                    #expect(device == "M1")
-                    #expect(name == parameter)
+                } catch MOSPreparationFailure.kernelRejected(let message) {
+                    #expect(message.contains("M1"))
+                    #expect(message.contains(parameter))
                 }
             }
-            let invalidDerived: [(String, [String: ParameterValue])] = [
-                ("beta", ["kp": .real(1e308)]),
-                ("cox", ["tox": .real(1e-320)]),
-                ("velocityCoefficient", ["tox": .real(10e-9), "vmax": .real(1e-320)]),
-                ("effectiveVelocityCoefficient", ["tox": .real(10e-9), "vmax": .real(1e-303),
-                                                  "kappa": .real(Double.greatestFiniteMagnitude)])
+            let invalidDerived: [(String, [String: Double])] = [
+                ("beta", ["kp": 1e308]),
+                ("cox", ["tox": 1e-320]),
+                ("velocityCoefficient", ["tox": 10e-9, "vmax": 1e-320]),
+                ("effectiveVelocityCoefficient", ["tox": 10e-9, "vmax": 1e-303,
+                                                  "kappa": Double.greatestFiniteMagnitude])
             ]
             for (expected, overrides) in invalidDerived {
                 var p = parameters(polarity: polarity)
-                p.merge(overrides) { _, replacement in replacement }
+                p.model.merge(overrides) { _, replacement in replacement }
                 do {
                     _ = try bind(polarity: polarity, parameters: p)
                     Issue.record("Non-finite derived coefficient was admitted")
-                } catch DeviceBindingError.invalidParameterValue(let device, let name, _) {
-                    #expect(device == "M1")
-                    #expect(name == expected)
+                } catch MOSPreparationFailure.kernelRejected(let message) {
+                    #expect(message.contains("M1"))
+                    #expect(message.contains(expected))
                 }
             }
         }
@@ -160,14 +158,14 @@ struct MOSL3ConsistencyTests {
     func csrAndACShareChannelJacobian() throws {
         for polarity in [1.0, -1.0] {
             var p = parameters(polarity: polarity)
-            p["tox"] = .real(10e-9)
-            p["vmax"] = .real(1e5)
-            p["cgso"] = .real(1e-10)
-            p["cgdo"] = .real(3e-10)
-            p["cj"] = .real(1e-3)
-            p["ad"] = .real(2e-12)
-            p["as"] = .real(1e-12)
-            let device = try bind(polarity: polarity, parameters: p, csr: true)
+            p.model["tox"] = 10e-9
+            p.model["vmax"] = 1e5
+            p.model["cgso"] = 1e-10
+            p.model["cgdo"] = 3e-10
+            p.model["cj"] = 1e-3
+            p.instance["ad"] = 2e-12
+            p.instance["as"] = 1e-12
+            let device = try bind(polarity: polarity, parameters: p)
             for canonical in [[0.2, 2.0, 0, -0.4], [2, 2, 0, -0.4], [-1, 1, 0, -1.4]] {
                 let voltage = canonical.map { polarity * $0 }
                 let coordinate = try dc(device, voltage)
@@ -196,11 +194,8 @@ struct MOSL3ConsistencyTests {
     @Test("Reverse-channel capacitance retains physical overlaps and diffusion areas")
     func reversedCapacitanceRetainsPhysicalGeometry() throws {
         for polarity in [1.0, -1.0] {
-            let p: [String: ParameterValue] = [
-                "kp": .real(0), "w": .real(1), "l": .real(1),
-                "cgso": .real(1e-12), "cgdo": .real(3e-12),
-                "cj": .real(1e-3), "ad": .real(2e-12), "as": .real(1e-12)
-            ]
+            let p = Parameters(model: ["kp": 0, "cgso": 1e-12, "cgdo": 3e-12, "cj": 1e-3],
+                instance: ["w": 1, "l": 1, "ad": 2e-12, "as": 1e-12])
             let device = try bind(polarity: polarity, parameters: p)
             for drainBias in [-1.0, 1.0] {
                 let voltage = [drainBias, 0, 0, -2].map { polarity * $0 }
@@ -221,10 +216,8 @@ struct MOSL3ConsistencyTests {
     @Test("L3 transient companions use accepted physical-terminal history")
     func transientUsesAcceptedHistory() throws {
         for polarity in [1.0, -1.0] {
-            let device = try bind(polarity: polarity, parameters: [
-                "kp": .real(0), "w": .real(1), "l": .real(1),
-                "cgso": .real(1e-12), "cgdo": .real(3e-12)
-            ])
+            let device = try bind(polarity: polarity, parameters: Parameters(model: ["kp": 0, "cgso": 1e-12, "cgdo": 3e-12],
+                instance: ["w": 1, "l": 1]))
             let integration = IntegrationState(method: .trapezoidal, timeStep: 1, currentTime: 1)
             let first = [1.0, 4, 0, 0].map { polarity * $0 }
             let accepted = SolutionState(variables: first, previousVariables: [0, 0, 0, 0],
@@ -247,7 +240,7 @@ struct MOSL3ConsistencyTests {
         }
     }
 
-    private func prepared(polarity: Double, overrides: [String: ParameterValue] = [:]) throws -> (PreparedCircuit, [Double], [Branch]) {
+    private func prepared(polarity: Double, overrides: [String: Double] = [:]) throws -> (PreparedCircuit, [Double], [Branch]) {
         var netlist = Netlist()
         let voltage = [2.0, 2, 0, -0.4].map { polarity * $0 }
         var branches: [Branch] = []
@@ -260,21 +253,29 @@ struct MOSL3ConsistencyTests {
                 parameters: ["v": .real(voltage[index]), "ac": .real(index == 1 ? polarity : 0)],
                 ownedBranches: [branch])
         }
-        var p = parameters(polarity: polarity)
-        p["cgso"] = .real(1e-10)
-        p.merge(overrides) { _, replacement in replacement }
+        var model: [String: Double] = [
+            "vto": polarity * 0.7, "kp": 2e-4, "gamma": 0.5, "phi": 0.6,
+            "theta": 0.2, "eta": 0.03, "kappa": 0.3, "cgso": 1e-10
+        ]
+        model.merge(overrides) { _, replacement in replacement }
+        let owner = try PreparedMOSFixture.prepare(.level3, polarity: polarity == 1 ? .nmos : .pmos,
+            model: model, instance: ["w": 10e-6, "l": 1e-6])
         try netlist.addInstance(name: "M1", typeName: polarity == 1 ? "nmos_l3" : "pmos_l3",
-            nodes: ["n0", "n1", "n2", "n3"], parameters: p)
+            nodes: ["n0", "n1", "n2", "n3"], mos: .prepared(owner.receipt),
+            ownedNodeCount: owner.receipt.topology.auxiliaryNodeCount)
         let ir = try netlist.build()
         let plan = try StandardCompiler().compile(ir: ir)
         let structure = plan.matrixStructure
         var context = BindingContext(variableMap: plan.topology.variableMap,
             matrixDimension: plan.topology.dimension,
             stampIndexResolver: { structure.index(row: $0, col: $1) })
-        let devices = try ir.instances.map { instance -> any BoundDevice in
+        var devices: [any BoundDevice] = []
+        for instance in ir.instances.dropLast() {
             let descriptor = try #require(DeviceRegistry.standard().descriptor(for: instance.typeName))
-            return try descriptor.bind(instance: instance, context: &context)
+            devices.append(try descriptor.bind(instance: instance, context: &context))
         }
+        let mos = try #require(ir.instances.last)
+        devices.append(try owner.bind(instance: mos, context: &context))
         return (try PreparedCircuit(plan: plan, devices: devices), voltage, branches)
     }
 
@@ -286,7 +287,7 @@ struct MOSL3ConsistencyTests {
                 observer: nil, cancellation: CancellationToken())
             let device = try #require(circuit.devices.last)
             var p = parameters(polarity: polarity)
-            p["cgso"] = .real(1e-10)
+            p.model["cgso"] = 1e-10
             let local = try bind(polarity: polarity, parameters: p)
             let stamp = try dc(local, voltage)
             let current = currents(stamp, voltage)
@@ -315,7 +316,7 @@ struct MOSL3ConsistencyTests {
     @Test("Extreme finite model arithmetic fails the production DC analysis explicitly")
     func nonFiniteChannelFailsAnalysis() async throws {
         let (circuit, _, _) = try prepared(polarity: 1, overrides: [
-            "theta": .real(0), "kappa": .real(0), "eta": .real(0)
+            "theta": 0, "kappa": 0, "eta": 0
         ])
         let nodes = try #require(circuit.devices.last).instance.nodes
         let analysis = DCAnalysis(nodeInitialGuess: [nodes[0]: 1e200, nodes[1]: 1e200])

@@ -79,6 +79,10 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
             guard iterations > 0 else {
                 throw AnalysisError.invalidConfiguration("Monte Carlo iterations must be positive")
             }
+            // FIXME(INCOMPLETE_IMPLEMENTATION): Generic IR Monte Carlo rebinds all instances without source-level MOS re-resolution. MOS callers must open a fresh frontend session and prepare a new owner for each sample before this path can succeed.
+            if let instance = plan.ir.instances.first(where: { $0.mos != nil }) {
+                throw AnalysisError.requiresFreshMOSResolution(instance: instance.name)
+            }
             try validateVariations(in: plan)
 
             var rng: any RandomNumberGenerator = seed.map {

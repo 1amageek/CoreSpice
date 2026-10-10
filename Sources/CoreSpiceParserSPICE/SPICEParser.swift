@@ -2521,6 +2521,19 @@ private struct SPICEParserImpl {
         try skipToEndOfLine()
     }
 
+    private mutating func parseMonteCarloParameterValueIfPresent() throws -> ParsedParameterValue? {
+        if try currentParameterStart() {
+            return nil
+        }
+        if case .identifier(let name) = currentToken {
+            let name = try normalized(name)
+            if name == "seed" || name == "uic" {
+                return nil
+            }
+        }
+        return try parseParameterValueIfPresent()
+    }
+
     /// Parses .mc directive: .mc runs analysis [seed=n]
     private mutating func parseMonteCarloAnalysis(location: SourceLocation?) throws {
         // Parse number of iterations
@@ -2547,12 +2560,12 @@ private struct SPICEParserImpl {
             var stopTime: ParsedParameterValue = .numeric(1e-6)
             var stepTime: ParsedParameterValue?
 
-            if let n = try parseNumericTokenIfPresent() {
-                stepTime = .numeric(n)
+            if let value = try parseMonteCarloParameterValueIfPresent() {
+                stepTime = value
             }
 
-            if let n = try parseNumericTokenIfPresent() {
-                stopTime = .numeric(n)
+            if let value = try parseMonteCarloParameterValueIfPresent() {
+                stopTime = value
             }
 
             let innerReservation = try profileStorage?.reservePayload(of: TransientAnalysisSpec.self)
@@ -2581,12 +2594,12 @@ private struct SPICEParserImpl {
 
             points = try parseAnalysisPointCount(default: points)
 
-            if let n = try parseNumericTokenIfPresent() {
-                startFreq = .numeric(n)
+            if let value = try parseMonteCarloParameterValueIfPresent() {
+                startFreq = value
             }
 
-            if let n = try parseNumericTokenIfPresent() {
-                stopFreq = .numeric(n)
+            if let value = try parseMonteCarloParameterValueIfPresent() {
+                stopFreq = value
             }
 
             let innerReservation = try profileStorage?.reservePayload(of: ACAnalysisSpec.self)
@@ -2609,14 +2622,14 @@ private struct SPICEParserImpl {
             var stop: ParsedParameterValue = .numeric(1)
             var step: ParsedParameterValue = .numeric(0.1)
 
-            if let n = try parseNumericTokenIfPresent() {
-                start = .numeric(n)
+            if let value = try parseMonteCarloParameterValueIfPresent() {
+                start = value
             }
-            if let n = try parseNumericTokenIfPresent() {
-                stop = .numeric(n)
+            if let value = try parseMonteCarloParameterValueIfPresent() {
+                stop = value
             }
-            if let n = try parseNumericTokenIfPresent() {
-                step = .numeric(n)
+            if let value = try parseMonteCarloParameterValueIfPresent() {
+                step = value
             }
 
             let innerReservation = try profileStorage?.reservePayload(of: DCAnalysisSpec.self)
@@ -2636,24 +2649,25 @@ private struct SPICEParserImpl {
         // Parse optional seed
         var seed: Int?
         while !isAtEnd && !isNewline {
-            if case .identifier(let paramName) = currentToken {
-                if try normalized(paramName) == "seed" {
-                    try advance()
-                    if case .equals = currentToken {
-                        try advance()
-                    }
-                    let seedLocation = currentLocation
-                    guard let n = try parseNumericTokenIfPresent() else {
-                        throw ParserDiagnostic.error(
-                            "Expected nonnegative integer Monte Carlo seed",
-                            at: seedLocation
-                        )
-                    }
-                    seed = try parseNonnegativeInteger(n, label: "Monte Carlo seed", at: seedLocation)
-                }
-            } else {
+            guard case .identifier(let paramName) = currentToken,
+                  try normalized(paramName) == "seed" else {
+                throw ParserDiagnostic.error(
+                    "Unsupported Monte Carlo option; expected seed",
+                    at: currentLocation
+                )
+            }
+            try advance()
+            if case .equals = currentToken {
                 try advance()
             }
+            let seedLocation = currentLocation
+            guard let n = try parseNumericTokenIfPresent() else {
+                throw ParserDiagnostic.error(
+                    "Expected nonnegative integer Monte Carlo seed",
+                    at: seedLocation
+                )
+            }
+            seed = try parseNonnegativeInteger(n, label: "Monte Carlo seed", at: seedLocation)
         }
 
         if let inner = innerAnalysis {

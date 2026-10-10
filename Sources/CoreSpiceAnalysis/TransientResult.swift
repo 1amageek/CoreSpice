@@ -15,7 +15,8 @@ public enum TransientResultError: Error, Equatable, Sendable, CustomStringConver
 ///
 /// Contains the full time-domain trajectory of the circuit: a series
 /// of time points and the corresponding MNA solution vectors.
-public struct TransientResult: Sendable {
+public struct TransientResult: Sendable, AnalysisResultStorageRetaining {
+    private let retainedStorage: (any Sendable)?
 
     /// The simulation time values at which solutions were saved.
     public let timePoints: [Double]
@@ -103,6 +104,22 @@ public struct TransientResult: Sendable {
         self.variableMap = variableMap
         self.timeSteps = timeSteps
         self.rejectedSteps = rejectedSteps
+        self.retainedStorage = nil
+    }
+
+    /// Returns the same numerical values while retaining their native invocation capacity.
+    package func retainingStorage(_ owner: any Sendable) -> Self {
+        Self(retaining: self, owner: owner)
+    }
+
+    private init(retaining result: Self, owner: any Sendable) {
+        self.executionStatistics = result.executionStatistics
+        self.timePoints = result.timePoints
+        self.solutionTrace = result.solutionTrace
+        self.variableMap = result.variableMap
+        self.timeSteps = result.timeSteps
+        self.rejectedSteps = result.rejectedSteps
+        self.retainedStorage = owner
     }
 
     /// Returns the voltage at the given node for a specific time index.

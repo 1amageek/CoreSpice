@@ -1,7 +1,8 @@
 import CoreSpiceCompile
 
 /// Frequency-dependent sensitivity of one output voltage to circuit parameters.
-public struct ACSensitivityResult: Sendable {
+public struct ACSensitivityResult: Sendable, AnalysisResultStorageRetaining {
+    private let retainedStorage: (any Sendable)?
     public struct ParameterSensitivity: Sendable {
         public let deviceName: String
         public let parameterName: String
@@ -111,5 +112,19 @@ public struct ACSensitivityResult: Sendable {
         self.frequencies = frequencies
         self.baselineValues = baselineValues
         self.sensitivities = sensitivities
+        self.retainedStorage = nil
+    }
+
+    /// Returns the same numerical values while retaining their native invocation capacity.
+    package func retainingStorage(_ owner: any Sendable) -> Self {
+        Self(retaining: self, owner: owner)
+    }
+
+    private init(retaining result: Self, owner: any Sendable) {
+        self.outputVariable = result.outputVariable
+        self.frequencies = result.frequencies
+        self.baselineValues = result.baselineValues
+        self.sensitivities = result.sensitivities
+        self.retainedStorage = owner
     }
 }

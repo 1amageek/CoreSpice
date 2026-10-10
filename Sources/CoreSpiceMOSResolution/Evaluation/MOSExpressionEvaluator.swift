@@ -201,7 +201,7 @@ private func pushValue(_ value: Double, onto values: inout [Double], session: in
 private func popValue(_ values: inout [Double]) throws(MOSResolutionFailure) -> Double {
     guard let value = values.popLast() else { throw .invalidArithmetic }; return value
 }
-private func binaryMOSValue(_ op: MOSBinaryOperator, _ lhs: Double, _ rhs: Double) throws(MOSResolutionFailure) -> Double {
+package func binaryMOSValue(_ op: MOSBinaryOperator, _ lhs: Double, _ rhs: Double) throws(MOSResolutionFailure) -> Double {
     switch op {
     case .add: return lhs + rhs
     case .subtract: return lhs - rhs

@@ -4,7 +4,8 @@ import CoreSpiceIR
 ///
 /// Contains the output noise spectral density at each frequency point,
 /// individual device contributions, and the integrated output noise.
-public struct NoiseResult: Sendable {
+public struct NoiseResult: Sendable, AnalysisResultStorageRetaining {
+    private let retainedStorage: (any Sendable)?
 
     /// Noise contribution from a single device noise source.
     public struct DeviceNoiseContribution: Sendable {
@@ -121,7 +122,24 @@ public struct NoiseResult: Sendable {
         self.integratedOutputNoise = integratedOutputNoise
         self.deviceContributions = deviceContributions
         self.variableMap = variableMap
+        self.retainedStorage = nil
     }
+
+    /// Returns the same numerical values while retaining their native invocation capacity.
+    package func retainingStorage(_ owner: any Sendable) -> Self {
+        Self(retaining: self, owner: owner)
+    }
+
+    private init(retaining result: Self, owner: any Sendable) {
+        self.frequencies = result.frequencies
+        self.outputNoiseDensity = result.outputNoiseDensity
+        self.inputReferredNoiseDensity = result.inputReferredNoiseDensity
+        self.integratedOutputNoise = result.integratedOutputNoise
+        self.deviceContributions = result.deviceContributions
+        self.variableMap = result.variableMap
+        self.retainedStorage = owner
+    }
+
 
     private static func validateNonNegativeFinite(
         _ values: [Double],

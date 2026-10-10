@@ -4,6 +4,19 @@ import Testing
 
 @Suite("Shared bounded MOS numerical evaluation")
 struct MOSEvaluationTests {
+    @Test func signedPowerPreservesNegativeBaseSign() throws {
+        let limits = try limits()
+        var builder = MOSDeclarationSnapshotBuilder(limits: limits)
+        let root = try builder.addScope(parent: nil), signed = try builder.intern("pwrs"), positive = try builder.intern("pwr")
+        let signedProgram = try builder.addProgram(.function(signed, arguments: [.literal(-2), .literal(2)]))
+        let positiveProgram = try builder.addProgram(.function(positive, arguments: [.literal(-2), .literal(2)]))
+        let snapshot = try builder.finish(), graph = try graph(snapshot, [(1, root, nil, [])], limits)
+        var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 1, limits: limits)
+        #expect(try evaluateMOSProgram(signedProgram, invocation: 1, lexicalScope: root, from: snapshot, session: &session) == -4)
+        #expect(try evaluateMOSProgram(positiveProgram, invocation: 1, lexicalScope: root, from: snapshot, session: &session) == 4)
+        #expect(session.randomDraws == 0)
+    }
+
     @Test func bindingMemoSharesRandomButProgramSlotsAndInvocationsDoNot() throws {
         let limits = try limits()
         var builder = MOSDeclarationSnapshotBuilder(limits: limits)

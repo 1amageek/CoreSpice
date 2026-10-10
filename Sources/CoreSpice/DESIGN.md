@@ -19,14 +19,14 @@ cannot be generalized to it. PDK/flow/database authority remains outside CoreSpi
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [Package](../../DESIGN.md) | parent | Domain and artifact boundary | Direct developer API | No qualification claim |
-| [NativeExecution](NativeExecution/DESIGN.md) | child | Checked prepare/execute owner | Actual native numerical composition | Not implemented by current artifact backend protocol |
-| [IO](../CoreSpiceIO/DESIGN.md) | depends on | Owned simulation preparation | Domain source/intent intake | Add native SwiftPM dependency during implementation; no cycle |
+| [NativeExecution](NativeExecution/DESIGN.md) | child | Checked preparation owner and concrete consuming analyses | Shared native numerical composition for API, CLI and host | Artifact backend execution remains separately injected |
+| [IO](../CoreSpiceIO/DESIGN.md) | depends on | Checked source evaluation and simulation preparation | Domain source/intent intake | No reverse IO-to-CoreSpice dependency |
 
 ## Architecture
 
 ```text
-current: CoreSpiceSimulator -> injected backend -> artifact result
-native: IO prepared input -> native prepared plan -> native execution -> domain output
+artifact: CoreSpiceSimulator -> injected backend -> artifact result
+native: IO resolved input -> common native owner -> consuming analysis -> completed facts
 ```
 
 ## Contracts and Invariants

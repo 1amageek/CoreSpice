@@ -1,4 +1,5 @@
 import Testing
+import CoreSpice
 import Foundation
 import Synchronization
 @testable import CoreSpiceAnalysis
@@ -287,11 +288,12 @@ struct CancellationIntegrationTests {
         // Build NMOS common source circuit
         let (netlist, _) = try CircuitFactory.nmosCommonSource(
             vdd: 5.0, rd: 1000.0, vgs: 2.0,
-            mosParams: ["vto": .real(1.0), "kp": .real(1e-3)]
+            modelParameters: ["vto": 1.0, "kp": 1e-3],
+            instanceParameters: ["w": 10e-6, "l": 1e-6]
         )
-        let (plan, devices) = try CircuitFactory.compile(netlist)
 
         let config = TransientConfig(stopTime: 0.1, executionLimits: .validationFixture, maxTimeStep: 1e-4)
+        let circuit = try AnalysisMOSFixture.prepare(netlist, numericalLimits: try config.requiredExecutionLimits())
         let analysis = TransientAnalysis(config: config, convergenceConfig: CircuitFactory.nonlinearConfig)
         let solver = SparseLUSolver()
         let token = CancellationToken()
@@ -301,11 +303,11 @@ struct CancellationIntegrationTests {
 
         do {
             _ = try await analysis.run(
-                plan: plan, devices: devices, solver: solver,
+                circuit: circuit, solver: solver,
                 observer: nil, cancellation: token
             )
-            Issue.record("Expected AnalysisError.cancelled to be thrown")
-        } catch let error as AnalysisError {
+            Issue.record("Expected SPICENativeExecutionError.cancelled to be thrown")
+        } catch let error as SPICENativeExecutionError {
             guard case .cancelled = error else {
                 Issue.record("Expected .cancelled, got \(error)")
                 return

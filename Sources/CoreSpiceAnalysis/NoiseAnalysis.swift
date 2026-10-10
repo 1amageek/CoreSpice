@@ -18,6 +18,7 @@ import Foundation
 ///    including correlated complex amplitudes. Each device follows one path.
 /// 5. Optionally computes input-referred noise and integrated RMS noise.
 public struct NoiseAnalysis: Analysis, Sendable {
+    package var executionBudget: TransientExecutionBudget?
 
     public typealias Result = NoiseResult
 
@@ -82,7 +83,9 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 }
             }
             // Phase 1: DC operating point
-            let dcAnalysis = DCAnalysis(config: dcConfig)
+            var dcAnalysis = DCAnalysis(config: dcConfig)
+            dcAnalysis.executionBudget = executionBudget
+            try executionBudget?.admitSavedPoint(accepted: false)
             let dcResult = try await dcAnalysis.run(
                 plan: plan,
                 devices: devices,
@@ -158,6 +161,8 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 }
 
                 let omega = 2.0 * .pi * freq
+
+                try executionBudget?.beginLinearSolve(complex: true)
 
                 // Build AC matrix Y = G + jωC
                 matrix.clear()
@@ -239,6 +244,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         }
 
                         // Solve for transfer function: Y * v = i_noise
+                        try executionBudget?.beginLinearSolve(complex: true)
                         do {
                             try complexSolver.solve(rhs: noiseRHS, into: &noiseSolutionBuf)
                         } catch {
@@ -259,6 +265,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         let contribution = hMagSquared * source.currentSpectralDensity
                         totalNoisePSD += contribution
 
+                        try executionBudget?.admitSavedScalars(1)
                         sourceTrackers[trackerIdx].spectralDensity.append(contribution)
                         trackerIdx += 1
                     }
@@ -273,6 +280,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                     guard let nodeIndex = variableMap[.nodeVoltage(node)] else { throw NoiseTransferError.unknownNode(node) }
                     for index in 0..<dim { noiseRHS[index] = ComplexPair() }
                     noiseRHS[nodeIndex].real = 1
+                    try executionBudget?.beginLinearSolve(complex: true)
                     try complexSolver.solve(rhs: noiseRHS, into: &noiseSolutionBuf)
                     let reference = outputReferenceIndex.map { noiseSolutionBuf[$0] } ?? ComplexPair()
                     transferValues[node] = NoiseTransferGain(real: noiseSolutionBuf[outputIndex].real - reference.real,
@@ -300,6 +308,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                               outputTrackers[outputTrackerIndex].noiseName == channel.name else {
                             throw AnalysisError.invalidConfiguration("Output noise channel identity changed during sweep")
                         }
+                        try executionBudget?.admitSavedScalars(1)
                         outputTrackers[outputTrackerIndex].spectralDensity.append(contribution)
                         outputTrackerIndex += 1
                         totalNoisePSD += contribution
@@ -312,12 +321,14 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 guard trackerIdx == sourceTrackers.count else {
                     throw AnalysisError.invalidConfiguration("Noise source count changed during sweep")
                 }
+                try executionBudget?.admitSavedScalars(3)
                 outputNoiseDensity.append(totalNoisePSD)
 
                 if let inputStimulus {
                     for i in 0..<dim { inputRHS[i] = ComplexPair() }
                     inputStimulus.stamp(into: &inputRHS)
 
+                    try executionBudget?.beginLinearSolve(complex: true)
                     do {
                         try complexSolver.solve(rhs: inputRHS, into: &inputSolutionBuf)
                     } catch {

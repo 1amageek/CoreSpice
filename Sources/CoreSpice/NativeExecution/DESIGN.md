@@ -142,6 +142,12 @@ Numerical limits and native ceilings enter `CoreSpice.native-configuration.v1`
 alongside the IO configuration digest, algorithm/solver identity and actual ordered
 selected device/model declaration identity. Selected declaration identity is framed
 by captured content and physical occurrence coordinates, not availability keys.
+Native identity uses the IO semantic-encoding helper to preflight immutable framing
+against maximumTransformBytes, reserve its exact byte count and emit/hash the same
+ordered framing. The upper limit is not an eager temporary allocation. The count
+pass reads prepared receipts and captured provenance without preparing/binding MOS,
+resolving expressions or mutating receipt collections; receipts remain owned by the
+common preparation record. Capacity/cancellation failures release the pending owner.
 
 | Shared mutable state | Storage / isolation | Read / mutation / release |
 |---|---|---|
@@ -247,3 +253,107 @@ S3 direct-stage fixtures own native preparation, exact conditions, reservations,
 single cold setup across source sweeps and fresh reruns. These fixtures construct
 typed resolved stages independently of parser/lowering adoption and do not qualify
 public SPICE-to-MOS integration before S4.
+
+## Shared Native Circuit Composition
+
+S4 moves the S3 prepare/compile/consume-bind path into `NativeCircuitPreparer`.
+It accepts resolved CircuitIR, the existing non-MOS DeviceRegistry, explicit
+OperatingConditions, native and numerical limits, and the existing synchronized
+source resource owner. It constructs the optical graph before publishing one
+`PreparedNativeCircuit: ~Copyable`. This owner keeps devices private; its copyable
+record exposes plan, conditions, limits, MOS receipts and immutable BSIM4 diagnostics.
+SPICENativeSimulation delegates this same composition and retains IO-specific exact
+source identity encoding. No caller repeats MOS preparation, compilation or binding.
+
+Concrete DC, AC, Noise, TransferFunction, PoleZero, Transient and Fourier analysis extensions
+in the CoreSpice target consume the owner, invoke unchanged analysis implementations,
+validate complete results and return NativeCircuitRun<Result> with immutable completed
+phase facts. Facts retain both preparation and run reservations, including facts
+retained by a point callback when a later point fails. This target placement preserves the dependency direction from CoreSpice
+to CoreSpiceAnalysis. There is no generic public execution callback receiving devices.
+Transient preserves the analysis's onStepAccepted callback and EventDispatcher.
+Fourier consumes the same private state through its existing transient-then-harmonic
+implementation, checks numerical limits and bounds harmonic output before execution.
+DC source sweeps consume one owner, replace only the selected independent source,
+share numerical budget across points, and emit exact point facts after each success.
+A callback failure or cancellation prevents completed full-sweep publication.
+Cancellation rejected during common admission emits one started/cancelled event
+pair for the requested concrete analysis before releasing its owner. Accepted
+admission delegates event lifecycle to the unchanged analysis implementation, so
+the wrapper does not duplicate lower-analysis terminal events. The untyped source
+accounting boundary preserves other failures as .resource(originalError); only
+CancellationError and the concrete SPICESimulationResources cancelled case are
+classified as cancellation after the task/token check.
+
+Preparation facts are not execution proof. Completed facts have internal constructors
+and retain actual instances (including exact source overrides), conditions and MOS
+receipts whose resolved snapshots own final values and source provenance. BSIM4
+initial diagnostics are immutable preparation evidence. Generic dictionary sensitivity
+or Monte Carlo cannot reuse a MOS receipt; callers must supply newly resolved inputs
+or receive AnalysisError.requiresFreshMOSResolution before sampling or rebinding.
+Concrete operations admit the receipt capability set before numerical work: DC and
+TF require DC; AC and PZ require DC plus AC; noise adds noise; transient adds transient.
+A mismatched set fails with SPICENativeExecutionError.mosPreparation(.invalidConditions).
+
+All reservations precede allocation and remain retained by inspection/results where
+needed. Numerical capacity is finite and explicit for every operation. Existing
+solver algorithms and device history synchronization remain unchanged. Native tests
+own common preparation, consuming operations, source-only sweep facts, callbacks,
+optical graph composition, cancellation and failed-owner reservation release.
+
+## Complete Concrete Numerical Admission
+
+The native preparation record's numerical limits govern the entire consuming
+operation. One checked budget is injected into the lower analysis and transported
+through embedded DC, recovery, repeated sensitivity/AC solves, linear phases and
+saved outputs. Concrete results expose its final statistics. No perturbation or
+nested analysis resets the budget.
+
+Fourier admits simultaneous retained transient capacity, every harmonic component
+at its native stride, result dictionary metadata, and column/final-period scratch
+before execution. Its separate scratch reservation is released on success,
+failure or cancellation. Peak live
+plus scratch is checked against the native allocation ceiling with overflow checks.
+The source resource owner additionally admits those exact reservation capacities.
+The lower Fourier owner charges actual completed-sample integration work against
+the same budget before allocating postprocessing arrays. Numerical exhaustion,
+allocation refusal and overflow publish no completed facts and release owners.
+
+The internal NativeCircuitRun initializer requires the package result-storage
+contract and attaches the admitted live reservation to every concrete result.
+The public generic run type keeps its Sendable-only constraint. An extracted
+copyable result retains capacity after its wrapper/facts are released. Typed nested
+results and DC sweep callback point results retain the same lease; the final result
+copy releases it. Individual Array/Dictionary extraction and derived materialization
+are caller-owned value boundaries, as defined by the Analysis result contract.
+
+NativeCircuitBudgetTests owns the six embedded-Newton counterexamples, aggregate
+sensitivity solve refusal, Fourier coexistence refusal, admitted harmonic output
+postprocessing work exhaustion, extracted DC/transient/Fourier result lifetime and
+retained sweep callback points after failure. Existing
+native and BSIM analyses revalidate
+physical results after package budget transport changes.
+
+## Original Sky130 Source Verification
+
+The opt-in `Sky130OriginalSourceVerificationTests` uses
+`MOS_ORIGINAL_SKY130_ROOT` to locate the unchanged installed sky130A revision.
+The public source preparer receives exact checked owners for the original
+`sky130_fd_pr__nfet_01v8__tt.pm3.spice` and mismatch corner, with an explicit
+caller wrapper supplying TT Monte Carlo switches, micron geometry scale and
+W=0.65/L=0.15/NF=1. The wrapper owns those operating inputs; it neither extracts
+nor replaces any model declaration or coefficient.
+
+One public `SPICESimulationPreparer` invocation owns options, the shared evaluation
+session and lowering. The test verifies selected declaration identity, original
+source occurrence and statement coordinates, normalized/selection dimensions,
+release and candidate evidence before invoking `NativeCircuitPreparer`. Exact
+BSIM4 4.5 must fail with `mosPreparation(.unsupportedRelease(.bsim4_4_5))` before
+numerical ownership or execution. This verifies interpretation and refusal,
+not BSIM4 4.5 numerical physics. Absent the opt-in environment, the test is skipped.
+
+The S5 external runner records the complete original PDK file inventory and SHA-256
+before and after execution; any content or inventory drift invalidates this proof.
+The probe writes observed selection facts only when an output path is supplied.
+The normal verification driver owns toolchain, timeout, test status and production
+source hashes. This contract adds no production fallback or public evaluator access.

@@ -20,8 +20,8 @@ This is an intake component, not a second parser or a general flow executor.
 |---|---|---|---|---|
 | [IO](../DESIGN.md) | parent | Caller-owned exact/bounded source intake | Domain composition | Ordinary exact loader has count/work limits, not owned grammar capacity proof |
 | [ParserSPICE](../../CoreSpiceParserSPICE/DESIGN.md) | depends on | SPICEProfileSourceParsing.parseProfile | Actual AST/context/edges | Includes enabled and owned documents required |
-| [InitialConditions](../InitialConditions/DESIGN.md) | depends on | SPICENodeVoltageResolving.resolveBounded | Actual circuit node binding | Nonliteral expressions and Unicode remain typed unsupported |
-| [Lowering](../../CoreSpiceLowering/DESIGN.md) | depends on | Actual CircuitIR and scoped model semantics | Same AST lowers once | Source budget does not establish lowering allocation bounds |
+| [InitialConditions](../InitialConditions/DESIGN.md) | depends on | SPICENodeVoltageResolving.resolveBounded | Actual circuit node binding | Unicode remains typed unsupported; expressions share the frontend session |
+| [Lowering](../../CoreSpiceLowering/DESIGN.md) | depends on | CompiledNetlist, resourceEnvelope and LoweredCircuit | Same AST and one scalar session | Reserve explicit frontend capacities before compile/begin |
 | [Native execution](../../CoreSpice/NativeExecution/DESIGN.md) | used by | PreparedSPICESimulation | Compile/bind/run exact intent | No source reread or reparse |
 | [Host](../../../../Xcircuite/Sources/Xcircuite/ProfileExecution/DESIGN.md) | used by | Full prepared graph and actual settings | PDK composition | Domain values carry no PDK admission authority |
 
@@ -36,17 +36,16 @@ owned root + exact contextual resolver + initial environment + explicit policy
 
 ## Contracts and Invariants
 
-Current facts: Xcircuite's CoreSpiceSimulationEngine calls SPICEIO.parse on a String,
-uses options/first supported analysis and lowers/compiles/binds itself. The current
-transient helper omits IC/nodeset dictionaries. The shared CLI resolver and bounded
-grammar exist, but do not by themselves establish this host path. References:
-[host implementation](../../../../Xcircuite/Sources/Xcircuite/CoreSpiceSimulationEngine.swift),
-[owned grammar entry](../../CoreSpiceParserSPICE/SPICEProfileSourceParsing.swift) and
-[resolver](../InitialConditions/SPICENodeVoltageResolving.swift).
+Host composition uses the shared compiled frontend and node-voltage contracts;
+ordinary host analysis selection remains separate from this op/DC/transient prepared
+lane. The [owned grammar entry](../../CoreSpiceParserSPICE/SPICEProfileSourceParsing.swift)
+owns captured parsing and the [resolver](../InitialConditions/SPICENodeVoltageResolving.swift)
+owns actual node binding. Host execution evidence belongs to the consuming host.
 
 SP-01: A preparation request supplies an invocation-accounted SPICECheckedSource
 root, explicit initial SPICEPreprocessingEnvironment, exact source catalog/provider,
-ParserConfiguration and finite caller preparation/execution policies. The catalog
+ParserConfiguration, mandatory MOSInputProfile/UInt64 seed/MOSResolutionLimits and
+finite caller preparation/execution policies. The catalog
 uses existing SPICEExactSourceBinding full references plus explicit normalized
 routes/search order; it grants no undeclared path search. The injected
 SPICEExactSourceProviding provider returns the checked owner for a selected binding.
@@ -97,8 +96,8 @@ SP-04: IC and nodeset are resolved against the actual lowered circuit using the
 existing bounded resolver. Retain SPICEOwnedNodeVoltages; a required dictionary for
 TransientConfig is a separately admitted materialization. UIC, initial voltages
 and guesses are passed to numerical analysis, not merely hashed or reported. Apply
-the same preparation to every future transient-derived analysis. A bounded unsupported
-expression cannot fall back to the ordinary ExpressionEvaluator.
+the same preparation to every future transient-derived analysis. Expressions use canonical compiled slots in the same exclusive session; no
+ExpressionEvaluator or retry fallback is available.
 
 SP-05: Runtime temperature comes from effective domain options. Supply bindings are
 explicit domain source IDs and ordered positive/negative node IDs; validate a
@@ -130,17 +129,20 @@ public protocol SPICESimulationPreparing: Sendable {
 ```
 
 `PreparedSPICESimulation: Sendable` has an internal checked constructor, is not
-Codable, and retains SPICEOwnedParseResult, exact graph/captures, CircuitIR,
-effective configuration and owned IC/nodeset. Inspection borrows immutable values
+Codable, and retains SPICEOwnedParseResult, exact graph/captures, LoweredCircuit,
+effective configuration and owned IC/nodeset. Its circuit is computed from lowered.circuit;
+its exact compiled input/snapshot/invocation graph/final evaluation provenance remain
+retained through that owner. Inspection borrows immutable values
 while retaining this owner. A deserialized request/claim or externally constructed
 CircuitIR cannot create it. Protocol implementations obtain it through the concrete
 checked preparation algorithm, not a public unchecked constructor.
 
 ## Runtime Flows
 
-Actual capture -> owned grammar -> options/analysis -> lower -> node bindings ->
-schedule/policy validation -> compute identities -> final cancellation check ->
-prepared owner. Any failure publishes no prepared input. PDK comparison happens
+Actual capture -> owned grammar -> frontend resource admission -> compile ->
+beginEvaluation(profile/limits/seed) -> same-session options/TEMP -> lower(scale) ->
+same-session analysis/IC/nodeset -> schedule/policy validation -> consuming finish ->
+compute identities -> final cancellation check -> prepared owner. Any failure publishes no prepared input. PDK comparison happens
 after native compilation/binding preparation and before numerical execution.
 
 ## State, Ownership, and Lifecycle
@@ -154,7 +156,8 @@ is admitted before construction; shared backing retains its existing owner.
 
 ## Failure, Concurrency, and Constraints
 
-`SPICESimulationPreparationError` preserves source/parser/resource/option/lowering/
+`SPICESimulationPreparationError` preserves typed MOS resolution failures, their exact
+optional injected source-resource cause, and source/parser/resource/option/lowering/
 node causes and distinguishes missing/unsupported analysis, invalid supply binding,
 condition mismatch, missing condition coverage and unsupported bounded transform.
 Bounded grammar proof is not proof of options evaluation, lowering, registry
@@ -187,33 +190,38 @@ acquisition receives a distinct occurrence. Repeated content retains one checked
 source owner and multiple grammar occurrences. Catalog entries that are not read
 remain availability and are excluded from actual input identity.
 
-The initial supported transform is flat R/C/L/V/I with two terminals, literal global
-parameters, literal numeric settings and instance values (or references to literal
-global parameters), source PWL numeric vectors, and resistor model declarations.
-Recursive hierarchy, functions/statistical transforms, other model physics and
-nonliteral bounded values refuse with typed capability errors before ordinary
-lowering/evaluation. Existing numerical and lowering implementations remain unchanged
-for ordinary users. No claim is made for model families refused by preparation.
+The shared frontend owns hierarchical/scalar/MOS transformation work, depth and
+storage. Superseded flat-device/literal-only gates are removed; the native op/DC/tran
+analysis and explicit supply contracts remain unchanged. Inspectable resolved MOS
+input is retained even when later numerical preparation refuses an exact release.
+No second model/parameter evaluator or cold numerical preparation runs in IO.
 
 | New storage/work | Admission owner | Lifetime / refusal |
 |---|---|---|
 | Catalog resolver references | Preparation reserves bounded catalog slots | Invocation scratch |
-| Flat options/lowering/IC dictionary/sweep storage | Before transformation, source bytes ×64 plus bounded element slots ×4096; both retained and simultaneous temporary reservations | Retained with prepared copy; resource refusal before transform |
-| Flat work | Bounded element-pair envelope and original byte scan, cancellation at each component/control and bounded byte interval | Refusal before transform |
-| Semantic encoding | Length-framed, fixed reserved capacity before byte append; hash budget before hash | Temporary; finite/overflow/capacity failure |
-| Native compile/device/numerical/output | [NativeExecution](../../CoreSpice/NativeExecution/DESIGN.md) | Separate prepare/execute admission |
+| Frontend compile and run | NetlistLowering.resourceEnvelope(limits:): checked retained 2B, temporary B, simultaneous 3B where B is maximumRetainedBytes | Reserve before compile; retained receipt follows prepared copies; scratch stays charged through identity emission and ends at preparation return/failure |
+| IO configuration/sweep/node dictionaries | Source byte/name and maximumElements capacity envelope; actual emitted counts checked before materialization | Retained with prepared copy; no frontend storage charged as an IO allocation |
+| Frontend work/cancellation | MOSResolutionControlling bridge forwards source-accountant checks/charges outside its short Mutex | Typed resolution category plus exact first injected resource cause |
+| Semantic encoding | Immutable framing count preflight, then exact encoded-capacity reservation before byte construction; hash budget before hash | Maximum transform bytes is a ceiling, not eager capacity; live IO/frontend scratch remains charged |
+| Native numerical preparation/execution | [NativeExecution](../../CoreSpice/NativeExecution/DESIGN.md) | Separate prepare/execute admission |
 
-The flat envelope covers copied names and parameter keys, builder/context maps,
-arrays, IR nodes/branches/instances, options, sweep schedules and IC dictionaries.
-The restriction excludes recursive allocation and arbitrary evaluator work. The
-encoding versions are `CoreSpice.prepared-input.v1` and
-`CoreSpice.effective-settings.v1.defaults-v1`. Input identity frames full content
-and descriptor identity, ordered captured sources, initial environment identity,
-actual parent/child source indices and occurrence IDs, physical byte offset and
-statement ordinal, section and inherited preprocessing identity. Availability paths,
-source keys, capture locations and run observations are excluded. Configuration
-frames every admitted effective convergence, temperature, geometry, analysis,
-transient, UIC/IC/nodeset, supply/policy, seed and numerical limit setting.
+The resource bridge stores only the first injected cause under Mutex; external
+accounting callbacks execute outside the critical section. Source cancellation
+remains identifiable separately from expression, scope or resolution-limit failure.
+Borrowed static-consumer validation failures poison the session before return.
+Preparation owns its session locally: any later failure destroys that exclusive run
+and publishes no session that can finish or draw again. Failure publishes no prepared owner
+and releases both frontend and IO capacity reservations.
+
+Input identity remains CoreSpice.prepared-input.v1 and frames full content and
+descriptor identity, ordered captures, initial environment, actual parent/child
+indices and occurrence IDs, source coordinates, section and preprocessing identity.
+Availability paths, source keys and scheduling observations stay outside identity.
+Configuration uses CoreSpice.effective-settings.v2.defaults-v1 and frames actual
+profile, seed and evaluation algorithm identity alongside effective convergence,
+temperature, geometry, analysis, UIC/IC/nodeset, supply/policy and numerical limits.
+Resolution ceilings are retained as execution policy/provenance, without claiming
+that a ceiling is a physical value.
 
 | Assignment / policy | Supported behavior |
 |---|---|
@@ -250,3 +258,34 @@ Verified preparation and actual execution evidence is owned by the
 [NativeExecution evidence](../../CoreSpice/NativeExecution/DESIGN.md#verified-evidence).
 The dedicated test registry and matching event census are part of completion,
 including retained-last-copy release and failed-admission cleanup.
+
+[SPICESimulationFrontendTests](../../../Tests/CoreSpiceIOTests/SPICESimulationFrontendTests.swift)
+owns hierarchical resolved-MOS/source retention, same-session settings/IC/analysis,
+profile-sensitive configuration identity and final-copy frontend receipt lifetime.
+[SPICEFrontendControlTests](../../../Tests/CoreSpiceIOTests/SPICEFrontendControlTests.swift)
+owns preservation of exact injected charge/cancellation causes on actual compile.
+
+| State | Native / WASM / Embedded storage | Isolation and access | Release |
+|---|---|---|---|
+| First source-accounting cause | Mutex<(any Error)?> on every target | firstFailure read / retain mutation under withLock | Last bridge owner |
+| Resource callbacks | Injected Sendable owner on every target | checkCancellation / charge outside the bridge mutex | Caller-owned accounting lifetime |
+
+There are no target-conditional synchronization or Sendable branches in this bridge.
+Native verification does not establish WASM/Embedded runtime synchronization evidence.
+
+Semantic input/settings identity uses two framing passes over already resolved,
+immutable values. The count-only pass performs checked length arithmetic and the
+same cancellation/work admission without allocating an encoding byte buffer. The
+emission pass reserves the exact framed byte count before reserving its buffer;
+every append is bounded by that admitted capacity and the final count must match
+the preflight. It never replays expression evaluation or RNG. The reservation lives
+through hashing and is released on success or failure. IO configuration and
+frontend scratch remain admitted while their buffers are live; identity encoding
+cannot free those reservations merely to fit its own capacity. The transform
+ceiling remains unchanged. The existing package initializer remains the bounded
+full-capacity path for callers that explicitly request that capacity.
+
+`SPICESimulationFrontendTests` covers a first preparation with 8192 admitted IO
+elements, a 64 MiB transform ceiling and a shared 64 MiB temporary budget; exact
+encoding hash failure with other scratch still live; and unchanged framing at the
+exact required capacity versus refusal one byte below it.

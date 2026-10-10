@@ -1,3 +1,6 @@
+@testable import CoreSpice
+import CoreSpiceMOSContracts
+import CoreSpiceIO
 import CoreSpiceParserSPICE
 import CoreSpiceLowering
 import CoreSpiceDevices
@@ -11,17 +14,17 @@ import Testing
 
 @Suite("Native BSIM3 noise", .timeLimit(.minutes(1)))
 struct BSIM3NoiseTests {
-    private func prepared(_ source: String, temperature: Double = 300.15) async throws -> PreparedCircuit {
-        let parsed = try await SPICEParser().parse(source: source).get()
-        let ir = try NetlistLowering().lower(parsed)
-        let plan = try StandardCompiler().compile(ir: ir)
-        return try StandardCircuitDeviceBinding(operatingConditions: .init(temperatureKelvin: temperature))
-            .bind(plan: plan, instances: ir.instances)
+    private func prepared(_ source: String, temperature: Double = 300.15,
+                          capabilities: MOSAnalysisCapabilities = [.dc, .ac, .noise]) async throws -> PreparedNativeCircuit {
+        try await NativeBSIMFixture.prepare(source, temperature: temperature, capabilities: capabilities)
     }
-    private func source(mode: Double = 1, extra: String = "") -> String {
+    private func boundFixture(_ source: String) async throws -> BoundBSIMFixture {
+        BoundBSIMFixture(try await prepared(source))
+    }
+    private func source(mode: Double = 1, kf: String = "1e-25", extra: String = "") -> String {
         """
         native BSIM3 noise
-        .model process nmos level=49 version=3.3.0 vth0=0.7 u0=500 tox=10n noimod=\(mode) kf=1e-25 \(extra)
+        .model process nmos level=49 version=3.3.0 vth0=0.7 u0=500 tox=10n noimod=\(mode) kf=\(kf) \(extra)
         VD supply 0 2
         RL supply d 1k
         VG g 0 1.2 ac 1
@@ -31,10 +34,10 @@ struct BSIM3NoiseTests {
         .end
         """
     }
-    private func noise(_ circuit: PreparedCircuit, start: Double = 1e3, stop: Double = 1e3, points: Int = 1) async throws -> NoiseResult {
-        let node = try #require(circuit.devices.first { $0.instance.name == "m1" }).instance.nodes[0]
+    private func noise(_ circuit: consuming PreparedNativeCircuit, start: Double = 1e3, stop: Double = 1e3, points: Int = 1) async throws -> NoiseResult {
+        let node = try NativeBSIMFixture.mos(circuit).instance.nodes[0]
         return try await NoiseAnalysis(outputNode: node, inputSourceName: "vg", sweep: .linear(start: start, stop: stop, points: points))
-            .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            .run(circuit: consume circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
     }
     @Test func productionNoisePublishesFourSourcesAndZeroSinglePointBandwidth() async throws {
         let result = try await noise(prepared(source()))
@@ -43,7 +46,7 @@ struct BSIM3NoiseTests {
         #expect(result.integratedOutputNoise == 0)
     }
     private func close(_ actual: Double, _ expected: Double, relative: Double = 2e-7, absolute: Double = 1e-32,
-                       context: String = "", sourceLocation: SourceLocation = #_sourceLocation) {
+                       context: String = "", sourceLocation: Testing.SourceLocation = #_sourceLocation) {
         #expect(abs(actual - expected) <= absolute + relative * max(abs(actual), abs(expected)),
                 "\(context) actual=\(actual), expected=\(expected)", sourceLocation: sourceLocation)
     }
@@ -62,11 +65,11 @@ struct BSIM3NoiseTests {
         #expect(oracle.cases.count == 20)
         for fixture in oracle.cases {
             let circuit = try await prepared(fixture.source, temperature: fixture.temperature)
-            let node = try #require(circuit.devices.first { $0.instance.name == "m1" }).instance.nodes[0]
+            let node = try NativeBSIMFixture.mos(circuit).instance.nodes[0]
             let result = try await NoiseAnalysis(outputNode: node, inputSourceName: "vg",
                 sweep: .decade(start: 100, stop: 1e8, pointsPerDecade: 1),
                 dcConfig: .init(abstol: 1e-16, reltol: 1e-9, vntol: 1e-10, gmin: 0))
-                .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+                .run(circuit: consume circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
             #expect(result.frequencies.count == fixture.samples.count)
             var expectedIntegral = 0.0
             for (index, row) in fixture.samples.enumerated() {
@@ -119,7 +122,14 @@ struct BSIM3NoiseTests {
     @Test func invalidModesFrequencyGeometryAndNumericsRemainTyped() async throws {
         for mode in [0.0, 7, 1.5] {
             do { _ = try await prepared(source(mode: mode)); Issue.record("Invalid noise mode was admitted") }
-            catch let error as BSIM3Error { #expect(error == .invalidParameter(name: "noimod", model: true)) }
+            catch let error as MOSResolutionFailure {
+                #expect(mode == 1.5)
+                #expect(error == .schema(.invalidValue(name: "noimod")))
+            } catch let error as SPICENativePreparationError {
+                #expect(mode != 1.5)
+                guard case .mosPreparation(.kernelRejected(let reason)) = error else { Issue.record("Unexpected failure \(error)"); return }
+                #expect(reason.contains(String(describing: BSIM3Error.invalidParameter(name: "noimod", model: true))))
+            }
         }
         let evaluator = try kernel()
         let bias = SIMD8<Double>(0, 1, 1.2, 0, -0.1, 0.95, 0.02, 0)
@@ -128,17 +138,26 @@ struct BSIM3NoiseTests {
         }
         let zeroLength = try kernel(extras: ["lintnoi": 0.5e-6])
         #expect(throws: BSIM3Error.self) { try zeroLength.noiseSpectrum(bias: bias, frequency: 1e3) }
-        for extra in ["kf=-1", "kf=1e308"] {
-            let circuit = try await prepared(source(extra: extra))
-            do { _ = try await noise(circuit); Issue.record("Invalid noise became successful evidence") }
-            catch let error as BSIM3Error { #expect(error == .nonFiniteEvaluation) }
+        for flicker in ["-1", "1e308"] {
+            let circuit = try await prepared(source(kf: flicker))
+            do { _ = try await noise(consume circuit); Issue.record("Invalid noise became successful evidence") }
+            catch let error as SPICENativeExecutionError {
+                guard case .numerical(let cause) = error else { Issue.record("Unexpected failure \(error)"); return }
+                #expect(cause as? BSIM3Error == .nonFiniteEvaluation)
+            }
         }
         let overflowingTrap = try await prepared(source(mode: 2, extra: "noia=-1e308"))
-        do { _ = try await noise(overflowingTrap); Issue.record("Non-finite trap terms became successful zero flicker noise") }
-        catch let error as BSIM3Error { #expect(error == .nonFiniteEvaluation) }
+        do { _ = try await noise(consume overflowingTrap); Issue.record("Non-finite trap terms became successful zero flicker noise") }
+        catch let error as SPICENativeExecutionError {
+                guard case .numerical(let cause) = error else { Issue.record("Unexpected failure \(error)"); return }
+                #expect(cause as? BSIM3Error == .nonFiniteEvaluation)
+            }
         let circuit = try await prepared(source())
-        do { _ = try await noise(circuit, start: 0, stop: 0); Issue.record("Zero-frequency noise was admitted") }
-        catch let error as AnalysisError { guard case .invalidConfiguration = error else { Issue.record("Wrong failure"); return } }
+        do { _ = try await noise(consume circuit, start: 0, stop: 0); Issue.record("Zero-frequency noise was admitted") }
+        catch let error as SPICENativeExecutionError {
+            guard case .numerical(let cause) = error, let analysis = cause as? AnalysisError,
+                  case .invalidConfiguration = analysis else { Issue.record("Wrong failure \(error)"); return }
+        }
     }
 
     @Test func noisePreservesAcceptedHistoryAndSerializesConcurrentEvaluation() async throws {
@@ -167,7 +186,7 @@ struct BSIM3NoiseTests {
     }
 
     @Test func coincidentSourceNodesCancelAndChangedSourcesFail() async throws {
-        let circuit = try await prepared(source())
+        let circuit = try await boundFixture(source())
         let base = try #require(circuit.devices.first { $0.instance.name == "m1" })
         for fault in [NoiseProbeDevice.Fault.coincident, .negative, .unknownNode, .changedIdentity] {
             let devices: [any BoundDevice] = circuit.devices.map {
@@ -187,7 +206,7 @@ struct BSIM3NoiseTests {
     }
 
     @Test func checkedFailureEmitsFailedAndNeverCompleted() async throws {
-        let circuit = try await prepared(source())
+        let circuit = try await boundFixture(source())
         let base = try #require(circuit.devices.first { $0.instance.name == "m1" })
         let devices: [any BoundDevice] = circuit.devices.map {
             $0.instance.name == "m1" ? NoiseProbeDevice(base: base, fault: .overflow) : $0

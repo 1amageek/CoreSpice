@@ -20,7 +20,7 @@ struct CapacitorLoweringTests {
         X2 second cell cv=3n
         .end
         """).get()
-        let ir = try NetlistLowering().lower(parsed)
+        let ir = try FrontendTestLowering().lower(parsed)
         for (name, value) in [("croot", 1e-9), ("x1.c1", 2e-9), ("x2.c1", 3 * 1e-9)] {
             let instance = try #require(ir.instances.first { $0.name.lowercased() == name })
             #expect(instance.model == nil)
@@ -38,19 +38,19 @@ struct CapacitorLoweringTests {
         .end
         """, fileName: "root.cir", configuration: .init(resolveIncludes: true),
             fileResolver: IncludeResolver()).get()
-        let ir = try NetlistLowering().lower(root)
+        let ir = try FrontendTestLowering().lower(root)
         let cap = try #require(ir.instances.first)
         #expect(cap.model == nil)
         #expect(scalar(cap.parameters["c"]) == 4e-9)
     }
 
-    @Test func unresolvedModelReferenceAndDisabledEvaluationNeverBecomeIdealCapacitors() async throws {
+    @Test func unresolvedModelReferenceNeverBecomesIdealCapacitor() async throws {
         for tail in ["cm", "cm 1p", "cm c=2p", "1p cm", "{cv} cm"] {
             let parsed = try await SPICEParser().parse(source:
                 "model backed capacitor\n.param cv=3p\nC1 out 0 \(tail)\n.model cm C cox={unused}\n.end\n").get()
             for expand in [true, false] {
                 do {
-                    _ = try NetlistLowering(configuration: .init(expandModels: expand)).lower(parsed)
+                    _ = try FrontendTestLowering(configuration: .init(expandModels: expand)).lower(parsed)
                     Issue.record("Model-backed capacitor returned an ideal instance")
                 } catch let error as LoweringError {
                     guard case .invalidComponent(_, let reason) = error else { throw error }
@@ -60,11 +60,9 @@ struct CapacitorLoweringTests {
         }
         let ambiguous = try await SPICEParser().parse(source:
             "disabled parameter evaluation\n.param cv=1p\nC1 a 0 cv\n.model cv C cap=9p\n.end\n").get()
-        #expect(throws: LoweringError.self) {
-            _ = try NetlistLowering(configuration: .init(evaluateExpressions: false)).lower(ambiguous)
-        }
-        let ir = try NetlistLowering(configuration: .init(evaluateExpressions: false,
-            parameterOverrides: ["cv": 2e-12])).lower(ambiguous)
+        let base = try FrontendTestLowering().lower(ambiguous)
+        #expect(scalar(base.instances.first?.parameters["c"]) == 1e-12)
+        let ir = try FrontendTestLowering(configuration: .init(parameterOverrides: ["cv": 2e-12])).lower(ambiguous)
         #expect(ir.instances.first?.model == nil)
         #expect(scalar(ir.instances.first?.parameters["c"]) == 2e-12)
     }
@@ -76,7 +74,7 @@ struct CapacitorLoweringTests {
             ".subckt cell a\nC1 a 0 cm\n.model cm C cap=1p\n.ends\nX1 out cell"
         ] {
             let parsed = try await SPICEParser().parse(source: "capacitor refusal\n\(source)\n.end\n").get()
-            #expect(throws: LoweringError.self) { _ = try NetlistLowering().lower(parsed) }
+            #expect(throws: LoweringError.self) { _ = try FrontendTestLowering().lower(parsed) }
         }
     }
 

@@ -1,7 +1,7 @@
 import CoreSpiceMOSContracts
 import CoreSpiceMOSResolution
 
-struct MOSSelectionFixture {
+struct MOSSelectionFixture: ~Copyable {
     let limits: MOSResolutionLimits
     var builder: MOSDeclarationSnapshotBuilder
     let root: MOSScopeID
@@ -9,19 +9,25 @@ struct MOSSelectionFixture {
     let l: MOSSymbolID
     let w: MOSSymbolID
     let nf: MOSSymbolID
+    private var didFinish = false
     init() throws {
-        limits = try MOSResolutionLimits(maximumRetainedBytes: 8_000_000, maximumDiagnosticBytes: 4096,
+        let limits = try MOSResolutionLimits(maximumRetainedBytes: 8_000_000, maximumDiagnosticBytes: 4096,
             maximumScopeDepth: 32, maximumSymbols: 256, maximumScopes: 32,
             maximumInvocations: 64, maximumInvocationBindings: 512, maximumDeclarations: 128,
             maximumPrograms: 256, maximumBindings: 256, maximumFunctions: 32, maximumFunctionDepth: 32,
             maximumExpressionNodes: 256, maximumExpressionDepth: 128, maximumCandidates: 128,
             maximumCacheEntries: 256, maximumEvaluationSteps: 1_000_000)
-        builder = MOSDeclarationSnapshotBuilder(limits: limits)
-        root = try builder.addScope(parent: nil)
-        model = try builder.intern("n")
-        l = try builder.intern("l"); w = try builder.intern("w"); nf = try builder.intern("nf")
+        var builder = MOSDeclarationSnapshotBuilder(limits: limits)
+        let root = try builder.addScope(parent: nil)
+        let model = try builder.intern("n")
+        let l = try builder.intern("l"), w = try builder.intern("w"), nf = try builder.intern("nf")
+        self.limits = limits
+        self.builder = consume builder
+        self.root = root; self.model = model
+        self.l = l; self.w = w; self.nf = nf
     }
     mutating func binding(_ name: String, _ value: Double) throws -> MOSExpressionBinding {
+        guard !didFinish else { throw MOSResolutionFailure.invalidRequest }
         let symbol = try builder.intern(name)
         let program = try builder.addProgram(.literal(value))
         return MOSExpressionBinding(symbol: symbol, program: program)
@@ -29,6 +35,7 @@ struct MOSSelectionFixture {
     mutating func bin(_ name: String, scope: MOSScopeID? = nil,
         bounds: [Double?] = [1e-6, 2e-6, 1e-6, 2e-6], extras: [MOSExpressionBinding] = [],
         level: Int? = 54, version: String? = "4.8.3") throws -> MOSDeclarationID {
+        guard !didFinish else { throw MOSResolutionFailure.invalidRequest }
         var coefficients: [MOSExpressionBinding] = []
         for (name, value) in zip(["lmin", "lmax", "wmin", "wmax"], bounds) {
             if let value { coefficients.append(try binding(name, value)) }
@@ -36,6 +43,15 @@ struct MOSSelectionFixture {
         coefficients.append(contentsOf: extras)
         return try builder.addModel(name: name, scope: scope ?? root, polarity: .nmos,
             level: level, version: version, coefficients: coefficients, source: Self.source(name))
+    }
+    mutating func finish() throws -> MOSDeclarationSnapshot {
+        guard !didFinish else { throw MOSResolutionFailure.invalidRequest }
+        didFinish = true
+        var owned = MOSDeclarationSnapshotBuilder(limits: limits)
+        // Restore the construction slot so immutable request metadata remains borrowable after publication.
+        // Construction helpers refuse further use; this replacement supplies no IDs to the published snapshot.
+        swap(&owned, &builder)
+        return try owned.finish()
     }
     static func source(_ path: String) -> MOSSourceOccurrence {
         MOSSourceOccurrence(captureID: nil, occurrenceID: nil, path: path, line: 1, column: 1,

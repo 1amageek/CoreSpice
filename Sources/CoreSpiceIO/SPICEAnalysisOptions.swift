@@ -2,6 +2,7 @@ import CoreSpiceAnalysis
 import CoreSpiceDevices
 import CoreSpiceIR
 import CoreSpiceLowering
+import CoreSpiceMOSContracts
 import CoreSpiceParsedIR
 import Foundation
 
@@ -48,23 +49,40 @@ public struct SPICEAnalysisOptions: Sendable {
 
     public static let `default` = SPICEAnalysisOptions()
 
-    /// Resolves `.options` and `.temp` controls from a parsed netlist.
-    public static func resolve(from netlist: ParsedNetlist) throws -> SPICEAnalysisOptions {
-        let context = try makeEvaluationContext(from: netlist)
-        let evaluator = ExpressionEvaluator(context: context)
+    /// Resolves controls through the caller's exclusive scalar evaluation session.
+    public static func resolve(from compiled: CompiledNetlist,
+                               session: inout NetlistLoweringSession) throws -> SPICEAnalysisOptions {
+        do {
+            guard compiled.sameStorage(as: session.compiled) else {
+                throw MOSResolutionFailure.invalidRequest
+            }
+            return try checkedResolve(from: compiled, session: &session)
+        } catch {
+            session.poison(.invalidRequest)
+            throw error
+        }
+    }
 
+    private static func checkedResolve(from compiled: CompiledNetlist,
+                                       session: inout NetlistLoweringSession) throws -> SPICEAnalysisOptions {
+        let netlist = compiled.source
         var options = SPICEAnalysisOptions(bsim4NoisePreparationRequested: netlist.analyses.contains(where: requestsNoise))
         var diagnostics: [SPICEAnalysisOptionDiagnostic] = []
         let budgetKeys = ["tranmaxaccepted", "tranmaxattempts", "tranmaxiterations", "tranmaxscalars", "tranmaxdimension", "tranmaxwork", "tranmaxbreakpoints"]
         var budgetValues: [String: Int] = [:]
 
-        for control in netlist.controls {
+        for (index, control) in netlist.controls.enumerated() {
             switch control {
-            case .option(let name, let value, let location):
+            case .option(let name, let sourceValue, let location):
                 let key = normalizedOptionName(name)
+                var value = sourceValue
+                if isNumericOption(name), sourceValue != nil {
+                    let slot = try compiled.scalarSlot(at: .control(index: index, field: "value"))
+                    value = .numeric(try session.evaluateScalar(slot))
+                }
                 if key == "bsim4stressiterations" {
                     let count: Double
-                    do { count = try positiveNumericOption(value, name: name, evaluator: evaluator) }
+                    do { count = try positiveNumericOption(value, name: name) }
                     catch let error as SPICEAnalysisOptionError { throw error }
                     catch {
                         throw SPICEAnalysisOptionError.invalidOptionValue(name: name, value: String(describing: value),
@@ -78,23 +96,19 @@ public struct SPICEAnalysisOptions: Sendable {
                     continue
                 }
                 if budgetKeys.contains(key) {
-                    budgetValues[key] = try positiveIntegerOption(value, name: name, evaluator: evaluator)
+                    budgetValues[key] = try positiveIntegerOption(value, name: name)
                     continue
                 }
                 try applyOption(
                     name: name,
                     value: value,
                     location: location,
-                    evaluator: evaluator,
                     options: &options,
                     diagnostics: &diagnostics
                 )
-            case .temp(let value, _):
-                let temperature = try numericValue(
-                    value,
-                    optionName: "temp",
-                    evaluator: evaluator
-                )
+            case .temp:
+                let slot = try compiled.scalarSlot(at: .control(index: index, field: "value"))
+                let temperature = try session.evaluateScalar(slot)
                 try validateFinite(temperature, optionName: "temp")
                 options.temperatureCelsius = temperature
             default:
@@ -116,23 +130,8 @@ public struct SPICEAnalysisOptions: Sendable {
         return options
     }
 
-    /// Creates a lowering configuration that preserves deck-level temperature.
-    public func loweringConfiguration(
-        randomSeed: UInt64? = nil
-    ) -> NetlistLowering.Configuration {
-        NetlistLowering.Configuration(
-            temperature: temperatureCelsius ?? NetlistLowering.Configuration.default.temperature,
-            geometryScale: geometryScale,
-            randomSeed: randomSeed,
-            bsim4PreparationPolicy: bsim4PreparationPolicy,
-            bsim4NoisePreparationRequested: bsim4NoisePreparationRequested
-        )
-    }
-
-    /// Uses the same resolved policy as lowering; physical model IR remains unchanged.
-    public func deviceRegistry() -> DeviceRegistry {
-        .standard(bsim4PreparationPolicy: bsim4PreparationPolicy, bsim4NoisePreparationRequested: bsim4NoisePreparationRequested)
-    }
+    /// Returns the standard descriptor inventory; MOS preparation consumes explicit conditions separately.
+    public func deviceRegistry() -> DeviceRegistry { .standard() }
 
     private static func requestsNoise(_ analysis: ParsedAnalysisCommand) -> Bool {
         switch analysis {
@@ -146,7 +145,7 @@ public struct SPICEAnalysisOptions: Sendable {
     public func operatingConditions() throws -> OperatingConditions {
         try OperatingConditions(
             temperatureCelsius: temperatureCelsius
-                ?? NetlistLowering.Configuration.default.temperature,
+                ?? 27.0,
             nominalTemperatureCelsius: nominalTemperatureCelsius ?? 27.0
         )
     }
@@ -298,7 +297,6 @@ public struct SPICEAnalysisOptions: Sendable {
         name: String,
         value: ParsedParameterValue?,
         location: SourceLocation?,
-        evaluator: ExpressionEvaluator,
         options: inout SPICEAnalysisOptions,
         diagnostics: inout [SPICEAnalysisOptionDiagnostic]
     ) throws {
@@ -306,26 +304,26 @@ public struct SPICEAnalysisOptions: Sendable {
 
         switch key {
         case "scale":
-            options.geometryScale = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            options.geometryScale = try positiveNumericOption(value, name: name)
         case "tnom":
-            let temperature = try numericOption(value, name: name, evaluator: evaluator)
+            let temperature = try numericOption(value, name: name)
             guard temperature.isFinite, temperature + 273.15 > 0 else {
                 throw SPICEAnalysisOptionError.invalidOptionValue(name: name, value: String(temperature),
                     reason: "Nominal temperature must be finite and above absolute zero")
             }
             options.nominalTemperatureCelsius = temperature
         case "abstol":
-            options.convergence.abstol = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            options.convergence.abstol = try positiveNumericOption(value, name: name)
         case "reltol":
-            options.convergence.reltol = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            options.convergence.reltol = try positiveNumericOption(value, name: name)
         case "vntol":
-            options.convergence.vntol = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            options.convergence.vntol = try positiveNumericOption(value, name: name)
         case "gmin":
-            options.convergence.gmin = try nonNegativeNumericOption(value, name: name, evaluator: evaluator)
+            options.convergence.gmin = try nonNegativeNumericOption(value, name: name)
         case "itl1", "itl4", "itmax", "maxiter", "maxiters":
-            options.convergence.maxIterations = try positiveIntegerOption(value, name: name, evaluator: evaluator)
+            options.convergence.maxIterations = try positiveIntegerOption(value, name: name)
         case "mindamping", "dampmin":
-            let damping = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            let damping = try positiveNumericOption(value, name: name)
             guard damping <= 1.0 else {
                 throw SPICEAnalysisOptionError.invalidOptionValue(
                     name: name,
@@ -337,31 +335,29 @@ public struct SPICEAnalysisOptions: Sendable {
         case "opttol", "opticalpowertol", "opticalpowertolerance":
             options.convergence.opticalPowerTolerance = try positiveNumericOption(
                 value,
-                name: name,
-                evaluator: evaluator
+                name: name
             )
         case "temp":
-            let temperature = try numericOption(value, name: name, evaluator: evaluator)
+            let temperature = try numericOption(value, name: name)
             try validateFinite(temperature, optionName: name)
             options.temperatureCelsius = temperature
         case "method":
             options.transient.initialMethod = try integrationMethodOption(value, name: name)
         case "maxstep", "delmax":
-            options.transient.maxTimeStep = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            options.transient.maxTimeStep = try positiveNumericOption(value, name: name)
         case "initstep", "initialstep", "tstep":
-            options.transient.initialTimeStep = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            options.transient.initialTimeStep = try positiveNumericOption(value, name: name)
         case "minstep", "delmin":
-            options.transient.minTimeStep = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            options.transient.minTimeStep = try positiveNumericOption(value, name: name)
         case "ltetol", "ltetolerance":
-            options.transient.lteTolerance = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            options.transient.lteTolerance = try positiveNumericOption(value, name: name)
         case "maxstepreductions":
             options.transient.maxTimeStepReductions = try positiveIntegerOption(
                 value,
-                name: name,
-                evaluator: evaluator
+                name: name
             )
         case "shrink", "shrinkfactor":
-            let shrinkFactor = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            let shrinkFactor = try positiveNumericOption(value, name: name)
             guard shrinkFactor < 1.0 else {
                 throw SPICEAnalysisOptionError.invalidOptionValue(
                     name: name,
@@ -373,11 +369,10 @@ public struct SPICEAnalysisOptions: Sendable {
         case "gminsteppingthreshold":
             options.transient.gminSteppingThreshold = try positiveIntegerOption(
                 value,
-                name: name,
-                evaluator: evaluator
+                name: name
             )
         case "gmininitial":
-            let initial = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            let initial = try positiveNumericOption(value, name: name)
             let current = options.transient.gminStepping ?? GminStepping()
             options.transient.gminStepping = GminStepping(
                 initialGmin: initial,
@@ -386,7 +381,7 @@ public struct SPICEAnalysisOptions: Sendable {
                 maxSteps: current.maxSteps
             )
         case "gminfinal":
-            let final = try positiveNumericOption(value, name: name, evaluator: evaluator)
+            let final = try positiveNumericOption(value, name: name)
             let current = options.transient.gminStepping ?? GminStepping()
             options.transient.gminStepping = GminStepping(
                 initialGmin: current.initialGmin,
@@ -395,7 +390,7 @@ public struct SPICEAnalysisOptions: Sendable {
                 maxSteps: current.maxSteps
             )
         case "gminsteps":
-            let steps = try positiveIntegerOption(value, name: name, evaluator: evaluator)
+            let steps = try positiveIntegerOption(value, name: name)
             let current = options.transient.gminStepping ?? GminStepping()
             options.transient.gminStepping = GminStepping(
                 initialGmin: current.initialGmin,
@@ -419,44 +414,17 @@ public struct SPICEAnalysisOptions: Sendable {
         }
     }
 
-    public static func makeEvaluationContext(from netlist: ParsedNetlist) throws -> LoweringContext {
-        let context = LoweringContext()
-
-        for control in netlist.controls {
-            if case .function(let name, let parameters, let body, _) = control {
-                context.registerFunction(name: name, parameters: parameters, body: body)
-            }
+    /// Syntax inventory only; this does not evaluate a scalar or consume randomness.
+    internal static func isNumericOption(_ name: String) -> Bool {
+        switch normalizedOptionName(name) {
+        case "scale", "tnom", "abstol", "reltol", "vntol", "gmin", "itl1", "itl4", "itmax", "maxiter", "maxiters",
+             "mindamping", "dampmin", "opttol", "opticalpowertol", "opticalpowertolerance", "temp",
+             "maxstep", "delmax", "initstep", "initialstep", "tstep", "minstep", "delmin", "ltetol", "ltetolerance",
+             "maxstepreductions", "shrink", "shrinkfactor", "gminsteppingthreshold", "gmininitial", "gminfinal", "gminsteps",
+             "bsim4stressiterations", "tranmaxaccepted", "tranmaxattempts", "tranmaxiterations", "tranmaxscalars",
+             "tranmaxdimension", "tranmaxwork", "tranmaxbreakpoints": true
+        default: false
         }
-
-        var pending = netlist.parameters
-        var lastFailure: Error?
-        let evaluator = ExpressionEvaluator(context: context)
-
-        while !pending.isEmpty {
-            var progressed = false
-            for name in pending.keys.sorted() {
-                guard let expression = pending[name] else { continue }
-                do {
-                    let value = try evaluator.evaluate(expression)
-                    context.setParameter(name, value: value)
-                    pending.removeValue(forKey: name)
-                    progressed = true
-                } catch {
-                    lastFailure = error
-                }
-            }
-
-            if !progressed {
-                if let lastFailure {
-                    throw lastFailure
-                }
-                throw SPICEAnalysisOptionError.unresolvedParameter(
-                    names: pending.keys.sorted().joined(separator: ", ")
-                )
-            }
-        }
-
-        return context
     }
 
     private static func normalizedOptionName(_ name: String) -> String {
@@ -465,23 +433,21 @@ public struct SPICEAnalysisOptions: Sendable {
 
     private static func numericOption(
         _ value: ParsedParameterValue?,
-        name: String,
-        evaluator: ExpressionEvaluator
+        name: String
     ) throws -> Double {
         guard let value else {
             throw SPICEAnalysisOptionError.missingOptionValue(name: name)
         }
-        let result = try numericValue(value, optionName: name, evaluator: evaluator)
+        let result = try numericValue(value, optionName: name)
         try validateFinite(result, optionName: name)
         return result
     }
 
     private static func positiveNumericOption(
         _ value: ParsedParameterValue?,
-        name: String,
-        evaluator: ExpressionEvaluator
+        name: String
     ) throws -> Double {
-        let result = try numericOption(value, name: name, evaluator: evaluator)
+        let result = try numericOption(value, name: name)
         guard result > 0 else {
             throw SPICEAnalysisOptionError.invalidOptionValue(
                 name: name,
@@ -494,10 +460,9 @@ public struct SPICEAnalysisOptions: Sendable {
 
     private static func nonNegativeNumericOption(
         _ value: ParsedParameterValue?,
-        name: String,
-        evaluator: ExpressionEvaluator
+        name: String
     ) throws -> Double {
-        let result = try numericOption(value, name: name, evaluator: evaluator)
+        let result = try numericOption(value, name: name)
         guard result >= 0 else {
             throw SPICEAnalysisOptionError.invalidOptionValue(
                 name: name,
@@ -510,10 +475,9 @@ public struct SPICEAnalysisOptions: Sendable {
 
     private static func positiveIntegerOption(
         _ value: ParsedParameterValue?,
-        name: String,
-        evaluator: ExpressionEvaluator
+        name: String
     ) throws -> Int {
-        let result = try positiveNumericOption(value, name: name, evaluator: evaluator)
+        let result = try positiveNumericOption(value, name: name)
         let rounded = result.rounded()
         guard abs(result - rounded) <= Double.ulpOfOne * max(1.0, abs(result)) else {
             throw SPICEAnalysisOptionError.invalidOptionValue(
@@ -522,17 +486,22 @@ public struct SPICEAnalysisOptions: Sendable {
                 reason: "value must be an integer"
             )
         }
-        return Int(rounded)
+        guard let integer = Int(exactly: rounded) else {
+            throw SPICEAnalysisOptionError.invalidOptionValue(name: name, value: result.description,
+                reason: "value must fit Int")
+        }
+        return integer
     }
 
     private static func numericValue(
         _ value: ParsedParameterValue,
-        optionName: String,
-        evaluator: ExpressionEvaluator
+        optionName: String
     ) throws -> Double {
         switch value {
-        case .numeric, .expression, .boolean:
-            return try evaluator.evaluate(value)
+        case .numeric(let number): return number
+        case .boolean(let flag): return flag ? 1 : 0
+        case .expression:
+            throw MOSResolutionFailure.invalidRequest
         case .numericVector:
             throw SPICEAnalysisOptionError.invalidOptionValue(name: optionName, value: value.description, reason: "value must be scalar")
         case .string(let text):

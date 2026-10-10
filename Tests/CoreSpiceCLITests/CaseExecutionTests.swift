@@ -1,5 +1,8 @@
 @testable import CoreSpiceIO
+import CoreSpice
 import CoreSpiceCompile
+import CoreSpiceLowering
+import CoreSpiceMOSContracts
 import CoreSpiceAnalysis
 import CoreSpiceParsedIR
 import CoreSpiceEvent
@@ -28,7 +31,7 @@ struct CaseExecutionTests {
         try text.write(to: source, atomically: true, encoding: .utf8)
         let output = root.appendingPathComponent("case")
         let args = ["-b", source.path, "--case-output", output.path, "--case-id", "actual-case", "--json"] + extra
-        var session = Session()
+        var session = try Session(policy: .developerV1())
         let record = try await CLI(arguments: args).executeBatch(options: .init(arguments: args), session: &session)
         let execution = try ToolQualificationCaseExecution.decodeCanonical(from: Data(contentsOf: output.appendingPathComponent("execution.json")))
         let receipts = try FileManager.default.contentsOfDirectory(at: output, includingPropertiesForKeys: nil)
@@ -85,7 +88,7 @@ struct CaseExecutionTests {
         #expect(receipts.allSatisfy { $0.sourceArtifact == execution.inputArtifacts.first })
     }
 
-    @Test func dcRebindsAndAggregateMeasurementsHaveActualContributors() async throws {
+    @Test func dcSourceUpdatesAndAggregateMeasurementsHaveActualContributors() async throws {
         let root = try directory(); defer { cleanup(root) }
         let (execution, receipts, session) = try await batch("""
         Actual DC phases
@@ -103,7 +106,7 @@ struct CaseExecutionTests {
         let phases = try #require(session.phaseCollector).phases
         for (index, phase) in phases.enumerated() {
             let source = try #require(phase.instances.first { $0.name == "v1" })
-            guard case .real(let value) = source.parameters["v"] else { Issue.record("Missing rebound value"); continue }
+            guard case .real(let value) = source.parameters["v"] else { Issue.record("Missing actual source value"); continue }
             #expect(value == Double(index))
             #expect(abs(try #require(phase.observations["last:V(in)"]) - Double(index)) < 1e-9)
         }
@@ -135,6 +138,37 @@ struct CaseExecutionTests {
         }
     }
 
+    @Test func mosSweepKeepsOnePreparationPerSeedAndPublishesFinalSourceValues() async throws {
+        let root = try directory(); defer { cleanup(root) }
+        let (execution, receipts, session) = try await batch("""
+        Actual MOS final values
+        .param length=agauss(1u,0.1u,1)
+        .model process nmos level=1 vto=.5 kp=1m
+        VD d 0 1
+        VG g 0 .7
+        M1 d g 0 0 process l={length} w=2u
+        .mc 2 dc VG .7 1 .3
+        .end
+        """, in: root, extra: ["--seed", "42"])
+        #expect(execution.phaseIDs.count == 4)
+        #expect(receipts.count == 4)
+        let phases = try #require(session.phaseCollector).phases
+        #expect(phases.allSatisfy { $0.facts.mosPreparationReceipts.count == 1 })
+        let selected = try phases.map { try #require($0.facts.mosPreparationReceipts.first) }
+        #expect(selected.allSatisfy { $0.coldSetupCount == 1 })
+        #expect(selected[0].identity == selected[1].identity)
+        #expect(selected[2].identity == selected[3].identity)
+        #expect(selected[0].identity != selected[2].identity)
+        for (index, phase) in phases.enumerated() {
+            #expect(phase.facts.sourceName?.lowercased() == "vg")
+            #expect(abs(try #require(phase.facts.sourceValue) - (index % 2 == 0 ? 0.7 : 1)) < 1e-12)
+            let receipt = try #require(receipts.first { $0.phaseID == phase.id })
+            #expect(receipt.selectedModelIdentifier == "process")
+            #expect(receipt.sourceArtifact == execution.inputArtifacts.first)
+            #expect(receipt.consumedInstances["m1"]?["l"] == selected[index].identity.resolved.normalizedGeometry.length)
+        }
+    }
+
     @Test func capturesArePublishedAfterOriginalPathsDisappear() async throws {
         let root = try directory(); defer { cleanup(root) }
         let file = root.appendingPathComponent("deck.cir")
@@ -142,7 +176,7 @@ struct CaseExecutionTests {
         try text.write(to: file, atomically: true, encoding: .utf8)
         let loaded = try await SPICEDeckLoader.loadFile(at: file.path)
         try FileManager.default.removeItem(at: file)
-        var session = Session(); try session.loadNetlist(loaded)
+        var session = try Session(policy: .developerV1()); try session.loadNetlist(loaded)
         session.phaseCollector = try CoreSpiceCLIPhaseCollector()
         _ = try await session.run(.op)
         let output = root.appendingPathComponent("case")
@@ -154,9 +188,9 @@ struct CaseExecutionTests {
     @Test func failedAndIncompleteExecutionCannotPublishSuccess() async throws {
         let root = try directory(); defer { cleanup(root) }
         let loaded = try await SPICEDeckLoader.load(source: "Failed\nV1 in 0 1\nR1 in 0 1k\n.dc missing 0 1 1\n.end\n")
-        var session = Session(); try session.loadNetlist(loaded)
+        var session = try Session(policy: .developerV1()); try session.loadNetlist(loaded)
         session.phaseCollector = try CoreSpiceCLIPhaseCollector()
-        await #expect(throws: CLIError.self) { _ = try await session.runParsed(try session.requiredDefaultRunnableAnalysis()) }
+        await #expect(throws: SPICENativeExecutionError.self) { _ = try await session.runParsed(try session.requiredDefaultRunnableAnalysis()) }
         let collector = try #require(session.phaseCollector)
         #expect(!collector.isComplete)
         #expect(collector.phases.isEmpty)
@@ -183,7 +217,7 @@ struct CaseExecutionTests {
         }, analyses: loaded.netlist.analyses)
         let untracked = LoadedSPICEDeck(source: loaded.source, netlist: parsed, coverage: loaded.coverage,
             captures: loaded.captures, capturePolicy: loaded.capturePolicy)
-        var session = Session(); try session.loadNetlist(untracked)
+        var session = try Session(policy: .developerV1()); try session.loadNetlist(untracked)
         session.phaseCollector = try CoreSpiceCLIPhaseCollector()
         _ = try await session.run(.op)
         #expect(try #require(session.phaseCollector).isComplete)
@@ -202,19 +236,18 @@ struct CaseExecutionTests {
         try netlist.addInstance(name: "v1", typeName: "vsource", nodes: ["in", "0"], parameters: ["v": .real(1)],
             ownedBranches: [netlist.branch(name: "v1")])
         try netlist.addInstance(name: "r1", typeName: "resistor", nodes: ["in", "0"], parameters: ["r": .real(1000)])
-        let plan = try StandardCompiler().compile(ir: netlist.build())
-        let registry = SPICEAnalysisOptions.default.deviceRegistry()
-        let structure = plan.matrixStructure
-        var context = BindingContext(variableMap: plan.topology.variableMap, matrixDimension: plan.topology.dimension,
-            branchNames: plan.ir.branchNames, stampIndexResolver: { structure.index(row: $0, col: $1) })
-        let devices = try plan.ir.instances.map { instance in
-            try #require(registry.descriptor(for: instance.typeName)).bind(instance: instance, context: &context)
-        }
-        let result = try await DCAnalysis().run(plan: plan, devices: devices, solver: SparseLUSolver(),
+        let policy = try CoreSpiceCLIExecutionPolicy.developerV1()
+        let owner = try NativeCircuitPreparer().prepare(ir: netlist.build(), registry: .standard(),
+            operatingConditions: .nominal, limits: .init(maximumDeviceCount: 16,
+                maximumMatrixDimension: 256, maximumAllocationBytes: policy.maximumAllocationBytes),
+            numericalLimits: policy.numericalLimits, resources: policy.resources())
+        let plan = owner.plan
+        let run = try await DCAnalysis().run(circuit: owner, solver: SparseLUSolver(),
             observer: nil, cancellation: CancellationToken())
+        let compiled = try NetlistLowering.compile(loaded.netlist, limits: policy.resolutionLimits)
         let collector = try CoreSpiceCLIPhaseCollector()
-        try collector.record(id: "op", devices: devices, conditions: .nominal,
-            waveform: .from(dcResult: result, topology: plan.topology.circuitTopology))
+        try collector.record(id: "op", facts: #require(run.phases.first), compiled: compiled,
+            waveform: .from(dcResult: run.result, topology: plan.topology.circuitTopology))
         collector.finish()
         #expect(throws: CoreSpiceCLICaseError.self) {
             _ = try CoreSpiceCLICasePublisher().publish(directory: root.appendingPathComponent("case").path,
@@ -233,12 +266,12 @@ struct CaseExecutionTests {
     @Test func cancelledExecutionCannotPublishAndPhaseBudgetRefusesBeforeLoop() async throws {
         let root = try directory(); defer { cleanup(root) }
         let loaded = try await SPICEDeckLoader.load(source: "Cancelled\nV1 in 0 1\nR1 in 0 1k\n.op\n.end\n")
-        var session = Session(); try session.loadNetlist(loaded)
+        var session = try Session(policy: .developerV1()); try session.loadNetlist(loaded)
         let collector = try CoreSpiceCLIPhaseCollector()
         session.phaseCollector = collector
         let cancellation = CancellationToken()
         cancellation.cancel()
-        await #expect(throws: AnalysisError.self) { _ = try await session.run(.op, cancellation: cancellation) }
+        await #expect(throws: MOSResolutionFailure.self) { _ = try await session.run(.op, cancellation: cancellation) }
         #expect(!collector.isComplete)
         await #expect(throws: CoreSpiceCLICaseError.self) {
             _ = try await batch("Budget\nV1 in 0 1\nR1 in 0 1k\n.dc V1 0 10000 1\n.end\n", in: root)
@@ -270,16 +303,19 @@ struct CaseExecutionTests {
     @Test func aggregateContributorExpansionIsAdmittedBeforePublication() async throws {
         let root = try directory(); defer { cleanup(root) }
         let loaded = try await SPICEDeckLoader.load(source: "Small evidence budget\nV1 in 0 1\nR1 in 0 1k\n.dc V1 0 2 1\n.end\n")
-        var phaseLimitedSession = Session(); try phaseLimitedSession.loadNetlist(loaded)
+        var phaseLimitedSession = try Session(policy: .developerV1()); try phaseLimitedSession.loadNetlist(loaded)
         phaseLimitedSession.phaseCollector = try CoreSpiceCLIPhaseCollector(maximumRetainedBytes: 16 * 1024,
             maximumEncodedBytes: 256)
-        await #expect(throws: CoreSpiceCLICaseError.self) {
+        do {
             _ = try await phaseLimitedSession.runParsed(try phaseLimitedSession.requiredDefaultRunnableAnalysis())
+            Issue.record("Phase evidence exceeded its encoded budget")
+        } catch {
+            #expect(CoreSpiceCLIFailure(error: error).code == "case.incomplete-output")
         }
         let phaseLimitedCollector = try #require(phaseLimitedSession.phaseCollector)
         #expect(phaseLimitedCollector.phases.isEmpty)
         #expect(!phaseLimitedCollector.isComplete)
-        var session = Session(); try session.loadNetlist(loaded)
+        var session = try Session(policy: .developerV1()); try session.loadNetlist(loaded)
         session.phaseCollector = try CoreSpiceCLIPhaseCollector(maximumRetainedBytes: 16 * 1024,
             maximumEncodedBytes: 8192)
         _ = try await session.runParsed(try session.requiredDefaultRunnableAnalysis())
@@ -301,7 +337,7 @@ struct CaseExecutionTests {
     @Test func duplicateMeasurementIdentityRefusesCanonicalOutput() async throws {
         let root = try directory(); defer { cleanup(root) }
         let text = "Duplicate observations\nV1 in 0 1\nR1 in 0 1k\n.dc V1 0 1 1\n.meas dc same max V(in)\n.meas dc same min V(in)\n.end\n"
-        var ordinary = Session(); try await ordinary.loadNetlist(source: text, fileName: nil)
+        var ordinary = try Session(policy: .developerV1()); try await ordinary.loadNetlist(source: text, fileName: nil)
         _ = try await ordinary.runParsed(try ordinary.requiredDefaultRunnableAnalysis())
         #expect(ordinary.lastMeasurements.count == 2)
         await #expect(throws: CoreSpiceCLICaseError.self) { _ = try await batch(text, in: root) }
@@ -311,7 +347,7 @@ struct CaseExecutionTests {
     @Test func cancellationDuringStagedPublicationRefusesFinalDirectory() async throws {
         let root = try directory(); defer { cleanup(root) }
         let loaded = try await SPICEDeckLoader.load(source: "Cancellation during publication\nV1 in 0 1\nR1 in 0 1k\n.op\n.end\n")
-        var session = Session(); try session.loadNetlist(loaded)
+        var session = try Session(policy: .developerV1()); try session.loadNetlist(loaded)
         session.phaseCollector = try CoreSpiceCLIPhaseCollector()
         _ = try await session.run(.op)
         let phases = try #require(session.phaseCollector)

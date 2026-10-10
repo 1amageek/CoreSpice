@@ -17,6 +17,7 @@ import Foundation
 ///
 /// This computes specific harmonic coefficients without requiring FFT.
 public struct FourierAnalysis: Analysis, Sendable {
+    package var executionBudget: TransientExecutionBudget?
 
     public typealias Result = FourierResult
 
@@ -115,10 +116,11 @@ public struct FourierAnalysis: Analysis, Sendable {
             }
 
             // Phase 1: Run transient analysis
-            let transientAnalysis = TransientAnalysis(
+            var transientAnalysis = TransientAnalysis(
                 config: transientConfig,
                 convergenceConfig: convergenceConfig
             )
+            transientAnalysis.executionBudget = executionBudget
             let transientResult = try await transientAnalysis.run(
                 plan: plan,
                 devices: devices,
@@ -140,6 +142,20 @@ public struct FourierAnalysis: Analysis, Sendable {
                     )
                 }
                 let varName = output.name
+
+                // Admit the complete per-output integration and result before creating its buffers.
+                if let budget = executionBudget {
+                    let components = try TransientExecutionBudget.add(harmonicCount, 1, "Fourier component count")
+                    let integrationPasses = try TransientExecutionBudget.add(
+                        TransientExecutionBudget.multiply(harmonicCount, 2, "Fourier integration passes"), 1, "Fourier integration passes")
+                    let integrationWork = try TransientExecutionBudget.multiply(
+                        TransientExecutionBudget.multiply(transientResult.timePoints.count, integrationPasses, "Fourier integration work"),
+                        32, "Fourier scalar work")
+                    try budget.chargeWork(TransientExecutionBudget.add(integrationWork,
+                        TransientExecutionBudget.multiply(components, 32, "Fourier coefficient work"), "Fourier work"))
+                    try budget.admitSavedScalars(TransientExecutionBudget.add(
+                        TransientExecutionBudget.multiply(components, 5, "Fourier component scalars"), 1, "Fourier THD scalar"))
+                }
 
                 // Extract time-value pairs for the last period
                 let waveform = Self.extractLastPeriod(
@@ -242,6 +258,7 @@ public struct FourierAnalysis: Analysis, Sendable {
         period: Double
     ) -> [FourierResult.HarmonicComponent] {
         var components: [FourierResult.HarmonicComponent] = []
+        components.reserveCapacity(harmonicCount + 1)
 
         // DC component (harmonic 0)
         let dc = trapezoidalIntegrate(waveform: waveform) { _, value in value } / period

@@ -1,3 +1,5 @@
+@testable import CoreSpice
+import CoreSpiceMOSContracts
 import CoreSpiceParserSPICE
 import CoreSpiceParsedIR
 import CoreSpiceLowering
@@ -14,12 +16,12 @@ import Testing
 
 @Suite("Native BSIM4 production composition", .timeLimit(.minutes(1)))
 struct BSIM4IntegrationTests {
-    private func source(sign: Double = 1, extraModel: String = "", extraInstance: String = "",
+    private func source(sign: Double = 1, toxe: String = "10n", extraModel: String = "", extraInstance: String = "",
                         version: String = "version=4.8.3", gate: String? = nil, second: Bool = false) -> String {
         """
         native BSIM4 production circuit
         .options bsim4stressiterations=8
-        .model process \(sign == 1 ? "nmos" : "pmos") level=54 \(version) vth0=\(sign * 0.7) u0=0.05 toxe=10n
+        .model process \(sign == 1 ? "nmos" : "pmos") level=54 \(version) vth0=\(sign * 0.7) u0=0.05 toxe=\(toxe)
         + capmod=2 cjs=1m cjd=1m cjsws=0.1n cjswd=0.1n cgdo=0.2n cgso=0.3n \(extraModel)
         VD d 0 \(sign)
         VG g 0 \(gate ?? String(sign * 1.2)) ac \(sign)
@@ -33,15 +35,17 @@ struct BSIM4IntegrationTests {
     private func parsed(_ text: String) async throws -> ParsedNetlist {
         try await SPICEParser().parse(source: text).get()
     }
-    private func prepared(_ text: String, temperature: Double = 300.15) async throws -> PreparedCircuit {
-        let netlist = try await parsed(text)
-        let options = try SPICEAnalysisOptions.resolve(from: netlist)
-        let ir = try NetlistLowering(configuration: options.loweringConfiguration()).lower(netlist)
-        let plan = try StandardCompiler().compile(ir: ir)
-        return try StandardCircuitDeviceBinding(registry: options.deviceRegistry(), operatingConditions: OperatingConditions(temperatureKelvin: options.temperatureCelsius.map { $0 + 273.15 } ?? temperature))
-            .bind(plan: plan, instances: ir.instances)
+    private func prepared(_ text: String, temperature: Double = 300.15,
+                          capabilities: MOSAnalysisCapabilities = [.dc, .ac, .transient]) async throws -> PreparedNativeCircuit {
+        try await NativeBSIMFixture.prepare(text, temperature: temperature, capabilities: capabilities)
     }
-    private func mos(_ circuit: PreparedCircuit) throws -> any BoundDevice {
+    private func boundFixture(_ text: String, temperature: Double = 300.15) async throws -> BoundBSIMFixture {
+        BoundBSIMFixture(try await prepared(text, temperature: temperature))
+    }
+    private func mos(_ circuit: borrowing PreparedNativeCircuit) throws -> (instance: Instance, receipt: MOSPreparationReceipt) {
+        try NativeBSIMFixture.mos(circuit)
+    }
+    private func mos(_ circuit: BoundBSIMFixture) throws -> any BoundDevice {
         try #require(circuit.devices.first { $0.instance.name == "m1" })
     }
     private func close(_ actual: Double, _ expected: Double, relative: Double = 2e-5, absolute: Double = 1e-12,
@@ -58,7 +62,7 @@ struct BSIM4IntegrationTests {
             }
         }
     }
-    private func stamp(_ device: any BoundDevice, circuit: PreparedCircuit, values: [Double],
+    private func stamp(_ device: any BoundDevice, circuit: BoundBSIMFixture, values: [Double],
                        integration: IntegrationState? = nil, direct: Bool = false) throws -> Stamp {
         var matrix = SparseMatrix(structure: circuit.plan.matrixStructure)
         var rhs = [Double](repeating: 0, count: values.count)
@@ -71,7 +75,7 @@ struct BSIM4IntegrationTests {
         #expect(matrix.structuralMisses.isEmpty)
         return Stamp(matrix: matrix.toDense(), rhs: rhs)
     }
-    private func bias(_ circuit: PreparedCircuit, sign: Double = 1) throws -> [Double] {
+    private func bias(_ circuit: BoundBSIMFixture, sign: Double = 1) throws -> [Double] {
         let device = try #require(try mos(circuit) as? BoundBSIM4)
         var values = [Double](repeating: 0, count: circuit.plan.topology.dimension)
         for (index, node) in device.instance.nodes.enumerated() {
@@ -87,26 +91,44 @@ struct BSIM4IntegrationTests {
     }
 
     @Test func preparationPolicyIsExplicitAndShared() async throws {
-        let netlist = try await parsed(source())
-        let options = try SPICEAnalysisOptions.resolve(from: netlist)
+        let (lowered, options) = try await NativeBSIMFixture.frontend(source())
         #expect(options.bsim4PreparationPolicy?.maximumStressIterations == 8)
-        let lower = NetlistLowering(configuration: options.loweringConfiguration())
-        let ir = try lower.lower(netlist)
-        let plan = try StandardCompiler().compile(ir: ir)
-        let bound = try StandardCircuitDeviceBinding(registry: options.deviceRegistry()).bind(plan: plan, instances: ir.instances)
-        #expect((try mos(bound) as? BoundBSIM4)?.preparationPolicy == options.bsim4PreparationPolicy)
-        #expect(ir.instances.allSatisfy { $0.parameters["bsim4stressiterations"] == nil })
-        #expect(throws: BSIM4DeviceError.missingPreparationPolicy("process")) {
-            try NetlistLowering().lower(netlist)
-        }
-        #expect(throws: BSIM4DeviceError.missingPreparationPolicy("process")) {
-            try StandardCircuitDeviceBinding().bind(plan: plan, instances: ir.instances)
+        let circuit = try await prepared(source())
+        let record = circuit.record
+        #expect(try mos(circuit).receipt.identity.conditions.maximumStressIterations == 8)
+        #expect(lowered.circuit.instances.allSatisfy { $0.parameters["bsim4stressiterations"] == nil })
+        let missing = SPICENativeExecutionLimits(maximumDeviceCount: 1024, maximumMatrixDimension: 2048,
+            maximumAllocationBytes: 1_000_000_000)
+        let mismatch = SPICENativeExecutionLimits(maximumDeviceCount: 1024, maximumMatrixDimension: 2048,
+            maximumAllocationBytes: 1_000_000_000, mosPreparationLimits: record.limits.mosPreparationLimits,
+            mosPreparationConditions: try .init(ambientKelvin: record.operatingConditions.temperatureKelvin + 1,
+                nominalKelvin: record.operatingConditions.nominalTemperatureKelvin,
+                analysisCapabilities: [.dc, .ac, .transient], maximumStressIterations: 8))
+        for limits in [missing, mismatch] {
+            do {
+                _ = try NativeCircuitPreparer().prepare(ir: lowered.circuit, registry: options.deviceRegistry(),
+                    operatingConditions: record.operatingConditions, limits: limits,
+                    numericalLimits: record.numericalLimits, resources: record.resources)
+                Issue.record("Missing or mismatched explicit preparation conditions admitted")
+            } catch let error as SPICENativePreparationError {
+                guard case .mosPreparation(.invalidConditions) = error else { Issue.record("Unexpected failure \(error)"); return }
+            }
         }
         for invalid in ["0", "-1", "1.5", "4294967296", "1e200", "bad"] {
+            let netlist = try await parsed(source().replacingOccurrences(of: "bsim4stressiterations=8", with: "bsim4stressiterations=" + invalid))
+            let limits = try NativeBSIMFixture.resolutionLimits()
+            let compiled = try NetlistLowering.compile(netlist, limits: limits)
+            var session = try NetlistLowering.beginEvaluation(compiled, profile: .coreStrictV1, limits: limits, seed: 1)
             do {
-                _ = try SPICEAnalysisOptions.resolve(from: try await parsed(source().replacingOccurrences(of: "bsim4stressiterations=8", with: "bsim4stressiterations=" + invalid)))
+                _ = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
                 Issue.record("Invalid preparation policy admitted: \(invalid)")
-            } catch is SPICEAnalysisOptionError { }
+            } catch is SPICEAnalysisOptionError {
+                #expect(invalid != "bad")
+            } catch let error as MOSResolutionFailure {
+                #expect(invalid == "bad")
+                let unresolved = try #require(compiled.snapshot.symbol(named: "bad"))
+                #expect(error == .undefinedParameter(unresolved))
+            }
         }
         #expect(throws: BSIM4Error.resourceBudgetExceeded) {
             try JSONDecoder().decode(BSIM4PreparationPolicy.self, from: Data(#"{"maximumStressIterations":0}"#.utf8))
@@ -114,7 +136,10 @@ struct BSIM4IntegrationTests {
         do {
             _ = try await prepared(source(extraInstance: "nf=2 sa=1u sb=1u sd=1u").replacingOccurrences(of: "bsim4stressiterations=8", with: "bsim4stressiterations=1"))
             Issue.record("Stress work exceeding the caller budget admitted")
-        } catch let error as BSIM4Error { #expect(error == .resourceBudgetExceeded) }
+        } catch let error as SPICENativePreparationError {
+            guard case .mosPreparation(.kernelRejected(let reason)) = error else { Issue.record("Unexpected failure \(error)"); return }
+            #expect(reason.contains(String(describing: BSIM4Error.resourceBudgetExceeded)))
+        }
     }
 
     @Test func frontendPreservesExactVersion() async throws {
@@ -140,16 +165,16 @@ struct BSIM4IntegrationTests {
         let circuit = try await prepared(source(extraModel: "rsh=20 acnqsmod=0", extraInstance: "trnqsmod=1 acnqsmod=1"))
         let device = try mos(circuit)
         #expect(device.instance.typeName == "nmos_l54")
-        let model = try #require(device.instance.model)
-        #expect(model.name == "process")
-        guard case .real(0) = model.parameters["acnqsmod"],
-              case .real(1) = device.instance.parameters["acnqsmod"] else {
-            Issue.record("Model and instance selector provenance was flattened"); return
-        }
-        #expect(device.instance.parameters["vth0"] == nil)
+        let resolved = device.receipt.identity.resolved
+        #expect(resolved.symbolNames[Int(resolved.selectedName.rawValue)] == "process")
+        #expect(NativeBSIMFixture.value("acnqsmod", in: resolved.modelCoefficients, resolved: resolved) == 0)
+        #expect(NativeBSIMFixture.value("acnqsmod", in: resolved.instanceParameters, resolved: resolved) == 1)
+        #expect(NativeBSIMFixture.value("vth0", in: resolved.instanceParameters, resolved: resolved) == nil)
         #expect(device.instance.ownedNodes.count == 3)
-        let ir = try NetlistLowering(configuration: .init(expandModels: false, bsim4PreparationPolicy: try BSIM4PreparationPolicy(maximumStressIterations: 8))).lower(try await parsed(source()))
-        #expect(ir.instances.last?.model != nil)
+        let (lowered, _) = try await NativeBSIMFixture.frontend(source())
+        guard case .resolved = lowered.circuit.instances.last?.mos else {
+            Issue.record("Frontend did not preserve typed model resolution"); return
+        }
         let report = SPICEDeckCoverageReport.generate(from: try await parsed(source()))
         #expect(!report.hasBlockedItems)
     }
@@ -159,49 +184,44 @@ struct BSIM4IntegrationTests {
             let circuit = try await prepared(source(extraModel: model, extraInstance: instance, second: true))
             let device = try mos(circuit)
             #expect(device.instance.ownedNodes.count == count)
-            let other = try #require(circuit.devices.last)
-            #expect(Set(device.instance.ownedNodes).isDisjoint(with: other.instance.ownedNodes))
+            let other = try #require(circuit.plan.ir.instances.last)
+            #expect(Set(device.instance.ownedNodes).isDisjoint(with: other.ownedNodes))
             let indices = (device.instance.nodes + device.instance.ownedNodes).compactMap { circuit.plan.topology.nodeIndex($0) }
             for row in indices { for column in indices {
                 #expect(circuit.plan.matrixStructure.index(row: row, col: column) != nil)
             } }
             if count > 0 {
                 let bad = Instance(name: device.instance.name, typeName: device.instance.typeName,
-                    nodes: device.instance.nodes, parameters: device.instance.parameters, model: device.instance.model)
-                var context = BindingContext(variableMap: circuit.plan.topology.variableMap, matrixDimension: circuit.plan.topology.dimension)
-                #expect(throws: BSIM4DeviceError.invalidAuxiliaryTopology(device.instance.name)) {
-                    try BSIM4Descriptor(preparationPolicy: try BSIM4PreparationPolicy(maximumStressIterations: 8)).bind(instance: bad, context: &context)
+                    nodes: device.instance.nodes, parameters: [:], mos: .prepared(device.receipt))
+                #expect(throws: MOSBindingFailure.topologyMismatch) {
+                    try NativeBSIMFixture.rebind(bad, receipt: device.receipt, record: circuit.record)
                 }
                 for exposed in [false, true] {
                     var owned = device.instance.ownedNodes
                     owned[0] = exposed ? device.instance.nodes[0] : owned.last!
                     if !exposed, owned.count == 1 { continue }
                     let invalid = Instance(name: device.instance.name, typeName: device.instance.typeName,
-                        nodes: device.instance.nodes, parameters: device.instance.parameters, model: device.instance.model, ownedNodes: owned)
-                    var ownership = BindingContext(variableMap: circuit.plan.topology.variableMap, matrixDimension: circuit.plan.topology.dimension)
-                    do {
-                        _ = try BSIM4Descriptor(preparationPolicy: try BSIM4PreparationPolicy(maximumStressIterations: 8)).bind(instance: invalid, context: &ownership)
-                        Issue.record("Exposed or duplicated private node admitted")
-                    } catch let error as DeviceBindingError {
-                        guard case .invalidParameterValue(_, "ownedNodes", _) = error else { Issue.record("Unexpected ownership failure: \(error)"); continue }
+                        nodes: device.instance.nodes, parameters: [:], mos: .prepared(device.receipt), ownedNodes: owned)
+                    #expect(throws: MOSBindingFailure.invalidMatrixMapping) {
+                        try NativeBSIMFixture.rebind(invalid, receipt: device.receipt, record: circuit.record)
                     }
                 }
             }
         }
         for version in ["3.3.1", "3.30.0", "4.0"] {
             do { _ = try await prepared(source(version: "version=\(version)")); Issue.record("Unknown version admitted") }
-            catch let error as BSIM4Error { #expect(error == .unsupportedVersion(version)) }
+            catch let error as MOSResolutionFailure { #expect(error == .schema(.unsupportedRelease(level: 54, version: version))) }
         }
-        do { _ = try await prepared(source(extraModel: "toxe=0")); Issue.record("Invalid model admitted") }
-        catch let error as BSIM4Error { guard case .modelRejected = error else { Issue.record("Unexpected error \(error)"); return } }
+        do { _ = try await prepared(source(toxe: "0")); Issue.record("Invalid model admitted") }
+        catch let error as SPICENativePreparationError { guard case .mosPreparation(.kernelRejected) = error else { Issue.record("Unexpected error \(error)"); return } }
         do { _ = try await prepared(source(extraInstance: "vth0=0.9")); Issue.record("Instance overwrote model semantics") }
-        catch let error as BSIM4Error { #expect(error == .invalidParameter(name: "vth0", model: false)) }
+        catch let error as MOSResolutionFailure { #expect(error == .schema(.unknownParameter(name: "vth0", role: .instance, release: .bsim4_4_8_3))) }
     }
 
     @Test func boundCurrentAndTransientJacobiansMatchFiniteDifferences() async throws {
         for sign in [1.0, -1.0] {
             for nqs in [false, true] {
-                let circuit = try await prepared(source(sign: sign, extraModel: "rsh=20", extraInstance: nqs ? "rbodymod=1 rgatemod=3 trnqsmod=1 m=2 mult_i=1.3 mult_q=0.8" : "rbodymod=1 rgatemod=3 m=2 mult_i=1.3 mult_q=0.8"))
+                let circuit = try await boundFixture(source(sign: sign, extraModel: "rsh=20", extraInstance: nqs ? "rbodymod=1 rgatemod=3 trnqsmod=1 m=2 mult_i=1.3 mult_q=0.8" : "rbodymod=1 rgatemod=3 m=2 mult_i=1.3 mult_q=0.8"))
                 let device = try mos(circuit)
                 let values = try bias(circuit, sign: sign)
                 let session = try #require(device as? any TransientSessionDevice)
@@ -240,19 +260,20 @@ struct BSIM4IntegrationTests {
         let path = try #require(Bundle.module.url(forResource: "analysis-oracle", withExtension: "json", subdirectory: "Fixtures"))
         return try JSONDecoder().decode(Oracle.self, from: Data(contentsOf: path))
     }
-    private func branch(_ circuit: PreparedCircuit, _ name: String) throws -> Int {
-        let identity = try #require(circuit.plan.ir.branchNames.first { $0.value == name }?.key)
-        return try #require(circuit.plan.topology.variableMap[.branchCurrent(identity)])
+    private func branch(_ plan: ExecutionPlan, _ name: String) throws -> Int {
+        let identity = try #require(plan.ir.branchNames.first { $0.value == name }?.key)
+        return try #require(plan.topology.variableMap[.branchCurrent(identity)])
     }
     @Test func productionDCMatchesIndependentFixtures() async throws {
         let fixtures = try oracle().dc
         #expect(fixtures.count == 22)
         for item in fixtures {
             let circuit = try await prepared(item.source)
+            let plan = circuit.plan
             let result = try await DCAnalysis(config: .init(abstol: 1e-15, reltol: 1e-7, vntol: 1e-9, gmin: 0))
-                .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+                .run(circuit: consume circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
             for (name, value) in zip(["vd", "vg"], item.currents) {
-                close(result.variables[try branch(circuit, name)], value, relative: 2e-7, absolute: 2e-12)
+                close(result.variables[try branch(plan, name)], value, relative: 2e-7, absolute: 2e-12)
             }
         }
     }
@@ -262,24 +283,28 @@ struct BSIM4IntegrationTests {
             for nqs in [false, true] {
                 let circuit = try await prepared(source(sign: sign, extraModel: "rsh=20 acnqsmod=\(nqs ? 1 : 0)",
                     extraInstance: nqs ? "trnqsmod=1" : "", gate: "sin(\(sign * 1.2) \(sign * 0.03) 100Meg)"))
-                let dc = try await DCAnalysis().run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+                let plan = circuit.plan
+                let dc = try await DCAnalysis().run(circuit: consume circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
                 let ac = try await ACAnalysis(sweep: .linear(start: 1e8, stop: 1e8, points: 1))
-                    .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+                    .run(circuit: try await prepared(source(sign: sign, extraModel: "rsh=20 acnqsmod=\(nqs ? 1 : 0)",
+                    extraInstance: nqs ? "trnqsmod=1" : "", gate: "sin(\(sign * 1.2) \(sign * 0.03) 100Meg)")), solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
                 #expect(ac.solutions[0].allSatisfy { $0.real.isFinite && $0.imag.isFinite })
-                let gate = try #require(circuit.plan.ir.branchNames.first { $0.value == "vg" }?.key)
-                let gateIndex = try #require(circuit.plan.topology.variableMap[.branchCurrent(gate)])
+                let gate = try #require(plan.ir.branchNames.first { $0.value == "vg" }?.key)
+                let gateIndex = try #require(plan.topology.variableMap[.branchCurrent(gate)])
                 #expect(abs(ac.solutions[0][gateIndex].imag) > 1e-7)
                 let config = TransientConfig(stopTime: 2e-9, executionLimits: .validationFixture, maxTimeStep: 2e-11, initialTimeStep: 2e-12)
                 let run = TransientAnalysis(config: config)
-                let first = try await run.run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+                let first = try await run.run(circuit: try await prepared(source(sign: sign, extraModel: "rsh=20 acnqsmod=\(nqs ? 1 : 0)",
+                    extraInstance: nqs ? "trnqsmod=1" : "", gate: "sin(\(sign * 1.2) \(sign * 0.03) 100Meg)")), solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
                 #expect(first.timePoints.last == config.stopTime)
                 #expect(first.timeSteps > 20)
                 let last = try first.withSolution(at: first.timePoints.count - 1) { Array($0) }
                 #expect(last.allSatisfy { $0.isFinite })
-                let drain = try #require(circuit.plan.ir.branchNames.first { $0.value == "vd" }?.key)
-                let drainIndex = try #require(circuit.plan.topology.variableMap[.branchCurrent(drain)])
+                let drain = try #require(plan.ir.branchNames.first { $0.value == "vd" }?.key)
+                let drainIndex = try #require(plan.topology.variableMap[.branchCurrent(drain)])
                 #expect(abs(last[drainIndex] - dc.variables[drainIndex]) > 1e-6)
-                let repeated = try await run.run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+                let repeated = try await run.run(circuit: try await prepared(source(sign: sign, extraModel: "rsh=20 acnqsmod=\(nqs ? 1 : 0)",
+                    extraInstance: nqs ? "trnqsmod=1" : "", gate: "sin(\(sign * 1.2) \(sign * 0.03) 100Meg)")), solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
                 #expect(first.timePoints == repeated.timePoints)
                 for index in first.timePoints.indices {
                     close(try first.value(variableIndex: drainIndex, timeIndex: index),
@@ -294,11 +319,12 @@ struct BSIM4IntegrationTests {
         #expect(fixtures.count == 6)
         for fixture in fixtures {
             let circuit = try await prepared(fixture.source)
-            let drainIndex = try branch(circuit, "vd"), gateIndex = try branch(circuit, "vg")
+            let plan = circuit.plan
+            let drainIndex = try branch(plan, "vd"), gateIndex = try branch(plan, "vg")
             // gmin=0 proves the reserved NQS coordinate is explicitly constrained.
             let ac = try await ACAnalysis(sweep: .decade(start: 1e3, stop: 1e11, pointsPerDecade: 1),
                 dcConfig: .init(abstol: 1e-12, reltol: 1e-7, vntol: 1e-9, gmin: 0))
-                .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+                .run(circuit: consume circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
             #expect(ac.solutions.count == fixture.ac.count)
             for (index, point) in fixture.ac.enumerated() {
                 close(ac.frequencies[index], point[0], relative: 1e-12)
@@ -311,7 +337,7 @@ struct BSIM4IntegrationTests {
                 let transient = try await TransientAnalysis(config: .init(stopTime: 2e-9, executionLimits: .validationFixture,
                     maxTimeStep: 2e-12, initialTimeStep: 2e-12, initialMethod: method),
                     convergenceConfig: .init(gmin: 0))
-                    .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+                    .run(circuit: try await prepared(fixture.source), solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
                 #expect(transient.timePoints.last == 2e-9)
                 // dt/period <= 2e-4 bounds first-order integration and interpolation.
                 for point in fixture.transient {
@@ -330,7 +356,7 @@ struct BSIM4IntegrationTests {
     }
 
     @Test func sessionAdmissionRejectedTrialsAndRunExitPreserveOwnership() async throws {
-        let circuit = try await prepared(source(extraModel: "rsh=20", extraInstance: "trnqsmod=1", second: true))
+        let circuit = try await boundFixture(source(extraModel: "rsh=20", extraInstance: "trnqsmod=1", second: true))
         let device = try mos(circuit)
         let session = try #require(device as? any TransientSessionDevice)
         let values = try bias(circuit)
@@ -384,20 +410,26 @@ struct BSIM4IntegrationTests {
         let device = try mos(circuit)
         let result = try await TransientAnalysis(config: .init(stopTime: 2e-12, executionLimits: .validationFixture, maxTimeStep: 1e-12,
             initialTimeStep: 1e-12, useInitialConditions: true), convergenceConfig: .init(gmin: 0))
-            .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            .run(circuit: consume circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
         for (node, expected) in zip(device.instance.nodes, [0.5, 1.1, 0, -0.2]) {
             close(try result.voltage(at: node, timeIndex: 0), expected, absolute: 1e-15)
         }
         let owned = try #require(device.instance.ownedNodes.count == 8 ? device.instance.ownedNodes : nil)
         close(try result.voltage(at: owned[0], timeIndex: 0), 0.5, absolute: 1e-15)
         close(try result.voltage(at: owned[1], timeIndex: 0), 0, absolute: 1e-15)
-        let bound = try #require(device as? BoundBSIM4)
-        for (node, expected) in bound.initialNodeVoltages {
+        let t = device.receipt.topology
+        for (role, expected) in [(t.gatePrime, 1.1), (t.gateMid, 1.1), (t.bodyPrime, -0.2),
+            (t.drainBody, -0.2), (t.sourceBody, -0.2), (t.chargeNode, 0.0)] where role > 4 {
+            let node = owned[role - 5]
             close(try result.voltage(at: node, timeIndex: 0), expected, absolute: 1e-15)
         }
         #expect(result.timePoints.last == 2e-12)
-        let session = try #require(device as? any TransientSessionDevice)
-        try session.beginTransientSession(initialState: SolutionState(variables: try bias(circuit), variableMap: circuit.plan.topology.variableMap))
+        let lower = try await boundFixture(source(extraModel: "rsh=20", extraInstance: "rbodymod=1 rgatemod=3 trnqsmod=1 ic=0.5,1.1,-0.2"))
+        _ = try await TransientAnalysis(config: .init(stopTime: 2e-12, executionLimits: .validationFixture, maxTimeStep: 1e-12,
+            initialTimeStep: 1e-12, useInitialConditions: true), convergenceConfig: .init(gmin: 0))
+            .run(circuit: lower, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+        let session = try #require(try mos(lower) as? any TransientSessionDevice)
+        try session.beginTransientSession(initialState: SolutionState(variables: try bias(lower), variableMap: lower.plan.topology.variableMap))
         session.endTransientSession()
     }
 
@@ -406,24 +438,40 @@ struct BSIM4IntegrationTests {
         let device = try mos(circuit)
         let bulk = device.instance.nodes[3]
         do {
-            _ = try await DCAnalysis(nodeInitialGuess: [bulk: 1e200]).run(circuit: circuit,
-                solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            _ = try await DCAnalysis(nodeInitialGuess: [bulk: 1e200]).run(circuit: consume circuit,
+                solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
             Issue.record("Overflowing original model produced successful DC evidence")
-        } catch let error as BSIM4Error { #expect(error == .nonFiniteEvaluation) }
+        } catch let error as SPICENativeExecutionError {
+            guard case .numerical(let cause) = error else { Issue.record("Unexpected failure \(error)"); return }
+            #expect(cause as? BSIM4Error == .nonFiniteEvaluation)
+        }
         let failingNoise = try await prepared(source())
+        let noiseOutput = try mos(failingNoise).instance.nodes[0]
         do {
-            _ = try await NoiseAnalysis(outputNode: try mos(failingNoise).instance.nodes[0], sweep: .linear(start: 1e3, stop: 1e3, points: 1))
-                .run(circuit: failingNoise, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            _ = try await NoiseAnalysis(outputNode: noiseOutput, sweep: .linear(start: 1e3, stop: 1e3, points: 1))
+                .run(circuit: consume failingNoise, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
             Issue.record("Invalid BSIM noise produced successful evidence")
-        } catch let error as BSIM4Error { #expect(error == .noiseNotPrepared) }
+        } catch let error as SPICENativeExecutionError {
+            guard case .mosPreparation(.invalidConditions) = error else { Issue.record("Unexpected noise admission failure \(error)"); return }
+        }
         let failing = try await prepared(source().replacingOccurrences(of: "VB b 0 -0.1", with: "VB b 0 sin(-0.1 1e200 100Meg)"))
         do {
             _ = try await TransientAnalysis(config: .init(stopTime: 2e-12, executionLimits: .validationFixture, maxTimeStep: 1e-12, initialTimeStep: 1e-12))
-                .run(circuit: failing, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+                .run(circuit: consume failing, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
             Issue.record("Runtime model failure produced successful transient evidence")
+        } catch let error as SPICENativeExecutionError {
+            guard case .numerical(let cause) = error else { Issue.record("Unexpected failure \(error)"); return }
+            #expect(cause as? BSIM4Error == .nonFiniteEvaluation)
+        }
+        // Lower owner access proves failed numerical execution releases the acquired history session.
+        let lower = try await boundFixture(source().replacingOccurrences(of: "VB b 0 -0.1", with: "VB b 0 sin(-0.1 1e200 100Meg)"))
+        do {
+            _ = try await TransientAnalysis(config: .init(stopTime: 2e-12, executionLimits: .validationFixture, maxTimeStep: 1e-12, initialTimeStep: 1e-12))
+                .run(circuit: lower, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            Issue.record("Lower runtime model failure became success")
         } catch let error as BSIM4Error { #expect(error == .nonFiniteEvaluation) }
-        let released = try #require(try mos(failing) as? any TransientSessionDevice)
-        try released.beginTransientSession(initialState: SolutionState(variables: try bias(failing), variableMap: failing.plan.topology.variableMap))
+        let released = try #require(try mos(lower) as? any TransientSessionDevice)
+        try released.beginTransientSession(initialState: SolutionState(variables: try bias(lower), variableMap: lower.plan.topology.variableMap))
         released.endTransientSession()
     }
 }

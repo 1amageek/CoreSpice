@@ -25,7 +25,7 @@ struct SPICESubcircuitHeaderExecutionTests {
         .op
         .end
         """
-        let ir = try await SPICEIO.parseAndLower(source)
+        let ir = try await IOTestFrontend.parseAndLower(source)
         // These resistances and voltages follow the source divider equations.
         let expectations: [(name: String, resistance: Double, voltage: Double)] = [
             ("xdefault.rtop", 6000, 1),
@@ -112,7 +112,7 @@ struct SPICESubcircuitHeaderExecutionTests {
         let cell = try #require(parsed.subcircuits.first)
         #expect(cell.parameters == ["r": .numeric(1000)])
         #expect(cell.body.parameterDefinitions.map(\.value) == [.literal(2000), .literal(3000)])
-        let ir = try SPICEIO.lower(parsed, configuration: .default)
+        let ir = try IOTestFrontend.lower(parsed)
         #expect(ir.instances.count == 8)
         for (name, resistance) in [("xbody.rtop", 3000.0), ("xexplicit.rtop", 1000.0),
                                    ("xagain.rtop", 3000.0), ("rparent", 17.0)] {
@@ -140,7 +140,7 @@ struct SPICESubcircuitHeaderExecutionTests {
         X1 source 0 cell z=2000
         .end
         """
-        let ir = try await SPICEIO.parseAndLower(source)
+        let ir = try await IOTestFrontend.parseAndLower(source)
         let resistor = try #require(ir.instances.first { $0.name == "x1.r1" })
         guard case .real(let resistance) = try #require(resistor.parameters["r"]) else {
             Issue.record("The lowered dependent resistance did not retain a real value")
@@ -168,7 +168,7 @@ struct SPICESubcircuitHeaderExecutionTests {
         Rparent source 0 {l}
         .end
         """
-        let ir = try await SPICEIO.parseAndLower(source)
+        let ir = try await IOTestFrontend.parseAndLower(source)
         #expect(ir.instances.count == 6)
         for (name, resistance) in [("xdefault.xchild.r1", 6000.0), ("xoverride.xchild.r1", 12000.0),
                                    ("xleaf.r1", 2000.0), ("xagain.xchild.r1", 6000.0),
@@ -190,74 +190,54 @@ struct SPICESubcircuitHeaderExecutionTests {
         X1 source 0 cell z=2000
         .end
         """
-        let ir = try await SPICEIO.parseAndLower(source)
+        let ir = try await IOTestFrontend.parseAndLower(source)
         #expect(ir.instances.count == 2)
         try Self.expectResistance(ir, named: "x1.r1", equals: 6)
     }
 
     @Test(arguments: ["cycle", "missing"])
-    func failedLocalResolutionPreservesParentAndFollowingSiblings(failure: String) async throws {
+    func failedLocalResolutionPoisonsOnlyItsExclusiveRun(failure: String) async throws {
         let defaults = failure == "cycle" ? "a={z} z={a}" : "a={missing} z=1000"
         let source = """
-        Failed instance must leave the shared lowering context intact
+        Failed exclusive run cannot publish partial circuit
         .subckt broken p n \(defaults)
         R1 p n {a}
         .ends broken
+        Rbaseline source 0 31
+        Xbad source 0 broken
+        .end
+        """
+        let parsed = try await SPICEIO.parse(source).get()
+        let limits = try IOTestFrontend.limits
+        let compiled = try NetlistLowering.compile(parsed, limits: limits)
+        var session = try NetlistLowering.beginEvaluation(compiled, profile: .coreStrictV1, limits: limits, seed: 42)
+        do {
+            try session.lower()
+            Issue.record("An unresolved local instance was expanded successfully: \(failure)")
+        } catch let error as MOSResolutionFailure {
+            switch (failure, error) {
+            case ("cycle", .circularBinding), ("cycle", .circularInvocationBinding),
+                 ("missing", .undefinedParameter): break
+            default: throw error
+            }
+        }
+        #expect(session.circuit == nil)
+        do { try session.lower(); Issue.record("Failed run remained usable") }
+        catch let error as MOSResolutionFailure { #expect(error == .poisonedSession) }
+        let independent = try await IOTestFrontend.parseAndLower("""
+        Independent run has its own invocation bindings
         .subckt good p n a={z} z=1000
         R1 p n {a}
         .ends good
         Rbaseline source 0 31
-        Xbad source 0 broken
         Xgood source 0 good z=2000
         Xfresh source 0 good
         .end
-        """
-        let parsed = try await SPICEIO.parse(source).get()
-        let context = LoweringContext()
-        context.setParameters(["a": 11, "z": 17])
-        for subcircuit in parsed.subcircuits {
-            context.registerSubcircuit(subcircuit)
-        }
-        let expander = SubcircuitExpander(context: context, configuration: .default, randomUniform: { 0.5 })
-        var builder = Netlist()
-        let baseline = try #require(parsed.components.first { $0.name == "rbaseline" })
-        try expander.expandComponent(baseline, into: &builder, prefix: "")
-        let bad = try #require(parsed.components.first { $0.name == "xbad" })
-        do {
-            try expander.expandComponent(bad, into: &builder, prefix: "")
-            Issue.record("An unresolved local instance was expanded successfully: \(failure)")
-        } catch let error as LoweringError {
-            switch (failure, error) {
-            case ("cycle", .circularParameterDependency(let parameter)):
-                #expect(parameter == "a")
-            case ("missing", .undefinedParameter(let name, _)):
-                #expect(name == "missing")
-            default:
-                Issue.record("Unexpected local-resolution failure: \(error)")
-            }
-        }
-        #expect(context.depth == 0)
-        #expect(context.parameter("a") == 11)
-        #expect(context.parameter("z") == 17)
-        #expect(context.parameter("missing") == nil)
-        // A real baseline keeps the public builder nonempty and proves that a
-        // failed parameter resolution preserves its already accepted contents.
-        let afterFailure = try builder.build()
-        #expect(afterFailure.instances.count == 1)
-        try Self.expectResistance(afterFailure, named: "rbaseline", equals: 31)
-
-        for name in ["xgood", "xfresh"] {
-            let sibling = try #require(parsed.components.first { $0.name == name })
-            try expander.expandComponent(sibling, into: &builder, prefix: "")
-            #expect(context.depth == 0)
-            #expect(context.parameter("a") == 11)
-            #expect(context.parameter("z") == 17)
-        }
-        let ir = try builder.build()
-        #expect(ir.instances.count == 3)
-        try Self.expectResistance(ir, named: "rbaseline", equals: 31)
-        try Self.expectResistance(ir, named: "xgood.r1", equals: 2000)
-        try Self.expectResistance(ir, named: "xfresh.r1", equals: 1000)
+        """)
+        #expect(independent.instances.count == 3)
+        try Self.expectResistance(independent, named: "rbaseline", equals: 31)
+        try Self.expectResistance(independent, named: "xgood.r1", equals: 2000)
+        try Self.expectResistance(independent, named: "xfresh.r1", equals: 1000)
     }
 
     private static func expectResistance(_ ir: CircuitIR, named name: String, equals expected: Double) throws {

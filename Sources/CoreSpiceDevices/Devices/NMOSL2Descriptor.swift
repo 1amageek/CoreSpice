@@ -1,4 +1,5 @@
 import CoreSpiceIR
+import CoreSpiceMOSContracts
 
 /// Descriptor for an NMOS Level 2 MOSFET.
 ///
@@ -35,97 +36,9 @@ public struct NMOSL2Descriptor: DeviceDescriptor, Sendable {
 
     public init() {}
 
-    public func bind(instance: Instance, context: inout BindingContext) throws -> any BoundDevice {
-        guard instance.nodes.count == 4 else {
-            throw DeviceBindingError.portCountMismatch(
-                device: instance.name, expected: 4, got: instance.nodes.count
-            )
-        }
-
-        var params = try extractModelParameters(from: instance)
-        params.operatingTemperature = context.operatingConditions.temperatureKelvin
-
-        let drainNode = instance.nodes[0]
-        let gateNode = instance.nodes[1]
-        let sourceNode = instance.nodes[2]
-        let bulkNode = instance.nodes[3]
-
-        let dIdx = context.nodeIndex(drainNode)
-        let gIdx = context.nodeIndex(gateNode)
-        let sIdx = context.nodeIndex(sourceNode)
-        let bIdx = context.nodeIndex(bulkNode)
-
-        let csrIndices = MOSFETCSRIndices(
-            dd: dIdx.flatMap { context.stampIndex(row: $0, col: $0) },
-            gg: gIdx.flatMap { context.stampIndex(row: $0, col: $0) },
-            ss: sIdx.flatMap { context.stampIndex(row: $0, col: $0) },
-            bb: bIdx.flatMap { context.stampIndex(row: $0, col: $0) },
-            dg: dIdx.flatMap { d in gIdx.flatMap { context.stampIndex(row: d, col: $0) } },
-            ds: dIdx.flatMap { d in sIdx.flatMap { context.stampIndex(row: d, col: $0) } },
-            db: dIdx.flatMap { d in bIdx.flatMap { context.stampIndex(row: d, col: $0) } },
-            gd: gIdx.flatMap { g in dIdx.flatMap { context.stampIndex(row: g, col: $0) } },
-            gs: gIdx.flatMap { g in sIdx.flatMap { context.stampIndex(row: g, col: $0) } },
-            gb: gIdx.flatMap { g in bIdx.flatMap { context.stampIndex(row: g, col: $0) } },
-            sd: sIdx.flatMap { s in dIdx.flatMap { context.stampIndex(row: s, col: $0) } },
-            sg: sIdx.flatMap { s in gIdx.flatMap { context.stampIndex(row: s, col: $0) } },
-            sb: sIdx.flatMap { s in bIdx.flatMap { context.stampIndex(row: s, col: $0) } },
-            bd: bIdx.flatMap { b in dIdx.flatMap { context.stampIndex(row: b, col: $0) } },
-            bg: bIdx.flatMap { b in gIdx.flatMap { context.stampIndex(row: b, col: $0) } },
-            bs: bIdx.flatMap { b in sIdx.flatMap { context.stampIndex(row: b, col: $0) } }
-        )
-
-        return BoundNMOSL2(
-            instance: instance,
-            drain: drainNode,
-            gate: gateNode,
-            source: sourceNode,
-            bulk: bulkNode,
-            parameters: params,
-            drainIdx: dIdx,
-            gateIdx: gIdx,
-            sourceIdx: sIdx,
-            bulkIdx: bIdx,
-            csrIndices: csrIndices
-        )
-    }
-
-    private func extractModelParameters(from instance: Instance) throws -> MOSFETModelParameters {
-        var params = MOSFETModelParameters()
-
-        func extractReal(_ name: String) throws -> Double? {
-            guard let p = instance.parameters[name] else { return nil }
-            guard case .real(let v) = p else {
-                throw DeviceBindingError.invalidParameterType(
-                    device: instance.name, parameter: name, expected: "real"
-                )
-            }
-            return v
-        }
-
-        if let v = try extractReal("w") { params.w = v }
-        if let v = try extractReal("l") { params.l = v }
-        if let v = try extractReal("vto") { params.vto = v }
-        if let v = try extractReal("kp") { params.kp = v }
-        if let v = try extractReal("gamma") { params.gamma = v }
-        if let v = try extractReal("phi") { params.phi = v }
-        if let v = try extractReal("lambda") { params.lambda = v }
-        if let v = try extractReal("theta") { params.theta = v }
-        if let v = try extractReal("eta") { params.eta = v }
-        if let v = try extractReal("tox") { params.tox = v }
-        if let v = try extractReal("cgso") { params.cgso = v }
-        if let v = try extractReal("cgdo") { params.cgdo = v }
-        if let v = try extractReal("cgbo") { params.cgbo = v }
-        if let v = try extractReal("cj") { params.cj = v }
-        if let v = try extractReal("cjsw") { params.cjsw = v }
-        if let v = try extractReal("mj") { params.mj = v }
-        if let v = try extractReal("mjsw") { params.mjsw = v }
-        if let v = try extractReal("pb") { params.pb = v }
-        if let v = try extractReal("ad") { params.ad = v }
-        if let v = try extractReal("as") { params.asrc = v }
-        if let v = try extractReal("pd") { params.pd = v }
-        if let v = try extractReal("ps") { params.ps = v }
-
-        try params.validate(device: instance.name)
-        return params
+    /// Raw MOS binding is unsupported; consume a checked NativePreparedMOSDevice instead.
+    public func bind(instance: Instance, context: inout BindingContext)
+        throws(MOSBindingFailure) -> any BoundDevice {
+        throw .missingPreparedReceipt
     }
 }

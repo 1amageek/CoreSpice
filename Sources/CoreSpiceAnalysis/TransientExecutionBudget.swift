@@ -55,6 +55,48 @@ package final class TransientExecutionBudget: Sendable {
         }
     }
 
+    /// Charges one linear solve with the same dense-work envelope used by Newton.
+    /// Complex arithmetic is bounded by four real envelopes; augmented pencils supply their dimension.
+    func beginLinearSolve(dimension requestedDimension: Int? = nil, complex: Bool = false) throws {
+        let size = requestedDimension ?? dimension
+        guard size > 0 else { throw AnalysisError.invalidConfiguration("Linear solve dimension must be positive") }
+        try Self.admit(size, limit: limits.maximumMatrixDimension, resource: "matrixDimension")
+        let square = try Self.multiply(size, size, "linear matrix square")
+        let cubic = try Self.multiply(square, size, "linear matrix cubic work")
+        let baseCubic = try Self.multiply(Self.multiply(dimension, dimension, "base matrix square"), dimension, "base matrix cubic work")
+        let overhead = iterationWork - baseCubic
+        let expandedVectors = try Self.multiply(max(0, size - dimension), 8, "augmented vector work")
+        let realWork = try Self.add(Self.add(cubic, overhead, "linear work"), expandedVectors, "linear work")
+        let work = try Self.multiply(realWork, complex ? 4 : 1, "linear arithmetic work")
+        try state.withLock { state in
+            let attempts = try Self.add(state.solveAttempts, 1, "solveAttempts")
+            let totalWork = try Self.add(state.workUnits, work, "workUnits")
+            try Self.admit(attempts, limit: limits.maximumSolveAttempts, resource: "solveAttempts")
+            try Self.admit(totalWork, limit: limits.maximumWorkUnits, resource: "workUnits")
+            state.solveAttempts = attempts
+            state.workUnits = totalWork
+        }
+    }
+
+    func chargeWork(_ units: Int) throws {
+        guard units >= 0 else { throw TransientExecutionError.invalidLimit(name: "workUnits", value: units) }
+        try state.withLock { state in
+            let total = try Self.add(state.workUnits, units, "workUnits")
+            try Self.admit(total, limit: limits.maximumWorkUnits, resource: "workUnits")
+            state.workUnits = total
+        }
+    }
+
+    func admitSavedScalars(_ count: Int) throws {
+        guard count >= 0 else { throw TransientExecutionError.invalidLimit(name: "savedScalars", value: count) }
+        try state.withLock { state in
+            let total = try Self.add(state.savedScalars, count, "savedScalars")
+            try Self.admit(total, limit: limits.maximumSavedScalars, resource: "savedScalars")
+            _ = try Self.multiply(total, MemoryLayout<Double>.stride, "saved output bytes")
+            state.savedScalars = total
+        }
+    }
+
     package func admitSavedPoint(accepted: Bool) throws {
         try state.withLock { state in
             let steps = try Self.add(state.acceptedSteps, accepted ? 1 : 0, "acceptedSteps")

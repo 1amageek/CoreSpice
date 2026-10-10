@@ -1,8 +1,8 @@
 /// A registry that maps device type names to their descriptors.
 ///
-/// The analysis engine uses the registry to look up the correct
-/// descriptor for each `Instance` in the circuit IR and then
-/// bind it into a `BoundDevice`.
+/// Non-MOS descriptors bind instances into executable devices. MOS descriptors
+/// provide metadata only; checked MOS preparation and consuming binding own
+/// executable state and explicit numerical conditions.
 public struct DeviceRegistry: Sendable {
 
     private var descriptors: [String: any DeviceDescriptor] = [:]
@@ -20,7 +20,7 @@ public struct DeviceRegistry: Sendable {
     }
 
     /// A registry pre-populated with all built-in device types.
-    public static func standard(bsim4PreparationPolicy: BSIM4PreparationPolicy? = nil, bsim4NoisePreparationRequested: Bool = false) -> DeviceRegistry {
+    public static func standard() -> DeviceRegistry {
         var registry = DeviceRegistry()
         registry.register(ResistorDescriptor())
         registry.register(CapacitorDescriptor())
@@ -47,8 +47,8 @@ public struct DeviceRegistry: Sendable {
         registry.register(PMOSL3Descriptor())
         registry.register(BSIM3Descriptor())
         registry.register(BSIM3Descriptor(pmos: true))
-        registry.register(BSIM4Descriptor(preparationPolicy: bsim4PreparationPolicy, noisePreparationRequested: bsim4NoisePreparationRequested))
-        registry.register(BSIM4Descriptor(pmos: true, preparationPolicy: bsim4PreparationPolicy, noisePreparationRequested: bsim4NoisePreparationRequested))
+        registry.register(BSIM4Descriptor())
+        registry.register(BSIM4Descriptor(pmos: true))
         registry.register(NJFETDescriptor())
         registry.register(PJFETDescriptor())
         registry.register(NMESFETDescriptor())

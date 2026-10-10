@@ -1,3 +1,6 @@
+@testable import CoreSpice
+import CoreSpiceMOSContracts
+import CoreSpiceIO
 import CoreSpiceParserSPICE
 import CoreSpiceLowering
 import CoreSpiceDevices
@@ -6,19 +9,17 @@ import CoreSpiceAnalysis
 import CoreSpiceCompile
 import CoreSpiceIR
 import CoreSpiceEvent
-import CoreSpiceIO
 import Foundation
 import Testing
 
 @Suite("Native BSIM4 correlated noise", .timeLimit(.minutes(1)))
 struct BSIM4NoiseTests {
-    private func prepared(_ source: String) async throws -> PreparedCircuit {
-        let parsed = try await SPICEParser().parse(source: source).get()
-        let options = try SPICEAnalysisOptions.resolve(from: parsed)
-        let ir = try NetlistLowering(configuration: options.loweringConfiguration()).lower(parsed)
-        let plan = try StandardCompiler().compile(ir: ir)
-        return try StandardCircuitDeviceBinding(registry: options.deviceRegistry(),
-            operatingConditions: options.operatingConditions()).bind(plan: plan, instances: ir.instances)
+    private func prepared(_ source: String,
+                          capabilities: MOSAnalysisCapabilities = [.dc, .ac, .noise]) async throws -> PreparedNativeCircuit {
+        try await NativeBSIMFixture.prepare(source, capabilities: capabilities)
+    }
+    private func boundFixture(_ source: String) async throws -> BoundBSIMFixture {
+        BoundBSIMFixture(try await prepared(source))
     }
     private var source: String {
         """
@@ -37,10 +38,10 @@ struct BSIM4NoiseTests {
     }
     @Test func productionNoisePublishesOriginalChannels() async throws {
         let circuit = try await prepared(source)
-        let device = try #require(circuit.devices.first { $0.instance.name == "m1" })
+        let device = try NativeBSIMFixture.mos(circuit)
         let result = try await NoiseAnalysis(outputNode: device.instance.nodes[0], inputSourceName: "vg",
             sweep: .linear(start: 1e3, stop: 1e3, points: 1))
-            .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            .run(circuit: consume circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
         #expect(result.deviceContributions.filter { $0.deviceName == "m1" }.count == 14)
         #expect(result.outputNoiseDensity[0] > 0)
         #expect(result.integratedOutputNoise == 0)
@@ -61,11 +62,11 @@ struct BSIM4NoiseTests {
         #expect(oracle.cases.count == 28)
         for fixture in oracle.cases {
             let circuit = try await prepared(fixture.source)
-            let device = try #require(circuit.devices.first { $0.instance.name == "m1" })
+            let device = try NativeBSIMFixture.mos(circuit)
             let result = try await NoiseAnalysis(outputNode: device.instance.nodes[0], inputSourceName: "vg",
                 sweep: .decade(start: 100, stop: 1e10, pointsPerDecade: 1),
                 dcConfig: .init(abstol: 1e-16, reltol: 1e-9, vntol: 1e-10, gmin: 0))
-                .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+                .run(circuit: consume circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
             #expect(result.frequencies.count == fixture.samples.count)
             var integral = 0.0
             for (index, row) in fixture.samples.enumerated() {
@@ -152,16 +153,23 @@ struct BSIM4NoiseTests {
         for paramchk in [0, 1] {
             let text = source.replacingOccurrences(of: "tnoimod=2", with: "tnoimod=1 paramchk=\(paramchk)")
             let circuit = try await prepared(text)
-            let device = try #require(circuit.devices.first { $0.instance.name == "m1" } as? BoundBSIM4)
-            #expect(device.topology.noiseRequested)
+            let device = try NativeBSIMFixture.mos(circuit)
+            let model = try #require(circuit.record.bsim4Models.first { $0.device == "m1" })
+            #expect(device.receipt.identity.conditions.analysisCapabilities.contains(.noise))
             #expect(device.instance.ownedNodes.count == 2)
-            #expect(device.topology.maintainerUnsupportedNoiseMode)
-            #expect(device.diagnostics.contains { $0.code == .maintainerNoiseModeLimitation } == (paramchk == 1))
-            let nonnoise = try await prepared(text.replacingOccurrences(of: ".noise V(d) VG lin 1 1k 1k", with: ".op"))
-            let unprepared = try #require(nonnoise.devices.first { $0.instance.name == "m1" } as? BoundBSIM4)
-            #expect(!unprepared.topology.noiseRequested)
+            #expect(model.maintainerUnsupportedNoiseMode)
+            #expect(model.diagnostics.contains { $0.code == .maintainerNoiseModeLimitation } == (paramchk == 1))
+            let nonnoise = try await prepared(text.replacingOccurrences(of: ".noise V(d) VG lin 1 1k 1k", with: ".op"), capabilities: .dc)
+            let unprepared = try NativeBSIMFixture.mos(nonnoise)
+            #expect(!unprepared.receipt.identity.conditions.analysisCapabilities.contains(.noise))
             #expect(unprepared.instance.ownedNodes.isEmpty)
-            #expect(throws: BSIM4Error.noiseNotPrepared) { try unprepared.validateNoiseAnalysis() }
+            do {
+                _ = try await NoiseAnalysis(outputNode: unprepared.instance.nodes[0], sweep: .single(1e3))
+                    .run(circuit: consume nonnoise, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+                Issue.record("Noise without prepared capability admitted")
+            } catch let error as SPICENativeExecutionError {
+                guard case .mosPreparation(.invalidConditions) = error else { Issue.record("Unexpected failure \(error)"); return }
+            }
         }
     }
 
@@ -216,7 +224,7 @@ struct BSIM4NoiseTests {
     }
 
     @Test func outputNoiseFailuresAndSingleCountingReachActualCaller() async throws {
-        let circuit = try await prepared(source)
+        let circuit = try await boundFixture(source)
         let deviceIndex = try #require(circuit.devices.firstIndex { $0.instance.name == "m1" })
         let device = circuit.devices[deviceIndex]
         for fault in [OutputNoiseProbeDevice.Fault.doubleCount, .negative, .unknownNode, .changedIdentity, .overflow] {
@@ -241,24 +249,28 @@ struct BSIM4NoiseTests {
     }
 
     @Test func cancellationNeverPublishesCompletedNoise() async throws {
-        let circuit = try await prepared(source)
-        let device = try #require(circuit.devices.first { $0.instance.name == "m1" })
         for duringSweep in [false, true] {
+            let circuit = try await prepared(source)
+            let node = try NativeBSIMFixture.mos(circuit).instance.nodes[0]
             let cancellation = CancellationToken()
             if !duringSweep { cancellation.cancel() }
             let observer = NoiseEventObserver(cancellation: duringSweep ? cancellation : nil)
             let dispatcher = EventDispatcher(); await dispatcher.addObserver(observer)
             do {
-                _ = try await NoiseAnalysis(outputNode: device.instance.nodes[0],
+                _ = try await NoiseAnalysis(outputNode: node,
                     sweep: .linear(start: 1e3, stop: 1e3, points: 1))
-                    .run(circuit: circuit, solver: SparseLUSolver(), observer: dispatcher, cancellation: cancellation)
+                    .run(circuit: consume circuit, solver: SparseLUSolver(), observer: dispatcher, cancellation: cancellation)
                 Issue.record("Cancelled noise became success")
-            } catch let error as AnalysisError { guard case .cancelled = error else { Issue.record("Wrong cancellation error: \(error)"); return } }
+            } catch let error as SPICENativeExecutionError {
+                guard case .cancelled = error else { Issue.record("Wrong cancellation error: \(error)"); return }
+            }
             #expect(observer.snapshot().last?.status == .cancelled)
             #expect(!observer.snapshot().contains { $0.status == .completed })
         }
-        let result = try await NoiseAnalysis(outputNode: device.instance.nodes[0], sweep: .linear(start: 1e3, stop: 1e3, points: 1))
-            .run(circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+        let fresh = try await prepared(source)
+        let node = try NativeBSIMFixture.mos(fresh).instance.nodes[0]
+        let result = try await NoiseAnalysis(outputNode: node, sweep: .linear(start: 1e3, stop: 1e3, points: 1))
+            .run(circuit: consume fresh, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken()).result
         #expect(result.outputNoiseDensity[0] > 0)
     }
 

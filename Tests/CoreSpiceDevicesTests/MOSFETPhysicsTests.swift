@@ -53,7 +53,6 @@ struct MOSFETPhysicsTests {
     /// - Linear: Vgs = 1.5V -> Ids > 0
     @Test("NMOS cutoff-to-linear transition")
     func nmosCutoffToLinearTransition() throws {
-        let desc = NMOSL1Descriptor()
         let drain = Node(id: 1)
         let gate = Node(id: 2)
         let source = Node(id: 3)
@@ -61,27 +60,14 @@ struct MOSFETPhysicsTests {
 
         // Parameters: Vth=0.7V, Kp=110uA/V^2, W/L=10
         // beta = Kp * W/L = 110e-6 * 10 = 1.1e-3 A/V^2
-        let instance = Instance(
-            name: "M1",
-            typeName: "nmos_l1",
-            nodes: [drain, gate, source, bulk],
-            parameters: [
-                "vto": .real(0.7),
-                "kp": .real(110e-6),
-                "w": .real(10e-6),
-                "l": .real(1e-6),
-                "lambda": .real(0.0)
-            ]
-        )
-
         let variableMap: [MNAVariable: Int] = [
             .nodeVoltage(drain): 0,
             .nodeVoltage(gate): 1,
             .nodeVoltage(source): 2,
             .nodeVoltage(bulk): 3
         ]
-        var context = BindingContext(variableMap: variableMap, matrixDimension: 4)
-        let bound = try desc.bind(instance: instance, context: &context)
+        let bound = try PreparedMOSFixture.bind(typeName: "nmos_l1", nodes: [drain, gate, source, bulk],
+            model: ["vto": 0.7, "kp": 110e-6, "lambda": 0], instance: ["w": 10e-6, "l": 1e-6], variableMap: variableMap)
 
         let collector = MOSStampCollector()
         let beta = 110e-6 * 10.0  // 1.1e-3 A/V^2
@@ -151,24 +137,10 @@ struct MOSFETPhysicsTests {
     /// In saturation (Vds > Vgst), gds should be near gmin (without CLM)
     @Test("NMOS linear-to-saturation transition at Vds = Vgst")
     func nmosLinearToSaturationTransition() throws {
-        let desc = NMOSL1Descriptor()
         let drain = Node(id: 1)
         let gate = Node(id: 2)
         let source = Node(id: 3)
         let bulk = Node(id: 4)
-
-        let instance = Instance(
-            name: "M1",
-            typeName: "nmos_l1",
-            nodes: [drain, gate, source, bulk],
-            parameters: [
-                "vto": .real(0.7),
-                "kp": .real(110e-6),
-                "w": .real(10e-6),
-                "l": .real(1e-6),
-                "lambda": .real(0.0)  // No CLM for clean comparison
-            ]
-        )
 
         let variableMap: [MNAVariable: Int] = [
             .nodeVoltage(drain): 0,
@@ -176,8 +148,8 @@ struct MOSFETPhysicsTests {
             .nodeVoltage(source): 2,
             .nodeVoltage(bulk): 3
         ]
-        var context = BindingContext(variableMap: variableMap, matrixDimension: 4)
-        let bound = try desc.bind(instance: instance, context: &context)
+        let bound = try PreparedMOSFixture.bind(typeName: "nmos_l1", nodes: [drain, gate, source, bulk],
+            model: ["vto": 0.7, "kp": 110e-6, "lambda": 0], instance: ["w": 10e-6, "l": 1e-6], variableMap: variableMap)
 
         let beta = 110e-6 * 10.0  // 1.1e-3 A/V^2
         let vth = 0.7
@@ -221,7 +193,6 @@ struct MOSFETPhysicsTests {
     /// - Vbs = -2V: Vth ≈ 1.05V (increased threshold reduces gm)
     @Test("NMOS body effect threshold voltage modulation")
     func nmosBodyEffect() throws {
-        let desc = NMOSL1Descriptor()
         let drain = Node(id: 1)
         let gate = Node(id: 2)
         let source = Node(id: 3)
@@ -231,29 +202,14 @@ struct MOSFETPhysicsTests {
         let gamma = 0.5
         let vto = 0.7
 
-        let instance = Instance(
-            name: "M1",
-            typeName: "nmos_l1",
-            nodes: [drain, gate, source, bulk],
-            parameters: [
-                "vto": .real(vto),
-                "kp": .real(110e-6),
-                "w": .real(10e-6),
-                "l": .real(1e-6),
-                "gamma": .real(gamma),
-                "phi": .real(phi),
-                "lambda": .real(0.0)
-            ]
-        )
-
         let variableMap: [MNAVariable: Int] = [
             .nodeVoltage(drain): 0,
             .nodeVoltage(gate): 1,
             .nodeVoltage(source): 2,
             .nodeVoltage(bulk): 3
         ]
-        var context = BindingContext(variableMap: variableMap, matrixDimension: 4)
-        let bound = try desc.bind(instance: instance, context: &context)
+        let bound = try PreparedMOSFixture.bind(typeName: "nmos_l1", nodes: [drain, gate, source, bulk],
+            model: ["vto": vto, "kp": 110e-6, "gamma": gamma, "phi": phi, "lambda": 0], instance: ["w": 10e-6, "l": 1e-6], variableMap: variableMap)
 
         let beta = 110e-6 * 10.0
         let vds = 2.0  // Deep saturation
@@ -323,7 +279,6 @@ struct MOSFETPhysicsTests {
     /// - gmbs = gm * gamma / (2 * sqrt(2*phi - Vbs))
     @Test("NMOS small-signal parameter verification")
     func nmosSmallSignalParameters() throws {
-        let desc = NMOSL1Descriptor()
         let drain = Node(id: 1)
         let gate = Node(id: 2)
         let source = Node(id: 3)
@@ -337,29 +292,14 @@ struct MOSFETPhysicsTests {
         let phi = 0.6
         let lambda = 0.02
 
-        let instance = Instance(
-            name: "M1",
-            typeName: "nmos_l1",
-            nodes: [drain, gate, source, bulk],
-            parameters: [
-                "vto": .real(vto),
-                "kp": .real(kp),
-                "w": .real(w),
-                "l": .real(l),
-                "gamma": .real(gamma),
-                "phi": .real(phi),
-                "lambda": .real(lambda)
-            ]
-        )
-
         let variableMap: [MNAVariable: Int] = [
             .nodeVoltage(drain): 0,
             .nodeVoltage(gate): 1,
             .nodeVoltage(source): 2,
             .nodeVoltage(bulk): 3
         ]
-        var context = BindingContext(variableMap: variableMap, matrixDimension: 4)
-        let bound = try desc.bind(instance: instance, context: &context)
+        let bound = try PreparedMOSFixture.bind(typeName: "nmos_l1", nodes: [drain, gate, source, bulk],
+            model: ["vto": vto, "kp": kp, "gamma": gamma, "phi": phi, "lambda": lambda], instance: ["w": w, "l": l], variableMap: variableMap)
 
         let beta = kp * w / l  // 1.1e-3
         let vgs = 2.0

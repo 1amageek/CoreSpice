@@ -25,7 +25,11 @@ package func builtinMOSValue(_ name: String, symbol: MOSSymbolID, arguments: Arr
     case "log10": result = MOSMath.logarithm10(try unary())
     case "sqrt": result = MOSMath.squareRoot(try unary())
     case "pow": try require(2); result = MOSMath.power(arguments[base], arguments[base + 1])
-    case "pwr", "pwrs": try require(2); result = MOSMath.power(abs(arguments[base]), arguments[base + 1])
+    case "pwr": try require(2); result = MOSMath.power(abs(arguments[base]), arguments[base + 1])
+    case "pwrs":
+        try require(2)
+        let magnitude = MOSMath.power(abs(arguments[base]), arguments[base + 1])
+        result = arguments[base] < 0 ? -magnitude : magnitude
     case "abs": result = abs(try unary())
     case "sgn", "sign": let value = try unary(); result = value > 0 ? 1 : (value < 0 ? -1 : 0)
     case "floor": result = try unary().rounded(.down)

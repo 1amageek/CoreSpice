@@ -4,7 +4,8 @@ import CoreSpiceIR
 ///
 /// Contains the small-signal gain, input impedance, and output impedance
 /// computed at the DC operating point.
-public struct TransferFunctionResult: Sendable {
+public struct TransferFunctionResult: Sendable, AnalysisResultStorageRetaining {
+    private let retainedStorage: (any Sendable)?
 
     /// The small-signal voltage gain (Vout / Vin).
     public let gain: Double
@@ -57,5 +58,20 @@ public struct TransferFunctionResult: Sendable {
         self.outputImpedance = outputImpedance
         self.dcOperatingPoint = dcOperatingPoint
         self.variableMap = variableMap
+        self.retainedStorage = nil
+    }
+
+    /// Returns the same numerical values while retaining their native invocation capacity.
+    package func retainingStorage(_ owner: any Sendable) -> Self {
+        Self(retaining: self, owner: owner)
+    }
+
+    private init(retaining result: Self, owner: any Sendable) {
+        self.gain = result.gain
+        self.inputImpedance = result.inputImpedance
+        self.outputImpedance = result.outputImpedance
+        self.dcOperatingPoint = result.dcOperatingPoint.retainingStorage(owner)
+        self.variableMap = result.variableMap
+        self.retainedStorage = owner
     }
 }

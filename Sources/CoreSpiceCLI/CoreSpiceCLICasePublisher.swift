@@ -127,49 +127,78 @@ struct CoreSpiceCLICasePublisher: Sendable {
         var receipts: [ArtifactReference] = []
         for phase in phases.phases {
             try checkCancellation()
-            var groups: [String: [(ResolvedDeviceModel, [String: [String: Double]], [String: Double])]] = [:]
+            typealias ModelGroup = (name: String, version: String?, instances: [String: [String: Double]], resolved: [String: Double])
+            var groups: [String: [ModelGroup]] = [:]
             for instance in phase.instances {
                 try checkCancellation()
-                switch instance.modelConsumption {
-                case .unrecorded:
-                    throw CoreSpiceCLICaseError.unrecordedModelConsumption(instance.name)
-                case .modelFree: continue
-                case .selected(let model):
-                    guard let declaration = model.declarationID,
-                          let origin = origins[declaration], captures[origin.captureID] != nil else {
+                let declaration: String
+                let modelName: String
+                let version: String?
+                var effective: [String: Double]
+                let resolved: [String: Double]
+                if case .prepared(let receipt) = instance.mos {
+                    let selected = receipt.identity.resolved
+                    guard let origin = try phase.compiled.modelOrigin(for: selected),
+                          origins[origin.declarationID] != nil else {
                         throw CoreSpiceCLICaseError.missingModelOrigin(instance.name)
                     }
-                    var effective = try numeric(instance.parameters)
-                    effective["operating.temperatureKelvin"] = phase.conditions.temperatureKelvin
-                    effective["operating.nominalTemperatureKelvin"] = phase.conditions.nominalTemperatureKelvin
-                    let resolved = try numeric(model.parameters)
-                    var variants = groups[declaration] ?? []
-                    let index = variants.firstIndex { $0.2 == resolved } ?? variants.count
-                    if index == variants.count { variants.append((model, [:], resolved)) }
-                    guard variants[index].1.updateValue(effective, forKey: instance.name) == nil else {
-                        throw CoreSpiceCLICaseError.incompleteOutput("duplicate consumed instance")
+                    declaration = origin.declarationID
+                    modelName = selected.symbolNames[Int(selected.selectedName.rawValue)]
+                    version = selected.release.exactVersion
+                    resolved = Dictionary(uniqueKeysWithValues: selected.modelCoefficients.map {
+                        (selected.symbolNames[Int($0.symbol.rawValue)], $0.value)
+                    })
+                    effective = Dictionary(uniqueKeysWithValues: selected.instanceParameters.map {
+                        (selected.symbolNames[Int($0.symbol.rawValue)], $0.value)
+                    })
+                    effective["l"] = selected.normalizedGeometry.length
+                    effective["w"] = selected.normalizedGeometry.width
+                    effective["ad"] = selected.normalizedGeometry.drainArea
+                    effective["as"] = selected.normalizedGeometry.sourceArea
+                    effective["pd"] = selected.normalizedGeometry.drainPerimeter
+                    effective["ps"] = selected.normalizedGeometry.sourcePerimeter
+                } else {
+                    switch instance.modelConsumption {
+                    case .unrecorded: throw CoreSpiceCLICaseError.unrecordedModelConsumption(instance.name)
+                    case .modelFree: continue
+                    case .selected(let model):
+                        guard let identity = model.declarationID else {
+                            throw CoreSpiceCLICaseError.missingModelOrigin(instance.name)
+                        }
+                        declaration = identity; modelName = model.name
+                        if case .string(let value) = model.parameters["version"] { version = value } else { version = nil }
+                        effective = try numeric(instance.parameters); resolved = try numeric(model.parameters)
                     }
-                    groups[declaration] = variants
                 }
+                guard let origin = origins[declaration], captures[origin.captureID] != nil else {
+                    throw CoreSpiceCLICaseError.missingModelOrigin(instance.name)
+                }
+                effective["operating.temperatureKelvin"] = phase.conditions.temperatureKelvin
+                effective["operating.nominalTemperatureKelvin"] = phase.conditions.nominalTemperatureKelvin
+                var variants = groups[declaration] ?? []
+                let index = variants.firstIndex { $0.resolved == resolved } ?? variants.count
+                if index == variants.count { variants.append((modelName, version, [:], resolved)) }
+                guard variants[index].instances.updateValue(effective, forKey: instance.name) == nil else {
+                    throw CoreSpiceCLICaseError.incompleteOutput("duplicate consumed instance")
+                }
+                groups[declaration] = variants
             }
             for declaration in groups.keys.sorted() {
                 guard let variants = groups[declaration], let origin = origins[declaration],
                       let source = captures[origin.captureID] else {
                     throw CoreSpiceCLICaseError.missingModelOrigin(declaration)
                 }
-                for (model, instances, resolved) in variants {
-                    let version: String?
-                    if case .string(let identity) = model.parameters["version"] { version = identity } else { version = nil }
+                for (modelName, version, instances, resolved) in variants {
                     // All references use fixed SHA-256 identities and CLI-owned descriptors (<1024 encoded bytes).
                     let receiptCharge = 4096 + inputs.count * 1024
-                        + tokenCharge([caseID, executionID, phase.id, declaration, model.name, version ?? ""])
+                        + tokenCharge([caseID, executionID, phase.id, declaration, modelName, version ?? ""])
                         + numericCharge(resolved) + instances.reduce(2) {
                             $0 + $1.key.utf8.count * 6 + 8 + numericCharge($1.value)
                         }
                     try admitEncoded(receiptCharge)
                     let receipt = ToolQualificationModelExecutionReceipt(caseID: caseID, executionID: executionID,
                         producer: referencer.producer, phaseID: phase.id, modelID: declaration,
-                        sourceArtifact: source, selectedModelIdentifier: model.name,
+                        sourceArtifact: source, selectedModelIdentifier: modelName,
                         consumedInstances: instances, inputArtifacts: inputs, modelVersion: version,
                         resolvedParameters: resolved)
                     let name = "model-receipt-\(receipts.count).json"

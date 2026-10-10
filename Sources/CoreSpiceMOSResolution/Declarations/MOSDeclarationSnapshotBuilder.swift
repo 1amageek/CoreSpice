@@ -1,7 +1,7 @@
 import CoreSpiceMOSContracts
 
 /// Exclusive construction; immutable publication retains every declaration occurrence.
-public struct MOSDeclarationSnapshotBuilder {
+public struct MOSDeclarationSnapshotBuilder: ~Copyable {
     private struct Scope {
         let id: MOSScopeID
         let parent: MOSScopeID?
@@ -84,9 +84,13 @@ public struct MOSDeclarationSnapshotBuilder {
         for symbol in program.dependencies { try spend(.expressionNodes, units: 1); try requireSymbol(symbol) }
         for symbol in program.referencedFunctions { try spend(.expressionNodes, units: 1); try requireSymbol(symbol) }
         let payload = program.retainedBytes - UInt64(MemoryLayout<MOSExpressionProgram>.stride)
-        try preflight(payload, growth: MOSStorageBudget.growthBytes(programs, required: programs.count + 1))
+        let required = programs.count + 1
+        let growth = required > programs.capacity ? try MOSStorageBudget.growthBytes(programs, required: required) : 0
+        try preflight(payload, growth: growth)
         try admit(payload)
-        try Self.reserve(&programs, storage: &storage, failure: &failure, required: programs.count + 1)
+        // This private table cannot share backing before the builder's consuming finish.
+        do { try storage.reserveExclusive(&programs, required: required) }
+        catch { failure = error; throw error }
         programs.append(program)
         return id
     }
@@ -157,7 +161,7 @@ public struct MOSDeclarationSnapshotBuilder {
             scope: scope, polarity: polarity, level: level, version: version, coefficients: coefficients, source: source))
         return id
     }
-    public mutating func finish() throws(MOSResolutionFailure) -> MOSDeclarationSnapshot {
+    public consuming func finish() throws(MOSResolutionFailure) -> MOSDeclarationSnapshot {
         try requireActive(); try control?.checkCancellation()
         // Output buffers are local. A failed finish releases them and never changes the retained ledger.
         var output = storage

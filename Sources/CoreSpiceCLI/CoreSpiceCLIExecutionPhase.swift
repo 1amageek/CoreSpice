@@ -1,4 +1,6 @@
+import CoreSpice
 import CoreSpiceIR
+import CoreSpiceLowering
 import CoreSpiceDevices
 import CoreSpiceWaveform
 import CoreSpiceIO
@@ -7,8 +9,10 @@ import Synchronization
 /// Completed numerical phase and the actual device inputs that produced its observations.
 struct CoreSpiceCLIExecutionPhase: Sendable {
     let id: String
-    let instances: [Instance]
-    let conditions: OperatingConditions
+    let facts: NativeCircuitExecutionFacts
+    let compiled: CompiledNetlist
+    var instances: [Instance] { facts.instances }
+    var conditions: OperatingConditions { facts.conditions }
     let observations: [String: Double]
 }
 
@@ -46,10 +50,11 @@ final class CoreSpiceCLIPhaseCollector: Sendable {
     var metricPhases: [String: [String]] { state.withLock { $0.metricPhases } }
     var isComplete: Bool { state.withLock { $0.complete } }
 
-    func record(id: String, devices: [any BoundDevice], conditions: OperatingConditions,
+    func record(id: String, facts: NativeCircuitExecutionFacts, compiled: CompiledNetlist,
                 waveform: WaveformData) throws {
         try Task.checkCancellation()
-        guard waveform.pointCount > 0 else { throw CoreSpiceCLICaseError.incompleteOutput("empty phase waveform") }
+        guard waveform.pointCount > 0, facts.completedPointCount > 0 else { throw CoreSpiceCLICaseError.incompleteOutput("empty phase waveform") }
+        let instances = facts.instances
         var observations: [String: Double] = [:]
         for (index, variable) in waveform.variables.enumerated() {
             if waveform.isComplex {
@@ -67,8 +72,10 @@ final class CoreSpiceCLIPhaseCollector: Sendable {
             }
         }
         var charge = id.utf8.count * (1 + observations.count) + observations.keys.reduce(0) { $0 + $1.utf8.count + 128 }
-        for device in devices {
-            let instance = device.instance
+        for instance in instances {
+            if case .prepared(let receipt) = instance.mos {
+                charge += Int(receipt.retainedBytes) + Int(receipt.identity.resolved.retainedBytes)
+            }
             charge += instance.name.utf8.count + instance.typeName.utf8.count + 256
             var maps = [instance.parameters]
             if case .selected(let model) = instance.modelConsumption {
@@ -90,8 +97,7 @@ final class CoreSpiceCLIPhaseCollector: Sendable {
         let encodedCharge = id.utf8.count * 6 + 16 + observations.keys.reduce(0) {
             $0 + (id.utf8.count * 3 + $1.utf8.count * 2) * 6 + 160
         }
-        let phase = CoreSpiceCLIExecutionPhase(id: id, instances: devices.map(\.instance),
-            conditions: conditions, observations: observations)
+        let phase = CoreSpiceCLIExecutionPhase(id: id, facts: facts, compiled: compiled, observations: observations)
         try state.withLock { state in
             state.complete = false
             guard !state.phases.contains(where: { $0.id == id }) else {
@@ -99,13 +105,13 @@ final class CoreSpiceCLIPhaseCollector: Sendable {
             }
             guard charge <= maximumRetainedBytes - state.retainedByteCharge,
                   encodedCharge <= maximumEncodedBytes - state.encodedByteCharge,
-                  state.phases.count < 10_000, devices.count <= 100_000 - state.instanceRecordCount,
+                  state.phases.count < 10_000, instances.count <= 100_000 - state.instanceRecordCount,
                   observations.count <= 100_000 - state.observationCount else {
                 throw CoreSpiceCLICaseError.incompleteOutput("phase history budget exceeded")
             }
             state.encodedByteCharge += encodedCharge
             state.retainedByteCharge += charge
-            state.instanceRecordCount += devices.count
+            state.instanceRecordCount += instances.count
             state.observationCount += observations.count
             state.phases.append(phase)
             for (name, value) in observations {

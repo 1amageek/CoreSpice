@@ -234,13 +234,13 @@ struct SPICEExactSourceIntakeTests {
         #expect(loaded.coverage.hasBlockedItems)
         #expect(loaded.inputReferences == [source.reference])
         #expect(loaded.captures.first?.bytes == Data(text.utf8))
-        #expect(try SPICEIO.lower(loaded.netlist).instances.count == 2)
+        #expect(try IOTestFrontend.lower(loaded.netlist).instances.count == 2)
         let selected = text.replacingOccurrences(of: ".op\n", with: "X1 out cell\n.op\n")
         let selectedBinding = try binding("root", selected)
         let selectedDeck = try await SPICEExactDeckLoader().load(request: request([selectedBinding]),
             provider: ExactTestProvider(bytes: ["root": Data(selected.utf8)]),
             work: SPICEBoundedSourceWork(limits: limits()))
-        #expect(throws: LoweringError.self) { _ = try SPICEIO.lower(selectedDeck.netlist) }
+        #expect(throws: LoweringError.self) { _ = try IOTestFrontend.lower(selectedDeck.netlist) }
     }
 
     @Test func exactModelBracedQuotesRetainCapturedSourceAndFlatPrecedence() async throws {
@@ -251,7 +251,7 @@ struct SPICEExactSourceIntakeTests {
             work: SPICEBoundedSourceWork(limits: limits()))
         #expect(loaded.inputReferences == [source.reference])
         #expect(loaded.captures.first?.bytes == Data(text.utf8))
-        let ir = try SPICEIO.lower(loaded.netlist)
+        let ir = try IOTestFrontend.lower(loaded.netlist)
         guard case .real(let value) = try #require(ir.instances.first?.model?.parameters["rsh"]) else {
             Issue.record("Missing actual model coefficient"); return
         }

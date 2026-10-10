@@ -21,6 +21,7 @@
 @_exported import CoreSpiceParser
 @_exported import CoreSpiceParserSPICE
 @_exported import CoreSpiceLowering
+@_exported import CoreSpiceMOSContracts
 @_exported import CoreSpiceExporter
 @_exported import CoreSpiceExporterRAW
 @_exported import CoreSpiceExporterCSV
@@ -82,29 +83,32 @@ public enum SPICEIO {
         )
     }
 
-    /// Parses and lowers a SPICE netlist to CircuitIR.
-    ///
-    /// - Parameters:
-    ///   - source: The netlist source text.
-    ///   - configuration: Lowering configuration.
-    /// - Returns: The circuit IR.
+    /// Parses and resolves a SPICE netlist under explicit caller evaluation policy.
     public static func parseAndLower(
         _ source: String,
-        configuration: NetlistLowering.Configuration = .default
-    ) async throws -> CircuitIR {
+        profile: MOSInputProfile,
+        seed: UInt64,
+        limits: MOSResolutionLimits,
+        control: (any MOSResolutionControlling)? = nil
+    ) async throws -> LoweredCircuit {
         let result = await parse(source)
-        let netlist = try result.get()
-        let lowering = NetlistLowering(configuration: configuration)
-        return try lowering.lower(netlist)
+        return try lower(result.get(), profile: profile, seed: seed, limits: limits, control: control)
     }
 
-    /// Lowers a parsed SPICE netlist to CircuitIR with the given configuration.
+    /// Returns the resolved circuit together with its exact inspection and evaluation owners.
     public static func lower(
         _ netlist: ParsedNetlist,
-        configuration: NetlistLowering.Configuration = .default
-    ) throws -> CircuitIR {
-        let lowering = NetlistLowering(configuration: configuration)
-        return try lowering.lower(netlist)
+        profile: MOSInputProfile,
+        seed: UInt64,
+        limits: MOSResolutionLimits,
+        control: (any MOSResolutionControlling)? = nil
+    ) throws -> LoweredCircuit {
+        let compiled = try NetlistLowering.compile(netlist, limits: limits, control: control)
+        var session = try NetlistLowering.beginEvaluation(compiled, profile: profile, limits: limits,
+                                                         seed: seed, control: control)
+        let options = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
+        try session.lower(geometryScale: options.geometryScale)
+        return try session.finish()
     }
 
     /// Exports waveform data to RAW format.

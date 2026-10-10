@@ -24,7 +24,7 @@ struct UniformRCExpanderTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(
+        let circuit = try FrontendTestLowering().lower(
             ParsedNetlist(components: [line], models: [model])
         )
 
@@ -57,7 +57,7 @@ struct UniformRCExpanderTests {
             ]
         )
 
-        let circuit = try NetlistLowering().lower(
+        let circuit = try FrontendTestLowering().lower(
             ParsedNetlist(components: [line], models: [model])
         )
 
@@ -87,7 +87,7 @@ struct UniformRCExpanderTests {
         )
 
         #expect(throws: LoweringError.self) {
-            _ = try NetlistLowering().lower(
+            _ = try FrontendTestLowering().lower(
                 ParsedNetlist(components: [line], models: [model])
             )
         }
@@ -109,7 +109,7 @@ struct UniformRCExpanderTests {
         )
 
         #expect(throws: LoweringError.self) {
-            _ = try NetlistLowering().lower(
+            _ = try FrontendTestLowering().lower(
                 ParsedNetlist(components: [line], models: [model])
             )
         }

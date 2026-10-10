@@ -27,7 +27,7 @@ struct SPICEIOEndToEndTests {
         let parsed = try await SPICEIO.parse(source).get()
         let serialized = SPICESerializer().serialize(parsed, options: .default)
         for text in [source, serialized] {
-            let ir = try await SPICEIO.parseAndLower(text)
+            let ir = try await IOTestFrontend.parseAndLower(text)
             for (name, expected) in [("rglobal", 4000.0), ("xlocal.r1", 700.0)] {
                 let instance = try #require(ir.instances.first { $0.name == name })
                 guard case .real(let rsh) = try #require(instance.model?.parameters["rsh"]) else {
@@ -54,10 +54,10 @@ struct SPICEIOEndToEndTests {
         .model sheet R r=999 rsh=100 l=10u w=5u short=1u narrow=.5u
         .end
         """).get()
-        let options = try SPICEAnalysisOptions.resolve(from: parsed)
+        let options = try IOTestFrontend.options(parsed)
         #expect(options.geometryScale == 1e-6)
-        let composed = try SPICEIO.lower(parsed, configuration: options.loweringConfiguration())
-        let direct = try SPICEIO.lower(parsed)
+        let composed = try IOTestFrontend.lower(parsed)
+        let direct = try IOTestFrontend.lower(parsed)
         for ir in [direct, composed] {
             let instance = try #require(ir.instances.first { $0.name.lowercased() == "r1" })
             guard case .real(let length) = instance.parameters["l"],
@@ -85,11 +85,11 @@ struct SPICEIOEndToEndTests {
         R2 out 0 1000
         .end
         """).get()
-        let temperatureOptions = try SPICEAnalysisOptions.resolve(from: temperatureDeck)
+        let temperatureOptions = try IOTestFrontend.options(temperatureDeck)
         let conditions = try temperatureOptions.operatingConditions()
         #expect(conditions.temperatureKelvin == 323.15)
         #expect(conditions.nominalTemperatureKelvin == 293.15)
-        let ir = try SPICEIO.lower(temperatureDeck, configuration: temperatureOptions.loweringConfiguration())
+        let ir = try IOTestFrontend.lower(temperatureDeck)
         let circuit = try compileAndBindElectricalCircuit(ir, operatingConditions: conditions)
         let result = try await DCAnalysis().run(plan: circuit.plan, devices: circuit.devices,
             solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
@@ -99,7 +99,7 @@ struct SPICEIOEndToEndTests {
 
     @Test("Static semiconductor resistor executes distinct DC AC and flicker noise laws")
     func staticResistorDCACAndFlickerNoise() async throws {
-        let ir = try await SPICEIO.parseAndLower("""
+        let ir = try await IOTestFrontend.parseAndLower("""
         resistor actual analysis
         V1 in 0 dc 1 ac 1
         R1 in out sheet r=1000 ac=2000
@@ -125,7 +125,7 @@ struct SPICEIOEndToEndTests {
 
     @Test("Static resistor retains model identity and applies model nominal temperature")
     func staticResistorModelIdentityAndTemperature() async throws {
-        let ir = try await SPICEIO.parseAndLower("""
+        let ir = try await IOTestFrontend.parseAndLower("""
         resistor model temperature regression
         V1 in 0 1
         R1 in out reshead r=1000 tc1=0.01
@@ -155,7 +155,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let outNode = try node(fromInstance: "r1", terminal: 1, in: circuit.ir)
 
         let result = try await DCAnalysis().run(
@@ -217,7 +217,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let outNode = try node(fromInstance: "s1", terminal: 1, in: circuit.ir)
 
         let result = try await DCAnalysis().run(
@@ -246,7 +246,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let outNode = try node(fromInstance: "w1", terminal: 1, in: circuit.ir)
 
         let result = try await DCAnalysis().run(
@@ -275,7 +275,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
 
         let result = try await ACAnalysis(sweep: .linear(start: 1.0e3, stop: 1.0e3, points: 1)).run(
@@ -301,7 +301,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
 
@@ -343,7 +343,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
         let result = try await TransientAnalysis(
@@ -379,7 +379,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
 
@@ -417,7 +417,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
         let result = try await TransientAnalysis(
@@ -460,7 +460,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
 
@@ -498,7 +498,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
         let dc = try await DCAnalysis().run(
@@ -528,7 +528,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
         let dc = try await DCAnalysis().run(
@@ -556,7 +556,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
         let result = try await TransientAnalysis(
@@ -594,7 +594,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
         let dc = try await DCAnalysis().run(
@@ -620,7 +620,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "rload", terminal: 0, in: circuit.ir)
         let dc = try await DCAnalysis().run(
@@ -634,7 +634,7 @@ struct SPICEIOEndToEndTests {
         #expect(approximately(try dc.voltage(at: outNode), 6, tolerance: 1e-9))
     }
 
-    @Test("Non-finite behavioral evaluation fails analysis instead of returning success")
+    @Test("Invalid constant behavioral arithmetic fails before circuit publication")
     func nonFiniteBehavioralEvaluationFails() async throws {
         let source = """
         invalid behavioral runtime
@@ -643,19 +643,15 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
-        )
-
-        await #expect(throws: Error.self) {
-            _ = try await DCAnalysis().run(
-                plan: circuit.plan,
-                devices: circuit.devices,
-                solver: SparseLUSolver(),
-                observer: nil,
-                cancellation: CancellationToken()
-            )
-        }
+        let parsed = try await SPICEIO.parse(source).get()
+        let limits = try IOTestFrontend.limits
+        let compiled = try NetlistLowering.compile(parsed, limits: limits)
+        var session = try NetlistLowering.beginEvaluation(compiled, profile: .coreStrictV1, limits: limits, seed: 42)
+        do { try session.lower(); Issue.record("Invalid constant behavioral arithmetic published a circuit") }
+        catch let error as MOSResolutionFailure { #expect(error == .invalidArithmetic) }
+        #expect(session.circuit == nil)
+        do { try session.lower(); Issue.record("Invalid arithmetic left the evaluation run usable") }
+        catch let error as MOSResolutionFailure { #expect(error == .poisonedSession) }
     }
 
     @Test("Voltage-controlled switch with hysteresis lowers and simulates")
@@ -672,7 +668,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let result = try await DCAnalysis().run(
             plan: circuit.plan,
@@ -700,7 +696,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let outNode = try node(fromInstance: "w1", terminal: 1, in: circuit.ir)
 
         let result = try await ACAnalysis(sweep: .linear(start: 1.0e3, stop: 1.0e3, points: 1)).run(
@@ -732,7 +728,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let nout = try node(fromInstance: "jn", terminal: 2, in: circuit.ir)
         let pout = try node(fromInstance: "jp", terminal: 0, in: circuit.ir)
 
@@ -761,7 +757,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let outNode = try node(fromInstance: "j1", terminal: 2, in: circuit.ir)
 
         let result = try await ACAnalysis(sweep: .linear(start: 1.0e3, stop: 1.0e3, points: 1)).run(
@@ -796,7 +792,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let nout = try node(fromInstance: "zn", terminal: 0, in: circuit.ir)
         let pout = try node(fromInstance: "zp", terminal: 0, in: circuit.ir)
@@ -828,7 +824,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "z1", terminal: 0, in: circuit.ir)
         let result = try await ACAnalysis(
@@ -860,7 +856,7 @@ struct SPICEIOEndToEndTests {
         """
 
         let circuit = try compileAndBindElectricalCircuit(
-            try await SPICEIO.parseAndLower(source)
+            try await IOTestFrontend.parseAndLower(source)
         )
         let outNode = try node(fromInstance: "z1", terminal: 0, in: circuit.ir)
         let gateNode = try node(fromInstance: "z1", terminal: 1, in: circuit.ir)
@@ -903,7 +899,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let outNode = try node(fromInstance: "f1", terminal: 0, in: circuit.ir)
         let hOutNode = try node(fromInstance: "h1", terminal: 0, in: circuit.ir)
 
@@ -931,7 +927,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let outNode = try node(fromInstance: "f1", terminal: 0, in: circuit.ir)
 
         let result = try await DCAnalysis().run(
@@ -960,7 +956,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let outNode = try node(fromInstance: "x1.f1", terminal: 0, in: circuit.ir)
 
         let result = try await DCAnalysis().run(
@@ -988,7 +984,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let outNode = try node(fromInstance: "w1", terminal: 1, in: circuit.ir)
 
         let result = try await DCAnalysis().run(
@@ -1017,7 +1013,7 @@ struct SPICEIOEndToEndTests {
         .end
         """
 
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(source))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(source))
         let outNode = try node(fromInstance: "w1", terminal: 1, in: circuit.ir)
 
         let result = try await ACAnalysis(sweep: .linear(start: 1.0e3, stop: 1.0e3, points: 1)).run(
@@ -1064,7 +1060,7 @@ struct SPICEIOEndToEndTests {
         let serialized = SPICESerializer().serialize(parsed, options: .default)
         let roundTrip = try await SPICEIO.parse(serialized).get()
         #expect(parsed.components.first?.parameters["pwl"] == roundTrip.components.first?.parameters["pwl"])
-        let circuit = try compileAndBindElectricalCircuit(try await SPICEIO.parseAndLower(serialized))
+        let circuit = try compileAndBindElectricalCircuit(try await IOTestFrontend.parseAndLower(serialized))
         let node = try node(fromInstance: "r1", terminal: 0, in: circuit.ir)
         let result = try await TransientAnalysis(config: TransientConfig(stopTime: 2e-9,
             executionLimits: .validationFixture, maxTimeStep: 1e-11, useInitialConditions: true),
@@ -1078,7 +1074,7 @@ struct SPICEIOEndToEndTests {
     @Test(arguments: ["PULSE(0 1)", "PWL(0 0 1n)", "PWL(0 0 0 1)", "PWL(0 0 1n 1", "EXP(0 1)", "dc", "dc 1 2", "PWL(0 0 1n 1))"])
     func malformedSourceSyntaxNeverExecutesAsDC(_ waveform: String) async {
         do {
-            let ir = try await SPICEIO.parseAndLower("invalid source\nV1 in 0 " + waveform + "\nR1 in 0 1k\n.end\n")
+            let ir = try await IOTestFrontend.parseAndLower("invalid source\nV1 in 0 " + waveform + "\nR1 in 0 1k\n.end\n")
             _ = try compileAndBindElectricalCircuit(ir)
             Issue.record("Malformed waveform must fail parse/lowering/binding")
         } catch { }
@@ -1087,14 +1083,14 @@ struct SPICEIOEndToEndTests {
     @Test func deckBudgetOptionsRequireCompleteExplicitPolicy() async throws {
         let optionsLine = ".options tranmaxaccepted=1000 tranmaxattempts=2000 tranmaxiterations=10000 tranmaxscalars=10000 tranmaxdimension=8 tranmaxwork=1e6 tranmaxbreakpoints=100"
         let parsed = try await SPICEIO.parse("budget\nV1 in 0 dc 1\n" + optionsLine + "\n.end\n").get()
-        let options = try SPICEAnalysisOptions.resolve(from: parsed)
+        let options = try IOTestFrontend.options(parsed)
         #expect(options.executionLimitOptionsPresent)
         let config = try options.transientConfig(stopTime: 1e-9, stepTime: 1e-11, startTime: nil, maxStep: nil, useInitialConditions: false)
         #expect(try config.requiredExecutionLimits().maximumSolveAttempts == 2000)
         let missing = SPICEAnalysisOptions()
         #expect(!missing.executionLimitOptionsPresent)
         let partialDeck = try await SPICEIO.parse("partial budget\n.options tranmaxattempts=2\n.end\n").get()
-        let partial = try SPICEAnalysisOptions.resolve(from: partialDeck)
+        let partial = try IOTestFrontend.options(partialDeck)
         #expect(partial.executionLimitOptionsPresent)
         #expect(partial.executionLimits == nil)
         #expect(throws: TransientExecutionError.self) {
@@ -1141,7 +1137,7 @@ private func compileAndBindElectricalCircuit(_ ir: CircuitIR,
 }
 
 private func runSubcircuitDividerOutputVoltage(_ netlist: ParsedNetlist) async throws -> Double {
-    let ir = try SPICEIO.lower(netlist, configuration: .default)
+    let ir = try IOTestFrontend.lower(netlist)
     let circuit = try compileAndBindElectricalCircuit(ir)
     let outputNode = try node(fromInstance: "x1.rtop", terminal: 1, in: circuit.ir)
 

@@ -28,6 +28,9 @@ public enum AnalysisError: Error, Sendable {
     /// - Parameter message: A description of what is wrong with the configuration.
     case invalidConfiguration(String)
 
+    /// Generic IR perturbation cannot reinterpret or reprepare a resolved MOS.
+    case requiresFreshMOSResolution(instance: String)
+
     /// The transient integration timestep has been reduced below the minimum.
     ///
     /// - Parameter timestep: The timestep that was too small.

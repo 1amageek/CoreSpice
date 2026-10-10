@@ -15,7 +15,7 @@ struct UniformRCExpander: Sendable {
         nodeNames: [String],
         parameters: [String: ParameterValue],
         modelConsumption: ModelConsumption,
-        into builder: inout Netlist
+        into builder: inout BoundedFrontendNetlist
     ) throws {
         guard nodeNames.count == 3 else {
             throw LoweringError.invalidComponent(
@@ -195,7 +195,7 @@ struct UniformRCExpander: Sendable {
         diodeSeriesResistance: Double,
         usesJunctionShunt: Bool,
         modelConsumption: ModelConsumption,
-        into builder: inout Netlist
+        into builder: inout BoundedFrontendNetlist
     ) throws {
         guard usesJunctionShunt else {
             try builder.addInstance(

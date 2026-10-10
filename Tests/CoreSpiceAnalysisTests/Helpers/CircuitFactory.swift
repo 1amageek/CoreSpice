@@ -1,4 +1,5 @@
 import Foundation
+import CoreSpice
 @testable import CoreSpiceAnalysis
 @testable import CoreSpiceCompile
 @testable import CoreSpiceDevices
@@ -41,6 +42,12 @@ enum CircuitFactory {
         gminStepping: GminStepping = GminStepping(),
         sourceStepping: SourceStepping = SourceStepping()
     ) async throws -> DCResult {
+        if try netlist.build().instances.contains(where: { $0.mos != nil }) {
+            let circuit = try AnalysisMOSFixture.prepare(netlist)
+            let run = try await DCAnalysis(config: config, gminStepping: gminStepping, sourceStepping: sourceStepping).run(
+                circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            return run.result
+        }
         let (plan, devices) = try compile(netlist)
         let analysis = DCAnalysis(config: config, gminStepping: gminStepping, sourceStepping: sourceStepping)
         let solver = SparseLUSolver()
@@ -57,6 +64,12 @@ enum CircuitFactory {
         sweep: FrequencySweep,
         dcConfig: ConvergenceConfig = ConvergenceConfig()
     ) async throws -> ACResult {
+        if try netlist.build().instances.contains(where: { $0.mos != nil }) {
+            let circuit = try AnalysisMOSFixture.prepare(netlist)
+            let run = try await ACAnalysis(sweep: sweep, dcConfig: dcConfig).run(
+                circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            return run.result
+        }
         let (plan, devices) = try compile(netlist)
         let analysis = ACAnalysis(sweep: sweep, dcConfig: dcConfig)
         let solver = SparseLUSolver()
@@ -73,6 +86,12 @@ enum CircuitFactory {
         config: TransientConfig,
         convergenceConfig: ConvergenceConfig = ConvergenceConfig()
     ) async throws -> TransientResult {
+        if try netlist.build().instances.contains(where: { $0.mos != nil }) {
+            let circuit = try AnalysisMOSFixture.prepare(netlist, numericalLimits: try config.requiredExecutionLimits())
+            let run = try await TransientAnalysis(config: config, convergenceConfig: convergenceConfig).run(
+                circuit: circuit, solver: SparseLUSolver(), observer: nil, cancellation: CancellationToken())
+            return run.result
+        }
         let (plan, devices) = try compile(netlist)
         let analysis = TransientAnalysis(config: config, convergenceConfig: convergenceConfig)
         let solver = SparseLUSolver()
@@ -238,7 +257,7 @@ enum CircuitFactory {
     /// Returns (netlist, drain node)
     static func nmosCommonSource(
         vdd: Double, rd: Double, vgs: Double,
-        mosParams: [String: ParameterValue] = [:]
+        modelParameters: [String: Double], instanceParameters: [String: Double]
     ) throws -> (Netlist, Node) {
         var netlist = Netlist()
         let _ = netlist.node("vdd")
@@ -252,8 +271,8 @@ enum CircuitFactory {
                                   parameters: ["v": .real(vgs)])
         try netlist.addInstance(name: "RD", typeName: "resistor", nodes: ["vdd", "drain"],
                                   parameters: ["r": .real(rd)])
-        try netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "gate", "0", "0"],
-                                  parameters: mosParams)
+        try AnalysisMOSFixture.add(to: &netlist, name: "M1", polarity: .nmos,
+            nodes: ["drain", "gate", "0", "0"], model: modelParameters, instance: instanceParameters)
         return (netlist, drain)
     }
 
@@ -263,7 +282,7 @@ enum CircuitFactory {
     /// Returns (netlist, drain node)
     static func pmosCommonSource(
         vdd: Double, rd: Double, vgate: Double,
-        mosParams: [String: ParameterValue] = [:]
+        modelParameters: [String: Double], instanceParameters: [String: Double]
     ) throws -> (Netlist, Node) {
         var netlist = Netlist()
         let _ = netlist.node("vdd")
@@ -277,8 +296,8 @@ enum CircuitFactory {
                                   parameters: ["v": .real(vgate)])
         try netlist.addInstance(name: "RD", typeName: "resistor", nodes: ["drain", "0"],
                                   parameters: ["r": .real(rd)])
-        try netlist.addInstance(name: "M1", typeName: "pmos_l1", nodes: ["drain", "gate", "vdd", "vdd"],
-                                  parameters: mosParams)
+        try AnalysisMOSFixture.add(to: &netlist, name: "M1", polarity: .pmos,
+            nodes: ["drain", "gate", "vdd", "vdd"], model: modelParameters, instance: instanceParameters)
         return (netlist, drain)
     }
 

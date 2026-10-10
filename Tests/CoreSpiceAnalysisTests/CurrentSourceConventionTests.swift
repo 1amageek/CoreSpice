@@ -45,9 +45,9 @@ struct CurrentSourceConventionTests {
                                 parameters: ["v": .real(3.3)])
         try netlist.addInstance(name: "Iref", typeName: "isource", nodes: ["vdd", "d"],
                                 parameters: ["i": .real(20e-6)])
-        try netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["d", "d", "0", "0"],
-                                parameters: ["vto": .real(0.7), "kp": .real(110e-6),
-                                             "w": .real(20e-6), "l": .real(1e-6)])
+        try AnalysisMOSFixture.add(to: &netlist, name: "M1", polarity: .nmos,
+            nodes: ["d", "d", "0", "0"], model: ["vto": 0.7, "kp": 110e-6],
+            instance: ["w": 20e-6, "l": 1e-6])
 
         let result = try await CircuitFactory.runDC(netlist)
         let v = try result.voltage(at: d)

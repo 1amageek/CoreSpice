@@ -1,4 +1,5 @@
 import Testing
+import CoreSpice
 import Foundation
 @testable import CoreSpiceAnalysis
 @testable import CoreSpiceCompile
@@ -132,40 +133,25 @@ struct StiffCircuitConvergenceTests {
                                  parameters: ["v": .real(2.0)])
         try netlist.addInstance(name: "RD", typeName: "resistor", nodes: ["vdd", "drain"],
                                  parameters: ["r": .real(rd)])
-        try netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "gate", "0", "0"],
-                                 parameters: ["vto": .real(0.7), "kp": .real(200e-6)])
+        try AnalysisMOSFixture.add(to: &netlist, name: "M1", polarity: .nmos,
+            nodes: ["drain", "gate", "0", "0"], model: ["vto": 0.7, "kp": 200e-6],
+            instance: ["w": 10e-6, "l": 1e-6])
         try netlist.addInstance(name: "CL", typeName: "capacitor", nodes: ["drain", "0"],
                                  parameters: ["c": .real(cLoad)])
-
-        let ir = try netlist.build()
-        let compiler = StandardCompiler()
-        let plan = try compiler.compile(ir: ir)
-
-        let registry = DeviceRegistry.standard()
-        let structure = plan.matrixStructure
-        var context = BindingContext(
-            variableMap: plan.topology.variableMap,
-            matrixDimension: plan.topology.dimension,
-            stampIndexResolver: { row, col in structure.index(row: row, col: col) }
-        )
-        var devices: [any BoundDevice] = []
-        for instance in ir.instances {
-            guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
-            devices.append(bound)
-        }
 
         // Time constant estimate: τ ≈ RD × CL = 1kΩ × 10pF = 10 ns
         let tau = rd * cLoad
         let config = TransientConfig(stopTime: 10 * tau, executionLimits: .validationFixture, maxTimeStep: tau / 10)
+        let circuit = try AnalysisMOSFixture.prepare(netlist, numericalLimits: try config.requiredExecutionLimits())
         let analysis = TransientAnalysis(config: config, convergenceConfig: CircuitFactory.nonlinearConfig)
         let solver = SparseLUSolver()
         let token = CancellationToken()
 
-        let result = try await analysis.run(
-            plan: plan, devices: devices, solver: solver,
+        let run = try await analysis.run(
+            circuit: circuit, solver: solver,
             observer: nil, cancellation: token
         )
+        let result = run.result
 
         // MOSFET is ON (Vgs = 2V > Vth = 0.7V)
         // Drain voltage should be pulled down by the MOSFET

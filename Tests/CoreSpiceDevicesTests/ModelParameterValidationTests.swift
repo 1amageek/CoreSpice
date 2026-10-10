@@ -1,4 +1,5 @@
 import CoreSpiceIR
+import CoreSpiceMOSContracts
 @testable import CoreSpiceDevices
 import Testing
 
@@ -11,16 +12,13 @@ struct ModelParameterValidationTests {
 
     @Test("MOSFET rejects non-physical geometry")
     func mosfetRejectsNonPhysicalGeometry() throws {
-        let instance = Instance(
-            name: "Mbad",
-            typeName: "nmos_l1",
-            nodes: [Node(id: 1), Node(id: 2), Node.ground, Node.ground],
-            parameters: ["w": .real(-1e-6), "l": .real(1e-6)]
-        )
-        var context = emptyContext()
-
+        let parameters = MOSFETModelParameters(w: -1e-6, l: 1e-6)
         #expect(throws: DeviceBindingError.self) {
-            _ = try NMOSL1Descriptor().bind(instance: instance, context: &context)
+            try parameters.validate(device: "Mbad")
+        }
+        #expect(throws: MOSResolutionFailure.invalidGeometry("w")) {
+            _ = try PreparedMOSFixture.prepare(.level1, polarity: .nmos, name: "Mbad",
+                model: [:], instance: ["w": -1e-6, "l": 1e-6])
         }
     }
 

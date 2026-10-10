@@ -15,7 +15,7 @@ struct MOSInspectionTests {
             version: "4.8.3", coefficients: [MOSExpressionBinding(symbol: lmin, program: bound)] + rest,
             source: MOSSelectionFixture.source("n.1"))
         let dims = try [f.binding("l", 1e-6), f.binding("w", 1e-6)]
-        let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+        let snapshot = try f.finish(), graph = try f.graph(snapshot)
         var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
         let result = try resolveMOS(f.request(dims), from: snapshot, schemas: StandardMOSModelSchemas(), session: &session)
         let draws = session.randomDraws
@@ -24,7 +24,7 @@ struct MOSInspectionTests {
         #expect(inspection.candidates == result.candidates && session.randomDraws == draws)
         #expect(result.candidates[0].bounds?.lengthMinimum == result.modelCoefficients.first { $0.symbol == lmin }?.value)
         var other = try MOSSelectionFixture()
-        let unrelated = try other.builder.finish()
+        let unrelated = try other.finish()
         #expect(throws: MOSResolutionFailure.conditionMismatch) {
             try inspectResolvedMOS(result, from: unrelated, limits: f.limits, control: CancelMOSInspection())
         }
@@ -37,7 +37,7 @@ struct MOSInspectionTests {
         _ = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos, level: 54,
             version: "4.8.3", coefficients: [], source: MOSSelectionFixture.source("n"))
         let values = try [f.binding("w", 0.7), f.binding("nf", 1.4)]
-        let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+        let snapshot = try f.finish(), graph = try f.graph(snapshot)
         var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
         let result = try resolveMOS(f.request(values, profile: .pinnedNgspiceNormalV1,
             scale: 2 * Double.leastNonzeroMagnitude, fingers: true), from: snapshot,
@@ -52,7 +52,7 @@ struct MOSInspectionTests {
         var f = try MOSSelectionFixture()
         _ = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos, level: 1,
             version: nil, coefficients: [], source: MOSSelectionFixture.source("n"))
-        let snapshot = try f.builder.finish(), graph = try f.graph(snapshot)
+        let snapshot = try f.finish(), graph = try f.graph(snapshot)
         var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
         let result = try resolveMOS(f.request([]), from: snapshot, schemas: StandardMOSModelSchemas(), session: &session)
         #expect(throws: MOSResolutionFailure.cancelled) {

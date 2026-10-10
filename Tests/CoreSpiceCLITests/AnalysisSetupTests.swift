@@ -1,4 +1,6 @@
+import CoreSpice
 import CoreSpiceIO
+import CoreSpiceMOSContracts
 import Foundation
 import Testing
 
@@ -99,11 +101,11 @@ struct AnalysisSetupTests {
       V1 vdd 0 dc 1.8
       R1 vdd n1 1k
       C1 n1 0 20f
-      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
+      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=1000000 tranmaxdimension=256 tranmaxwork=1e15 tranmaxbreakpoints=250000
       .tran 20p 50n
       .end
       """
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     try await session.loadNetlist(source: deck, fileName: "suffix.cir")
 
     let analysis = try #require(session.firstRunnableAnalysis)
@@ -133,11 +135,11 @@ struct AnalysisSetupTests {
       R1 in out 1k
       C1 out 0 1p
       .ic V(out)=0.42
-      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
+      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=1000000 tranmaxdimension=256 tranmaxwork=1e15 tranmaxbreakpoints=250000
       .tran 1n 1n uic
       .end
       """
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     try await session.loadNetlist(source: deck, fileName: "uic.cir")
 
     let analysis = try #require(session.firstRunnableAnalysis)
@@ -160,11 +162,11 @@ struct AnalysisSetupTests {
       V1 in 0 dc 1.0
       R1 in 0 1k
       .ic V(missing)=0.42
-      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
+      .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=1000000 tranmaxdimension=256 tranmaxwork=1e15 tranmaxbreakpoints=250000
       .tran 1n 1n uic
       .end
       """
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     do {
       try await session.loadNetlist(source: deck, fileName: "missing-ic.cir")
       Issue.record("expected unknown .ic node to fail during load")
@@ -188,7 +190,7 @@ struct AnalysisSetupTests {
       .op
       .end
       """
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     try await session.loadNetlist(source: deck, fileName: "op.cir")
 
     let analysis = try #require(session.firstRunnableAnalysis)
@@ -208,7 +210,7 @@ struct AnalysisSetupTests {
       .noise V(out) V1 dec 10 1 1meg
       .end
       """
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     try await session.loadNetlist(source: deck, fileName: "noise.cir")
 
     let analysis = try #require(session.firstRunnableAnalysis)
@@ -231,7 +233,7 @@ struct AnalysisSetupTests {
     ]
 
     for directive in directives {
-      var session = Session()
+      var session = try Session(policy: .developerV1())
       try await session.loadNetlist(
         source: """
           parsed analysis deck
@@ -252,7 +254,7 @@ struct AnalysisSetupTests {
 
   @Test
   func parsedCurrentInputAndDifferentialOutputPoleZeroAreExecutable() async throws {
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     try await session.loadNetlist(
       source: """
         current-input differential-output pole-zero
@@ -273,14 +275,14 @@ struct AnalysisSetupTests {
 
   @Test
   func parsedFourierUsesTransientDirectiveAndSupportsBranchCurrent() async throws {
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     try await session.loadNetlist(
       source: """
         Fourier execution deck
         V1 in 0 sin(0 1 1k)
         R1 in out 1k
         C1 out 0 1u
-        .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=20000000 tranmaxdimension=2048 tranmaxwork=1e15 tranmaxbreakpoints=250000
+        .options tranmaxaccepted=250000 tranmaxattempts=1000000 tranmaxiterations=5000000 tranmaxscalars=1000000 tranmaxdimension=256 tranmaxwork=1e15 tranmaxbreakpoints=250000
         .tran 10u 2m
         .four 1k V(out) I(V1)
         .end
@@ -306,7 +308,7 @@ struct AnalysisSetupTests {
       R1 1 0 1k
       .end
       """
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     try await session.loadNetlist(source: deck, fileName: "no-analysis.cir")
 
     #expect(session.firstRunnableAnalysis == nil)
@@ -323,7 +325,7 @@ struct AnalysisSetupTests {
 
   @Test
   func requiredDefaultRunnableAnalysisRejectsMissingDirective() async throws {
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     try await session.loadNetlist(
       source: """
         no analysis deck
@@ -359,7 +361,7 @@ struct AnalysisSetupTests {
       .meas op vout find V(2) at=0
       .end
       """
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     try await session.loadNetlist(source: deck, fileName: "op-measure.cir")
 
     #expect(approxEqual(session.analysisOptions.convergence.reltol, 1e-4))
@@ -384,7 +386,7 @@ struct AnalysisSetupTests {
       .dc V1 0 {vstop} {vstep}
       .end
       """
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     try await session.loadNetlist(source: deck, fileName: "parameterized-dc.cir")
 
     let analysis = try #require(session.firstRunnableAnalysis)
@@ -409,7 +411,7 @@ struct AnalysisSetupTests {
     try await expectParsedRunFailure(
       deck: deck,
       fileName: "missing-dc-source.cir",
-      containing: "was not found"
+      containing: "Missing DC source"
     )
   }
 
@@ -425,7 +427,7 @@ struct AnalysisSetupTests {
     try await expectParsedRunFailure(
       deck: deck,
       fileName: "non-source-dc.cir",
-      containing: "must be an independent voltage or current source"
+      containing: "DC sweep requires an independent source"
     )
   }
 
@@ -441,7 +443,7 @@ struct AnalysisSetupTests {
     try await expectParsedRunFailure(
       deck: deck,
       fileName: "unresolved-dc-expression.cir",
-      containing: "dc.stop could not be resolved"
+      containing: "mos.resolution"
     )
   }
 
@@ -450,21 +452,21 @@ struct AnalysisSetupTests {
     fileName: String,
     containing expectedMessage: String
   ) async throws {
-    var session = Session()
+    var session = try Session(policy: .developerV1())
     try await session.loadNetlist(source: deck, fileName: fileName)
     let analysis = try #require(session.firstRunnableAnalysis)
 
     do {
       _ = try await session.runParsed(analysis)
       Issue.record("expected parsed analysis to fail")
-    } catch let error as CLIError {
-      guard case .invalidArguments(let message) = error else {
-        Issue.record("expected invalidArguments, got \(error)")
-        return
-      }
-      #expect(message.contains(expectedMessage))
     } catch {
-      Issue.record("unexpected error: \(error)")
+      let failure = CoreSpiceCLIFailure(error: error)
+      if expectedMessage == "mos.resolution" {
+        #expect(failure.code == expectedMessage)
+      } else {
+        #expect(failure.code == "analysis.unsupported-capability")
+        #expect(failure.message.contains(expectedMessage))
+      }
     }
   }
 }

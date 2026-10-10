@@ -2,6 +2,7 @@ import CircuiteFoundation
 import CoreSpiceAnalysis
 import CoreSpiceIR
 import CoreSpiceLowering
+import CoreSpiceMOSContracts
 import CoreSpiceParsedIR
 import CoreSpiceParser
 import CoreSpiceParserSPICE
@@ -58,128 +59,152 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
         let retained = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: transformBytes)
         let scratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: transformBytes)
         defer { withExtendedLifetime(scratch) {} }
-        try validateTransform(netlist, resources: resources)
-        // The finite flat/literal transform has no recursive expansion or evaluator call graph.
-        let options: SPICEAnalysisOptions
-        do { options = try SPICEAnalysisOptions.resolve(from: netlist) }
-        catch { throw SPICESimulationPreparationError.options(error) }
-        guard options.diagnostics.isEmpty else {
-            throw SPICESimulationPreparationError.unsupportedCapability("Unapplied source option")
-        }
-        guard !options.executionLimitOptionsPresent || options.executionLimits != nil else {
-            throw SPICESimulationPreparationError.invalidPolicy
-        }
-        let numerical = options.executionLimits ?? limits.numerical
-        try numerical.validate()
-        var effectiveOptions = options
-        effectiveOptions.executionLimits = numerical
-        if effectiveOptions.temperatureCelsius == nil {
-            effectiveOptions.temperatureCelsius = request.configuration.defaultTemperature
-        }
-        let operating = try effectiveOptions.operatingConditions()
-        let circuit: CircuitIR
-        try resources.checkCancellation()
-        do { circuit = try NetlistLowering(configuration: effectiveOptions.loweringConfiguration(randomSeed: 1)).lower(netlist) }
-        catch { throw SPICESimulationPreparationError.lowering(error) }
-        try resources.checkCancellation()
-        let initial = try SPICENodeVoltageResolver().resolveBounded(assignments: netlist.initialConditions,
-                                                                   circuit: circuit, resources: resources)
-        let nodeset = try SPICENodeVoltageResolver().resolveBounded(assignments: netlist.nodeSets,
-                                                                   circuit: circuit, resources: resources)
-        let initialDictionary = dictionary(initial)
-        let nodesetDictionary = dictionary(nodeset)
-        let index: Int
-        if let selected = request.analysisIndex {
-            guard netlist.analyses.indices.contains(selected) else { throw SPICESimulationPreparationError.missingAnalysis }
-            index = selected
-        } else {
-            guard let selected = netlist.analyses.firstIndex(where: supported) else {
-                if netlist.analyses.isEmpty { throw SPICESimulationPreparationError.missingAnalysis }
-                throw SPICESimulationPreparationError.unsupportedCapability("Analysis outside op/dc/tran")
+        let frontendControl = SPICEFrontendControl(resources: resources)
+        do {
+            let envelope = try NetlistLowering.resourceEnvelope(limits: request.resolutionLimits)
+            let frontendRetained = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: envelope.maximumRetainedBytes)
+            let frontendScratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: envelope.maximumTemporaryBytes)
+            defer { withExtendedLifetime(frontendScratch) {} }
+            let compiled = try NetlistLowering.compile(netlist, limits: request.resolutionLimits, control: frontendControl)
+            var session = try NetlistLowering.beginEvaluation(compiled, profile: request.profile,
+                limits: request.resolutionLimits, seed: request.seed, control: frontendControl)
+            let options = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
+            guard options.diagnostics.isEmpty else {
+                throw SPICESimulationPreparationError.unsupportedCapability("Unapplied source option")
             }
-            index = selected
-        }
-        let analysis: SPICEEffectiveSimulationConfiguration.Analysis
-        switch netlist.analyses[index] {
-        case .op:
-            guard initial.bindings.isEmpty else { throw SPICESimulationPreparationError.unsupportedCapability("IC requires transient UIC") }
-            analysis = .op
-        case .dc(let spec):
-            guard initial.bindings.isEmpty else { throw SPICESimulationPreparationError.unsupportedCapability("IC requires transient UIC") }
-            guard spec.source2 == nil else { throw SPICESimulationPreparationError.unsupportedCapability("Nested DC sweep") }
-            let source = try sourceInstance(spec.source, circuit: circuit)
-            guard source.typeName == "vsource" || source.typeName == "isource" else {
-                throw SPICESimulationPreparationError.unsupportedCapability("DC source must be independent")
-            }
-            guard source.parameters.keys.allSatisfy({ ["v", "i", "dc", "ac", "acphase"].contains($0) }) else {
-                throw SPICESimulationPreparationError.unsupportedCapability("DC sweep of nonconstant source waveform")
-            }
-            let start = try literal(spec.startValue), stop = try literal(spec.stopValue), step = try literal(spec.stepValue)
-            guard step != 0, (stop - start).isFinite, (stop - start) * step >= 0 else {
-                throw SPICESimulationPreparationError.unsupportedCapability("DC sweep direction")
-            }
-            let quotient = (stop - start) / step
-            guard quotient.isFinite, quotient >= 0, quotient < Double(limits.maximumSweepPoints),
-                  let intervals = Int(exactly: quotient.rounded(.down)) else {
-                throw SPICESimulationPreparationError.unsupportedCapability("DC sweep point ceiling")
-            }
-            var values: [Double] = []; values.reserveCapacity(intervals + 1)
-            for point in 0...intervals {
-                try resources.checkCancellation(); try resources.charge(.retainedElements, units: 1)
-                let value = start + Double(point) * step
-                guard value.isFinite else { throw SPICESimulationPreparationError.unsupportedCapability("Nonfinite sweep point") }
-                values.append(value)
-            }
-            analysis = .dc(sourceName: source.name, values: values,
-                isSupply: request.supplyBindings.contains { $0.sourceName.lowercased() == source.name.lowercased() })
-        case .transient(let spec):
-            guard initial.bindings.isEmpty || spec.useInitialConditions else {
-                throw SPICESimulationPreparationError.unsupportedCapability("IC without UIC is not implemented")
-            }
-            guard !spec.useInitialConditions || nodeset.bindings.isEmpty else {
-                throw SPICESimulationPreparationError.unsupportedCapability("Nodeset with UIC skips its DC application")
-            }
-            analysis = .transient(try effectiveOptions.transientConfig(executionLimits: numerical,
-                stopTime: literal(spec.stopTime), stepTime: spec.stepTime.map(literal),
-                startTime: spec.startTime.map(literal), maxStep: spec.maxStep.map(literal),
-                useInitialConditions: spec.useInitialConditions, initialNodeVoltages: initialDictionary,
-                nodeVoltageGuesses: nodesetDictionary))
-        // FIXME(INCOMPLETE_IMPLEMENTATION): Profile-prepared analyses outside op/dc/tran have no admitted native settings/dispatch. Ordinary APIs remain available; prepared success requires a tested owned configuration and numerical path.
-        default: throw SPICESimulationPreparationError.unsupportedCapability("Analysis outside op/dc/tran")
-        }
-        let conditions = try instanceConditions(circuit: circuit, options: effectiveOptions,
-            temperatureDefaulted: options.temperatureCelsius == nil, resources: resources)
-        let supplies = try prescribedSupplies(request.supplyBindings, circuit: circuit, analysis: analysis,
-                                              resources: resources)
-        switch request.operatingPolicy {
-        case .recordActual: break
-        case .requireExactReference(let temperature, let voltage):
-            guard temperature.isFinite, temperature > -273.15, voltage.isFinite, voltage > 0 else {
+            guard !options.executionLimitOptionsPresent || options.executionLimits != nil else {
                 throw SPICESimulationPreparationError.invalidPolicy
             }
-            guard !supplies.isEmpty else { throw SPICESimulationPreparationError.missingConditionCoverage }
-            guard effectiveOptions.temperatureCelsius == temperature,
-                  conditions.allSatisfy({ $0.temperatureCelsius == temperature }),
-                  supplies.allSatisfy({ $0.allSatisfy { $0 == voltage } }) else {
-                throw SPICESimulationPreparationError.conditionMismatch
+            let numerical = options.executionLimits ?? limits.numerical
+            try numerical.validate()
+            var effectiveOptions = options
+            effectiveOptions.executionLimits = numerical
+            if effectiveOptions.temperatureCelsius == nil {
+                effectiveOptions.temperatureCelsius = request.configuration.defaultTemperature
             }
+            let operating = try effectiveOptions.operatingConditions()
+            try resources.checkCancellation()
+            try session.lower(geometryScale: effectiveOptions.geometryScale)
+            guard let circuit = session.circuit else { throw MOSResolutionFailure.invalidRequest }
+            guard circuit.instances.count <= limits.maximumElements,
+                  circuit.nodes.count <= limits.maximumElements else { throw SPICESimulationPreparationError.invalidPolicy }
+            let index: Int
+            if let selected = request.analysisIndex {
+                guard netlist.analyses.indices.contains(selected) else { throw SPICESimulationPreparationError.missingAnalysis }
+                index = selected
+            } else {
+                guard let selected = netlist.analyses.firstIndex(where: supported) else {
+                    if netlist.analyses.isEmpty { throw SPICESimulationPreparationError.missingAnalysis }
+                    throw SPICESimulationPreparationError.unsupportedCapability("Analysis outside op/dc/tran")
+                }
+                index = selected
+            }
+            guard supported(netlist.analyses[index]) else {
+                throw SPICESimulationPreparationError.unsupportedCapability("Analysis outside op/dc/tran")
+            }
+            let selectedCommand = try SPICEAnalysisCommands.resolve(netlist.analyses[index], at: index,
+                from: compiled, session: &session)
+            let initial = try SPICENodeVoltageResolver().resolveBounded(.initialConditions, compiled: compiled,
+                session: &session, circuit: circuit, resources: resources)
+            let nodeset = try SPICENodeVoltageResolver().resolveBounded(.nodeSets, compiled: compiled,
+                session: &session, circuit: circuit, resources: resources)
+            let initialDictionary = dictionary(initial)
+            let nodesetDictionary = dictionary(nodeset)
+            let analysis: SPICEEffectiveSimulationConfiguration.Analysis
+            switch selectedCommand {
+            case .op:
+                guard initial.bindings.isEmpty else { throw SPICESimulationPreparationError.unsupportedCapability("IC requires transient UIC") }
+                analysis = .op
+            case .dc(let spec):
+                guard initial.bindings.isEmpty else { throw SPICESimulationPreparationError.unsupportedCapability("IC requires transient UIC") }
+                guard spec.source2 == nil else { throw SPICESimulationPreparationError.unsupportedCapability("Nested DC sweep") }
+                let source = try sourceInstance(spec.source, circuit: circuit)
+                guard source.typeName == "vsource" || source.typeName == "isource" else {
+                    throw SPICESimulationPreparationError.unsupportedCapability("DC source must be independent")
+                }
+                guard source.parameters.keys.allSatisfy({ ["v", "i", "dc", "ac", "acphase"].contains($0) }) else {
+                    throw SPICESimulationPreparationError.unsupportedCapability("DC sweep of nonconstant source waveform")
+                }
+                let start = try numeric(spec.startValue), stop = try numeric(spec.stopValue), step = try numeric(spec.stepValue)
+                guard step != 0, (stop - start).isFinite, (stop - start) * step >= 0 else {
+                    throw SPICESimulationPreparationError.unsupportedCapability("DC sweep direction")
+                }
+                let quotient = (stop - start) / step
+                guard quotient.isFinite, quotient >= 0, quotient < Double(limits.maximumSweepPoints),
+                      let intervals = Int(exactly: quotient.rounded(.down)) else {
+                    throw SPICESimulationPreparationError.unsupportedCapability("DC sweep point ceiling")
+                }
+                var values: [Double] = []; values.reserveCapacity(intervals + 1)
+                for point in 0...intervals {
+                    try resources.checkCancellation(); try resources.charge(.retainedElements, units: 1)
+                    let value = start + Double(point) * step
+                    guard value.isFinite else { throw SPICESimulationPreparationError.unsupportedCapability("Nonfinite sweep point") }
+                    values.append(value)
+                }
+                analysis = .dc(sourceName: source.name, values: values,
+                    isSupply: request.supplyBindings.contains { $0.sourceName.lowercased() == source.name.lowercased() })
+            case .transient(let spec):
+                guard initial.bindings.isEmpty || spec.useInitialConditions else {
+                    throw SPICESimulationPreparationError.unsupportedCapability("IC without UIC is not implemented")
+                }
+                guard !spec.useInitialConditions || nodeset.bindings.isEmpty else {
+                    throw SPICESimulationPreparationError.unsupportedCapability("Nodeset with UIC skips its DC application")
+                }
+                let stop = try numeric(spec.stopTime)
+                let step = try spec.stepTime.map(numeric)
+                let start = try spec.startTime.map(numeric)
+                let maximum = try spec.maxStep.map(numeric)
+                analysis = .transient(try effectiveOptions.transientConfig(executionLimits: numerical,
+                    stopTime: stop, stepTime: step, startTime: start, maxStep: maximum,
+                    useInitialConditions: spec.useInitialConditions, initialNodeVoltages: initialDictionary,
+                    nodeVoltageGuesses: nodesetDictionary))
+            // FIXME(INCOMPLETE_IMPLEMENTATION): Profile-prepared analyses outside op/dc/tran have no admitted native settings/dispatch. Ordinary APIs remain available; prepared success requires a tested owned configuration and numerical path.
+            default: throw SPICESimulationPreparationError.unsupportedCapability("Analysis outside op/dc/tran")
+            }
+            let conditions = try instanceConditions(circuit: circuit, options: effectiveOptions,
+                temperatureDefaulted: options.temperatureCelsius == nil, resources: resources)
+            let supplies = try prescribedSupplies(request.supplyBindings, circuit: circuit, analysis: analysis,
+                                                  resources: resources)
+            switch request.operatingPolicy {
+            case .recordActual: break
+            case .requireExactReference(let temperature, let voltage):
+                guard temperature.isFinite, temperature > -273.15, voltage.isFinite, voltage > 0 else {
+                    throw SPICESimulationPreparationError.invalidPolicy
+                }
+                guard !supplies.isEmpty else { throw SPICESimulationPreparationError.missingConditionCoverage }
+                guard effectiveOptions.temperatureCelsius == temperature,
+                      conditions.allSatisfy({ $0.temperatureCelsius == temperature }),
+                      supplies.allSatisfy({ $0.allSatisfy { $0 == voltage } }) else {
+                    throw SPICESimulationPreparationError.conditionMismatch
+                }
+            }
+            let lowered = try session.finish()
+            let inputDigest = try inputIdentity(parsed: parsed, sources: sources, request: request, resources: resources)
+            let identity = try configurationIdentity(analysis: analysis, index: index, options: effectiveOptions,
+                initial: initial, nodeset: nodeset, request: request, supplies: supplies,
+                conditions: conditions, temperatureDefaulted: options.temperatureCelsius == nil,
+                provenance: lowered.evaluationProvenance, resources: resources)
+            let configuration = SPICEEffectiveSimulationConfiguration(analysis: analysis, analysisIndex: index,
+                options: effectiveOptions, temperatureCelsius: effectiveOptions.temperatureCelsius!,
+                temperatureOrigin: options.temperatureCelsius == nil ? "parser-default-v1" : "source",
+                nominalTemperatureCelsius: options.nominalTemperatureCelsius ?? 27,
+                nominalTemperatureOrigin: options.nominalTemperatureCelsius == nil ? "device-default-v1" : "source",
+                instanceOperatingConditions: conditions, supplyBindings: request.supplyBindings, prescribedSupplies: supplies,
+                operatingPolicy: request.operatingPolicy, numericalLimits: numerical, seed: request.seed, identity: identity)
+            withExtendedLifetime(operating) {}
+            try resources.checkCancellation()
+            return PreparedSPICESimulation(parsedResult: parsed, sourceOccurrences: occurrences, sources: sources, lowered: lowered,
+                configuration: configuration, sourceInputIdentity: inputDigest, initialConditions: initial,
+                nodeSets: nodeset, reservation: retained, frontendReservation: frontendRetained,
+                resources: resources, maximumTransformBytes: limits.maximumTransformBytes)
+        } catch let error as SPICENodeVoltageResolutionError {
+            if case .evaluation(_, let cause) = error, let failure = cause as? MOSResolutionFailure {
+                throw SPICESimulationPreparationError.resolution(failure, resourceCause: frontendControl.firstFailure)
+            }
+            throw SPICESimulationPreparationError.nodeVoltage(error)
+        } catch let error as MOSResolutionFailure {
+            throw SPICESimulationPreparationError.resolution(error, resourceCause: frontendControl.firstFailure)
         }
-        let inputDigest = try inputIdentity(parsed: parsed, sources: sources, request: request, resources: resources)
-        let identity = try configurationIdentity(analysis: analysis, index: index, options: effectiveOptions,
-            initial: initial, nodeset: nodeset, request: request, supplies: supplies,
-            conditions: conditions, temperatureDefaulted: options.temperatureCelsius == nil, resources: resources)
-        let configuration = SPICEEffectiveSimulationConfiguration(analysis: analysis, analysisIndex: index,
-            options: effectiveOptions, temperatureCelsius: effectiveOptions.temperatureCelsius!,
-            temperatureOrigin: options.temperatureCelsius == nil ? "parser-default-v1" : "source",
-            nominalTemperatureCelsius: options.nominalTemperatureCelsius ?? 27,
-            nominalTemperatureOrigin: options.nominalTemperatureCelsius == nil ? "device-default-v1" : "source",
-            instanceOperatingConditions: conditions, supplyBindings: request.supplyBindings, prescribedSupplies: supplies,
-            operatingPolicy: request.operatingPolicy, numericalLimits: numerical, seed: 1, identity: identity)
-        withExtendedLifetime(operating) {}
-        try resources.checkCancellation()
-        return PreparedSPICESimulation(parsedResult: parsed, sourceOccurrences: occurrences, sources: sources, circuit: circuit,
-            configuration: configuration, sourceInputIdentity: inputDigest, initialConditions: initial,
-            nodeSets: nodeset, reservation: retained, resources: resources, maximumTransformBytes: limits.maximumTransformBytes)
     }
 
     private func supported(_ analysis: ParsedAnalysisCommand) -> Bool {
@@ -245,18 +270,44 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
             guard temperature.isFinite, nominal.isFinite, temperature > -273.15, nominal > -273.15 else {
                 throw SPICESimulationPreparationError.unsupportedCapability("Invalid instance operating conditions")
             }
-            conditions.append(.init(instanceName: instance.name, modelName: instance.model?.name,
+            var modelName = instance.model?.name
+            let resolvedMOS: ResolvedMOSInstance?
+            switch instance.mos {
+            case .resolved(let resolved): resolvedMOS = resolved
+            case .prepared(let receipt): resolvedMOS = receipt.identity.resolved
+            case nil: resolvedMOS = nil
+            }
+            if let resolved = resolvedMOS {
+                modelName = resolved.symbolNames[Int(resolved.selectedName.rawValue)]
+                var explicitTemperature: Double?, delta: Double?
+                for parameter in resolved.instanceParameters {
+                    try resources.charge(.retainedElements, units: 1)
+                    switch resolved.symbolNames[Int(parameter.symbol.rawValue)] {
+                    case "temp": explicitTemperature = parameter.value
+                    case "dtemp": delta = parameter.value
+                    default: break
+                    }
+                }
+                if let explicitTemperature { temperature = explicitTemperature; temperatureOrigin = "instance-source" }
+                else if let delta { temperature += delta; temperatureOrigin = "source-with-instance-delta" }
+                for parameter in resolved.modelCoefficients {
+                    try resources.charge(.retainedElements, units: 1)
+                    if resolved.symbolNames[Int(parameter.symbol.rawValue)] == "tnom" {
+                        nominal = parameter.value; nominalOrigin = "model-source"
+                    }
+                }
+                guard temperature.isFinite, nominal.isFinite, temperature > -273.15, nominal > -273.15 else {
+                    throw SPICESimulationPreparationError.unsupportedCapability("Invalid MOS operating conditions")
+                }
+            }
+            conditions.append(.init(instanceName: instance.name, modelName: modelName,
                 temperatureCelsius: temperature, nominalTemperatureCelsius: nominal,
                 temperatureOrigin: temperatureOrigin, nominalTemperatureOrigin: nominalOrigin))
         }
         return conditions
     }
-    private func literal(_ value: ParsedParameterValue) throws -> Double {
-        let number: Double
-        switch value { case .numeric(let v), .expression(.literal(let v)): number = v
-        case .boolean(let v): number = v ? 1 : 0
-        default: throw SPICESimulationPreparationError.unsupportedCapability("Nonliteral bounded value") }
-        guard number.isFinite else { throw SPICESimulationPreparationError.unsupportedCapability("Nonfinite bounded value") }
+    private func numeric(_ value: ParsedParameterValue) throws -> Double {
+        guard case .numeric(let number) = value else { throw MOSResolutionFailure.invalidRequest }
         return number
     }
     private func checkedAdd(_ a: Int, _ b: Int) throws -> Int {
@@ -281,159 +332,100 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
             let (next, overflow) = byteCount.addingReportingOverflow(source.binding.reference.byteCount)
             guard !overflow else { throw SPICESourceStorageError.arithmeticOverflow }; byteCount = next
         }
-        // Flat transforms: per input byte copied names/parameter keys, plus dictionary/tree/IR/node entries.
-        // Two reservations cover retained output and simultaneously live temporary builder/context copies.
+        // IO settings, schedules and dictionaries have a separate finite envelope.
+        // Frontend compilation, hierarchy, IR and evaluator storage use resourceEnvelope.
         let text = try checkedMultiply(byteCount, 64)
-        let entries = try checkedMultiply(UInt64(elements), 4096)
+        let entries = try checkedMultiply(UInt64(limits.maximumElements), 4096)
         let (capacity, overflow) = text.addingReportingOverflow(entries)
         guard !overflow, capacity <= limits.maximumTransformBytes else {
-            throw SPICESimulationPreparationError.unsupportedCapability("Flat transform capacity ceiling")
+            throw SPICESimulationPreparationError.unsupportedCapability("IO transform capacity ceiling")
         }
         try resources.charge(.retainedElements, units: try checkedMultiply(UInt64(elements), UInt64(elements)))
         try resources.charge(.projectedBytes, units: capacity)
         try resources.charge(.lexicalBytes, units: byteCount)
         return capacity
     }
-    private func validateTransform(_ netlist: ParsedNetlist, resources: any SPICESourceResourceAccounting) throws {
-        // FIXME(INCOMPLETE_IMPLEMENTATION): Recursive/model-physics expansion has no admitted bounded transform. Prepared callers receive capability refusal until capacity/work/cancellation and exact model provenance are owned by those implementations.
-        guard netlist.subcircuits.isEmpty, netlist.pvtCorners.isEmpty, netlist.mcVariations.isEmpty else {
-            throw SPICESimulationPreparationError.unsupportedCapability("Hierarchical or statistical transform")
-        }
-        for expression in netlist.parameters.values {
-            guard case .literal(let v) = expression, v.isFinite else {
-                throw SPICESimulationPreparationError.unsupportedCapability("Nonliteral global parameter")
-            }
-        }
-        for model in netlist.models {
-            try resources.checkCancellation()
-            guard model.type == .resistor else {
-                throw SPICESimulationPreparationError.unsupportedCapability("Bounded model physics: \(model.type.rawValue)")
-            }
-            for value in model.parameters.values { _ = try literal(value) }
-        }
-        for component in netlist.components {
-            try resources.checkCancellation()
-            for text in [component.name] + component.nodes.map(\.name) + Array(component.parameters.keys) {
-                for (index, byte) in text.utf8.enumerated() {
-                    if index.isMultiple(of: 256) { try resources.checkCancellation() }
-                    guard byte < 128 else { throw SPICESimulationPreparationError.unsupportedCapability("Unicode lowering name") }
-                }
-            }
-            guard [.resistor, .capacitor, .inductor, .voltageSource, .currentSource].contains(component.type),
-                  component.nodes.count == 2 else {
-                throw SPICESimulationPreparationError.unsupportedCapability("Bounded device: \(component.type.rawValue)")
-            }
-            for value in component.parameters.values {
-                switch value {
-                case .expression(.identifier(let name)):
-                    guard case .literal = netlist.parameters[name.lowercased()] else {
-                        throw SPICESimulationPreparationError.unsupportedCapability("Unresolved literal parameter")
-                    }
-                case .numericVector(let values):
-                    guard values.allSatisfy(\.isFinite) else { throw SPICESimulationPreparationError.unsupportedCapability("Nonfinite vector") }
-                default: _ = try literal(value)
-                }
-            }
-        }
-        for control in netlist.controls {
-            try resources.checkCancellation()
-            switch control {
-            case .function, .alter, .hdl: throw SPICESimulationPreparationError.unsupportedCapability("Control execution transform")
-            case .option(let name, let value, _):
-                if name.lowercased() == "method" { continue }
-                if let value {
-                    let number = try literal(value)
-                    let key = name.lowercased().replacingOccurrences(of: "_", with: "")
-                    if ["itl1","itl4","itmax","maxiter","maxiters","maxstepreductions","gminsteppingthreshold","gminsteps", "tranmaxaccepted","tranmaxattempts","tranmaxiterations","tranmaxscalars","tranmaxdimension","tranmaxwork","tranmaxbreakpoints"].contains(key) {
-                        guard Int(exactly: number) != nil else {
-                            throw SPICESimulationPreparationError.unsupportedCapability("Integer option range")
-                        }
-                    }
-                }
-            case .temp(let value, _): _ = try literal(value)
-            default: break
-            }
-        }
-    }
     private func inputIdentity(parsed: SPICEOwnedParseResult, sources: [SPICECheckedSource],
         request: SPICESimulationPreparationRequest, resources: any SPICESourceResourceAccounting) throws -> ContentDigest {
-        var encoding = try SPICEPreparationEncoding(domain: "CoreSpice.prepared-input.v1",
-            maximumBytes: request.limits.maximumTransformBytes, resources: resources)
-        try encoding.field(request.environment.identity)
-        try encoding.integer(UInt64(sources.count))
-        for source in sources {
-            let reference = source.binding.reference
-            try encoding.field(reference.digest.algorithm.rawValue); try encoding.field(reference.digest.hexadecimalValue)
-            try encoding.integer(reference.byteCount)
-            try encoding.field(reference.descriptor.role.rawValue); try encoding.field(reference.descriptor.kind.rawValue)
-            try encoding.field(reference.descriptor.format.rawValue)
+        return try SPICEPreparationEncoding.digest(domain: "CoreSpice.prepared-input.v1",
+            maximumBytes: request.limits.maximumTransformBytes, resources: resources) { encoding in
+            try encoding.field(request.environment.identity)
+            try encoding.integer(UInt64(sources.count))
+            for source in sources {
+                let reference = source.binding.reference
+                try encoding.field(reference.digest.algorithm.rawValue); try encoding.field(reference.digest.hexadecimalValue)
+                try encoding.integer(reference.byteCount)
+                try encoding.field(reference.descriptor.role.rawValue); try encoding.field(reference.descriptor.kind.rawValue)
+                try encoding.field(reference.descriptor.format.rawValue)
+            }
+            try encoding.integer(UInt64(parsed.netlist.dependencyEvents.count))
+            for event in parsed.netlist.dependencyEvents {
+                try resources.checkCancellation()
+                guard let parent = sources.firstIndex(where: { $0.binding.key == event.parentCaptureID }),
+                      let child = sources.firstIndex(where: { $0.binding.key == event.childCaptureID }),
+                      let parentOccurrence = event.parentOccurrenceID, let childOccurrence = event.childOccurrenceID,
+                      let offset = event.statementByteOffset, let ordinal = event.statementOrdinal,
+                      let context = event.preprocessingIdentity else { throw SPICEExactSourceError.graphMismatch }
+                try encoding.integer(UInt64(parent)); try encoding.integer(UInt64(child))
+                try encoding.integer(parentOccurrence.rawValue); try encoding.integer(childOccurrence.rawValue)
+                try encoding.integer(offset); try encoding.integer(ordinal); try encoding.field(event.kind.rawValue)
+                try encoding.field(event.parentSection ?? ""); try encoding.field(event.selectedSection ?? "")
+                try encoding.field(context)
+            }
         }
-        try encoding.integer(UInt64(parsed.netlist.dependencyEvents.count))
-        for event in parsed.netlist.dependencyEvents {
-            try resources.checkCancellation()
-            guard let parent = sources.firstIndex(where: { $0.binding.key == event.parentCaptureID }),
-                  let child = sources.firstIndex(where: { $0.binding.key == event.childCaptureID }),
-                  let parentOccurrence = event.parentOccurrenceID, let childOccurrence = event.childOccurrenceID,
-                  let offset = event.statementByteOffset, let ordinal = event.statementOrdinal,
-                  let context = event.preprocessingIdentity else { throw SPICEExactSourceError.graphMismatch }
-            try encoding.integer(UInt64(parent)); try encoding.integer(UInt64(child))
-            try encoding.integer(parentOccurrence.rawValue); try encoding.integer(childOccurrence.rawValue)
-            try encoding.integer(offset); try encoding.integer(ordinal); try encoding.field(event.kind.rawValue)
-            try encoding.field(event.parentSection ?? ""); try encoding.field(event.selectedSection ?? "")
-            try encoding.field(context)
-        }
-        return try encoding.digest()
     }
     private func configurationIdentity(analysis: SPICEEffectiveSimulationConfiguration.Analysis, index: Int,
         options: SPICEAnalysisOptions, initial: SPICEOwnedNodeVoltages, nodeset: SPICEOwnedNodeVoltages,
         request: SPICESimulationPreparationRequest, supplies: [[Double]],
         conditions: [SPICEInstanceOperatingConditions], temperatureDefaulted: Bool,
+        provenance: NetlistEvaluationProvenance,
         resources: any SPICESourceResourceAccounting) throws -> ContentDigest {
-        var e = try SPICEPreparationEncoding(domain: "CoreSpice.effective-settings.v1.defaults-v1",
-            maximumBytes: request.limits.maximumTransformBytes, resources: resources)
-        try e.integer(UInt64(index)); try e.integer(1)
-        try e.field(temperatureDefaulted ? "parser-default-v1" : "source")
-        try e.field(options.nominalTemperatureCelsius == nil ? "device-default-v1" : "source")
-        try e.integer(UInt64(conditions.count))
-        for condition in conditions {
-            try e.field(condition.instanceName); try e.field(condition.modelName ?? "")
-            try e.number(condition.temperatureCelsius); try e.number(condition.nominalTemperatureCelsius)
-            try e.field(condition.temperatureOrigin); try e.field(condition.nominalTemperatureOrigin)
+        return try SPICEPreparationEncoding.digest(domain: "CoreSpice.effective-settings.v2.defaults-v1",
+            maximumBytes: request.limits.maximumTransformBytes, resources: resources) { e in
+            try e.integer(UInt64(index)); try e.integer(request.seed)
+            try e.field(request.profile.rawValue); try e.field(provenance.randomGeneratorVersion)
+            try e.field(temperatureDefaulted ? "parser-default-v1" : "source")
+            try e.field(options.nominalTemperatureCelsius == nil ? "device-default-v1" : "source")
+            try e.integer(UInt64(conditions.count))
+            for condition in conditions {
+                try e.field(condition.instanceName); try e.field(condition.modelName ?? "")
+                try e.number(condition.temperatureCelsius); try e.number(condition.nominalTemperatureCelsius)
+                try e.field(condition.temperatureOrigin); try e.field(condition.nominalTemperatureOrigin)
+            }
+            for v in [options.temperatureCelsius!, options.nominalTemperatureCelsius ?? 27, options.geometryScale ?? 1,
+                      options.convergence.abstol, options.convergence.reltol, options.convergence.vntol,
+                      options.convergence.gmin, options.convergence.minDamping, options.convergence.opticalPowerTolerance] { try e.number(v) }
+            try e.integer(UInt64(options.convergence.maxIterations))
+            switch analysis {
+            case .op: try e.field("op")
+            case .dc(let source, let values, let supply):
+                try e.field("dc"); try e.field(source); try e.integer(supply ? 1 : 0); try e.integer(UInt64(values.count))
+                for value in values { try e.number(value) }
+            case .transient(let t):
+                try e.field("tran")
+                for value in [t.stopTime, t.maxTimeStep, t.initialTimeStep ?? 0, t.minTimeStep,
+                              t.lteTolerance, t.shrinkFactor, t.gminStepping.initialGmin,
+                              t.gminStepping.finalGmin, t.gminStepping.reductionFactor] { try e.number(value) }
+                try e.field(String(describing: t.initialMethod)); try e.integer(t.useInitialConditions ? 1 : 0)
+                for value in [t.maxTimeStepReductions, t.gminSteppingThreshold, t.gminStepping.maxSteps] { try e.integer(UInt64(value)) }
+            }
+            for owner in [initial, nodeset] {
+                let ordered = owner.bindings.sorted { $0.node.id < $1.node.id }
+                try e.integer(UInt64(ordered.count))
+                for binding in ordered { try e.integer(UInt64(binding.node.id)); try e.number(binding.voltage) }
+            }
+            try e.integer(UInt64(request.supplyBindings.count))
+            for (index, binding) in request.supplyBindings.enumerated() {
+                try e.field(binding.sourceName.lowercased()); try e.integer(UInt64(binding.positiveNode.id)); try e.integer(UInt64(binding.negativeNode.id))
+                try e.integer(UInt64(supplies[index].count)); for value in supplies[index] { try e.number(value) }
+            }
+            switch request.operatingPolicy {
+            case .recordActual: try e.field("recordActual")
+            case .requireExactReference(let t, let v): try e.field("requireExactReference"); try e.number(t); try e.number(v)
+            }
+            let n = options.executionLimits!
+            for value in [n.maximumAcceptedSteps, n.maximumSolveAttempts, n.maximumNewtonIterations, n.maximumSavedScalars,
+                          n.maximumMatrixDimension, n.maximumWorkUnits, n.maximumBreakpoints] { try e.integer(UInt64(value)) }
         }
-        for v in [options.temperatureCelsius!, options.nominalTemperatureCelsius ?? 27, options.geometryScale ?? 1,
-                  options.convergence.abstol, options.convergence.reltol, options.convergence.vntol,
-                  options.convergence.gmin, options.convergence.minDamping, options.convergence.opticalPowerTolerance] { try e.number(v) }
-        try e.integer(UInt64(options.convergence.maxIterations))
-        switch analysis {
-        case .op: try e.field("op")
-        case .dc(let source, let values, let supply):
-            try e.field("dc"); try e.field(source); try e.integer(supply ? 1 : 0); try e.integer(UInt64(values.count))
-            for value in values { try e.number(value) }
-        case .transient(let t):
-            try e.field("tran")
-            for value in [t.stopTime, t.maxTimeStep, t.initialTimeStep ?? 0, t.minTimeStep,
-                          t.lteTolerance, t.shrinkFactor, t.gminStepping.initialGmin,
-                          t.gminStepping.finalGmin, t.gminStepping.reductionFactor] { try e.number(value) }
-            try e.field(String(describing: t.initialMethod)); try e.integer(t.useInitialConditions ? 1 : 0)
-            for value in [t.maxTimeStepReductions, t.gminSteppingThreshold, t.gminStepping.maxSteps] { try e.integer(UInt64(value)) }
-        }
-        for owner in [initial, nodeset] {
-            let ordered = owner.bindings.sorted { $0.node.id < $1.node.id }
-            try e.integer(UInt64(ordered.count))
-            for binding in ordered { try e.integer(UInt64(binding.node.id)); try e.number(binding.voltage) }
-        }
-        try e.integer(UInt64(request.supplyBindings.count))
-        for (index, binding) in request.supplyBindings.enumerated() {
-            try e.field(binding.sourceName.lowercased()); try e.integer(UInt64(binding.positiveNode.id)); try e.integer(UInt64(binding.negativeNode.id))
-            try e.integer(UInt64(supplies[index].count)); for value in supplies[index] { try e.number(value) }
-        }
-        switch request.operatingPolicy {
-        case .recordActual: try e.field("recordActual")
-        case .requireExactReference(let t, let v): try e.field("requireExactReference"); try e.number(t); try e.number(v)
-        }
-        let n = options.executionLimits!
-        for value in [n.maximumAcceptedSteps, n.maximumSolveAttempts, n.maximumNewtonIterations, n.maximumSavedScalars,
-                      n.maximumMatrixDimension, n.maximumWorkUnits, n.maximumBreakpoints] { try e.integer(UInt64(value)) }
-        return try e.digest()
     }
 }

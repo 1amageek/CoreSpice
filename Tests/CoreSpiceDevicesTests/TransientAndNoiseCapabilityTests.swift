@@ -104,23 +104,10 @@ struct TransientAndNoiseCapabilityTests {
             .nodeVoltage(drain): 0,
             .nodeVoltage(gate): 1
         ]
-        var context = BindingContext(variableMap: variableMap, matrixDimension: variableMap.count)
-        let instance = Instance(
-            name: "MREV",
-            typeName: "nmos_l1",
+        let device = try PreparedMOSFixture.bind(typeName: "nmos_l1", name: "MREV",
             nodes: [drain, gate, .ground, .ground],
-            parameters: [
-                "vto": .real(10.0),
-                "kp": .real(0.0),
-                "w": .real(1.0),
-                "l": .real(1.0),
-                "cgso": .real(1.0),
-                "cgdo": .real(3.0)
-            ]
-        )
-        let registry = DeviceRegistry.standard()
-        let descriptor = try #require(registry.descriptor(for: "nmos_l1"))
-        let device = try descriptor.bind(instance: instance, context: &context)
+            model: ["vto": 10, "kp": 0, "cgso": 1, "cgdo": 3],
+            instance: ["w": 1, "l": 1], variableMap: variableMap)
         let committingDevice = try #require(device as? any TransientStateCommittingDevice)
         let integration = IntegrationState(method: .trapezoidal, timeStep: 1.0, currentTime: 1.0)
 
@@ -154,12 +141,6 @@ struct TransientAndNoiseCapabilityTests {
             ("diode", [Node(id: 1), .ground], ["cjo": .real(1e-12), "tt": .real(1e-9)]),
             ("npn", [Node(id: 1), Node(id: 2), .ground], ["cje": .real(1e-12), "cjc": .real(1e-12), "tf": .real(1e-9)]),
             ("pnp", [Node(id: 1), Node(id: 2), Node(id: 3)], ["cje": .real(1e-12), "cjc": .real(1e-12), "tf": .real(1e-9)]),
-            ("nmos_l1", [Node(id: 1), Node(id: 2), .ground, .ground], mosCapacitanceParameters()),
-            ("pmos_l1", [Node(id: 1), Node(id: 2), Node(id: 3), Node(id: 3)], mosCapacitanceParameters()),
-            ("nmos_l2", [Node(id: 1), Node(id: 2), .ground, .ground], mosCapacitanceParameters()),
-            ("pmos_l2", [Node(id: 1), Node(id: 2), Node(id: 3), Node(id: 3)], mosCapacitanceParameters()),
-            ("nmos_l3", [Node(id: 1), Node(id: 2), .ground, .ground], mosCapacitanceParameters()),
-            ("pmos_l3", [Node(id: 1), Node(id: 2), Node(id: 3), Node(id: 3)], mosCapacitanceParameters()),
             ("njfet", [Node(id: 1), Node(id: 2), .ground], jfetCapacitanceParameters()),
             ("pjfet", [Node(id: 1), Node(id: 2), Node(id: 3)], jfetCapacitanceParameters())
         ]
@@ -167,6 +148,19 @@ struct TransientAndNoiseCapabilityTests {
         for (typeName, nodes, parameters) in specs {
             let device = try bindDevice(typeName: typeName, nodes: nodes, parameters: parameters)
             #expect(device is any TransientStateCommittingDevice, "\(typeName) must commit transient history")
+        }
+        for level in 1...3 {
+            for polarity in ["nmos", "pmos"] {
+                let typeName = "\(polarity)_l\(level)"
+                let nodes: [Node] = polarity == "nmos"
+                    ? [Node(id: 1), Node(id: 2), .ground, .ground]
+                    : [Node(id: 1), Node(id: 2), Node(id: 3), Node(id: 3)]
+                let device = try PreparedMOSFixture.bind(typeName: typeName, name: typeName.uppercased(),
+                    nodes: nodes, model: mosCapacitanceModel(),
+                    instance: ["ad": 1e-12, "as": 1e-12, "pd": 4e-6, "ps": 4e-6],
+                    variableMap: variableMap(for: nodes))
+                #expect(device is any TransientStateCommittingDevice, "\(typeName) must commit transient history")
+            }
         }
     }
 
@@ -240,7 +234,7 @@ struct TransientAndNoiseCapabilityTests {
             ]
         )
 
-        let specs: [(String, [Node], [String: ParameterValue], SolutionState)] = [
+        let specs: [(String, [Node], [String: Double], SolutionState)] = [
             ("nmos_l1", [Node(id: 1), Node(id: 2), .ground, .ground], nmosNoiseParameters(), nmosState),
             ("nmos_l2", [Node(id: 1), Node(id: 2), .ground, .ground], nmosNoiseParameters(), nmosState),
             ("nmos_l3", [Node(id: 1), Node(id: 2), .ground, .ground], nmosNoiseParameters(), nmosState),
@@ -249,8 +243,10 @@ struct TransientAndNoiseCapabilityTests {
             ("pmos_l3", [Node(id: 1), Node(id: 2), Node(id: 3), Node(id: 3)], pmosNoiseParameters(), pmosState)
         ]
 
-        for (typeName, nodes, parameters, state) in specs {
-            let device = try bindDevice(typeName: typeName, nodes: nodes, parameters: parameters)
+        for (typeName, nodes, model, state) in specs {
+            let device = try PreparedMOSFixture.bind(typeName: typeName, name: typeName.uppercased(),
+                nodes: nodes, model: model, instance: ["w": 10e-6, "l": 1e-6],
+                variableMap: variableMap(for: nodes))
             let noisyDevice = try #require(device as? any NoisyDevice, "\(typeName) must expose MOSFET channel noise")
             let contributions = try noisyDevice.noiseContributions(state: state, frequency: 1_000)
             #expect(contributions.contains { $0.name == "\(typeName.uppercased())_channel_thermal" })
@@ -326,19 +322,9 @@ struct TransientAndNoiseCapabilityTests {
         return map
     }
 
-    private func mosCapacitanceParameters() -> [String: ParameterValue] {
-        [
-            "tox": .real(2e-9),
-            "cgso": .real(1e-10),
-            "cgdo": .real(1e-10),
-            "cgbo": .real(1e-10),
-            "cj": .real(1e-3),
-            "cjsw": .real(1e-10),
-            "ad": .real(1e-12),
-            "as": .real(1e-12),
-            "pd": .real(4e-6),
-            "ps": .real(4e-6)
-        ]
+    private func mosCapacitanceModel() -> [String: Double] {
+        ["tox": 2e-9, "cgso": 1e-10, "cgdo": 1e-10, "cgbo": 1e-10,
+         "cj": 1e-3, "cjsw": 1e-10]
     }
 
     private func jfetCapacitanceParameters() -> [String: ParameterValue] {
@@ -348,22 +334,12 @@ struct TransientAndNoiseCapabilityTests {
         ]
     }
 
-    private func nmosNoiseParameters() -> [String: ParameterValue] {
-        [
-            "vto": .real(0.7),
-            "kp": .real(2e-5),
-            "w": .real(10e-6),
-            "l": .real(1e-6)
-        ]
+    private func nmosNoiseParameters() -> [String: Double] {
+        ["vto": 0.7, "kp": 2e-5]
     }
 
-    private func pmosNoiseParameters() -> [String: ParameterValue] {
-        [
-            "vto": .real(-0.7),
-            "kp": .real(2e-5),
-            "w": .real(10e-6),
-            "l": .real(1e-6)
-        ]
+    private func pmosNoiseParameters() -> [String: Double] {
+        ["vto": -0.7, "kp": 2e-5]
     }
 
     private func jfetNoiseParameters(vto: Double) -> [String: ParameterValue] {

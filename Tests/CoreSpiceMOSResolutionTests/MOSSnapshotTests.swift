@@ -49,7 +49,8 @@ struct MOSSnapshotTests {
         #expect(snapshot.retainedBytes <= 1_000_000)
         var other = MOSDeclarationSnapshotBuilder(limits: try limits())
         _ = try other.addScope(parent: nil)
-        #expect(!snapshot.sameStorage(as: try other.finish()))
+        let otherSnapshot = try other.finish()
+        #expect(!snapshot.sameStorage(as: otherSnapshot))
     }
 
     @Test func invalidReferencesAndBudgetsRefuseBeforePublication() throws {
@@ -78,7 +79,8 @@ struct MOSSnapshotTests {
         #expect(throws: MOSResolutionFailure.limitExceeded(.retainedBytes)) {
             try scopeBuilder.addScope(parent: nil, source: large)
         }
-        #expect(try scopeBuilder.finish().scopes.isEmpty)
+        let emptyScopes = try scopeBuilder.finish()
+        #expect(emptyScopes.scopes.isEmpty)
         var builder = MOSDeclarationSnapshotBuilder(limits: try limits(bytes: 1024, steps: 10_000))
         let scope = try builder.addScope(parent: nil)
         let name = try builder.intern("n")
@@ -119,7 +121,8 @@ struct MOSSnapshotTests {
         _ = try reused.addScope(parent: nil)
         var fresh = MOSDeclarationSnapshotBuilder(limits: try limits(bytes: 1024, steps: 10_000))
         _ = try fresh.addScope(parent: nil)
-        #expect(try reused.finish().retainedBytes == fresh.finish().retainedBytes)
+        let reusedSnapshot = try reused.finish(), freshSnapshot = try fresh.finish()
+        #expect(reusedSnapshot.retainedBytes == freshSnapshot.retainedBytes)
     }
 
     @Test func indexSortComparisonPropagatesTypedWorkFailure() throws {
@@ -131,7 +134,10 @@ struct MOSSnapshotTests {
             _ = try builder.addModel(name: "m", scope: scope, polarity: .nmos,
                 level: 1, version: nil, coefficients: [], source: origin)
         }
-        #expect(throws: MOSResolutionFailure.limitExceeded(.evaluationSteps)) { try builder.finish() }
+        do {
+            _ = try builder.finish()
+            Issue.record("Expected index sort work refusal")
+        } catch let failure as MOSResolutionFailure { #expect(failure == .limitExceeded(.evaluationSteps)) }
     }
 
     @Test func functionParameterCapacityIsRejectedBeforeScratchGrowth() throws {
@@ -154,7 +160,8 @@ struct MOSSnapshotTests {
             try builder.addFunction(symbol: parameters[0], scope: scope, parameters: parameters, program: program)
         }
         #expect(builder.retainedBytes == before)
-        #expect(try builder.finish().functions.isEmpty)
+        let snapshot = try builder.finish()
+        #expect(snapshot.functions.isEmpty)
     }
 
     @Test func postReserveFailureClosesEveryMutationAndPublicationEntryPoint() throws {
@@ -162,7 +169,10 @@ struct MOSSnapshotTests {
         #expect(throws: MOSResolutionFailure.cancelled) { try builder.addScope(parent: nil) }
         #expect(throws: MOSResolutionFailure.cancelled) { try builder.intern("later") }
         #expect(throws: MOSResolutionFailure.cancelled) { try builder.addScope(parent: nil) }
-        #expect(throws: MOSResolutionFailure.cancelled) { try builder.finish() }
+        do {
+            _ = try builder.finish()
+            Issue.record("Failed construction published a snapshot")
+        } catch let failure as MOSResolutionFailure { #expect(failure == .cancelled) }
     }
 
     private func source(_ occurrence: UInt64) -> MOSSourceOccurrence {

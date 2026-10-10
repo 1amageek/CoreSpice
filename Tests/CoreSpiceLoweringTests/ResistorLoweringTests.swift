@@ -1,4 +1,5 @@
 import Testing
+import CoreSpiceMOSContracts
 import CoreSpiceParser
 import CoreSpiceParserSPICE
 import CoreSpiceParsedIR
@@ -29,7 +30,7 @@ struct ResistorLoweringTests {
             #expect(component.parameters["r"] == .expression(.identifier("rv")))
         }
         #expect(parsed.components[3].modelName == "rv")
-        let ir = try NetlistLowering().lower(parsed)
+        let ir = try FrontendTestLowering().lower(parsed)
         for instance in ir.instances.prefix(3) {
             #expect(instance.model == nil)
             #expect(scalar(instance.parameters["r"]) == 100)
@@ -66,7 +67,7 @@ struct ResistorLoweringTests {
         let assembled = ParsedNetlist(components: root.components, models: root.models,
             subcircuits: roundTrip.subcircuits, parameters: root.parameters)
         for input in [root, assembled] {
-            let ir = try NetlistLowering().lower(input)
+            let ir = try FrontendTestLowering().lower(input)
             let bare = try #require(ir.instances.first { $0.name.lowercased() == "x1.rbare" })
             let numeric = try #require(ir.instances.first { $0.name.lowercased() == "x1.rnumeric" })
             #expect(bare.model?.name == "rv")
@@ -91,7 +92,7 @@ struct ResistorLoweringTests {
         R3 c 0 rv
         .end
         """).get()
-        let ir = try NetlistLowering().lower(parsed)
+        let ir = try FrontendTestLowering().lower(parsed)
         let local = try #require(ir.instances.first { $0.name.lowercased() == "x1.r1" })
         #expect(scalar(local.model?.parameters["r"]) == 500)
         #expect(scalar(local.model?.parameters["tnom"]) == 20)
@@ -112,7 +113,7 @@ struct ResistorLoweringTests {
         X1 in 0 sense cell
         .end
         """).get()
-        let ir = try NetlistLowering().lower(parsed)
+        let ir = try FrontendTestLowering().lower(parsed)
         let instance = try #require(ir.instances.first)
         guard case .behavioralExpression = instance.parameters["r"] else {
             Issue.record("Runtime resistance was not retained as canonical behavioral IR")
@@ -127,7 +128,7 @@ struct ResistorLoweringTests {
         #expect(bound.instance.referencedNodes == instance.referencedNodes)
     }
 
-    @Test func functionTemperatureRemainsRuntimeAcrossLoweringTemperatures() async throws {
+    @Test func functionTemperatureRemainsRuntimeWithNumericParameterOfSameName() async throws {
         let parsed = try await SPICEParser().parse(source: """
         ambient temperature is runtime
         .param rv=100 temper=999
@@ -135,15 +136,15 @@ struct ResistorLoweringTests {
         R1 a 0 r=thermal(rv)
         .end
         """).get()
-        for temperature in [27.0, 85.0] {
-            let ir = try NetlistLowering(configuration: .init(temperature: temperature)).lower(parsed)
+        do {
+            let ir = try FrontendTestLowering().lower(parsed)
             let instance = try #require(ir.instances.first)
             guard case .behavioralExpression(.binary(.multiply, .constant(100),
                 .binary(.add, .constant(1), .binary(.multiply, .constant(0.01),
                     .binary(.subtract, .variable(.ambientTemperatureCelsius), .constant(27))))))
                 = instance.parameters["r"] else {
                 Issue.record("Ambient temperature must survive function inlining and lowering configuration")
-                continue
+                return
             }
             #expect(instance.referencedNodes.isEmpty)
             #expect(instance.referencedBranches.isEmpty)
@@ -164,7 +165,7 @@ struct ResistorLoweringTests {
         Xouter out 0 sense outer
         .end
         """).get()
-        let ir = try NetlistLowering().lower(parsed)
+        let ir = try FrontendTestLowering().lower(parsed)
         let resistor = try #require(ir.instances.first { $0.name.lowercased() == "xouter.xinner.r1" })
         let probe = try #require(ir.instances.first { $0.name.lowercased() == "xouter.xinner.vprobe" })
         #expect(resistor.nodes.map { ir.nodeNames[$0] } == ["out", "0"])
@@ -188,7 +189,7 @@ struct ResistorLoweringTests {
         for expression in ["100+hertz", "100+V(a)+hertz"] {
             let parsed = try await SPICEParser().parse(source: "frequency refusal\n.param hertz=10\nR1 a 0 r=\(expression)\n.end\n").get()
             do {
-                _ = try NetlistLowering().lower(parsed)
+                _ = try FrontendTestLowering().lower(parsed)
                 Issue.record("Unsupported runtime frequency must not be frozen as a parameter")
             } catch let error as LoweringError {
                 guard case .expressionEvaluationFailed(_, let reason) = error else {
@@ -204,7 +205,7 @@ struct ResistorLoweringTests {
     @Test func unknownAndMismatchedModelRefuse() async throws {
         for source in ["R1 a 0 missing r=100", "R1 a 0 diode r=100\n.model diode D"] {
             let parsed = try await SPICEParser().parse(source: "refusal\n\(source)\n.end\n").get()
-            #expect(throws: LoweringError.self) { _ = try NetlistLowering().lower(parsed) }
+            #expect(throws: LoweringError.self) { _ = try FrontendTestLowering().lower(parsed) }
         }
     }
 
@@ -216,11 +217,11 @@ struct ResistorLoweringTests {
         .model sheet R rsh=100
         .end
         """).get()
-        let ir = try NetlistLowering(configuration: .init(geometryScale: 2e-6)).lower(parsed)
+        let ir = try FrontendTestLowering(configuration: .init(geometryScale: 2e-6)).lower(parsed)
         #expect(abs(try #require(scalar(ir.instances[0].parameters["l"])) - 20e-6) < 1e-20)
         for scale in [0.0, -1.0, .infinity] {
-            #expect(throws: LoweringError.self) {
-                _ = try NetlistLowering(configuration: .init(geometryScale: scale)).lower(parsed)
+            #expect(throws: MOSResolutionFailure.self) {
+                _ = try FrontendTestLowering(configuration: .init(geometryScale: scale)).lower(parsed)
             }
         }
         let mos = try await SPICEParser().parse(source: """
@@ -230,7 +231,10 @@ struct ResistorLoweringTests {
         .model channel NMOS level=1
         .end
         """).get()
-        #expect(throws: LoweringError.self) { _ = try NetlistLowering().lower(mos) }
+        let mosIR = try FrontendTestLowering().lower(mos)
+        guard case .resolved(let resolved) = mosIR.instances.first?.mos else { Issue.record("Missing resolved scaled MOS"); return }
+        #expect(abs(try #require(resolved.normalizedGeometry.length) - 0.15e-6) < 1e-20)
+        #expect(abs(try #require(resolved.normalizedGeometry.width) - 0.65e-6) < 1e-20)
     }
 }
 

@@ -1,4 +1,6 @@
+import CoreSpice
 import CoreSpiceCompile
+import CoreSpiceMOSContracts
 import CoreSpiceDevices
 import CoreSpiceCompactModels
 import CoreSpiceExporterCSV
@@ -49,6 +51,34 @@ extension CoreSpiceCLIFailure {
       case .unsupportedAnalysis: code = "case.unsupported-phase-evidence"
       }
       self.init(code: code, message: caseError.localizedDescription, stage: "case-publication")
+
+    case let preparation as SPICENativePreparationError:
+      switch preparation {
+      case .compile(let cause), .binding(let cause), .resource(let cause): self.init(error: cause)
+      case .mosPreparation(let cause): self.init(code: "mos.preparation", message: Self.describe(cause), stage: "preparation")
+      case .mosBinding(let cause): self.init(code: "mos.binding", message: Self.describe(cause), stage: "preparation")
+      case .invalidLimits, .capacityExceeded: self.init(code: "preparation.capacity", message: Self.describe(preparation), stage: "preparation")
+      case .unsupportedCapability(let detail): self.init(code: "preparation.unsupported-capability", message: detail, stage: "preparation")
+      }
+
+    case let nativeError as SPICENativeExecutionError:
+      switch nativeError {
+      case .numerical(let cause), .binding(let cause), .resource(let cause): self.init(error: cause)
+      case .cancelled: self.init(code: "analysis.cancelled", message: "Native execution was cancelled", stage: "analysis")
+      case .mosPreparation(let cause): self.init(code: "mos.preparation", message: Self.describe(cause), stage: "preparation")
+      case .unsupportedCapability(let detail): self.init(code: "analysis.unsupported-capability", message: detail, stage: "analysis")
+      case .invalidOutput: self.init(code: "analysis.invalid-output", message: "Native execution produced invalid output", stage: "analysis")
+      }
+
+    case MOSResolutionFailure.cancelled:
+      self.init(code: "analysis.cancelled", message: "Source evaluation was cancelled", stage: "lower")
+
+    case let nodeError as SPICENodeVoltageResolutionError:
+      if case .evaluation(_, let cause) = nodeError { self.init(error: cause) }
+      else { self.init(code: "deck.node-voltage", message: Self.describe(nodeError), stage: "lower") }
+
+    case let failure as MOSResolutionFailure:
+      self.init(code: "mos.resolution", message: Self.describe(failure), stage: "lower")
 
     case let cliError as CLIError:
       self.init(cliError: cliError)
@@ -327,6 +357,9 @@ extension CoreSpiceCLIFailure {
       code = "analysis.invalid-configuration"
     case .timestepTooSmall:
       code = "analysis.timestep-too-small"
+    case .requiresFreshMOSResolution:
+      code = "analysis.requires-fresh-mos-resolution"
+      suggestedActions = ["resolve the original source with fresh parameters and a new evaluation session"]
     case .internalError:
       code = "analysis.internal"
     }

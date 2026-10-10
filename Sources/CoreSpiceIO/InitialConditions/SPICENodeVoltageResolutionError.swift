@@ -1,5 +1,6 @@
 /// Actual semantic/evaluation failures; bounded diagnostics avoid copied input payloads.
 public enum SPICENodeVoltageResolutionError: Error, Sendable {
+    case compiledIdentityMismatch
     case unknownNode(String)
     case nonfiniteValue(nodeName: String, value: Double)
     case nonzeroGround

@@ -12,13 +12,11 @@ public struct PreparedNativeSPICESimulation: ~Copyable, Sendable {
     public var configurationIdentity: ContentDigest { record.configurationIdentity }
     public var algorithmIdentity: String { record.algorithmIdentity }
     public var solverIdentity: String { record.solverIdentity }
-    private let devices: [any BoundDevice]
+    private let circuit: PreparedNativeCircuit
 
-    internal init(record: SPICENativeSimulationRecord, devices: [any BoundDevice]) {
-        self.record = record; self.devices = devices
+    internal init(record: SPICENativeSimulationRecord, circuit: consuming PreparedNativeCircuit) {
+        self.record = record; self.circuit = circuit
     }
 
-    internal consuming func takeExecutionState() -> (SPICENativeSimulationRecord, [any BoundDevice]) {
-        (record, devices)
-    }
+    internal consuming func takeCircuit() -> PreparedNativeCircuit { circuit }
 }

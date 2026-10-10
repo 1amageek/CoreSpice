@@ -1,6 +1,7 @@
 import Testing
 import CoreSpiceIO
-import CoreSpiceCompactModels
+import CoreSpiceCompile
+import CoreSpiceMOSResolution
 
 @Suite("Quoted SPICE values through public lowering", .timeLimit(.minutes(1)))
 struct SPICEQuotedValueExecutionTests {
@@ -29,7 +30,7 @@ struct SPICEQuotedValueExecutionTests {
         let serialized = SPICESerializer().serialize(parsed, options: .default)
         for text in [source, serialized] {
             let inputKind = text == source ? "original" : "roundtrip"
-            let ir = try await SPICEIO.parseAndLower(text, configuration: .init(expandModels: true))
+            let ir = try await IOTestFrontend.parseAndLower(text)
             #expect(ir.instances.count == 8)
             // These values follow the source arithmetic, independently of the
             // parser's representation and the serializer's choice of delimiter.
@@ -42,10 +43,16 @@ struct SPICEQuotedValueExecutionTests {
             }
             let mos = try #require(ir.instances.first { $0.name == "m1" })
             #expect(mos.typeName == "nmos_l1")
-            try Self.expectReal(mos.parameters["kp"], equals: 2000, name: "\(inputKind): model kp")
-            try Self.expectReal(mos.parameters["vto"], equals: 2, name: "\(inputKind): model vto")
-            try Self.expectReal(mos.parameters["w"], equals: 1e-6, name: "\(inputKind): instance width")
-            try Self.expectReal(mos.parameters["l"], equals: 1e-6, name: "\(inputKind): instance length")
+            guard case .resolved(let resolved) = mos.mos else { Issue.record("Missing resolved MOS stage"); return }
+            #expect(mos.parameters.isEmpty); #expect(mos.model == nil)
+            for (name, expected) in [("kp", 2000.0), ("vto", 2.0)] {
+                let value = try #require(resolved.modelCoefficients.first {
+                    resolved.symbolNames[Int($0.symbol.rawValue)] == name
+                })
+                #expect(value.value == expected, "\(inputKind): model \(name)")
+            }
+            #expect(resolved.normalizedGeometry.width == 1e-6)
+            #expect(resolved.normalizedGeometry.length == 1e-6)
         }
     }
 
@@ -61,7 +68,6 @@ struct SPICEQuotedValueExecutionTests {
         """
         let parsed = try await SPICEIO.parse(source).get()
         let serialized = SPICESerializer().serialize(parsed, options: .default)
-        let policy = try BSIM4PreparationPolicy(maximumStressIterations: 8)
         for text in [source, serialized] {
             let netlist = try await SPICEIO.parse(text).get()
             let model = try #require(netlist.models.first)
@@ -70,20 +76,19 @@ struct SPICEQuotedValueExecutionTests {
                 return
             }
             #expect(version == "4.5")
-            // Public lowering performs cold Level54 native admission with this
-            // explicit work policy. The original 4.5 identity must be refused,
-            // rather than rounded or silently replaced with supported 4.8.3.
+            let lowered = try SPICEIO.lower(netlist, profile: .coreStrictV1, seed: 42, limits: IOTestFrontend.limits)
+            let mos = try #require(lowered.circuit.instances.first { $0.name == "m1" })
+            guard case .resolved(let resolved) = mos.mos else { Issue.record("Missing exact resolved release"); return }
+            #expect(resolved.release == .bsim4_4_5)
+            _ = try inspectResolvedMOS(resolved, from: lowered.snapshot, limits: IOTestFrontend.limits)
             do {
-                _ = try await SPICEIO.parseAndLower(
-                    text, configuration: .init(bsim4PreparationPolicy: policy)
-                )
-                Issue.record("The unsupported original model version was admitted")
-            } catch let error as BSIM4Error {
-                #expect(error == .unsupportedVersion("4.5"))
+                _ = try StandardCompiler().compile(ir: lowered.circuit)
+                Issue.record("Resolution was incorrectly admitted as numerical preparation")
+            } catch let error as CompileError {
+                #expect(error == .mosNotPrepared(instance: "m1"))
             }
         }
     }
-
     private static func expectReal(_ value: ParameterValue?, equals expected: Double, name: String) throws {
         guard case .real(let actual) = try #require(value, "Missing lowered numeric parameter: \(name)") else {
             Issue.record("\(name) did not lower to a real-valued parameter")
@@ -91,4 +96,5 @@ struct SPICEQuotedValueExecutionTests {
         }
         #expect(actual == expected, "\(name), actual=\(actual), expected=\(expected)")
     }
+
 }

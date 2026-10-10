@@ -4,7 +4,8 @@ import CoreSpiceIR
 ///
 /// Contains the sensitivity of a selected output variable to each device
 /// parameter in the circuit.
-public struct SensitivityResult: Sendable {
+public struct SensitivityResult: Sendable, AnalysisResultStorageRetaining {
+    private let retainedStorage: (any Sendable)?
 
     /// Sensitivity of the output to a single device parameter.
     public struct ParameterSensitivity: Sendable {
@@ -91,5 +92,19 @@ public struct SensitivityResult: Sendable {
         self.baselineValue = baselineValue
         self.sensitivities = sensitivities
         self.dcOperatingPoint = dcOperatingPoint
+        self.retainedStorage = nil
+    }
+
+    /// Returns the same numerical values while retaining their native invocation capacity.
+    package func retainingStorage(_ owner: any Sendable) -> Self {
+        Self(retaining: self, owner: owner)
+    }
+
+    private init(retaining result: Self, owner: any Sendable) {
+        self.outputVariable = result.outputVariable
+        self.baselineValue = result.baselineValue
+        self.sensitivities = result.sensitivities
+        self.dcOperatingPoint = result.dcOperatingPoint.retainingStorage(owner)
+        self.retainedStorage = owner
     }
 }

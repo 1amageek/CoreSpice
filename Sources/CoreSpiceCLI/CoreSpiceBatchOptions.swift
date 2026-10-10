@@ -1,10 +1,12 @@
 import CoreSpiceAnalysis
+import CoreSpiceMOSContracts
 
 struct CoreSpiceBatchOptions {
   let deckPath: String
   let outputs: OutputTargets
   let overrideAnalysis: AnalysisCommand?
   let jsonOutput: Bool
+  let profile: MOSInputProfile
   let randomSeed: UInt64?
   let caseOutput: String?
   let caseID: String?
@@ -15,6 +17,7 @@ struct CoreSpiceBatchOptions {
     var outputs = OutputTargets()
     var overrideAnalysis: AnalysisCommand?
     var jsonOutput: Bool?
+    var profile: MOSInputProfile?
     var randomSeed: UInt64?
     var caseOutput: String?
     var caseID: String?
@@ -60,6 +63,13 @@ struct CoreSpiceBatchOptions {
       case "--case-id":
         try Self.rejectDuplicate(caseID, argument: argument)
         caseID = try cursor.nonOptionValue(after: argument)
+      case "--mos-profile":
+        try Self.rejectDuplicate(profile, argument: argument)
+        let raw = try cursor.nonOptionValue(after: argument)
+        guard let parsed = MOSInputProfile(rawValue: raw) else {
+          throw CLIError.invalidArguments("--mos-profile expects coreStrictV1 or pinnedNgspiceNormalV1")
+        }
+        profile = parsed
       case "--seed":
         try Self.rejectDuplicate(randomSeed, argument: argument)
         let rawSeed = try cursor.nonOptionValue(after: argument)
@@ -81,6 +91,7 @@ struct CoreSpiceBatchOptions {
     guard (caseOutput == nil) == (caseID == nil) else {
       throw CLIError.invalidArguments("--case-output and --case-id must be supplied together")
     }
+    self.profile = profile ?? .pinnedNgspiceNormalV1
     self.caseOutput = caseOutput
     self.caseID = caseID
     self.deckPath = deckPath

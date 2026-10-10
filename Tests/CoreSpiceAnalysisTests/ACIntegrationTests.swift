@@ -297,10 +297,9 @@ struct ACIntegrationTests {
                                 parameters: ["r": .real(100_000)])
         try netlist.addInstance(name: "CG", typeName: "capacitor", nodes: ["ac_in", "gate"],
                                 parameters: ["c": .real(1e-6)])
-        try netlist.addInstance(name: "M1", typeName: "nmos_l1", nodes: ["drain", "gate", "0", "0"],
-                                parameters: ["vto": .real(0.7), "kp": .real(110e-6),
-                                             "w": .real(10e-6), "l": .real(1e-6),
-                                             "lambda": .real(0.04)])
+        try AnalysisMOSFixture.add(to: &netlist, name: "M1", polarity: .nmos,
+            nodes: ["drain", "gate", "0", "0"], model: ["vto": 0.7, "kp": 110e-6, "lambda": 0.04],
+            instance: ["w": 10e-6, "l": 1e-6])
 
         let sweep = FrequencySweep.decade(start: 100, stop: 100_000, pointsPerDecade: 10)
         let result = try await CircuitFactory.runAC(netlist, sweep: sweep)
