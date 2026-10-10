@@ -205,3 +205,26 @@ new result headers with public initializers or materializing derived waveforms i
 a caller-owned value boundary; those values do not inherit an invocation lease.
 Common Mutex storage and admission entry points are identical across target source;
 this change qualifies native CPU behavior only.
+
+## Native Result Storage Admission Boundary
+
+Package-only `AnalysisResultStorageAccounting` supplies pre-allocation capacity
+admission and scoped postprocessing scratch. Native composition injects the
+execution-owned implementation defined in [Native execution](../CoreSpice/NativeExecution/DESIGN.md#incremental-result-capacity-ownership).
+Analysis owns buffer growth and reports required capacity before allocation; it
+does not interpret native byte policy or source accounting. Transient native
+storage starts at one point and grows geometrically before either accepted-step
+branch mutates device state or publishes a point. Direct lower Analysis calls
+retain their existing estimated-capacity behavior. Fourier transports the same
+owner into transient execution, and requests scratch for the completed trace
+before allocating final-period pairs. Numerical algorithms, scalar/work counters,
+cancellation and terminal event behavior are unchanged.
+
+The injected owner is retained by completed transient/nested result headers.
+Capacity refusal propagates as failure, not a numerical retry or partial result.
+Tests in CoreSpiceNativeExecutionTests verify admission ordering and lifetime; the
+full CoreSpiceAnalysisTests target verifies unchanged numerical behavior.
+
+Result-storage retention exposes its optional opaque owner within the package.
+[Waveform conversion](../CoreSpiceWaveform/DESIGN.md) transports that lease without
+retaining discarded numerical payload arrays or changing admission policy.

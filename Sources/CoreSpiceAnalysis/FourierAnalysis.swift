@@ -18,6 +18,7 @@ import Foundation
 /// This computes specific harmonic coefficients without requiring FFT.
 public struct FourierAnalysis: Analysis, Sendable {
     package var executionBudget: TransientExecutionBudget?
+    package var resultStorage: (any AnalysisResultStorageAccounting)?
 
     public typealias Result = FourierResult
 
@@ -121,6 +122,7 @@ public struct FourierAnalysis: Analysis, Sendable {
                 convergenceConfig: convergenceConfig
             )
             transientAnalysis.executionBudget = executionBudget
+            transientAnalysis.resultStorage = resultStorage
             let transientResult = try await transientAnalysis.run(
                 plan: plan,
                 devices: devices,
@@ -128,6 +130,12 @@ public struct FourierAnalysis: Analysis, Sendable {
                 observer: observer,
                 cancellation: cancellation
             )
+
+            let scratchBytes = try TransientExecutionBudget.add(256,
+                TransientExecutionBudget.multiply(transientResult.timePoints.count, 32, "Fourier scratch capacity"),
+                "Fourier scratch capacity")
+            let scratch = try resultStorage?.reserveTemporaryBytes(UInt64(scratchBytes))
+            defer { withExtendedLifetime(scratch) {} }
 
             // Phase 2: Extract the final period and compute Fourier coefficients
             let variableMap = plan.topology.variableMap

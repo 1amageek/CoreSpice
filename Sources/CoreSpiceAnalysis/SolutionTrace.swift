@@ -75,6 +75,14 @@ public struct SolutionTrace: Sendable {
         }
     }
 
+    package mutating func reservePointCapacity(_ pointCapacity: Int) throws {
+        let (capacity, overflow) = variableCount.multipliedReportingOverflow(by: pointCapacity)
+        guard pointCapacity >= 0, !overflow else {
+            throw ValidationError.capacityOverflow(variableCount: variableCount, pointCapacity: pointCapacity)
+        }
+        values.reserveCapacity(capacity)
+    }
+
     public init(variableCount: Int, rowMajorValues: [Double]) throws {
         guard variableCount >= 0 else {
             throw ValidationError.negativeVariableCount(variableCount)

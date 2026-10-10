@@ -20,6 +20,13 @@ public struct WaveformData: Sendable {
 
     /// Internal storage for the waveform data.
     private let storage: WaveformStorage
+    package private(set) var retainedStorage: (any Sendable)? = nil
+
+    package func retainingStorage(_ owner: (any Sendable)?) -> Self {
+        var result = self
+        result.retainedStorage = owner
+        return result
+    }
 
     /// Whether this waveform contains complex data.
     public var isComplex: Bool {

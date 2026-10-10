@@ -13,6 +13,6 @@ public struct NativeCircuitPreparationRecord: Sendable {
     public let mosPreparationReceipts: [MOSPreparationReceipt]
     public let bsim4Models: [NativeBSIM4PreparationRecord]
     internal let resources: any SPICESourceResourceAccounting
-    internal let executionCapacity: UInt64
+    internal let compileCapacity: UInt64
     internal let reservation: SPICESourceStorageReservation
 }

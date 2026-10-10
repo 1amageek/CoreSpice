@@ -695,14 +695,15 @@ struct Session {
          if case .resolved(let selected) = $0.mos { return selected.release == .bsim4_4_8_3 }; return false
        }) { throw BSIM4DeviceError.missingPreparationPolicy(model.name) }
     let stress = options.bsim4PreparationPolicy?.maximumStressIterations ?? 1
+    let numericalLimits = options.executionLimits ?? policy.numericalLimits
     return try NativeCircuitPreparer().prepare(ir: values.lowered.circuit, registry: registry,
       operatingConditions: conditions,
-      limits: .init(maximumDeviceCount: policy.maximumElements, maximumMatrixDimension: 256,
+      limits: .init(maximumDeviceCount: policy.maximumElements, maximumMatrixDimension: numericalLimits.maximumMatrixDimension,
         maximumAllocationBytes: policy.maximumAllocationBytes, mosPreparationLimits: policy.preparationLimits,
         mosPreparationConditions: try .init(ambientKelvin: conditions.temperatureKelvin,
           nominalKelvin: conditions.nominalTemperatureKelvin, analysisCapabilities: requestedCapabilities,
           maximumStressIterations: stress)),
-      numericalLimits: options.executionLimits ?? policy.numericalLimits, resources: values.resources)
+      numericalLimits: numericalLimits, resources: values.resources)
   }
 
   private mutating func retain(_ phases: [NativeCircuitExecutionFacts], record: NativeCircuitPreparationRecord,

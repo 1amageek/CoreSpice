@@ -228,3 +228,20 @@ Case publication uses the same captured input graph and actual completed phase
 instances. A successful ideal circuit with unused Q/C definitions has model-free
 receipts; selecting unsupported Q/C must produce no completed case. CLI tests own
 these actual execution boundaries and the unsupported-version diagnostic migration.
+
+### Numerical fixture capacity versus policy ceilings
+
+Source `tranmaxscalars` remains the explicit saved-scalar operation ceiling. It
+does not request allocation of that many values. The fixed CLI byte ceilings are
+unchanged; [native execution](../CoreSpice/NativeExecution/DESIGN.md#incremental-result-capacity-ownership)
+admits preparation and actual result capacity separately. The numerical regression
+fixture retains its original finite policy and input digests. Complete validation
+runs all CoreSpiceCLITests, including the real executable's 31-case regression
+corpus, without a numerical-suite exclusion or fixture-cap reduction.
+
+Both ordinary and prepared CLI adapters pass the resolved numerical matrix
+dimension ceiling into native preparation. A source override is preserved rather
+than hidden behind a second hardcoded 256-row ceiling. The named default remains
+256, and every requested topology still has to fit the unchanged native byte
+ceiling, temporary ceiling and shared invocation quota. Dimension is counted
+using non-ground MNA rows; policy maxima do not allocate a maximum-size matrix.

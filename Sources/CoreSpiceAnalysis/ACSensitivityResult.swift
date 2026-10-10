@@ -2,7 +2,7 @@ import CoreSpiceCompile
 
 /// Frequency-dependent sensitivity of one output voltage to circuit parameters.
 public struct ACSensitivityResult: Sendable, AnalysisResultStorageRetaining {
-    private let retainedStorage: (any Sendable)?
+    package let retainedStorage: (any Sendable)?
     public struct ParameterSensitivity: Sendable {
         public let deviceName: String
         public let parameterName: String

@@ -5,7 +5,7 @@ import CoreSpiceIR
 /// Contains the sensitivity of a selected output variable to each device
 /// parameter in the circuit.
 public struct SensitivityResult: Sendable, AnalysisResultStorageRetaining {
-    private let retainedStorage: (any Sendable)?
+    package let retainedStorage: (any Sendable)?
 
     /// Sensitivity of the output to a single device parameter.
     public struct ParameterSensitivity: Sendable {

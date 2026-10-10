@@ -6,7 +6,7 @@ import CoreSpiceIR
 /// Provides typed access to node voltages and branch currents
 /// from the converged MNA solution.
 public struct DCResult: Sendable, AnalysisResultStorageRetaining {
-    private let retainedStorage: (any Sendable)?
+    package let retainedStorage: (any Sendable)?
 
     /// The converged solution vector.
     public let variables: [Double]

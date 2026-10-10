@@ -13,9 +13,9 @@ public struct NativeCircuitExecutionFacts: Sendable {
     public let sourceName: String?
     public let sourceValue: Double?
     private let preparation: NativeCircuitPreparationRecord
-    private let reservation: SPICESourceStorageReservation
+    private let reservation: NativeExecutionStorage
     internal init(record: NativeCircuitPreparationRecord, instances: [Instance], analysis: String,
-                  completedPointCount: Int, reservation: SPICESourceStorageReservation, sourceName: String? = nil, sourceValue: Double? = nil) {
+                  completedPointCount: Int, reservation: NativeExecutionStorage, sourceName: String? = nil, sourceValue: Double? = nil) {
         preparation = record; self.reservation = reservation
         self.instances = instances; conditions = record.operatingConditions
         mosPreparationReceipts = record.mosPreparationReceipts; self.analysis = analysis

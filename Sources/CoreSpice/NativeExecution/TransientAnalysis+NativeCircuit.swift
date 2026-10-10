@@ -13,7 +13,9 @@ extension TransientAnalysis {
             }
             let reservation = try await NativeCircuitExecution.admit(record, capabilities: [.dc, .transient], points: 1, cancellation: cancellation, observer: observer, analysis: .tran)
             return try await withTaskCancellationHandler {
-                let result = try await run(plan: record.plan, devices: devices, solver: solver,
+                var analysis = self
+                analysis.resultStorage = reservation
+                let result = try await analysis.run(plan: record.plan, devices: devices, solver: solver,
                     observer: observer, cancellation: cancellation)
                 try NativeCircuitExecution.check(cancellation)
                 guard result.timePoints.last == config.stopTime, result.executionStatistics != nil,

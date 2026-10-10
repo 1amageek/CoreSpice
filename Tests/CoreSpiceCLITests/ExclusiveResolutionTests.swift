@@ -156,7 +156,7 @@ struct ExclusiveResolutionTests {
         }
     }
 
-    @Test func declaredCeilingsAreRefusedRatherThanSilentlyClamped() async throws {
+    @Test func declaredNumericalCeilingsArePreservedWithoutEagerAllocation() async throws {
         var session = try Session(policy: .developerV1())
         try await session.loadNetlist(source: """
         Preserve declared numerical ceiling
@@ -168,15 +168,12 @@ struct ExclusiveResolutionTests {
         """, fileName: nil)
         session.phaseCollector = try CoreSpiceCLIPhaseCollector()
         #expect(session.analysisOptions.executionLimits?.maximumSavedScalars == 20_000_000)
-        do {
-            _ = try await session.runParsed(session.requiredDefaultRunnableAnalysis())
-            Issue.record("Oversized declared policy bypassed native admission")
-        } catch {
-            #expect(CoreSpiceCLIFailure(error: error).code == "preparation.capacity")
-            #expect(session.analysisOptions.executionLimits?.maximumSavedScalars == 20_000_000)
-            #expect(session.lastWaveform == nil)
-            #expect(!((session.phaseCollector?.isComplete) ?? true))
-        }
+        let waveform = try await session.runParsed(session.requiredDefaultRunnableAnalysis())
+        #expect(waveform.pointCount > 1)
+        #expect(session.analysisOptions.executionLimits?.maximumSavedScalars == 20_000_000)
+        #expect(session.analysisOptions.executionLimits?.maximumMatrixDimension == 2048)
+        #expect(session.lastWaveform != nil)
+        #expect(try #require(session.phaseCollector).isComplete)
     }
 
     @Test func explicitProfileAndSeedAreValidatedByBatchArguments() throws {

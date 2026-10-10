@@ -41,7 +41,7 @@ extension WaveformData {
             sweepValues: [0.0],
             variables: variables,
             realData: realData
-        )
+        ).retainingStorage(dcResult.retainedStorage)
     }
 
     // MARK: - From AC Result
@@ -76,7 +76,7 @@ extension WaveformData {
             sweepValues: acResult.frequencies,
             variables: variables,
             complexData: complexData
-        )
+        ).retainingStorage(acResult.retainedStorage)
     }
 
     // MARK: - From Transient Result
@@ -142,7 +142,7 @@ extension WaveformData {
             realRowMajorData: transientResult.solutionTrace.rowMajorValues,
             pointCount: transientResult.solutionTrace.pointCount,
             variableCount: transientResult.solutionTrace.variableCount
-        )
+        ).retainingStorage(transientResult.retainedStorage)
     }
 
     // MARK: - From DC Sweep Result
@@ -221,7 +221,7 @@ extension WaveformData {
             sweepValues: sweepResult.values,
             variables: variables,
             realData: realData
-        )
+        ).retainingStorage(sweepResult.retainedStorage)
     }
 
     // MARK: - From AC Sweep Result (Parametric)
@@ -363,7 +363,7 @@ extension WaveformData {
                 transferFunctionResult.inputImpedance,
                 transferFunctionResult.outputImpedance,
             ]]
-        )
+        ).retainingStorage(transferFunctionResult.retainedStorage)
     }
 
     // MARK: - From Noise Result
@@ -419,7 +419,7 @@ extension WaveformData {
             sweepValues: noiseResult.frequencies,
             variables: variables,
             realData: realData
-        )
+        ).retainingStorage(noiseResult.retainedStorage)
     }
 
     // MARK: - From Pole-Zero Result
@@ -488,7 +488,7 @@ extension WaveformData {
             sweepValues: (0..<pointCount).map(Double.init),
             variables: variables,
             complexData: complexData
-        )
+        ).retainingStorage(poleZeroResult.retainedStorage)
     }
 
     // MARK: - From Fourier Result
@@ -556,7 +556,7 @@ extension WaveformData {
             sweepValues: sweepValues,
             variables: variables,
             realData: realData
-        )
+        ).retainingStorage(fourierResult.retainedStorage)
     }
 
     // MARK: - From Sensitivity Result
@@ -620,7 +620,7 @@ extension WaveformData {
             sweepValues: sweepValues,
             variables: variables,
             realData: realData
-        )
+        ).retainingStorage(sensitivityResult.retainedStorage)
     }
 
     /// Creates complex waveform data from an AC sensitivity result.
@@ -676,7 +676,7 @@ extension WaveformData {
             sweepValues: acSensitivityResult.frequencies,
             variables: variables,
             complexData: complexData
-        )
+        ).retainingStorage(acSensitivityResult.retainedStorage)
     }
 
     // MARK: - Empty Waveform

@@ -5,7 +5,7 @@ import CoreSpiceIR
 /// Contains the small-signal gain, input impedance, and output impedance
 /// computed at the DC operating point.
 public struct TransferFunctionResult: Sendable, AnalysisResultStorageRetaining {
-    private let retainedStorage: (any Sendable)?
+    package let retainedStorage: (any Sendable)?
 
     /// The small-signal voltage gain (Vout / Vin).
     public let gain: Double

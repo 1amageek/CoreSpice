@@ -40,7 +40,9 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
         }
         let circuit = originalCircuit
         guard circuit.instances.count <= limits.maximumDeviceCount else { throw SPICENativePreparationError.capacityExceeded }
-        let (baseDimension, overflow) = circuit.nodes.count.addingReportingOverflow(circuit.branches.count)
+        var voltageCount = 0
+        for node in circuit.nodes where node != circuit.groundNode { voltageCount += 1 }
+        let (baseDimension, overflow) = voltageCount.addingReportingOverflow(circuit.branches.count)
         guard !overflow, baseDimension > 0 else { throw SPICENativePreparationError.capacityExceeded }
         let auxiliaryUpper = try multiply(UInt64(mosCount), 8)
         let dimensionUpper = try add(UInt64(baseDimension), auxiliaryUpper)
@@ -56,12 +58,13 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
         let mosRetainedBytes = try multiply(UInt64(mosCount), limits.mosPreparationLimits?.maximumRetainedBytes ?? 0)
         let mosTemporaryBytes = try multiply(UInt64(mosCount), limits.mosPreparationLimits?.maximumTemporaryBytes ?? 0)
         let compileBytes = try add(topologyBytes, mosRetainedBytes)
-        let outputBytes = try multiply(UInt64(numericalLimits.maximumSavedScalars), 32)
-        let executionBytes = try add(compileBytes, outputBytes)
-        guard executionBytes <= limits.maximumAllocationBytes else { throw SPICENativePreparationError.capacityExceeded }
+        let temporaryBytes = try add(topologyBytes, mosTemporaryBytes)
+        guard try add(compileBytes, temporaryBytes) <= limits.maximumAllocationBytes else {
+            throw SPICENativePreparationError.capacityExceeded
+        }
         try resources.checkCancellation()
         let reservation = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: compileBytes)
-        let scratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: try add(topologyBytes, mosTemporaryBytes))
+        let scratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: temporaryBytes)
         defer { withExtendedLifetime(scratch) {} }
         try resources.charge(.retainedElements, units: try multiply(square, UInt64(upperDimension)))
         var mosOwners = UniqueArray<NativePreparedMOSDevice?>()
@@ -96,7 +99,7 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
         try resources.checkCancellation()
         return PreparedNativeCircuit(record: .init(plan: plan, operatingConditions: operatingConditions,
             limits: limits, numericalLimits: numericalLimits, mosPreparationReceipts: receipts,
-            bsim4Models: bsim4, resources: resources, executionCapacity: executionBytes, reservation: reservation), devices: devices)
+            bsim4Models: bsim4, resources: resources, compileCapacity: compileBytes, reservation: reservation), devices: devices)
     }
     private func context(plan: ExecutionPlan, operatingConditions: OperatingConditions) throws -> BindingContext {
         let structure = plan.matrixStructure

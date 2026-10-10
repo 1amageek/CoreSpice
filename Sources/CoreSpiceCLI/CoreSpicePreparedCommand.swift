@@ -89,7 +89,7 @@ struct CoreSpicePreparedCommand {
                if case .resolved(let selected) = $0.mos { return selected.release == .bsim4_4_8_3 }; return false
            }) { throw CoreSpiceDevices.BSIM4DeviceError.missingPreparationPolicy(instance.name) }
         let prepared = try native.prepare(input,limits:.init(maximumDeviceCount:policy.maximumElements,
-            maximumMatrixDimension:256,maximumAllocationBytes:policy.maximumAllocationBytes,
+            maximumMatrixDimension:input.configuration.numericalLimits.maximumMatrixDimension,maximumAllocationBytes:policy.maximumAllocationBytes,
             mosPreparationLimits:policy.preparationLimits,
             mosPreparationConditions:try .init(ambientKelvin:conditions.temperatureKelvin,
                 nominalKelvin:conditions.nominalTemperatureKelvin,analysisCapabilities:capabilities,

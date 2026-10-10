@@ -7,7 +7,7 @@ import Foundation
 /// Stores one complex solution vector per frequency point, along with
 /// convenience accessors for magnitude (in dB) and phase (in degrees).
 public struct ACResult: Sendable, AnalysisResultStorageRetaining {
-    private let retainedStorage: (any Sendable)?
+    package let retainedStorage: (any Sendable)?
 
     /// The frequency values at which the AC analysis was evaluated.
     public let frequencies: [Double]

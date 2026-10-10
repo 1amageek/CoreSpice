@@ -87,7 +87,7 @@ public enum SPICEOutputProjector {
                 sweepValues: waveform.sweepValues,
                 variables: variables,
                 complexData: data
-            )
+            ).retainingStorage(waveform.retainedStorage)
         }
 
         var rowMajor: [Double] = []
@@ -121,7 +121,7 @@ public enum SPICEOutputProjector {
             realRowMajorData: rowMajor,
             pointCount: waveform.pointCount,
             variableCount: variables.count
-        )
+        ).retainingStorage(waveform.retainedStorage)
     }
 
     private enum Transform: Equatable {

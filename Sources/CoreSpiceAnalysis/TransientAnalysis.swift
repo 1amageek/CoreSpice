@@ -23,6 +23,7 @@ import Foundation
 /// 4. Return all saved time points and solutions.
 public struct TransientAnalysis: Analysis, Sendable {
     package var executionBudget: TransientExecutionBudget?
+    package var resultStorage: (any AnalysisResultStorageAccounting)?
 
     public typealias Result = TransientResult
     private static let maximumReservedTimePoints = 1_000_000
@@ -156,12 +157,15 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             // Saved results (pre-allocate estimated capacity)
             let initialDt = try config.effectiveInitialTimeStep()
-            let estimatedSteps = min(executionLimits.maximumSavedScalars / (dim + 1),
+            let estimatedSteps = resultStorage == nil ? min(executionLimits.maximumSavedScalars / (dim + 1),
                 executionLimits.maximumAcceptedSteps,
                 Self.estimatedPointCapacity(
                 stopTime: config.stopTime,
                 initialTimeStep: initialDt
-            ))
+            )) : 1
+            var reservedPointCapacity = estimatedSteps
+            try resultStorage?.reserveResultScalars(TransientExecutionBudget.multiply(
+                estimatedSteps, dim + 1, "transient result capacity"))
             var timePoints: [Double] = [0.0]
             timePoints.reserveCapacity(estimatedSteps)
             var solutionTrace = try SolutionTrace(variableCount: dim, estimatedPointCapacity: estimatedSteps)
@@ -432,6 +436,9 @@ public struct TransientAnalysis: Analysis, Sendable {
                         let nextDt = min(optimalNext, config.maxTimeStep)
 
                         try budget.admitSavedPoint(accepted: true)
+                        try reserveResultPoint(timePoints.count + 1, capacity: &reservedPointCapacity,
+                            maximumPoints: executionLimits.maximumSavedScalars / (dim + 1),
+                            timePoints: &timePoints, trace: &solutionTrace)
                         // Accept this step — O(1) buffer rotation
                         stepAccepted = true
                         swap(&twoPreviousBuf, &previousBuf)
@@ -499,6 +506,9 @@ public struct TransientAnalysis: Analysis, Sendable {
                         dt = nextDt
                     } else {
                         try budget.admitSavedPoint(accepted: true)
+                        try reserveResultPoint(timePoints.count + 1, capacity: &reservedPointCapacity,
+                            maximumPoints: executionLimits.maximumSavedScalars / (dim + 1),
+                            timePoints: &timePoints, trace: &solutionTrace)
                         // First step: no LTE check, just accept — O(1) buffer rotation
                         stepAccepted = true
                         swap(&previousBuf, &currentBuf)
@@ -571,6 +581,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                 wallTime: Timestamp().elapsed(since: startTimestamp)
             )))
 
+            if let resultStorage { return result.retainingStorage(resultStorage) }
             return result
 
         } catch {
@@ -596,6 +607,20 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             throw error
         }
+    }
+
+    private func reserveResultPoint(_ count: Int, capacity: inout Int, maximumPoints: Int,
+                                    timePoints: inout [Double], trace: inout SolutionTrace) throws {
+        guard let resultStorage, count > capacity else { return }
+        let next = capacity + min(capacity, maximumPoints - capacity)
+        guard next >= count else {
+            throw TransientExecutionError.arithmeticOverflow("transient result capacity")
+        }
+        try resultStorage.reserveResultScalars(TransientExecutionBudget.multiply(
+            next, trace.variableCount + 1, "transient result capacity"))
+        timePoints.reserveCapacity(next)
+        try trace.reservePointCapacity(next)
+        capacity = next
     }
 
     /// Attempts GMIN stepping at the current timestep to find a converged solution.

@@ -73,7 +73,7 @@ public struct SPICENativeSimulation: SPICENativePreparing, SPICENativeExecuting 
         for binding in input.nodeSets.bindings { guesses[binding.node] = binding.voltage }
         let waveform: WaveformData
         let statistics: TransientExecutionStatistics
-        let reservation: SPICESourceStorageReservation
+        let reservation: NativeExecutionStorage
         switch config.analysis {
         case .op:
             let run = try await DCAnalysis(config: config.options.convergence, nodeInitialGuess: guesses)

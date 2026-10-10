@@ -126,7 +126,7 @@ let package = Package(
 
         // --- Waveform: Waveform data IR and conversion ---
         .target(name: "CoreSpiceWaveform",
-                dependencies: ["CoreSpiceIR", "CoreSpiceAnalysis", "CoreSpiceCompile"]),
+                dependencies: ["CoreSpiceIR", "CoreSpiceAnalysis", "CoreSpiceCompile"], exclude: ["DESIGN.md"]),
 
         // --- Parser: Parser protocols and registry ---
         .target(name: "CoreSpiceParser",

@@ -8,7 +8,7 @@ import CoreSpiceIR
 /// variable `s` where the denominator of the transfer function is zero.
 /// Zeros are values where the numerator is zero.
 public struct PoleZeroResult: Sendable, AnalysisResultStorageRetaining {
-    private let retainedStorage: (any Sendable)?
+    package let retainedStorage: (any Sendable)?
 
     /// The poles of the circuit transfer function (complex frequencies in rad/s).
     public let poles: [ComplexPair]

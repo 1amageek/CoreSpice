@@ -439,3 +439,11 @@ option entrance; it neither emits an unapplied warning nor supplies a second cop
 of the width policy. Lowering consumes the same cached scalar and retains the final
 choice in resolved MOS rules/geometry. Invalid values and unsupported profiles fail
 through every IO, CLI, Host and Studio caller of this shared path.
+
+## Output Storage Lifetime
+
+SPICEOutputProjector preserves the [waveform storage lease](../CoreSpiceWaveform/DESIGN.md)
+when it materializes selected real or complex samples. Identity projection returns
+the original value. Output copies retain the existing native admission owner
+without reserving prepared topology twice. Native lifetime tests and full IO/CLI
+tests verify this output boundary.

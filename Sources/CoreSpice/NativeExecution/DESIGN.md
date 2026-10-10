@@ -131,7 +131,7 @@ DC initial guess. Transient receives the prepared UIC and IC/nodeset dictionarie
 | Compile dimension / devices | Derived node+branch dimension plus eight potential auxiliary nodes per MOS and instance count checked before compilation |
 | Compile / bind storage | Dimension² ×256 plus (devices+dimension) ×4096; additionally each MOS maximumRetainedBytes and maximumTemporaryBytes reserved before owner slots, auxiliary arrays or cold setup |
 | Numerical topology / work | Existing TransientExecutionBudget admitted against exact compiled topology; DC uses the same shared owner across the entire point schedule |
-| Execution storage | Compile/solver envelope plus maximumSavedScalars ×32 admitted before solver/device/result construction |
+| Execution storage | Preparation envelope retained once; requested result capacity admitted incrementally before allocation, independently of the saved-scalar ceiling |
 | Numerical iterations/output | Existing pre-operation solve/Newton/work/saved-scalar admission, including DC recovery, and complete transient limit enforcement |
 | Output | Only after exact complete schedule, finite validated numerical results and final cancellation check; retains its storage reservation |
 
@@ -309,10 +309,7 @@ through embedded DC, recovery, repeated sensitivity/AC solves, linear phases and
 saved outputs. Concrete results expose its final statistics. No perturbation or
 nested analysis resets the budget.
 
-Fourier admits simultaneous retained transient capacity, every harmonic component
-at its native stride, result dictionary metadata, and column/final-period scratch
-before execution. Its separate scratch reservation is released on success,
-failure or cancellation. Peak live
+Fourier admits every harmonic component at its native stride and result dictionary metadata before execution. It shares the transient result-capacity owner, then admits final-period scratch from the actual completed time-point count before postprocessing. The separate scratch lease is released on success, failure or cancellation. Peak live
 plus scratch is checked against the native allocation ceiling with overflow checks.
 The source resource owner additionally admits those exact reservation capacities.
 The lower Fourier owner charges actual completed-sample integration work against
@@ -357,3 +354,49 @@ before and after execution; any content or inventory drift invalidates this proo
 The probe writes observed selection facts only when an output path is supplied.
 The normal verification driver owns toolchain, timeout, test status and production
 source hashes. This contract adds no production fallback or public evaluator access.
+
+## Incremental Result Capacity Ownership
+
+The preparation record owns one conservative compile/solver envelope. Its matrix extent counts non-ground voltage rows plus branch rows, matching CircuitTopology; the ground reference consumes no row or matrix storage. Preparation
+admits its simultaneous retained and temporary peak; execution retains that lease
+without reserving the same bytes again. `maximumSavedScalars` is an operation
+ceiling, never an allocation request or eager retained result reservation. CLI
+allocation and source-resource ceilings remain unchanged.
+
+`NativeExecutionStorage` owns the preparation record, result leases and a common
+`Mutex<State>`. Fixed schedules admit their requested scalar capacity and facts
+before allocation. Adaptive transient storage starts at one point and grows
+geometrically, with overflow-checked capacity admission before reserve, append,
+device commit or accepted-step publication. The numerical saved-scalar budget
+continues to charge actual points; buffer capacity does not change that ceiling.
+
+Result capacity reserves 32 bytes per scalar capacity: a conservative envelope
+for Double/Complex payload, simultaneous old/new buffers during growth and
+waveform conversion. This is reserved capacity, not measured allocator/RSS usage.
+Preparation bytes enter peak comparisons once; result capacity and active scratch
+are additive. Fourier scratch is derived from completed points, never the policy
+maximum. A refused accounting call poisons this execution storage owner and
+releases its pending claim; no further allocation or completed facts are allowed.
+Resource-provider calls and callbacks occur outside the storage mutex.
+
+| State / data | Owner and lifetime | Admission / release |
+|---|---|---|
+| Prepared topology and solver envelope | Immutable preparation record | Once before prepare; final record/result owner releases |
+| Numerical trace capacity | Native execution storage retained by result headers and facts | Before geometric growth; final owner releases incremental leases |
+| Fourier postprocessing scratch | Scoped scratch lease | Actual completed points before postprocessing; scope exit releases |
+| Numerical counters | Existing execution budget | Actual work and saved points; no change to algorithms |
+| Scalar/allocation policy | Caller / CLI policy | Separate ceilings; neither is silently raised or clamped |
+
+Native/WASM/Embedded source declarations share the same Mutex storage, Sendable
+contracts and entry points. This migration qualifies Native CPU execution only;
+pure MOS target portability evidence is unaffected. Array/Dictionary extraction
+remains the existing caller-owned value boundary, not an extension of the result
+header lease. `NativeStorageAdmissionTests` owns permissive-policy, single-count,
+growth-refusal and actual Fourier capacity counterexamples. Full CLI regression
+and affected Analysis/NativeExecution suites verify the composed execution path.
+
+Numerical-to-waveform conversion and SPICE output projection transport the same
+opaque storage lease into the waveform header. Retained CLI waveforms, views and
+ensemble members therefore retain admission after local run/facts release. Only
+the lease is transported; discarded numerical payload arrays are not retained.
+The reserved scalar envelope covers simultaneous conversion/projection buffers.

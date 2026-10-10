@@ -14,10 +14,9 @@ internal enum NativeCircuitExecution {
     }
     static func admit(_ record: NativeCircuitPreparationRecord, capabilities: MOSAnalysisCapabilities,
                       points: Int, cancellation: CancellationToken, observer: EventDispatcher?,
-                      analysis: AnalysisType, additionalRetainedBytes: UInt64 = 0,
-                      temporaryBytes: UInt64 = 0) async throws -> SPICESourceStorageReservation {
+                      analysis: AnalysisType, additionalRetainedBytes: UInt64 = 0) async throws -> NativeExecutionStorage {
         do { return try checkedAdmission(record, capabilities: capabilities, points: points, cancellation: cancellation,
-            additionalRetainedBytes: additionalRetainedBytes, temporaryBytes: temporaryBytes) }
+            additionalRetainedBytes: additionalRetainedBytes) }
         catch {
             let failure = failure(error)
             if case .cancelled = failure {
@@ -33,7 +32,7 @@ internal enum NativeCircuitExecution {
     }
     private static func checkedAdmission(_ record: NativeCircuitPreparationRecord, capabilities: MOSAnalysisCapabilities,
                                          points: Int, cancellation: CancellationToken,
-                                         additionalRetainedBytes: UInt64, temporaryBytes: UInt64) throws -> SPICESourceStorageReservation {
+                                         additionalRetainedBytes: UInt64) throws -> NativeExecutionStorage {
         try check(cancellation)
         try checkResources(record)
         for receipt in record.mosPreparationReceipts {
@@ -47,25 +46,11 @@ internal enum NativeCircuitExecution {
         }
         let (factCount, factOverflow) = UInt64(points).multipliedReportingOverflow(by: UInt64(record.plan.ir.instances.count))
         let (factBytes, byteOverflow) = factCount.multipliedReportingOverflow(by: UInt64(MemoryLayout<Instance>.stride))
-        let (baseCapacity, baseOverflow) = record.executionCapacity.addingReportingOverflow(factBytes)
-        let (capacity, capacityOverflow) = baseCapacity.addingReportingOverflow(additionalRetainedBytes)
-        let (peakCapacity, peakOverflow) = capacity.addingReportingOverflow(temporaryBytes)
-        guard !factOverflow, !byteOverflow, !baseOverflow, !capacityOverflow, !peakOverflow else {
+        guard !factOverflow, !byteOverflow else {
             throw SPICENativeExecutionError.resource(TransientExecutionError.arithmeticOverflow("native output capacity"))
         }
-        guard peakCapacity <= record.limits.maximumAllocationBytes else {
-            guard let requested = Int(exactly: peakCapacity), let limit = Int(exactly: record.limits.maximumAllocationBytes) else {
-                throw SPICENativeExecutionError.resource(TransientExecutionError.arithmeticOverflow("native allocation limit"))
-            }
-            throw SPICENativeExecutionError.resource(TransientExecutionError.limitExceeded(
-                resource: "allocationBytes", limit: limit, requested: requested))
-        }
-        do { return try record.resources.reserveStorage(kind: .liveOwnedBytes, byteCount: capacity) }
-        catch { throw resourceFailure(error) }
-    }
-    static func reserveTemporary(_ record: NativeCircuitPreparationRecord, bytes: UInt64) throws -> SPICESourceStorageReservation {
-        do { return try record.resources.reserveStorage(kind: .temporaryBytes, byteCount: bytes) }
-        catch { throw resourceFailure(error) }
+        return try NativeExecutionStorage(preparation: record, scalars: scalars,
+            retainedBytes: capacitySum(factBytes, additionalRetainedBytes))
     }
     static func capacityProduct(_ left: UInt64, _ right: UInt64) throws -> UInt64 {
         let (value, overflow) = left.multipliedReportingOverflow(by: right)
@@ -81,7 +66,7 @@ internal enum NativeCircuitExecution {
         do { try record.resources.checkCancellation() }
         catch { throw resourceFailure(error) }
     }
-    private static func resourceFailure(_ error: any Error) -> SPICENativeExecutionError {
+    static func resourceFailure(_ error: any Error) -> SPICENativeExecutionError {
         if error is CancellationError { return .cancelled }
         if let error = error as? SPICESimulationResources.ResourceError, case .cancelled = error {
             return .cancelled

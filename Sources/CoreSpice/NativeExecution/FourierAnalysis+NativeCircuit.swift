@@ -27,20 +27,14 @@ extension FourierAnalysis {
                     NativeCircuitExecution.capacitySum(256,
                         NativeCircuitExecution.capacityProduct(UInt64(output.name.utf8.count), 2)))
             }
-            let maximumPoints = record.numericalLimits.maximumSavedScalars / (record.plan.topology.dimension + 1)
-            // The extracted column and final-period pairs coexist with the transient trace.
-            let scratchBytes = try NativeCircuitExecution.capacitySum(256,
-                NativeCircuitExecution.capacityProduct(UInt64(maximumPoints),
-                    UInt64(MemoryLayout<Double>.stride + MemoryLayout<(Double, Double)>.stride)))
             let reservation = try await NativeCircuitExecution.admit(record, capabilities: [.dc, .transient],
                 points: 1, cancellation: cancellation, observer: observer, analysis: .fourier,
-                additionalRetainedBytes: retainedBytes, temporaryBytes: scratchBytes)
-            let scratch = try NativeCircuitExecution.reserveTemporary(record, bytes: scratchBytes)
-            defer { withExtendedLifetime(scratch) {} }
+                additionalRetainedBytes: retainedBytes)
             return try await withTaskCancellationHandler {
                 let budget = try NativeCircuitExecution.budget(record)
                 var analysis = self
                 analysis.executionBudget = budget
+                analysis.resultStorage = reservation
                 let result = try await analysis.run(plan: record.plan, devices: devices, solver: solver,
                     observer: observer, cancellation: cancellation)
                 try NativeCircuitExecution.check(cancellation)

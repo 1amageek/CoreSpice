@@ -5,7 +5,7 @@ import CoreSpiceIR
 /// Contains the output noise spectral density at each frequency point,
 /// individual device contributions, and the integrated output noise.
 public struct NoiseResult: Sendable, AnalysisResultStorageRetaining {
-    private let retainedStorage: (any Sendable)?
+    package let retainedStorage: (any Sendable)?
 
     /// Noise contribution from a single device noise source.
     public struct DeviceNoiseContribution: Sendable {

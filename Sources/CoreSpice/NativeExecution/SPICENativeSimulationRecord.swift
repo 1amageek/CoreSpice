@@ -14,7 +14,7 @@ public struct SPICENativeSimulationRecord: Sendable {
     public let algorithmIdentity: String
     public let solverIdentity: String
     public var mosPreparationReceipts: [MOSPreparationReceipt] { circuitPreparation.mosPreparationReceipts }
-    package var executionCapacity: UInt64 { circuitPreparation.executionCapacity }
+    package var compileCapacity: UInt64 { circuitPreparation.compileCapacity }
 
     internal init(input: PreparedSPICESimulation, circuitPreparation: NativeCircuitPreparationRecord,
                   configurationIdentity: ContentDigest) {

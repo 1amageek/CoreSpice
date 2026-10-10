@@ -3,7 +3,7 @@
 /// Contains harmonic components and total harmonic distortion (THD)
 /// computed from the final period of a transient simulation.
 public struct FourierResult: Sendable, AnalysisResultStorageRetaining {
-    private let retainedStorage: (any Sendable)?
+    package let retainedStorage: (any Sendable)?
 
     /// A single harmonic component of the Fourier decomposition.
     public struct HarmonicComponent: Sendable {
