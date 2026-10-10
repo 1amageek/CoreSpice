@@ -5,7 +5,8 @@ import CoreSpiceParsedIR
 
 extension NativeCircuitPreparer {
     internal func prepareMOSCircuit(_ circuit: CircuitIR, resources: any SPICESourceResourceAccounting,
-        limits: SPICENativeExecutionLimits, owners: inout UniqueArray<NativePreparedMOSDevice?>) throws -> CircuitIR {
+        limits: SPICENativeExecutionLimits, matrixCeiling: Int, baseDimension: Int, owners: inout UniqueArray<NativePreparedMOSDevice?>) throws -> CircuitIR {
+        var dimension = baseDimension
         var nodes = circuit.nodes
         var names = circuit.nodeNames
         var diagnosticNames = Set(names.values.map { $0.lowercased() })
@@ -26,6 +27,9 @@ extension NativeCircuitPreparer {
                     limits: mosLimits, control: control) }
             catch { throw SPICENativePreparationError.mosPreparation(error) }
             let receipt = owner.receipt
+            let (nextDimension, overflow) = dimension.addingReportingOverflow(receipt.topology.auxiliaryNodeCount)
+            guard !overflow, nextDimension <= matrixCeiling else { throw SPICENativePreparationError.capacityExceeded }
+            dimension = nextDimension
             var auxiliary: [Node] = []; auxiliary.reserveCapacity(receipt.topology.auxiliaryNodeCount)
             for offset in 0..<receipt.topology.auxiliaryNodeCount {
                 let (newID, overflow) = nextID.addingReportingOverflow(1)

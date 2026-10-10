@@ -128,8 +128,9 @@ DC initial guess. Transient receives the prepared UIC and IC/nodeset dictionarie
 
 | Native admission | Contract |
 |---|---|
-| Compile dimension / devices | Derived node+branch dimension plus eight potential auxiliary nodes per MOS and instance count checked before compilation |
-| Compile / bind storage | Dimension² ×256 plus (devices+dimension) ×4096; additionally each MOS maximumRetainedBytes and maximumTemporaryBytes reserved before owner slots, auxiliary arrays or cold setup |
+| Preparation storage | Before cold setup, reserve the MOS retained/temporary bounds and a bounded IR/owner envelope `(devices + baseDimension + 8 * MOS) * 4096`. This byte reservation is not a logical matrix dimension. |
+| Compile dimension / devices | Check the non-ground node+branch lower bound first. Prepared receipts determine actual private nodes; reject an extension beyond either matrix ceiling before allocating its auxiliary IR. Check the exact completed topology before compilation. |
+| Compile / bind storage | After topology is fixed, reserve `dimension² * 256 + (devices + dimension) * 4096` using the actual dimension, before compiler/binder materialization. Release preparation scratch before reserving compilation scratch. |
 | Numerical topology / work | Existing TransientExecutionBudget admitted against exact compiled topology; DC uses the same shared owner across the entire point schedule |
 | Execution storage | Preparation envelope retained once; requested result capacity admitted incrementally before allocation, independently of the saved-scalar ceiling |
 | Numerical iterations/output | Existing pre-operation solve/Newton/work/saved-scalar admission, including DC recovery, and complete transient limit enforcement |
@@ -357,7 +358,13 @@ source hashes. This contract adds no production fallback or public evaluator acc
 
 ## Incremental Result Capacity Ownership
 
-The preparation record owns one conservative compile/solver envelope. Its matrix extent counts non-ground voltage rows plus branch rows, matching CircuitTopology; the ground reference consumes no row or matrix storage. Preparation
+The preparation record owns both the preparation and compilation leases, charged
+once at their respective allocation boundaries and retained together through
+execution/output. `compileCapacity` is their sum. The compiler/solver envelope
+uses exact prepared non-ground voltage rows plus branch rows, matching
+CircuitTopology; the ground reference consumes no row or matrix storage.
+Preparation's bounded IR byte estimate may include potential private nodes, but
+never determines logical matrix admission. Preparation
 admits its simultaneous retained and temporary peak; execution retains that lease
 without reserving the same bytes again. `maximumSavedScalars` is an operation
 ceiling, never an allocation request or eager retained result reservation. CLI
@@ -373,7 +380,7 @@ continues to charge actual points; buffer capacity does not change that ceiling.
 Result capacity reserves 32 bytes per scalar capacity: a conservative envelope
 for Double/Complex payload, simultaneous old/new buffers during growth and
 waveform conversion. This is reserved capacity, not measured allocator/RSS usage.
-Preparation bytes enter peak comparisons once; result capacity and active scratch
+Preparation and compilation bytes enter peak comparisons once; result capacity and active scratch
 are additive. Fourier scratch is derived from completed points, never the policy
 maximum. A refused accounting call poisons this execution storage owner and
 releases its pending claim; no further allocation or completed facts are allowed.

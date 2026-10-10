@@ -44,35 +44,52 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
         for node in circuit.nodes where node != circuit.groundNode { voltageCount += 1 }
         let (baseDimension, overflow) = voltageCount.addingReportingOverflow(circuit.branches.count)
         guard !overflow, baseDimension > 0 else { throw SPICENativePreparationError.capacityExceeded }
+        let matrixCeiling = min(limits.maximumMatrixDimension, numericalLimits.maximumMatrixDimension)
+        guard baseDimension <= matrixCeiling else { throw SPICENativePreparationError.capacityExceeded }
+        // This bounds IR/owner storage before preparation, not the eventual matrix dimension.
         let auxiliaryUpper = try multiply(UInt64(mosCount), 8)
-        let dimensionUpper = try add(UInt64(baseDimension), auxiliaryUpper)
-        guard let upperDimension = Int(exactly: dimensionUpper) else { throw SPICENativePreparationError.capacityExceeded }
-        guard upperDimension > 0, upperDimension <= limits.maximumMatrixDimension,
-              upperDimension <= numericalLimits.maximumMatrixDimension else {
-            throw SPICENativePreparationError.capacityExceeded
-        }
-        let square = try multiply(UInt64(upperDimension), UInt64(upperDimension))
-        // Dense LU plus sparse factors, ordering/adjacency/tree workspaces and topology copies.
-        let topologyBytes = try add(try multiply(square, 256),
-            try multiply(try add(UInt64(circuit.instances.count), UInt64(upperDimension)), 4096))
+        let irExtent = try add(UInt64(baseDimension), auxiliaryUpper)
+        let irBytes = try multiply(try add(UInt64(circuit.instances.count), irExtent), 4096)
         let mosRetainedBytes = try multiply(UInt64(mosCount), limits.mosPreparationLimits?.maximumRetainedBytes ?? 0)
         let mosTemporaryBytes = try multiply(UInt64(mosCount), limits.mosPreparationLimits?.maximumTemporaryBytes ?? 0)
-        let compileBytes = try add(topologyBytes, mosRetainedBytes)
-        let temporaryBytes = try add(topologyBytes, mosTemporaryBytes)
-        guard try add(compileBytes, temporaryBytes) <= limits.maximumAllocationBytes else {
+        let preparationBytes = try add(irBytes, mosRetainedBytes)
+        let preparationTemporaryBytes = try add(irBytes, mosTemporaryBytes)
+        guard try add(preparationBytes, preparationTemporaryBytes) <= limits.maximumAllocationBytes else {
             throw SPICENativePreparationError.capacityExceeded
         }
         try resources.checkCancellation()
-        let reservation = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: compileBytes)
-        let scratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: temporaryBytes)
-        defer { withExtendedLifetime(scratch) {} }
-        try resources.charge(.retainedElements, units: try multiply(square, UInt64(upperDimension)))
+        let preparationReservation = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: preparationBytes)
         var mosOwners = UniqueArray<NativePreparedMOSDevice?>()
-        mosOwners.reserveCapacity(circuit.instances.count)
-        let preparedCircuit = try prepareMOSCircuit(circuit, resources: resources, limits: limits, owners: &mosOwners)
+        let preparedCircuit: CircuitIR = try {
+            let scratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: preparationTemporaryBytes)
+            defer { withExtendedLifetime(scratch) {} }
+            mosOwners.reserveCapacity(circuit.instances.count)
+            return try prepareMOSCircuit(circuit, resources: resources, limits: limits,
+                matrixCeiling: matrixCeiling, baseDimension: baseDimension, owners: &mosOwners)
+        }()
+        var dimension = preparedCircuit.branches.count
+        for node in preparedCircuit.nodes where node != preparedCircuit.groundNode {
+            let (next, overflow) = dimension.addingReportingOverflow(1)
+            guard !overflow else { throw SPICENativePreparationError.capacityExceeded }
+            dimension = next
+        }
+        guard dimension > 0, dimension <= matrixCeiling else { throw SPICENativePreparationError.capacityExceeded }
+        let square = try multiply(UInt64(dimension), UInt64(dimension))
+        // Exact prepared rows own the dense/sparse compiler and solver envelope.
+        let topologyBytes = try add(try multiply(square, 256),
+            try multiply(try add(UInt64(circuit.instances.count), UInt64(dimension)), 4096))
+        let compileBytes = try add(preparationBytes, topologyBytes)
+        guard try add(compileBytes, topologyBytes) <= limits.maximumAllocationBytes else {
+            throw SPICENativePreparationError.capacityExceeded
+        }
+        let compilationReservation = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: topologyBytes)
+        let scratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: topologyBytes)
+        defer { withExtendedLifetime(scratch) {} }
+        try resources.charge(.retainedElements, units: try multiply(square, UInt64(dimension)))
         var plan: ExecutionPlan
         do { plan = try StandardCompiler().compile(ir: preparedCircuit) }
         catch { throw SPICENativePreparationError.compile(error) }
+        guard plan.topology.dimension == dimension else { throw SPICENativePreparationError.capacityExceeded }
         try resources.checkCancellation()
         let devices: [any BoundDevice]
         do { devices = try bind(plan: plan, operatingConditions: operatingConditions, registry: registry, resources: resources, mosOwners: &mosOwners) }
@@ -99,7 +116,7 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
         try resources.checkCancellation()
         return PreparedNativeCircuit(record: .init(plan: plan, operatingConditions: operatingConditions,
             limits: limits, numericalLimits: numericalLimits, mosPreparationReceipts: receipts,
-            bsim4Models: bsim4, resources: resources, compileCapacity: compileBytes, reservation: reservation), devices: devices)
+            bsim4Models: bsim4, resources: resources, compileCapacity: compileBytes, reservations: [preparationReservation, compilationReservation]), devices: devices)
     }
     private func context(plan: ExecutionPlan, operatingConditions: OperatingConditions) throws -> BindingContext {
         let structure = plan.matrixStructure

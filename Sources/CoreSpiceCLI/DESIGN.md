@@ -245,3 +245,5 @@ than hidden behind a second hardcoded 256-row ceiling. The named default remains
 256, and every requested topology still has to fit the unchanged native byte
 ceiling, temporary ceiling and shared invocation quota. Dimension is counted
 using non-ground MNA rows; policy maxima do not allocate a maximum-size matrix.
+MOS private rows come from the single prepared receipt before compiler admission;
+the preparation byte envelope does not increase logical matrix dimension.

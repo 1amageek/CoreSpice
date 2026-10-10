@@ -17,6 +17,32 @@ import Synchronization
 
 @Suite("Ordinary CLI completed case evidence", .timeLimit(.minutes(1)))
 struct CaseExecutionTests {
+    @Test func exactMOSMatrixCeilingReachesNativePreparation() async throws {
+        for dimension in [3, 4] {
+            let root = try directory(); defer { cleanup(root) }
+            let text = """
+            Exact MOS rows
+            .options tranmaxaccepted=100 tranmaxattempts=1000 tranmaxiterations=10000 tranmaxscalars=1000 tranmaxdimension=\(dimension) tranmaxwork=100000000 tranmaxbreakpoints=100
+            .model n nmos level=1 vto=.5 kp=1m
+            VD d 0 1
+            VG g 0 1
+            M1 d g 0 0 n l=1u w=2u
+            .op
+            .end
+            """
+            do {
+                let (execution, receipts, _) = try await batch(text, in: root)
+                #expect(dimension == 4)
+                #expect(receipts.count == 1)
+                #expect(abs(try #require(execution.observedMetrics["op:last:I(vd)"]) + 0.00025031240346563) < 1e-12)
+            } catch {
+                guard dimension == 3 else { throw error }
+                #expect(CoreSpiceCLIFailure(error: error).code == "preparation.capacity")
+                #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("case/execution.json").path))
+            }
+        }
+    }
+
     @Test(arguments: ["coreStrictV1", "pinnedNgspiceNormalV1"])
     func malformedMOSModelNeverPublishesCompletedCase(profile: String) async throws {
         for field in ["vto", "level", "version", "unknown", "0.5", "=0.5"] {
@@ -27,7 +53,7 @@ struct CaseExecutionTests {
             let output = root.appendingPathComponent("case")
             let args = ["-b", source.path, "--mos-profile", profile,
                 "--case-output", output.path, "--case-id", "rejected-model", "--json"]
-            var session = try Session(policy: .developerV1())
+            var session = try Session(policy: .developerV1(profile: try #require(MOSInputProfile(rawValue: profile))))
             do {
                 _ = try await CLI(arguments: args).executeBatch(options: .init(arguments: args), session: &session)
                 Issue.record("Malformed MOS input published completed execution")
