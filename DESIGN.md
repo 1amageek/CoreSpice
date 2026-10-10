@@ -229,3 +229,11 @@ grammar, without requiring a whole expected graph. The optional PDK adapter owns
 PDK approval/availability; CoreSpice owns actual parser context and storage.
 This adds no PDK dependency, numerical qualification, new allocator or implicit
 filesystem fallback. Source design/proof does not change model physics or Engine.
+
+### MOS input-admission finding closure
+
+The [frontend contract](Sources/CoreSpiceLowering/Frontend/DESIGN.md#mos-source-admission-repairs)
+and [declaration intake](Sources/CoreSpiceMOSResolution/Declarations/DESIGN.md#non-scalar-model-input-admission)
+own non-scalar coefficient refusal and global width-selection transport. Public
+source callers use those shared contracts; Devices and solver algorithms do not
+interpret source options or repair omitted invalid coefficients.

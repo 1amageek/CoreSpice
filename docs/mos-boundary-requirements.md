@@ -303,3 +303,16 @@ artifacts that prove each boundary.
 [e5pdk]: ../../.verification/runs/b865-mos-boundary-20261010/s4-complete-adoption-PDKKit-normal-10/verification.json
 [e5host]: ../../.verification/runs/b865-mos-boundary-20261010/s4-complete-adoption-Xcircuite-normal-151/verification.json
 [e5studio]: ../../.verification/runs/b865-mos-boundary-20261010/s4-complete-adoption-circuit-studio-normal-160/verification.json
+
+## Input-admission review regression closure
+
+MR-F1 and MR-F2 supplement the R01/R03/R16/R19/R21/R23 evidence above. Earlier
+source hashes remain evidence only for their recorded revisions. The current
+regressions are [frontend admission](../Tests/CoreSpiceLoweringTests/FrontendMOSAdmissionTests.swift),
+[model intake](../Tests/CoreSpiceMOSResolutionTests/MOSModelInputAdmissionTests.swift),
+[shared IO evaluation](../Tests/CoreSpiceIOTests/SPICEFrontendSessionTests.swift)
+and [actual CLI receipts/current](../Tests/CoreSpiceCLITests/CaseExecutionTests.swift).
+The [owning frontend contract](../Sources/CoreSpiceLowering/Frontend/DESIGN.md#mos-source-admission-repairs)
+defines source spelling, profile/scope admission, typed override precedence and
+one-evaluation ownership. The workspace MF progress items own completion and
+current exact-revision evidence; these test links alone are not execution proof.

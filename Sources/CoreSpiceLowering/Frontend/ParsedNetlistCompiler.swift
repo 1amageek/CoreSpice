@@ -71,6 +71,14 @@ struct ParsedNetlistCompiler: ~Copyable {
             }
         }
         try storage.controls(body.controls)
+        if subcircuit != nil {
+            for control in body.controls {
+                try storage.spend()
+                if case .option(let name, _, _) = control, name.lowercased() == "wnflag" {
+                    throw LoweringError.unsupportedFeature(feature: "wnflag must be declared at global scope")
+                }
+            }
+        }
         try storage.retain(body.parameterDefinitions)
         try storage.budget.add(MOSStorageBudget.capacityBytes(body.parameters.capacity, of: (String, ParsedExpression).self))
         if body.parameterDefinitions.isEmpty {
@@ -123,22 +131,34 @@ struct ParsedNetlistCompiler: ~Copyable {
             try storage.text(model.name)
             let assignments = try orderedAssignments(model.parameterAssignments, fallback: model.parameters)
             var coefficients: [MOSExpressionBinding] = [], programs: [(String, MOSProgramID)] = []
+            var invalidCoefficient: MOSSymbolID?
+            let isMOS = model.type == .nmos || model.type == .pmos
             for assignment in assignments {
                 let name = assignment.name.lowercased()
                 if name == "level" || name == "version" { continue }
-                guard isScalar(assignment.value) else { continue }
+                guard isScalar(assignment.value) else {
+                    if isMOS, invalidCoefficient == nil { invalidCoefficient = try builder.intern(name) }
+                    continue
+                }
                 let symbol = try builder.intern(name), program = try compileValue(assignment.value)
                 try storage.reserve(&coefficients, coefficients.count + 1)
                 coefficients.append(.init(symbol: symbol, program: program))
                 try storage.reserve(&programs, programs.count + 1)
                 programs.append((name, program))
             }
-            if model.type == .nmos || model.type == .pmos {
+            if isMOS {
                 let version: String?
-                if case .string(let exact) = model.parameters["version"] { version = exact } else { version = nil }
+                if case .string(let exact) = model.parameters["version"] { version = exact }
+                else {
+                    version = nil
+                    if model.parameters["version"] != nil, invalidCoefficient == nil {
+                        invalidCoefficient = try builder.intern("version")
+                    }
+                }
                 _ = try builder.addModel(name: model.name, scope: scope,
                     polarity: model.type == .nmos ? .nmos : .pmos, level: model.level,
-                    version: version, coefficients: coefficients, source: frontendModelSource(model))
+                    version: version, coefficients: coefficients, source: frontendModelSource(model),
+                    invalidCoefficient: invalidCoefficient)
                 try storage.reserve(&origins, origins.count + 1); origins.append(model.origin)
             }
             try storage.reserve(&indices, indices.count + 1); indices.append(models.count)

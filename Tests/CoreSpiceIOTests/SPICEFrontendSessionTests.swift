@@ -189,4 +189,42 @@ struct SPICEFrontendSessionTests {
         catch let error as MOSResolutionFailure { #expect(error == .poisonedSession) }
     }
 
+    @Test func widthFlagUsesOneScalarEvaluationAcrossIOAndLowering() async throws {
+        let parsed = try await SPICEIO.parse("""
+        Shared width flag
+        .options wnflag={rand()<1}
+        .model n.1 nmos level=54 version=4.8.3 lmin=.1u lmax=2u wmin=.1u wmax=1.5u
+        .model n.2 nmos level=54 version=4.8.3 lmin=.1u lmax=2u wmin=2u wmax=5u
+        M1 d g 0 0 n l=1u w=4u nf=4
+        .end
+        """).get()
+        let limits = try IOTestFrontend.limits
+        let compiled = try NetlistLowering.compile(parsed, limits: limits)
+        var session = try NetlistLowering.beginEvaluation(compiled, profile: .pinnedNgspiceNormalV1, limits: limits, seed: 42)
+        let first = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
+        let second = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
+        #expect(first.diagnostics.isEmpty && second.diagnostics.isEmpty)
+        try session.lower(geometryScale: first.geometryScale)
+        let lowered = try session.finish()
+        #expect(lowered.evaluationProvenance.randomDraws == 1)
+        guard case .resolved(let mos) = lowered.circuit.instances[0].mos else { Issue.record("Missing MOS"); return }
+        #expect(mos.symbolNames[Int(mos.selectedName.rawValue)] == "n.1")
+        #expect(mos.normalizedGeometry.width == 4e-6 && mos.selectionGeometry.width == 1e-6)
+    }
+
+    @Test func invalidWidthOptionPoisonsIOEvaluation() async throws {
+        for value in ["2", "-1", "\"bad\"", ""] {
+            let text = "Invalid width\n.options wnflag\(value.isEmpty ? "" : "=" + value)\nR1 a 0 1k\n.end\n"
+            let parsed = try await SPICEIO.parse(text).get()
+            let limits = try IOTestFrontend.limits
+            let compiled = try NetlistLowering.compile(parsed, limits: limits)
+            var session = try NetlistLowering.beginEvaluation(compiled, profile: .pinnedNgspiceNormalV1, limits: limits, seed: 42)
+            #expect(throws: MOSResolutionFailure.schema(.invalidValue(name: "wnflag"))) {
+                _ = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
+            }
+            #expect(throws: MOSResolutionFailure.poisonedSession) { try session.lower() }
+            #expect(session.circuit == nil)
+        }
+    }
+
 }

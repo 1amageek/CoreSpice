@@ -10,12 +10,14 @@ public struct MOSModelDeclaration: Sendable, Hashable {
     public let level: Int?
     public let version: String?
     public let coefficients: [MOSExpressionBinding]
+    /// First supplied non-scalar coefficient; active selection must refuse it.
+    public let invalidCoefficient: MOSSymbolID?
     public let source: MOSSourceOccurrence
     package init(id: MOSDeclarationID, name: MOSSymbolID, originalName: String, family: MOSSymbolID?,
                  scope: MOSScopeID, polarity: MOSPolarity, level: Int?, version: String?,
-                 coefficients: [MOSExpressionBinding], source: MOSSourceOccurrence) {
+                 coefficients: [MOSExpressionBinding], invalidCoefficient: MOSSymbolID?, source: MOSSourceOccurrence) {
         self.id = id; self.name = name; self.originalName = originalName; self.family = family
         self.scope = scope; self.polarity = polarity; self.level = level; self.version = version
-        self.coefficients = coefficients; self.source = source
+        self.coefficients = coefficients; self.invalidCoefficient = invalidCoefficient; self.source = source
     }
 }

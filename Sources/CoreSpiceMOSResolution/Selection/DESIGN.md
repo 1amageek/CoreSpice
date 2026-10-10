@@ -121,3 +121,12 @@ snapshot/source evidence. Pinned tolerance fixtures check the represented distan
 itself before asserting the strict less-than-1e-9-meter boundary. Missing pinned
 bounds remain profile-defined exclusions; strict omission and invalid visited
 bounds fail. These tests add no new policy or physical qualification claim.
+
+### Invalid coefficient intake
+
+An active visited declaration with the non-scalar intake marker fails with
+`schema(.invalidValue(name:))` before coefficient evaluation. Independent inspection
+rejects marked visited declarations as invalid resolved evidence. Pinned discarded
+duplicate cards are skipped before this admission check; no later invalid card can
+replace or invalidate the first source card. Frontend regression tests own original
+quoted coefficient and unknown-name inputs; resolver tests own marker admission.

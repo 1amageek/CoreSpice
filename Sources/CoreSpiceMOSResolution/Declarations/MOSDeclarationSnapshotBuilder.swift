@@ -137,9 +137,10 @@ public struct MOSDeclarationSnapshotBuilder: ~Copyable {
     }
     public mutating func addModel(name: String, scope: MOSScopeID, polarity: MOSPolarity,
                                  level: Int?, version: String?, coefficients: [MOSExpressionBinding],
-                                 source: MOSSourceOccurrence) throws(MOSResolutionFailure) -> MOSDeclarationID {
+                                 source: MOSSourceOccurrence, invalidCoefficient: MOSSymbolID? = nil) throws(MOSResolutionFailure) -> MOSDeclarationID {
         try requireActive(); try requireScope(scope)
         for coefficient in coefficients { try spend(.declarations, units: 1); try requireSymbol(coefficient.symbol); try requireProgram(coefficient.program) }
+        if let invalidCoefficient { try spend(.declarations, units: 1); try requireSymbol(invalidCoefficient) }
         let payload = try textPayload(source: source, first: name, second: version,
             additional: MOSStorageBudget.capacityBytes(coefficients.capacity, of: MOSExpressionBinding.self))
         let id = MOSDeclarationID(try index(declarations.count, maximum: limits.maximumDeclarations, kind: .declarations))
@@ -158,7 +159,7 @@ public struct MOSDeclarationSnapshotBuilder: ~Copyable {
         try admit(payload)
         try Self.reserve(&declarations, storage: &storage, failure: &failure, required: declarations.count + 1)
         declarations.append(MOSModelDeclaration(id: id, name: symbol, originalName: name, family: family,
-            scope: scope, polarity: polarity, level: level, version: version, coefficients: coefficients, source: source))
+            scope: scope, polarity: polarity, level: level, version: version, coefficients: coefficients, invalidCoefficient: invalidCoefficient, source: source))
         return id
     }
     public consuming func finish() throws(MOSResolutionFailure) -> MOSDeclarationSnapshot {

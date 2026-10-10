@@ -111,7 +111,7 @@ public func inspectResolvedMOS(_ result: ResolvedMOSInstance, from snapshot: MOS
             guard result.profile == .pinnedNgspiceNormalV1 else { throw .invalidResolvedInstance }
             continue
         }
-        guard visit < result.candidates.count else { throw .invalidResolvedInstance }
+        guard model.invalidCoefficient == nil, visit < result.candidates.count else { throw .invalidResolvedInstance }
         let evidence = result.candidates[visit]; visit += 1
         guard evidence.declaration == model.id else { throw .invalidResolvedInstance }
         let candidateRelease = try MOSSelectionPolicy.release(model, profile: result.profile).0

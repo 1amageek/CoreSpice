@@ -429,3 +429,13 @@ refusal and continued root intent refusal. A selected unsupported BSIM version n
 reports the actual numerical preparation failure, rather than a source-coverage
 parse error. This diagnostic change is intentional; backward compatibility is not
 required. Revalidate the CLI and exact-loader consumers whenever this split changes.
+
+### MOS width selection control
+
+`.options wnflag` is input interpretation owned by the
+[lowering frontend](../CoreSpiceLowering/Frontend/DESIGN.md#mos-source-admission-repairs),
+not a numerical analysis option. SPICEAnalysisOptions invokes the session's checked
+option entrance; it neither emits an unapplied warning nor supplies a second copy
+of the width policy. Lowering consumes the same cached scalar and retains the final
+choice in resolved MOS rules/geometry. Invalid values and unsupported profiles fail
+through every IO, CLI, Host and Studio caller of this shared path.

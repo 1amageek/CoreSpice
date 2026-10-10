@@ -75,6 +75,10 @@ public struct SPICEAnalysisOptions: Sendable {
             switch control {
             case .option(let name, let sourceValue, let location):
                 let key = normalizedOptionName(name)
+                if key == "wnflag" {
+                    _ = try session.evaluateMOSWidthPerFingerOption(at: index)
+                    continue
+                }
                 var value = sourceValue
                 if isNumericOption(name), sourceValue != nil {
                     let slot = try compiled.scalarSlot(at: .control(index: index, field: "value"))

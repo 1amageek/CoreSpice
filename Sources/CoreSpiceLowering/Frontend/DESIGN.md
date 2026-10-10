@@ -521,3 +521,26 @@ release schema must admit the source `ic` vector kind as well as its canonical
 scalar components. A source vector is never admitted merely because a different
 release exposes similarly named scalar parameters. Instance.mos.resolved retains
 the final evaluated canonical components; preparation consumes those held values.
+
+### MOS source-admission repairs
+
+MOS non-scalar coefficients are retained as a declaration intake failure marker
+rather than omitted as unsupplied. A supplied version must be exact text; a different
+ParsedIR value kind is marked invalid and cannot trigger version defaults. ParsedIR keeps the complete original assignment
+list. The resolver owns active-candidate refusal and profile-specific duplicate
+admission; compilation alone never evaluates or rejects a discarded model card.
+
+The exclusive lowering session owns the global MOS width selection input.
+`lower(geometryScale:globalWidthPerFinger:expandModels:)` accepts an optional typed
+width flag; absent an explicit flag, ordered root `.options wnflag=0|1` settings
+choose the final value, otherwise false. The pinned profile alone admits this
+setting. Subcircuit placement is rejected during source compilation. Strict input rejects a supplied source flag or true typed flag. Source
+flags are always validated even when a typed override is supplied. Non-scalar,
+missing, non-finite and non-binary values fail before circuit publication.
+`evaluateMOSWidthPerFingerOption(at:)` is the shared checked option entrance used
+by IO and lowering; it uses the same scalar memo, so random operands draw once.
+The final flag enters every MOSResolutionRequest and its semantic identity.
+Resolved rules and selection geometry retain its applied effect; physical W and NF
+remain separately normalized and unchanged. This is a CoreSpice source spelling
+for the explicitly selected pinned ordinary-MOS contract, not a claim that every
+ngspice control-language spelling is implemented.

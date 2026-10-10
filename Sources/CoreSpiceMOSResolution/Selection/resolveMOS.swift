@@ -78,6 +78,10 @@ private func resolveAdmittedMOS(_ request: MOSResolutionRequest, from snapshot: 
             }
         }
         if discarded { continue }
+        if let symbol = model.invalidCoefficient {
+            try chargeSymbol(symbol, snapshot: snapshot, session: &session)
+            throw .schema(.invalidValue(name: try snapshot.name(of: symbol)))
+        }
         let (release, origin) = try MOSSelectionPolicy.release(model, profile: request.profile)
         let schema = try MOSSelectionPolicy.schema(release, provider: schemas)
         try validateAssignments(model.coefficients, role: .model, schema: schema,

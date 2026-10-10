@@ -97,3 +97,15 @@ scans share that invocation ceiling. Repeated programs cannot reset it.
 work ceiling proportional to their count. It rejects the former repeated full-capacity
 charges, checks immutable snapshot publication and preserves growth refusal/failure
 state checks. Existing nested-array admission tests remain required.
+
+### Non-scalar model input admission
+
+A declaration retains the first non-scalar coefficient SymbolID as an immutable
+`invalidCoefficient` intake marker; the ParsedIR owner retains all original ordered
+assignments and values. The builder validates this symbol and includes the marker
+in declaration capacity accounting. The marker is not an expression, default or
+missing coefficient. Selection refuses an active visited marked declaration before
+evaluating its coefficient programs. Unused declarations and later same-name cards
+discarded by the pinned profile remain inspectable and do not fail an unrelated
+resolution. The selected declaration's source and candidate range remain available
+in the poisoned session diagnostic.

@@ -37,18 +37,47 @@ public struct NetlistLoweringSession: ~Copyable {
             return value
         } catch { throw poisonAndReturn(error) }
     }
-    public mutating func lower(geometryScale: Double? = nil, expandModels: Bool = true) throws {
+    /// Checks one source width flag through the shared scalar memo.
+    public mutating func evaluateMOSWidthPerFingerOption(at index: Int) throws -> Bool {
+        do {
+            try evaluator.checkHealthy()
+            guard compiled.source.controls.indices.contains(index),
+                  case .option(let name, let supplied, _) = compiled.source.controls[index],
+                  name.lowercased() == "wnflag" else { throw MOSResolutionFailure.conditionMismatch }
+            guard profile == .pinnedNgspiceNormalV1 else {
+                throw LoweringError.unsupportedFeature(feature: "wnflag requires pinnedNgspiceNormalV1")
+            }
+            guard let supplied else { throw MOSResolutionFailure.schema(.invalidValue(name: "wnflag")) }
+            switch supplied {
+            case .numeric, .expression, .boolean: break
+            case .string, .numericVector: throw MOSResolutionFailure.schema(.invalidValue(name: "wnflag"))
+            }
+            let value = try evaluateScalar(compiled.scalarSlot(at: .control(index: index, field: "value")))
+            guard value == 0 || value == 1 else { throw MOSResolutionFailure.schema(.invalidValue(name: "wnflag")) }
+            return value == 1
+        } catch { throw poisonAndReturn(error) }
+    }
+    public mutating func lower(geometryScale: Double? = nil, globalWidthPerFinger: Bool? = nil,
+                               expandModels: Bool = true) throws {
         do {
             try evaluator.checkHealthy()
             guard circuit == nil else { throw MOSResolutionFailure.conditionMismatch }
+            guard globalWidthPerFinger != true || profile == .pinnedNgspiceNormalV1 else {
+                throw LoweringError.unsupportedFeature(feature: "Per-finger selection requires pinnedNgspiceNormalV1")
+            }
             var scale = geometryScale ?? 1
-            if geometryScale == nil {
-                for (index, control) in compiled.source.controls.enumerated() {
-                    if case .option(let name, _, _) = control, name.lowercased() == "scale" {
-                        scale = try evaluateScalar(compiled.scalarSlot(at: .control(index: index, field: "value")))
-                    }
+            var sourceWidthPerFinger = false
+            for (index, control) in compiled.source.controls.enumerated() {
+                try storage.spend()
+                guard case .option(let name, _, _) = control else { continue }
+                switch name.lowercased() {
+                case "scale" where geometryScale == nil:
+                    scale = try evaluateScalar(compiled.scalarSlot(at: .control(index: index, field: "value")))
+                case "wnflag": sourceWidthPerFinger = try evaluateMOSWidthPerFingerOption(at: index)
+                default: break
                 }
             }
+            let widthPerFinger = globalWidthPerFinger ?? sourceWidthPerFinger
             guard scale.isFinite, scale > 0 else { throw MOSResolutionFailure.invalidRequest }
             var builder = try BoundedFrontendNetlist(storage: storage)
             // K emission is deferred, while its scalar slot evaluation retains source order.
@@ -59,7 +88,7 @@ public struct NetlistLoweringSession: ~Copyable {
                 case .enter(let invocation): if invocation != 0 { try resolveBindings(in: invocation) }
                 case .component(let component):
                     if component.template.component.type == .mosfet {
-                        try emitMOS(component, scale: scale, into: &builder)
+                        try emitMOS(component, scale: scale, widthPerFinger: widthPerFinger, into: &builder)
                     } else {
                         let resolved = try resolveNonMOS(component, scale: scale, expandModels: expandModels, into: &builder)
                         if component.template.component.type == .coupledInductors {
@@ -112,7 +141,7 @@ public struct NetlistLoweringSession: ~Copyable {
     private func fullName(_ job: FrontendComponentJob) -> String {
         job.prefix.isEmpty ? job.template.component.name : job.prefix + "." + job.template.component.name
     }
-    private mutating func emitMOS(_ job: FrontendComponentJob, scale: Double, into builder: inout BoundedFrontendNetlist) throws {
+    private mutating func emitMOS(_ job: FrontendComponentJob, scale: Double, widthPerFinger: Bool, into builder: inout BoundedFrontendNetlist) throws {
         let component = job.template.component
         guard component.nodes.count == 4, let model = component.modelName,
               let reference = compiled.snapshot.symbol(named: model.lowercased()) else {
@@ -124,7 +153,7 @@ public struct NetlistLoweringSession: ~Copyable {
         let request = try MOSResolutionRequest(source: frontendSource(component.origin, location: component.location),
             instance: fullName(job), scope: job.template.scope, scopeInstantiation: job.invocation,
             modelReference: reference, profile: profile, bindings: job.template.assignments,
-            geometryScale: scale, seed: seed, limits: limits)
+            geometryScale: scale, seed: seed, globalWidthPerFinger: widthPerFinger, limits: limits)
         let resolved = try resolveMOS(request, from: compiled.snapshot,
             schemas: StandardMOSModelSchemas(), session: &evaluator)
         if job.template.hasMOSInitialConditionVector {

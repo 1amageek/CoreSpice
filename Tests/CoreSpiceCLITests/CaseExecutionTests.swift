@@ -52,6 +52,50 @@ struct CaseExecutionTests {
         return (execution, receipts, session)
     }
 
+
+    @Test func sourceWidthFlagChangesExecutedModelReceiptAndCurrent() async throws {
+        var currents: [Double] = []
+        for flag in [0, 1] {
+            let root = try directory(); defer { cleanup(root) }
+            let source = """
+            Actual MOS width selection
+            .options bsim4stressiterations=128 wnflag=\(flag)
+            .model n.1 nmos level=54 version=4.8.3 toxe=1e-8 vth0=.4 u0=.05 lmin=.1u lmax=2u wmin=.1u wmax=1.5u
+            .model n.2 nmos level=54 version=4.8.3 toxe=1e-8 vth0=.8 u0=.05 lmin=.1u lmax=2u wmin=2u wmax=5u
+            VD d 0 1
+            VG g 0 1
+            M1 d g 0 0 n l=1u w=4u nf=4
+            .op
+            .end
+            """
+            let (execution, receipts, _) = try await batch(source, in: root)
+            let receipt = try #require(receipts.first)
+            #expect(receipts.count == 1 && receipt.selectedModelIdentifier == (flag == 1 ? "n.1" : "n.2"))
+            #expect(receipt.consumedInstances["m1"]?["w"] == 4e-6)
+            #expect(receipt.consumedInstances["m1"]?["nf"] == 4)
+            currents.append(abs(try #require(execution.observedMetrics["op:last:I(vd)"])))
+        }
+        #expect(currents[1] > currents[0] * 2)
+    }
+
+    @Test func nonScalarMOSCoefficientNeverReachesExecution() async throws {
+        var session = try Session(policy: .developerV1())
+        do {
+            try await session.loadNetlist(source: """
+            Invalid MOS coefficient
+            VD d 0 1
+            VG g 0 1
+            M1 d g 0 0 n l=1u w=1u
+            .model n nmos level=1 kp="bad"
+            .op
+            .end
+            """, fileName: "invalid-model.cir")
+            Issue.record("Invalid coefficient reached numerical preparation")
+        } catch {
+            #expect(CoreSpiceCLIFailure(error: error).code == "mos.resolution")
+        }
+    }
+
     @Test func flattenedAndGeneratedModelsRetainActualOriginsAndPhysics() async throws {
         let root = try directory(); defer { cleanup(root) }
         let source = """
