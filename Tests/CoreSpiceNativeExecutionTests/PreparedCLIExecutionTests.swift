@@ -22,7 +22,8 @@ struct PreparedCLIExecutionTests {
             "--library","root","metal.lib","metal","tt"]).execute()
         try "changed\nV1 out 0 9\nR1 out 0 1k\n.op\n.end\n".write(to:root,atomically:true,encoding:.utf8)
         try "changed library\n.end\n".write(to:library,atomically:true,encoding:.utf8)
-        let repeated = try await SPICENativeSimulation().execute(output.prepared,cancellation:.init())
+        let repeated = try await SPICENativeSimulation().execute(
+            SPICENativeSimulation().prepare(output.prepared.input, limits: output.prepared.limits), cancellation:.init())
         #expect(output.prepared.input.sources.count == 2)
         #expect(String(decoding:output.prepared.input.sources[0].bytes,as:UTF8.self) == original)
         #expect(output.configurationIdentity == repeated.configurationIdentity)

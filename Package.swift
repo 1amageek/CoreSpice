@@ -1,4 +1,4 @@
-// swift-tools-version: 6.3
+// swift-tools-version: 6.4
 import PackageDescription
 
 let circuiteFoundationDependency: Package.Dependency = .package(
@@ -13,7 +13,7 @@ let signoffToolSupportDependency: Package.Dependency = .package(
 
 let package = Package(
     name: "CoreSpice",
-    platforms: [.macOS(.v26)],
+    platforms: [.macOS(.v27)],
     products: [
         .library(name: "CoreSpice", targets: ["CoreSpice"]),
         .library(name: "CoreSpiceCompactModels", targets: ["CoreSpiceCompactModels"]),
@@ -38,12 +38,12 @@ let package = Package(
         .target(name: "CoreSpiceEvent", exclude: ["README.md"]),
 
         // --- Portable MOS interpretation boundary ---
-        .target(name: "CoreSpiceMOSContracts", exclude: ["DESIGN.md", "Values/DESIGN.md", "Schema/DESIGN.md"]),
+        .target(name: "CoreSpiceMOSContracts", exclude: ["DESIGN.md", "Values/DESIGN.md", "Schema/DESIGN.md", "Preparation/DESIGN.md"]),
         .target(name: "CoreSpiceMOSResolution", dependencies: ["CoreSpiceMOSContracts"],
                 exclude: ["DESIGN.md", "Declarations/DESIGN.md", "Evaluation/DESIGN.md", "Selection/DESIGN.md"]),
 
         // --- IR ---
-        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent"], exclude: ["README.md", "DESIGN.md"]),
+        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent", "CoreSpiceMOSContracts"], exclude: ["README.md", "DESIGN.md", "MOSInstances/DESIGN.md"]),
 
         // --- LAPACK ABI boundary ---
         .target(
@@ -59,17 +59,17 @@ let package = Package(
         .target(name: "CoreSpiceBSIM4", exclude: ["DESIGN.md", "NOTICE.md", "LICENSE.txt", "ECL-2.0.txt", "Proof",
             "Kernel/DESIGN.md", "Kernel/upstream.json", "Kernel/adapt_upstream.py", "Kernel/noise_primitives.inc", "Kernel/NOISE_PRIMITIVE_LICENSE"],
             publicHeadersPath: "include"),
-        .target(name: "CoreSpiceCompactModels", dependencies: ["CoreSpiceBSIM3", "CoreSpiceBSIM4"],
-            exclude: ["DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md"]),
+        .target(name: "CoreSpiceCompactModels", dependencies: ["CoreSpiceBSIM3", "CoreSpiceBSIM4", "CoreSpiceMOSContracts"],
+            exclude: ["DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "PreparationStorage/DESIGN.md"]),
 
         // --- Devices ---
-        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels"],
-                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "OutputReferredNoise/DESIGN.md"]),
+        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceMOSContracts"],
+                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "OutputReferredNoise/DESIGN.md", "MOSPreparation/DESIGN.md"]),
 
         // --- Compile ---
         .target(
             name: "CoreSpiceCompile",
-            dependencies: ["CoreSpiceIR", "CoreSpiceLAPACK"],
+            dependencies: ["CoreSpiceIR", "CoreSpiceLAPACK", "CoreSpiceMOSContracts"],
             exclude: ["README.md", "DESIGN.md"]
         ),
 
@@ -99,7 +99,7 @@ let package = Package(
         .target(name: "CoreSpice",
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
                                "CoreSpiceAnalysis", "CoreSpiceBackend", "CoreSpiceEvent",
-                               "CoreSpiceOptoelectronics", "CoreSpiceIO", "CoreSpiceWaveform",
+                               "CoreSpiceOptoelectronics", "CoreSpiceIO", "CoreSpiceWaveform", "CoreSpiceMOSContracts",
                                .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
                                .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation"),
                                .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation")],
@@ -214,7 +214,8 @@ let package = Package(
             resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceMOSContractsTests", dependencies: ["CoreSpiceMOSContracts"]),
         .testTarget(name: "CoreSpiceMOSResolutionTests", dependencies: ["CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),
-        .testTarget(name: "CoreSpiceIRTests", dependencies: ["CoreSpiceIR"]),
+        .testTarget(name: "CoreSpiceMOSPreparationTests", dependencies: ["CoreSpiceDevices", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceCompactModels"]),
+        .testTarget(name: "CoreSpiceIRTests", dependencies: ["CoreSpiceIR", "CoreSpiceMOSContracts"]),
         .testTarget(
             name: "CoreSpiceDevicesTests",
             dependencies: [
@@ -225,7 +226,7 @@ let package = Package(
                 "CoreSpiceEvent"
             ]
         ),
-        .testTarget(name: "CoreSpiceCompileTests", dependencies: ["CoreSpiceCompile"]),
+        .testTarget(name: "CoreSpiceCompileTests", dependencies: ["CoreSpiceCompile", "CoreSpiceMOSContracts"]),
         .testTarget(name: "CoreSpiceAnalysisTests", dependencies: ["CoreSpiceAnalysis"]),
         .testTarget(name: "CoreSpiceBackendTests", dependencies: ["CoreSpiceBackend"]),
         .testTarget(name: "PluginsPhotonicTests", dependencies: ["PluginsPhotonic"]),
@@ -256,7 +257,7 @@ let package = Package(
             .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
             .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
 
-        .testTarget(name: "CoreSpiceNativeExecutionTests", dependencies: ["CoreSpice", "CoreSpiceIO", "CoreSpiceCLICore",
+        .testTarget(name: "CoreSpiceNativeExecutionTests", dependencies: ["CoreSpice", "CoreSpiceIO", "CoreSpiceCLICore", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceDevices",
             .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
 
         .testTarget(name: "CoreSpiceInitialConditionTests", dependencies: ["CoreSpiceIO", "CoreSpiceIR", "CoreSpiceParsedIR", "CoreSpiceLowering"]),

@@ -1,5 +1,17 @@
+import CoreSpiceMOSContracts
+
 /// Errors that can occur during circuit compilation.
-public enum CompileError: Error, Sendable {
+public enum CompileError: Error, Sendable, Equatable {
+    case unexpectedMOSStage(instance: String)
+    case mosPreparationRequired(instance: String)
+    case mosNotPrepared(instance: String)
+    case mosInstanceMismatch(instance: String, receipt: String)
+    case mosReleaseMismatch(instance: String, expectedLevel: Int, actual: MOSModelRelease)
+    case mosPolarityMismatch(instance: String, expected: MOSPolarity, actual: MOSPolarity)
+    case mosPhysicalPortCount(instance: String, actual: Int)
+    case mosAuxiliaryNodeCount(instance: String, expected: Int, actual: Int)
+    case mosNodeMissing(instance: String, node: Int)
+    case mosPrivateNodeAlias(instance: String, node: Int)
     case unknownDeviceType(String)
     case bindingFailed(instance: String, reason: String)
     case emptyCircuit

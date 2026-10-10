@@ -13,6 +13,12 @@ SPICE parsing and lowering, circuit IR, device models, numerical analyses,
 optoelectronic co-simulation, photonic GPU execution, waveform conversion, and
 SPICE-compatible I/O.
 
+The package uses the exact Swift 6.4.0 release toolchain and macOS 27 or later.
+Native preparation transfers noncopyable device owners through the standard
+library's `UniqueArray`; this availability requirement propagates to direct
+and transitive host consumers. Pure MOS targets are independently verified
+with the matching ordinary and Embedded WebAssembly SDKs.
+
 It does not own project state, flow ordering, tool trust, human approval, or
 physical signoff semantics.
 

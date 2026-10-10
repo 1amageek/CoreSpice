@@ -1,5 +1,6 @@
 #ifndef CORE_SPICE_BSIM4_H
 #define CORE_SPICE_BSIM4_H
+#include <stddef.h>
 #include <stdint.h>
 #define CS_BSIM4_SLOTS 13
 #define CS_BSIM4_STATES 29
@@ -18,6 +19,8 @@ typedef struct {
 enum {CS_BSIM4_OK=0,CS_BSIM4_PARAMETER=1,CS_BSIM4_MEMORY=2,CS_BSIM4_NUMERICAL=3,
       CS_BSIM4_HISTORY=4,CS_BSIM4_DIAGNOSTICS=5,CS_BSIM4_VERSION=6,CS_BSIM4_RESOURCE=7,CS_BSIM4_NOISE_UNPREPARED=8};
 int cs_bsim4_create(int polarity,const char *version,double temperature,int noiseRequested,CSBSIM4Handle **);
+/* Exact single-owner calloc payload, without allocator metadata. */
+size_t cs_bsim4_owner_size(void);
 void cs_bsim4_destroy(CSBSIM4Handle *);
 int cs_bsim4_parameter(CSBSIM4Handle *,int model,const char *name,double value);
 int cs_bsim4_set_stress_budget(CSBSIM4Handle *,uint32_t maximumIterations);

@@ -41,7 +41,7 @@ public protocol SPICENativePreparing: Sendable {
         throws(SPICENativePreparationError) -> PreparedNativeSPICESimulation
 }
 public protocol SPICENativeExecuting: Sendable {
-    func execute(_ prepared: PreparedNativeSPICESimulation, cancellation: CancellationToken)
+    func execute(_ prepared: consuming PreparedNativeSPICESimulation, cancellation: CancellationToken)
         async throws(SPICENativeExecutionError) -> SPICENativeSimulationOutput
 }
 ```
@@ -54,15 +54,16 @@ choices and effective numerical limits before host comparison. Capability refusa
 occurs before a numerical run; a requested model name is not an observed binding.
 
 NE-02: Execute has no reader, String, filename, source list, parser or replacement
-settings argument. Allocate invocation-local mutable device/solver state from the
-retained plan. Do not share those mutable objects between concurrent executions.
-DC points instantiate/bind the recorded override target/value; `.tran` passes the
+settings argument. Consume the private mutable devices bound once during preparation,
+and allocate invocation-local solver state. Independent runs prepare fresh owners
+from the copyable record's input. DC points replace only the recorded independent
+source target/value; all other devices retain their history; `.tran` passes the
 resolved initial voltages, guesses and UIC into TransientConfig. `.op` applies
 supported nodeset semantics explicitly; an unsupported assignment/analysis
 combination refuses instead of silently ignoring it. `.ic` effects follow the
 existing analysis contract, rather than inventing a new initialization rule.
 
-NE-03: Output retains complete actual input/config identities, prepared owner,
+NE-03: Output retains complete actual input/config identities, copyable simulation record,
 analysis/point schedule, actual executed model receipts, effective runtime
 conditions and numerical completion statistics with waveform IR. Partial points
 or cancellation never become completed full-schedule evidence. Host report/CSV
@@ -110,13 +111,16 @@ explicit incomplete marker and cannot claim profile coverage.
 ## Implemented Native CPU Capability
 
 [SPICENativeSimulation](SPICENativeSimulation.swift) implements both phase protocols.
-The internal-constructor native owner retains the exact prepared IO input and
-compiled plan. Descriptor binding is performed during preparation for capability
-and source/model validation; these temporary mutable devices are discarded. Every
-execution creates fresh devices, binding context and solver workspace.
+The internal-constructor noncopyable native owner retains the exact prepared IO
+input, compiled plan and private devices bound once during preparation. Consuming
+execution transfers these devices into one invocation and creates solver workspace.
+Output retains a copyable record without executable owners. Each rerun explicitly
+prepares fresh devices from that record's input.
 
-Supported physics is flat two-port R/C/L/V/I, including exact selected resistor
-model provenance. Other physics is refused by IO before native preparation. This
+The IO-facing lane currently supports flat two-port R/C/L/V/I, including exact
+selected resistor model provenance. The S3 native composition also admits typed
+resolved MOS stages; public IO adoption belongs to S4. Legacy MOS model dictionaries
+cannot supply numerical authority. This
 lane owns `.op`, one-source `.dc`, and `.tran`; it uses the existing numerical
 implementations without host dispatch algorithms. DC source override preserves all
 original instance ownership/model/branch metadata. Nodeset is passed as the actual
@@ -124,8 +128,8 @@ DC initial guess. Transient receives the prepared UIC and IC/nodeset dictionarie
 
 | Native admission | Contract |
 |---|---|
-| Compile dimension / devices | Derived node+branch dimension and instance count checked before compilation |
-| Compile / bind storage | Dimension² ×256 plus (devices+dimension) ×4096, admitted as both retained and temporary storage before compile and descriptor construction |
+| Compile dimension / devices | Derived node+branch dimension plus eight potential auxiliary nodes per MOS and instance count checked before compilation |
+| Compile / bind storage | Dimension² ×256 plus (devices+dimension) ×4096; additionally each MOS maximumRetainedBytes and maximumTemporaryBytes reserved before owner slots, auxiliary arrays or cold setup |
 | Numerical topology / work | Existing TransientExecutionBudget admitted against exact compiled topology; DC uses the same shared owner across the entire point schedule |
 | Execution storage | Compile/solver envelope plus maximumSavedScalars ×32 admitted before solver/device/result construction |
 | Numerical iterations/output | Existing pre-operation solve/Newton/work/saved-scalar admission, including DC recovery, and complete transient limit enforcement |
@@ -142,7 +146,7 @@ by captured content and physical occurrence coordinates, not availability keys.
 | Shared mutable state | Storage / isolation | Read / mutation / release |
 |---|---|---|
 | Invocation capacity/work | Injected resource owner; concrete SPICESimulationResources uses Mutex<State> | Unified charge/reserve APIs, synchronized receipt release |
-| Solver/device state | Fresh invocation-local instances | Not shared between executions; released at call completion |
+| Solver/device state | Fresh private preparation owners consumed into one invocation | No external device access; source-only sweep replacement; released at call completion |
 | Numerical counters | Existing Mutex-backed TransientExecutionBudget | Pre-operation admission and statistics snapshot |
 | Cancellation | Existing Atomic-backed CancellationToken | Task cancellation bridges synchronously; no detached work |
 
@@ -151,7 +155,10 @@ Evidence scope is fixed Swift 6.4.0 release on macOS Native CPU. Metal, WASM and
 Embedded execution are not qualified by this implementation. Ordinary external
 backend and independently exposed analyses preserve their existing semantics.
 
-### Verified evidence
+### Prior non-MOS evidence
+
+The following evidence predates the S3 ownership migration; S3 must reverify the
+changed owner and run paths before completion.
 
 Fixed `swift-6.4.0-RELEASE` (`org.swift.640202609131a`), arm64 macOS 27 Native CPU:
 `CoreSpiceNativeExecutionTests` registry contains 7 functions; all 7 produced
@@ -166,3 +173,77 @@ original files after the first run and reuses the same native owner with unchang
 original 2V result and identities. The default Swift build system is required for
 this fixed toolchain's Swift Testing runtime; deprecated Xcode SwiftPM test products
 that run zero functions are not evidence.
+
+## Single-Owner MOS Preparation Migration
+
+The S3 boundary replaces temporary binding and execution-time re-preparation.
+`PreparedNativeSPICESimulation` becomes noncopyable and retains private bound device
+owners created once during prepare. Its copyable `SPICENativeSimulationRecord`
+retains input, compiled plan, limits, semantic identities and preparation receipts,
+not executable owners. Output retains that record only. `execute` consumes the
+prepared owner. A second run explicitly calls prepare again from the same resolved
+input; it never aliases numerical history from a previous run.
+
+```text
+resolved IR -> prepare each MOS once -> UniqueArray<NativePreparedMOSDevice?>
+    -> receipt-derived auxiliary allocation -> prepared IR -> StandardCompiler
+    -> take each indexed slot -> consuming bind -> private bound devices
+    -> consuming execute -> completed output + copyable record
+```
+
+Native limits optionally carry explicit `mosPreparationLimits` and
+`mosPreparationConditions`; both are required when MOS is present. Non-MOS circuits
+need neither. Conditions must match IO ambient/nominal temperature, exact requested
+analysis capability and explicit BSIM4 stress policy. No implicit condition change
+or re-preparation is allowed. Aggregate execution reservations include actual native
+owner receipts and topology allocation before publication. Private auxiliary IDs
+are fresh, overflow checked, present in CircuitIR, and cannot collide with diagnostic
+node names. A failed stage publishes no partial circuit or executable owner.
+
+All MOS parameters come from `Instance.mos.resolved`; legacy model-name/dictionary
+lookup is refused. Non-MOS descriptors keep their existing interpretation. During
+DC sweeps only the independent source target is replaced; all MOS bound owners and
+cold-setup history remain owned by that execution. The numerical algorithm is
+unchanged. Preparation receipts prove preparation; executed receipts are emitted
+only after the complete finite numerical schedule and cancellation checks.
+
+The exact Swift 6.4.0 standard library exposes UniqueArray at macOS 27. The package
+therefore adopts Swift tools 6.4 and macOS 27, with callers migrated in S4. The local
+capability probe compiled, linked and executed noncopyable optional enum slots,
+indexed take and consuming binding; no custom unsafe container is introduced.
+
+The immutable record and exclusively consumed owners preserve the same Sendable
+and kernel Mutex contracts on all compiled targets. Pure resolution remains
+independently portable; numerical preparation/execution evidence is Native CPU.
+CoreSpiceNativeExecutionTests verifies fresh reruns, source-only sweep updates,
+complete receipts and failure release. CoreSpiceMOSPreparationTests verifies exact
+release/conditions/topology and single-owner binding independently of parsing.
+
+### S3 Reservation and Evidence Boundaries
+
+Conservative reserved capacity is distinct from actual payload metrics. Aggregate
+compile/execution envelopes retain the admitted topology upper bound and per-MOS
+maximumRetainedBytes; temporary admission includes per-MOS maximumTemporaryBytes.
+Receipts separately expose actual retainedBytes and peakTemporaryBytes. Neither
+reserved capacity nor a preparation receipt proves numerical execution. Completed
+executed-model receipts include the actual preparation receipt only after the
+complete numerical schedule and final cancellation check.
+
+The source-resource adapter preserves the existing synchronized accounting owner
+and charges retainedElements for MOS work. checkCancellation failures become typed
+MOS cancellation. chargeWork maps Task cancellation, CancellationError and the
+concrete SPICESimulationResources cancelled case to cancellation; other opaque
+protocol failures become workLimitExceeded. The source accounting protocol exposes
+no further typed cause, so custom owners must use checkCancellation to distinguish
+cancellation before work admission.
+
+| Shared state | Native | WASM / Embedded |
+|---|---|---|
+| Source budgets | Existing injected Mutex-backed owner; unified reserve/charge/release | Same source and Sendable contract; native composition execution not qualified |
+| MOS numerical history | Fresh private bound owner; existing kernel Mutex; consume once | Same owner/isolation declarations; target runtime not qualified by S3 |
+| DC source overrides | Invocation-local array slot; MOS slots unchanged | No target-conditional state or conformance branch |
+
+S3 direct-stage fixtures own native preparation, exact conditions, reservations,
+single cold setup across source sweeps and fresh reruns. These fixtures construct
+typed resolved stages independently of parser/lowering adoption and do not qualify
+public SPICE-to-MOS integration before S4.

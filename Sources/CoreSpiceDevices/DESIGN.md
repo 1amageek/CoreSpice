@@ -4,8 +4,9 @@
 
 This SwiftPM module owns native electrical device binding and stamping. Its
 parent is the [CoreSpice package](../../DESIGN.md), and its device implementation
-children are [Devices](Devices/DESIGN.md), [BSIM3](BSIM3/DESIGN.md), and
-[BSIM4](BSIM4/DESIGN.md).
+children are [Devices](Devices/DESIGN.md), [BSIM3](BSIM3/DESIGN.md),
+[BSIM4](BSIM4/DESIGN.md), [MOSPreparation](MOSPreparation/DESIGN.md), and
+[output-referred noise](OutputReferredNoise/DESIGN.md).
 
 ## Responsibilities and Boundaries
 
@@ -20,6 +21,10 @@ typed numerical failures; devices never label an analysis successful.
 |---|---|---|---|---|
 | [CoreSpice](../../DESIGN.md) | parent | Simulation domain | Package composition | Native evidence does not qualify a foundry model |
 | [Devices](Devices/DESIGN.md) | child | Descriptors and bound devices | Physical models | Current and Jacobian must change together |
+| [MOSPreparation](MOSPreparation/DESIGN.md) | child | Single-owner preparation and consuming binding | Approved S3 boundary | Runtime evidence remains migration-owned |
+| [BSIM3](BSIM3/DESIGN.md) | child | Exact 3.3.0 bound owner | Electrical and history behavior | Preserve both Mutex owners |
+| [BSIM4](BSIM4/DESIGN.md) | child | Exact 4.8.3 bound owner | Electrical and history behavior | Preserve stress/noise intent |
+| [Output-referred noise](OutputReferredNoise/DESIGN.md) | child | Correlated spectrum composition | Full-node gain input | Success does not imply qualification |
 | [ParsedIR](../CoreSpiceParsedIR/DESIGN.md) | coordinates with | Original model and instance source roles | Resistor declaration provenance | Unused declaration acceptance is not execution admission |
 | [Lowering](../CoreSpiceLowering/DESIGN.md) | used by | Device preparation and supported parameter roles | Canonical model/instance values and runtime dependencies | Model values must not be flattened into instance overrides |
 | [Analysis](../CoreSpiceAnalysis/DESIGN.md) | used by | Fallible stamps and noise admission | Numerical execution and current PSD consumption | Unsupported requested noise cannot disappear from a successful result |
@@ -82,3 +87,35 @@ and behavior are defined by the [BSIM3 component](BSIM3/DESIGN.md).
 [BSIM4](BSIM4/DESIGN.md) owns exact Level54 preparation, explicit work policy,
 full auxiliary mapping and checked DC/AC/transient sessions. Its correlated-noise
 uses the [output-referred contract](OutputReferredNoise/DESIGN.md). Registry policy is runtime configuration, not physical IR.
+
+
+## Atomic Private-Node Binding
+
+Status: approved S3 implementation target. BindingContext owns invocation-local,
+synchronously mutated compiled-variable and ownership-claim state. It performs no
+I/O or await. This module owns the claim transaction; MOS-specific identity, CSR
+and IC admission belong to [MOSPreparation](MOSPreparation/DESIGN.md).
+
+```text
+validate all proposed owned nodes -> complete all other fallible binding work
+    -> nonthrowing commit of validated claims -> publish complete bound device
+```
+
+`validateOwnedNodes(for:)` checks the entire proposed set without mutation: no
+ground, physical-port alias, duplicate within the proposal, previously claimed
+node, missing compiled node voltage or out-of-range matrix index. After successful
+preflight the single synchronous caller performs all remaining fallible work and
+constructs the complete bound device. `commitValidatedOwnedNodes(for:)` is an
+internal/package nonthrowing operation invoked only at that final point. No await,
+callback or competing context access intervenes between preflight and commit.
+
+`claimOwnedNodes(for:)` itself uses complete preflight followed by commit, so its
+throwing interface cannot leave a partial claim. MOS consuming binding uses the
+split phases to avoid claims before CSR/IC/owner construction succeeds. Do not
+copy the whole context as rollback: repeated Set COW would make binding quadratic
+in total device count. The claimed-node set grows once for each successful claim.
+
+Binding tests must show that a valid first node followed by an invalid/duplicate
+node leaves both unclaimed, that failed CSR/IC checks claim nothing, and that a
+later valid bind can claim the same nodes. Existing successful duplicate-ownership
+refusal remains. This proof does not change branch-claim semantics.

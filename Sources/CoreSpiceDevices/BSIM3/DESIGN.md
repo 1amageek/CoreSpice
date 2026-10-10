@@ -8,6 +8,11 @@ verified BSIM3 3.3.0 evaluator through its safe protocol, without importing its 
 
 ## Responsibilities and Boundaries
 
+The approved S3 preparation/binding boundary is owned by
+[MOSPreparation](../MOSPreparation/DESIGN.md). The historical descriptor path
+prepares during Lowering and repeats preparation during binding; it is the
+pre-migration implementation, not the target owner contract.
+
 BSIM3Preparation converts separate resolved model/instance values to an admitted
 kernel configuration. The descriptor binds physical and private auxiliary nodes.
 BoundBSIM3 owns matrix stamps, accepted-history session admission and atomic
@@ -22,21 +27,21 @@ analysis owns solve, timestep acceptance and session lifetime.
 | [Compact BSIM3](../../CoreSpiceCompactModels/BSIM3/DESIGN.md) | depends on | BSIM3Evaluating | Official bounded native physics | Exact version, topology and accepted token are authoritative |
 | [IR](../../CoreSpiceIR/DESIGN.md) | depends on | Resolved model and owned nodes | Lossless provenance | No C fields enter IR |
 | [Analysis](../../CoreSpiceAnalysis/DESIGN.md) | used by | Solver-owned transient lifetime | Acceptance and rejection | Begin/end brackets every run exit |
-| [Lowering](../../CoreSpiceLowering/DESIGN.md) | used by | Preparation topology | Cold admission before compilation | Rebind at actual temperature |
+| [MOSPreparation](../MOSPreparation/DESIGN.md) | used by | Exact prepared owner and consuming bind | Single cold setup per run | Lowering/rebind preparation is removed during migration |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Model[Resolved model] --> Preparation[BSIM3Preparation]
-    Instance[Instance parameters] --> Preparation
-    Preparation --> Kernel[Safe original evaluator]
-    Kernel --> Aux[Prime and charge node requirements]
-    Aux --> IR[Private ownedNodes]
-    IR --> Descriptor[BSIM3Descriptor]
-    Descriptor --> Bound[BoundBSIM3 Mutex owner]
-    Bound --> Solver[Throwing DC / AC / transient stamps]
-    Solver --> Accepted[Accepted bias re-evaluate and commit]
+    Resolved[Checked exact 3.3.0 MOS] --> Preparation[MOS preparation]
+    Preparation --> Prepared[Noncopyable BSIM3 prepared owner]
+    Prepared --> Receipt[Exact topology receipt]
+    Receipt --> IR[Private nodes / compiled CSR]
+    IR --> Bind[Consuming binding]
+    Prepared --> Bind
+    Bind --> Bound[BoundBSIM3 Mutex owner]
+    Bound --> Solver[Existing DC / AC / transient stamps]
+    Solver --> Accepted[Atomic accepted-bias evaluate / commit]
 ```
 
 ## Contracts and Invariants
@@ -59,14 +64,16 @@ flowchart LR
   nodes. Parallel multiplier m scales each independent current PSD once; the
   circuit transfer function uses the already multiplied electrical matrix.
   Zero series PSDs remain named sources for stable tracking. Evaluation may
-  throw and never returns replacement zero sources on failure. Level 54 remains
-  blocked. This work does not provide BSIM4 or foundry qualification.
+  throw and never returns replacement zero sources on failure. This component
+  does not provide BSIM4 or foundry qualification; BSIM4 has a separate owner.
 
 ## Runtime Flows
 
-Cold preparation validates model, geometry and numerical behavior and projects
-auxiliary requirements. Binding repeats preparation at actual temperature and
-validates compiled node identities. A transient session initializes charge history
+The approved S3 flow prepares the already resolved exact 3.3.0 release once at
+explicit execution conditions, retains the admitted evaluator and projects its
+exact auxiliary topology. Consuming binding maps that same owner without cold
+setup. The historical Lowering/descriptor repetition remains until migration
+implementation is verified. A transient session initializes charge history
 from the run initial solution (UIC applies explicit terminal IC through the
 analysis initial-condition hook). Trial stamps only read accepted history.
 Acceptance re-evaluates the final bias using the accepted integration method and
@@ -147,3 +154,34 @@ rd transfer by approximately 1 ppm. The production default remains unchanged
 and has separate successful/failed behavior tests. No tolerance was relaxed to
 hide this distinction. SI2019 reference primitive alignment, original header
 hash and unaligned spectra are retained beside the noise fixtures.
+
+
+## Approved Single-Owner Preparation
+
+Status: designed for S3; runtime completion is recorded in workspace PROGRESS.md.
+[MOSPreparation](../MOSPreparation/DESIGN.md) owns the public preparation protocol,
+portable identity matching, local capacities, cancellation boundaries and binding
+failure contract. This component owns its release-specific physical mapping.
+
+The prepared value is noncopyable. Its evaluator is private and concrete, created
+fresh by the factory, with no outward evaluator getter or initializer accepting
+another evaluator. Consuming binding transfers that sole native reference into
+the existing BoundBSIM Mutex state. Standalone CompactModels evaluator APIs are
+independent and unchanged. The outer history/session lock and evaluator lock are
+both retained, with the existing outer-to-inner lock order.
+
+Model TNOM, when supplied, remains authoritative. When absent, only the derived
+kernel configuration receives caller nominalTemperatureKelvin minus 273.15 as
+Celsius TNOM; the original resolved model and suppliedness evidence are unchanged.
+Ambient temperature and both caller condition values remain fixed by preparation
+identity. Existing kernel Celsius conversion is used once.
+
+Before publishing the prepared owner, the local budget includes the safe
+evaluator's exact C allocation query and Swift retained/temporary capacity.
+Failure destroys the evaluator once; consuming bind checks every required CSR
+pair, topology alias and terminal IC constraint before the final nonthrowing
+BindingContext claim commit. No missing active matrix entry is silently omitted.
+Direct preparation tests cover failure/drop/transfer lifetime, condition/identity
+drift, capacities and cancellation; existing integration/noise tests own
+unchanged physical stamps and accepted-history behavior. Root composition owns
+actual single-run transfer and no cold setup between DC points.

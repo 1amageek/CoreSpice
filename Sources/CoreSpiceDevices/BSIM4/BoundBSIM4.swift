@@ -14,23 +14,24 @@ public final class BoundBSIM4: TransientSessionDevice, TerminalInitialConditionD
     public let topology: BSIM4Topology
     public let preparationPolicy: BSIM4PreparationPolicy
     private struct State {
-        let evaluator: any BSIM4Evaluating
+        let evaluator: BSIM4Evaluator
         var transientActive = false
     }
     private let state: Mutex<State>
 
-    init(instance: Instance, prepared: BSIM4PreparedDevice, indices: SIMD16<Int>, csrIndices: BSIM4StampMapping) throws {
+    init(instance: Instance, evaluator: BSIM4Evaluator, multiplier: Double, initialConditions: SIMD3<Double>?, policy: BSIM4PreparationPolicy,
+         indices: SIMD16<Int>, csrIndices: BSIM4StampMapping) throws {
         self.instance = instance
         self.indices = indices
         self.csrIndices = csrIndices
-        nodeCount = prepared.evaluator.topology.nodeCount
-        multiplier = prepared.multiplier
-        let topology = prepared.evaluator.topology
+        nodeCount = evaluator.topology.nodeCount
+        self.multiplier = multiplier
+        let topology = evaluator.topology
         self.topology = topology
-        preparationPolicy = prepared.policy
-        diagnostics = prepared.evaluator.diagnostics
+        preparationPolicy = policy
+        diagnostics = evaluator.diagnostics
         var initialVoltages: [Node: Double] = [:]
-        if let initial = prepared.initialConditions {
+        if let initial = initialConditions {
             let relative = [initial[0], initial[1], 0, initial[2]]
             var sourceOffset: Double?
             for index in 0..<4 where instance.nodes[index] == .ground {
@@ -56,7 +57,7 @@ public final class BoundBSIM4: TransientSessionDevice, TerminalInitialConditionD
             if topology.chargeNode > 4 { initialVoltages[instance.ownedNodes[topology.chargeNode - 5]] = 0 }
         }
         initialNodeVoltages = initialVoltages
-        state = Mutex(State(evaluator: prepared.evaluator))
+        state = Mutex(State(evaluator: evaluator))
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state solution: SolutionState) throws {

@@ -8,6 +8,11 @@ physics equations, solver or correlated noise implementation.
 
 ## Responsibilities and Boundaries
 
+The approved S3 preparation/binding boundary is owned by
+[MOSPreparation](../MOSPreparation/DESIGN.md). The historical descriptor path
+prepares during Lowering and repeats preparation during binding; it is the
+pre-migration implementation, not the target owner contract.
+
 Preparation retains separate model and instance scopes, exact version and IC.
 A caller-supplied preparation policy bounds original stress work. The descriptor
 maps every original auxiliary role to fresh canonical owned nodes. BoundBSIM4
@@ -21,17 +26,18 @@ are immutable public metadata, independent of successful electrical execution.
 |---|---|---|---|---|
 | [Devices](../DESIGN.md) | parent | Registry and throwing stamp protocols | Native selection | No L3 fallback |
 | [Safe kernel](../../CoreSpiceCompactModels/BSIM4/DESIGN.md) | depends on | BSIM4Evaluating | Exact bounded physics | Kernel evidence is not production proof |
-| [Lowering](../../CoreSpiceLowering/DESIGN.md) | used by | Preparation and topology | Preserve provenance | Explicit policy required |
+| [MOSPreparation](../MOSPreparation/DESIGN.md) | used by | Exact prepared owner and consuming bind | Single cold setup per run | Lowering/rebind preparation is removed during migration |
 | [Analysis](../../CoreSpiceAnalysis/DESIGN.md) | used by | Session and acceptance scope | Actual CPU analyses | End on return/throw/cancel |
-| [IO](../../CoreSpiceIO/DESIGN.md) | used by | One resolved preparation policy | Deck/CLI composition | Same policy reaches all rebinds |
+| [IO](../../CoreSpiceIO/DESIGN.md) | used by | Explicit caller preparation policy | Deck/CLI composition | Conditions are fixed before cold setup |
 
 ## Architecture
 
 ```text
-exact model + separate instance + explicit policy
-    -> cold kernel -> required owned nodes -> compiled full sparsity
-    -> descriptor -> BoundBSIM4 Mutex -> DC / complex AC / BE / trapezoidal
-                                      -> atomic accepted-bias evaluate + commit
+checked exact 4.8.3 MOS + explicit conditions/capabilities/stress policy
+    -> one cold kernel -> noncopyable prepared owner + topology receipt
+    -> private nodes / compiled full sparsity -> consuming binding
+    -> BoundBSIM4 Mutex -> DC / complex AC / BE / trapezoidal
+                        -> atomic accepted-bias evaluate + commit
 ```
 
 ## Contracts and Invariants
@@ -61,6 +67,14 @@ exact model + separate instance + explicit policy
   Mode1 warning and immutable maintainer limitation remain observable even when
   paramchk suppresses warnings.
 
+## Runtime Flows
+
+The approved [MOS preparation flow](../MOSPreparation/DESIGN.md#runtime-flows)
+owns single cold setup, receipt publication and consuming binding. This component
+preserves the existing Analysis-owned begin/end session and accepted-bias atomic
+re-evaluate/commit sequence; cancellation/failure releases acquired sessions before
+analysis exit. No new setup occurs between points of one prepared DC schedule.
+
 ## State, Ownership, and Lifecycle
 
 | Logical state | Native / WASM / Embedded storage | Access / release |
@@ -78,8 +92,9 @@ synchronization is identical on every target; only host CPU runtime is proven.
 
 Missing policy/model, version/parameter/admission, topology, numerical, session
 and unsupported-analysis failures propagate through actual checked callers.
-Cold/rebind use the same selected caller policy; no global configuration or
-physical IR contamination carries it. Safe kernel resource ceilings remain.
+The approved S3 owner fixes the selected caller policy before cold setup and
+compares it at consuming binding; no global configuration or physical IR parameter
+carries it. Safe kernel resource ceilings remain.
 
 ## Verification and Change Impact
 
@@ -101,13 +116,45 @@ BoundBSIM4 applies outer m once to the fourteen V²/Hz channels, retaining origi
 mult_i/mult_fn semantics and AC mult_q/NQS behavior. It consumes immutable gains
 inside its existing owner lock; no solver/callback is retained or called there.
 
-Preparation receives an explicit caller noisePreparationRequested Bool before
-topology allocation. Electrical-only and noise-capable contexts follow original
-b4set semantics, including noise-only series nodes for tnoimod1. Lowering and
-binding must receive the same choice. A later NoiseAnalysis on electrical-only
+The historical path receives caller noisePreparationRequested before topology
+allocation; S3 derives that choice from the portable requested-analysis capability
+contract before the single cold setup. Electrical-only and noise-capable contexts follow original
+b4set semantics, including noise-only series nodes for tnoimod1. Preparation identity and
+consuming binding must preserve that same choice. A later NoiseAnalysis on electrical-only
 preparation fails before OP. Mode1 execution keeps its conditional warning and
 immutable unqualified maintainer limitation; execution is not trust qualification.
 
 [CoreSpiceBSIM4NoiseTests](../../../Tests/CoreSpiceBSIM4NoiseTests) owns original
 mode/scaler/temperature/topology/NQS spectra and integration, complex interference,
 history/concurrency, typed numerical/admission failures, cancellation and CLI.
+
+
+## Approved Single-Owner Preparation
+
+Status: designed for S3; runtime completion is recorded in workspace PROGRESS.md.
+[MOSPreparation](../MOSPreparation/DESIGN.md) owns the public preparation protocol,
+portable identity matching, local capacities, cancellation boundaries and binding
+failure contract. This component owns its release-specific physical mapping.
+
+The prepared value is noncopyable. Its evaluator is private and concrete, created
+fresh by the factory, with no outward evaluator getter or initializer accepting
+another evaluator. Consuming binding transfers that sole native reference into
+the existing BoundBSIM Mutex state. Standalone CompactModels evaluator APIs are
+independent and unchanged. The outer history/session lock and evaluator lock are
+both retained, with the existing outer-to-inner lock order.
+
+Model TNOM, when supplied, remains authoritative. When absent, only the derived
+kernel configuration receives caller nominalTemperatureKelvin minus 273.15 as
+Celsius TNOM; the original resolved model and suppliedness evidence are unchanged.
+Ambient temperature and both caller condition values remain fixed by preparation
+identity. Existing kernel Celsius conversion is used once.
+
+Before publishing the prepared owner, the local budget includes the safe
+evaluator's exact C allocation query and Swift retained/temporary capacity.
+Failure destroys the evaluator once; consuming bind checks every required CSR
+pair, topology alias and terminal IC constraint before the final nonthrowing
+BindingContext claim commit. No missing active matrix entry is silently omitted.
+Direct preparation tests cover failure/drop/transfer lifetime, condition/identity
+drift, capacities and cancellation; existing integration/noise tests own
+unchanged physical stamps and accepted-history behavior. Root composition owns
+actual single-run transfer and no cold setup between DC points.

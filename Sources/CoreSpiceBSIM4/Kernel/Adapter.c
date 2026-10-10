@@ -59,6 +59,7 @@ int cs_bsim4_create(int polarity,const char *version,double temperature,int nois
  c->CKTrhs=h->rhs;c->CKTrhsOld=h->bias;c->sizeStorage=&h->geometry;c->sizeCapacity=sizeof(h->geometry);
  c->CKTabstol=1e-12;c->CKTreltol=1e-3;c->CKTvoltTol=1e-6;*out=h;return CS_BSIM4_OK;
 }
+size_t cs_bsim4_owner_size(void) { return sizeof(CSBSIM4Handle); }
 void cs_bsim4_destroy(CSBSIM4Handle *h){free(h);}
 const char *cs_bsim4_diagnostics(const CSBSIM4Handle *h){return h?h->circuit.diagnostic:NULL;}
 static int selector_valid(const char *name,double v) {

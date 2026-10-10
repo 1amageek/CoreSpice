@@ -41,7 +41,7 @@ public enum BSIM3Preparation {
         let configuration = BSIM3Configuration(polarity: polarity, version: version, temperature: temperature,
             modelParameters: modelParameters, instanceParameters: parameters,
             initialConditions: hasInitial ? initial : nil)
-        return try BSIM3PreparedDevice(evaluator: BSIM3Evaluator(configuration: configuration),
+        return try BSIM3PreparedDevice(configuration: configuration,
             multiplier: multiplier, initialConditions: hasInitial ? initial : nil)
     }
 

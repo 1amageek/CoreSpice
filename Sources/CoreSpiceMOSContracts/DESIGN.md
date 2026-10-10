@@ -4,7 +4,7 @@
 
 This Standard-Library-only module owns immutable MOS resolution contracts. Parent:
 [CoreSpice](../../DESIGN.md). Children: [Values](Values/DESIGN.md) and
-[Schema](Schema/DESIGN.md). Foundation, Codable, device kernels, parsing and
+[Schema](Schema/DESIGN.md) and [Preparation](Preparation/DESIGN.md). Foundation, Codable, device kernels, parsing and
 evaluation sessions are outside this module.
 
 ## Responsibilities and Boundaries
@@ -19,6 +19,7 @@ no algorithm protocol permits replacing normalization or model selection.
 
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
+| [Preparation](Preparation/DESIGN.md) | child | Explicit preparation conditions/identity/topology | Portable execution boundary values | No numerical owner |
 | [Resolution declarations](../CoreSpiceMOSResolution/Declarations/DESIGN.md) | used by | Immutable IDs and programs | Ordered snapshot construction | IDs are snapshot-local |
 | [Devices](../CoreSpiceDevices/DESIGN.md) | used by | Exact release and normalized values | Preparation consumes resolution | Inspectable does not mean executable |
 

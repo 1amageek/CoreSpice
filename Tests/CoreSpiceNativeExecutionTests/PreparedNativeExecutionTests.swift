@@ -1,7 +1,7 @@
 import CircuiteFoundation
 import CircuiteFoundationCrypto
 import CoreSpice
-import CoreSpiceIO
+@testable import CoreSpiceIO
 import Foundation
 import Testing
 
@@ -29,7 +29,7 @@ struct PreparedNativeExecutionTests {
             return source
         }
     }
-    private func input(_ text: String, key: String = "root", resources: SourceBoundaryTestResources = .init(),
+    func input(_ text: String, key: String = "root", resources: SourceBoundaryTestResources = .init(),
         extras: [SPICECheckedSource] = [], routes: [SPICESourceCatalogRoute] = [],
         supply: [SPICESupplyBinding] = [], policy: SPICEOperatingConditionPolicy = .recordActual,
         index: Int? = nil) async throws -> PreparedSPICESimulation {
@@ -48,19 +48,23 @@ struct PreparedNativeExecutionTests {
         try SPICENativeSimulation().prepare(input, limits: .init(maximumDeviceCount: 100,
             maximumMatrixDimension: 32, maximumAllocationBytes: 16 * 1024 * 1024))
     }
+    private func prepareAndExecute(_ input: PreparedSPICESimulation) async throws -> SPICENativeSimulationOutput {
+        let prepared = try native(input)
+        return try await SPICENativeSimulation().execute(prepared, cancellation: .init())
+    }
     private func voltage(_ output: SPICENativeSimulationOutput, _ node: String, _ point: Int) throws -> Double {
         let index = try #require(output.waveform.variables.firstIndex { $0.name.lowercased() == "v(\(node.lowercased()))" })
         return try #require(output.waveform.realValue(variable: index, point: point))
     }
     @Test func actualOperatingPointAndIndependentConcurrentRuns() async throws {
-        let prepared = try native(await input("divider\nVDD in 0 2\nR1 in out 1k\nR2 out 0 1k\n.op\n.end\n"))
-        async let first = SPICENativeSimulation().execute(prepared, cancellation: .init())
-        async let second = SPICENativeSimulation().execute(prepared, cancellation: .init())
+        let retained = try await input("divider\nVDD in 0 2\nR1 in out 1k\nR2 out 0 1k\n.op\n.end\n")
+        async let first = prepareAndExecute(retained)
+        async let second = prepareAndExecute(retained)
         let (a,b) = try await (first,second)
         #expect(abs(try voltage(a,"out",0) - 1) < 1e-8)
         #expect(try voltage(a,"out",0) == voltage(b,"out",0))
         #expect(a.executedModels.count == 3 && a.statistics.newtonIterations > 0)
-        #expect(a.sourceInputIdentity == prepared.input.sourceInputIdentity)
+        #expect(a.sourceInputIdentity == retained.sourceInputIdentity)
     }
     @Test func uicAndInitialVoltageChangeActualWaveform() async throws {
         let common = "charge\nR1 out 0 1k\nC1 out 0 1u\n"
@@ -71,8 +75,8 @@ struct PreparedNativeExecutionTests {
         #expect(try voltage(a,"out",0) == 2)
         #expect(try voltage(b,"out",0) == 0)
         #expect(try voltage(a,"out",a.waveform.pointCount-1) > 1.7)
-        #expect(charged.configurationIdentity != zero.configurationIdentity)
-        guard case .transient(let effective) = charged.input.configuration.analysis else { Issue.record("Missing transient"); return }
+        #expect(a.configurationIdentity != b.configurationIdentity)
+        guard case .transient(let effective) = a.prepared.input.configuration.analysis else { Issue.record("Missing transient"); return }
         #expect(a.waveform.sweepValues.last == effective.stopTime)
     }
     @Test func nodesetActuallySeedsDCAndUnsupportedAssignmentsRefuse() async throws {

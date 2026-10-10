@@ -14,23 +14,24 @@ public final class BoundBSIM3: TransientSessionDevice, TerminalInitialConditionD
     private let drainPrime: Node
     private let sourcePrime: Node
     private struct State {
-        let evaluator: any BSIM3Evaluating
+        let evaluator: BSIM3Evaluator
         var transientActive = false
     }
     private let state: Mutex<State>
 
-    init(instance: Instance, prepared: BSIM3PreparedDevice, indices: SIMD8<Int>, csrIndices: SIMD64<Int>) throws {
+    init(instance: Instance, evaluator: BSIM3Evaluator, multiplier: Double, initialConditions: SIMD3<Double>?,
+         indices: SIMD8<Int>, csrIndices: SIMD64<Int>) throws {
         self.instance = instance
         self.indices = indices
         self.csrIndices = csrIndices
-        nodeCount = prepared.evaluator.topology.nodeCount
-        multiplier = prepared.multiplier
-        let topology = prepared.evaluator.topology
+        nodeCount = evaluator.topology.nodeCount
+        self.multiplier = multiplier
+        let topology = evaluator.topology
         drainPrime = topology.drainPrime > 4 ? instance.ownedNodes[topology.drainPrime - 5] : instance.nodes[0]
         sourcePrime = topology.sourcePrime > 4 ? instance.ownedNodes[topology.sourcePrime - 5] : instance.nodes[2]
-        diagnostics = prepared.evaluator.diagnostics
+        diagnostics = evaluator.diagnostics
         var initialVoltages: [Node: Double] = [:]
-        if let initial = prepared.initialConditions {
+        if let initial = initialConditions {
             let relative = [initial[0], initial[1], 0, initial[2]]
             var sourceOffset: Double?
             for index in 0..<4 where instance.nodes[index] == .ground {
@@ -48,7 +49,7 @@ public final class BoundBSIM3: TransientSessionDevice, TerminalInitialConditionD
                 }
                 initialVoltages[instance.nodes[index]] = value
             }
-            let topology = prepared.evaluator.topology
+            let topology = evaluator.topology
             if topology.drainPrime > 4 {
                 initialVoltages[instance.ownedNodes[topology.drainPrime - 5]] = relative[0] + offset
             }
@@ -57,7 +58,7 @@ public final class BoundBSIM3: TransientSessionDevice, TerminalInitialConditionD
             }
         }
         initialNodeVoltages = initialVoltages
-        state = Mutex(State(evaluator: prepared.evaluator))
+        state = Mutex(State(evaluator: evaluator))
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state solution: SolutionState) throws {

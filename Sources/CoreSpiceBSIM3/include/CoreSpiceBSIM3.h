@@ -1,5 +1,6 @@
 #ifndef CORE_SPICE_BSIM3_H
 #define CORE_SPICE_BSIM3_H
+#include <stddef.h>
 #include <stdint.h>
 /* Private ABI: caller serializes all handle accesses, including destruction.
    Inputs are borrowed for the call only; results own no pointers. */
@@ -12,6 +13,8 @@ typedef struct {
 enum { CS_BSIM3_OK=0, CS_BSIM3_PARAMETER=1, CS_BSIM3_MEMORY=2,
        CS_BSIM3_NUMERICAL=3, CS_BSIM3_HISTORY=4, CS_BSIM3_DIAGNOSTICS=5 };
 CSBSIM3Handle *cs_bsim3_create(int polarity,double temperature);
+/* Exact single-owner calloc payload, without allocator metadata. */
+size_t cs_bsim3_owner_size(void);
 void cs_bsim3_destroy(CSBSIM3Handle *handle);
 int cs_bsim3_parameter(CSBSIM3Handle *,int model,const char *name,double value);
 int cs_bsim3_initial_conditions(CSBSIM3Handle *,const double values[3]);

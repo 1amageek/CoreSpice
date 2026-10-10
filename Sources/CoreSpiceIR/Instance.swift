@@ -11,6 +11,9 @@ public struct Instance: Sendable {
     public let model: ResolvedDeviceModel?
     public let modelConsumption: ModelConsumption
 
+    /// Resolution or preparation evidence; generic dictionaries never override MOS values.
+    public let mos: MOSInstanceStage?
+
     /// Private auxiliary nodes allocated by this instance, in model-defined order.
     public let ownedNodes: [Node]
 
@@ -34,6 +37,7 @@ public struct Instance: Sendable {
         nodes: [Node],
         parameters: [String: ParameterValue],
         model: ResolvedDeviceModel? = nil,
+        mos: MOSInstanceStage? = nil,
         modelConsumption: ModelConsumption? = nil,
         ownedNodes: [Node] = [],
         ownedBranches: [Branch] = [],
@@ -46,6 +50,7 @@ public struct Instance: Sendable {
         self.nodes = nodes
         self.parameters = parameters
         self.model = model
+        self.mos = mos
         self.modelConsumption = modelConsumption ?? model.map(ModelConsumption.selected) ?? .unrecorded
         self.ownedNodes = ownedNodes
         self.ownedBranches = ownedBranches

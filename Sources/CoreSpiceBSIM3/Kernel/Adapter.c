@@ -60,6 +60,7 @@ CSBSIM3Handle *cs_bsim3_create(int polarity,double temperature) {
     c->CKTabstol=1e-12;c->CKTreltol=1e-3;c->CKTvoltTol=1e-6;
     return h;
 }
+size_t cs_bsim3_owner_size(void) { return sizeof(CSBSIM3Handle); }
 void cs_bsim3_destroy(CSBSIM3Handle *h){free(h);}
 const char *cs_bsim3_diagnostics(const CSBSIM3Handle *h){return h->circuit.diagnostic;}
 

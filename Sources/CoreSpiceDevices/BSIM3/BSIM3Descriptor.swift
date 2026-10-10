@@ -14,28 +14,11 @@ public struct BSIM3Descriptor: DeviceDescriptor {
         }
         guard let model = instance.model else { throw BSIM3DeviceError.missingModel(instance.name) }
         guard model.typeName == typeName else { throw BSIM3DeviceError.modelTypeMismatch(model.typeName) }
+        // FIXME(INCOMPLETE_IMPLEMENTATION): Legacy descriptor callers still cold-prepare at bind.
+        // This production descriptor path remains until S4 proves resolved -> single prepare ->
+        // consuming bind through the public composition tests; migration is not complete before then.
         let prepared = try BSIM3Preparation.prepare(model: model, instanceParameters: instance.parameters,
             temperature: context.operatingConditions.temperatureKelvin)
-        guard instance.ownedNodes.count == prepared.auxiliaryNodeCount else {
-            throw BSIM3DeviceError.invalidAuxiliaryTopology(instance.name)
-        }
-        try context.claimOwnedNodes(for: instance)
-        var indices = SIMD8<Int>(repeating: -1)
-        let localNodes = instance.nodes + instance.ownedNodes
-        for (index, node) in localNodes.enumerated() where node != .ground {
-            guard let matrixIndex = context.nodeIndex(node), (0..<context.matrixDimension).contains(matrixIndex) else {
-                throw BSIM3DeviceError.invalidAuxiliaryTopology(instance.name)
-            }
-            indices[index + 1] = matrixIndex
-        }
-        var csrIndices = SIMD64<Int>(repeating: -1)
-        for row in 1...prepared.evaluator.topology.nodeCount where indices[row] >= 0 {
-            for column in 1...prepared.evaluator.topology.nodeCount where indices[column] >= 0 {
-                if let index = context.stampIndex(row: indices[row], col: indices[column]) {
-                    csrIndices[row * 8 + column] = index
-                }
-            }
-        }
-        return try BoundBSIM3(instance: instance, prepared: prepared, indices: indices, csrIndices: csrIndices)
+        return try prepared.bind(instance: instance, context: &context)
     }
 }

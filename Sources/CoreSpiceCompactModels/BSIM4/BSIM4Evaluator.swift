@@ -1,14 +1,43 @@
 import CoreSpiceBSIM4
 import Synchronization
+import CoreSpiceMOSContracts
 
 /// Exact Berkeley 4.8.3 physics with one exclusively retained synchronized C owner.
 public final class BSIM4Evaluator: BSIM4Evaluating {
+    /// Exact payload requested by the linked C owner's single allocation.
+    public static var ownerAllocationBytes: UInt64 { UInt64(cs_bsim4_owner_size()) }
+    /// Declared Swift stored payload; heap/allocator metadata is excluded.
+    public static var storedPayloadBytes: UInt64 {
+        UInt64(MemoryLayout<Mutex<State>>.stride + MemoryLayout<BSIM4Topology>.stride
+            + MemoryLayout<[BSIM4Diagnostic]>.stride + 3 * MemoryLayout<UInt64>.stride)
+    }
     private struct State { let handle: OpaquePointer }
     private let state: Mutex<State>
     public let topology: BSIM4Topology
     public let diagnostics: [BSIM4Diagnostic]
 
-    public init(configuration: BSIM4Configuration) throws {
+    public let preparationTemporaryBytes: UInt64
+    public let diagnosticStorageBytes: UInt64
+    public let preparationWorkUnits: UInt64
+
+    public convenience init(configuration: BSIM4Configuration) throws {
+        let limits = try CompactModelPreparationStorage.standaloneLimits(
+            parameterCapacity: 922, diagnosticStride: MemoryLayout<BSIM4Diagnostic>.stride,
+            ownerBytes: Self.ownerAllocationBytes + Self.storedPayloadBytes)
+        try self.init(configuration: configuration, preparationLimits: limits, preparationControl: nil)
+    }
+
+    /// Native construction checks explicit preparation storage/work before publication.
+    public init(configuration: BSIM4Configuration, preparationLimits: MOSPreparationLimits,
+                preparationControl: (any MOSPreparationControlling)?) throws {
+        var storage = CompactModelPreparationStorage(limits: preparationLimits, control: preparationControl)
+        try storage.charge()
+        guard Self.ownerAllocationBytes + Self.storedPayloadBytes <= preparationLimits.maximumRetainedBytes else {
+            throw MOSPreparationFailure.capacityExceeded
+        }
+        // The original C diagnostic buffer bounds text conversion before its exact length is known.
+        try storage.check(32768)
+
         guard configuration.version == "4.8.3" else { throw BSIM4Error.unsupportedVersion(configuration.version) }
         guard configuration.temperature.isFinite, configuration.temperature > 0,
               configuration.modelParameters.count <= 886, configuration.instanceParameters.count <= 36 else {
@@ -27,13 +56,32 @@ public final class BSIM4Evaluator: BSIM4Evaluating {
             guard cs_bsim4_set_stress_budget(handle, configuration.maximumStressIterations) == CS_BSIM4_OK else {
                 throw BSIM4Error.resourceBudgetExceeded
             }
-            for (model, parameters) in [(true, configuration.modelParameters), (false, configuration.instanceParameters)] {
+            let parameterScopes = [(true, configuration.modelParameters), (false, configuration.instanceParameters)]
+            try storage.admitScopeCapacity(parameterScopes.capacity)
+            for (model, parameters) in parameterScopes {
+                let ordered = try storage.ordered(parameters)
+                let orderedBytes = try CompactModelPreparationStorage.bytes(ordered.capacity, of: (String, Double).self)
+                try storage.check(CompactModelPreparationStorage.add(orderedBytes,
+                    CompactModelPreparationStorage.bytes(parameters.count, of: String.self)))
                 var names = Set<String>()
-                for (key, value) in parameters.sorted(by: { $0.key < $1.key }) {
-                    let name = key.lowercased()
-                    guard !name.isEmpty, name.utf8.count <= 64, !name.utf8.contains(0), names.insert(name).inserted else {
+                names.reserveCapacity(parameters.count)
+                let setBytes = try CompactModelPreparationStorage.bytes(names.capacity, of: String.self)
+                var nameBytes: UInt64 = 0
+                try storage.check(CompactModelPreparationStorage.add(orderedBytes, setBytes))
+                for (key, value) in ordered {
+                    try storage.charge()
+                    guard !key.isEmpty, key.utf8.count <= 64, key.utf8.allSatisfy({ $0 > 0 && $0 < 128 }) else {
                         throw BSIM4Error.invalidParameter(name: key, model: model)
                     }
+                    try storage.check(CompactModelPreparationStorage.add(orderedBytes,
+                        CompactModelPreparationStorage.add(setBytes, nameBytes + UInt64(key.utf8.count))))
+                    let name = key.lowercased()
+                    guard names.insert(name).inserted else {
+                        throw BSIM4Error.invalidParameter(name: key, model: model)
+                    }
+                    nameBytes += UInt64(name.utf8.count)
+                    try storage.check(CompactModelPreparationStorage.add(orderedBytes,
+                        CompactModelPreparationStorage.add(CompactModelPreparationStorage.bytes(names.capacity, of: String.self), nameBytes)))
                     let status = name.withCString { cs_bsim4_parameter(handle, model ? 1 : 0, $0, value) }
                     guard status == CS_BSIM4_OK else { throw BSIM4Error.invalidParameter(name: key, model: model) }
                 }
@@ -45,13 +93,16 @@ public final class BSIM4Evaluator: BSIM4Evaluating {
                 guard status == CS_BSIM4_OK else { throw BSIM4Error.invalidConfiguration("Initial conditions must be finite") }
             }
             var local = CSBSIM4Topology()
+            try storage.charge()
             let status = cs_bsim4_prepare(handle, &local)
             guard status == CS_BSIM4_OK else { throw Self.error(status, String(cString: cs_bsim4_diagnostics(handle))) }
+            try storage.charge()
             var bias = SIMD16<Double>(repeating: 0)
             var probe = CSBSIM4Result()
             let preflight = withUnsafeBytes(of: &bias) {
                 cs_bsim4_evaluate(handle, $0.bindMemory(to: Double.self).baseAddress!, 0, 0, 0, 0, &probe)
             }
+            try storage.check(32768)
             let messages = String(cString: cs_bsim4_diagnostics(handle))
             guard preflight == CS_BSIM4_OK else { throw Self.error(preflight, messages) }
             self.topology = BSIM4Topology(nodeCount: Int(local.nodeCount), drainPrime: Int(local.drainPrime),
@@ -59,7 +110,44 @@ public final class BSIM4Evaluator: BSIM4Evaluating {
                 bodyPrime: Int(local.bodyPrime), drainBody: Int(local.drainBody), sourceBody: Int(local.sourceBody),
                 chargeNode: Int(local.chargeNode), noiseRequested: local.noiseRequested != 0,
                 maintainerUnsupportedNoiseMode: local.maintainerUnsupportedNoiseMode != 0)
-            self.diagnostics = messages.split(separator: "\n").map { BSIM4Diagnostic(String($0)) }
+            let lines = try storage.diagnosticLines(messages, diagnosticStride: MemoryLayout<BSIM4Diagnostic>.stride)
+            // Retained diagnostics omit the separators kept in the temporary C message text.
+            var diagnosticTextBytes: UInt64 = 0
+            for line in lines {
+                try storage.charge()
+                diagnosticTextBytes = try CompactModelPreparationStorage.add(diagnosticTextBytes, UInt64(line.utf8.count))
+            }
+            let requestedDiagnostics = try CompactModelPreparationStorage.add(
+                CompactModelPreparationStorage.bytes(lines.count, of: BSIM4Diagnostic.self), diagnosticTextBytes)
+            guard requestedDiagnostics <= preparationLimits.maximumDiagnosticBytes,
+                  Self.ownerAllocationBytes + Self.storedPayloadBytes + requestedDiagnostics <= preparationLimits.maximumRetainedBytes else {
+                throw MOSPreparationFailure.capacityExceeded
+            }
+            var diagnostics: [BSIM4Diagnostic] = []
+            diagnostics.reserveCapacity(lines.count)
+            let arrayBytes = try CompactModelPreparationStorage.bytes(diagnostics.capacity, of: BSIM4Diagnostic.self)
+            let viewsBytes = try CompactModelPreparationStorage.bytes(lines.capacity, of: Substring.self)
+            let messageBytes = UInt64(messages.utf8.count)
+            let admittedDiagnostics = try CompactModelPreparationStorage.add(arrayBytes, diagnosticTextBytes)
+            guard admittedDiagnostics <= preparationLimits.maximumDiagnosticBytes,
+                  Self.ownerAllocationBytes + Self.storedPayloadBytes + admittedDiagnostics <= preparationLimits.maximumRetainedBytes else {
+                throw MOSPreparationFailure.capacityExceeded
+            }
+            try storage.check(CompactModelPreparationStorage.add(arrayBytes, viewsBytes + 2 * messageBytes))
+            for line in lines {
+                try storage.charge()
+                diagnostics.append(BSIM4Diagnostic(String(line)))
+            }
+            let retainedDiagnostics = try CompactModelPreparationStorage.add(arrayBytes, diagnosticTextBytes)
+            guard retainedDiagnostics <= preparationLimits.maximumDiagnosticBytes,
+                  Self.ownerAllocationBytes + Self.storedPayloadBytes + retainedDiagnostics <= preparationLimits.maximumRetainedBytes else {
+                throw MOSPreparationFailure.capacityExceeded
+            }
+            try preparationControl?.checkCancellation()
+            self.diagnostics = diagnostics
+            self.diagnosticStorageBytes = retainedDiagnostics
+            self.preparationTemporaryBytes = storage.temporaryBytes
+            self.preparationWorkUnits = storage.workUnits
             self.state = Mutex(State(handle: handle))
         } catch {
             cs_bsim4_destroy(handle)

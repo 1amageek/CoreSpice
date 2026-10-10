@@ -2,16 +2,17 @@
 
 ## Purpose and Scope
 
-This SwiftPM module owns canonical circuit values. Parent: [CoreSpice](../../DESIGN.md). This module has no newly introduced child components.
+This SwiftPM module owns canonical circuit values. Parent: [CoreSpice](../../DESIGN.md). Its MOS stage component is [MOS instances](MOSInstances/DESIGN.md).
 
 ## Responsibilities and Boundaries
 
-IR owns resolved model provenance and auxiliary node identity. Device physics and model admission belong to device implementations.
+IR owns resolved model provenance, stage-tagged MOS values, and auxiliary node identity. Device physics and model admission belong to device implementations.
 
 ## Related Designs
 
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
+| [MOSInstances](MOSInstances/DESIGN.md) | child | Typed resolved/prepared MOS stage | Exact immutable value authority | Preserve when cloning |
 | [CoreSpice](../../DESIGN.md) | parent | Package composition | Owned module boundary | Revalidate direct consumers when contracts change |
 
 ## Architecture

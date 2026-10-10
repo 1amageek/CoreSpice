@@ -97,16 +97,29 @@ public struct BindingContext: Sendable {
         return branch
     }
 
-    /// Validates private node ownership once before a device is published.
-    public mutating func claimOwnedNodes(for instance: Instance) throws {
-        for node in instance.ownedNodes {
+    /// Checks the entire proposal without changing any ownership claim.
+    package func validateOwnedNodes(for instance: Instance) throws {
+        for (offset, node) in instance.ownedNodes.enumerated() {
             guard node != .ground, !instance.nodes.contains(node),
-                  variableMap[.nodeVoltage(node)] != nil,
-                  claimedOwnedNodes.insert(node).inserted else {
+                  !instance.ownedNodes[..<offset].contains(node),
+                  !claimedOwnedNodes.contains(node),
+                  let index = variableMap[.nodeVoltage(node)],
+                  (0..<matrixDimension).contains(index) else {
                 throw DeviceBindingError.invalidParameterValue(device: instance.name,
                     parameter: "ownedNodes", message: "Auxiliary node is absent, aliased or multiply owned")
             }
         }
+    }
+
+    /// Commits a preflighted proposal after all fallible binding work succeeds.
+    package mutating func commitValidatedOwnedNodes(for instance: Instance) {
+        for node in instance.ownedNodes { claimedOwnedNodes.insert(node) }
+    }
+
+    /// Atomically validates and claims all private nodes.
+    public mutating func claimOwnedNodes(for instance: Instance) throws {
+        try validateOwnedNodes(for: instance)
+        commitValidatedOwnedNodes(for: instance)
     }
 
     /// Returns the matrix index for a node voltage variable, or `nil` for ground.

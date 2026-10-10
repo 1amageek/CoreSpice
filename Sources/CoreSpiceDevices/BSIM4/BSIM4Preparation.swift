@@ -51,8 +51,8 @@ public enum BSIM4Preparation {
             noiseRequested: noisePreparationRequested, maximumStressIterations: policy.maximumStressIterations,
             modelParameters: modelParameters, instanceParameters: parameters,
             initialConditions: hasInitial ? initial : nil)
-        return try BSIM4PreparedDevice(evaluator: BSIM4Evaluator(configuration: configuration),
-            policy: policy, multiplier: multiplier, initialConditions: hasInitial ? initial : nil)
+        return try BSIM4PreparedDevice(configuration: configuration,
+            multiplier: multiplier, initialConditions: hasInitial ? initial : nil, policy: policy)
     }
 
     private static func real(_ value: ParameterValue, name: String, model: Bool) throws -> Double {

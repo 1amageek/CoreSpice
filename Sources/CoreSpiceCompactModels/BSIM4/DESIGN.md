@@ -106,3 +106,23 @@ slots including local ground are zero. Evaluation and destruction use the same
 existing Mutex<State> on every source target; accepted history is unchanged.
 Numerical/non-noise-prepared failures propagate and do not become zero spectra.
 The immutable mode1 maintainer limitation persists independently of paramchk.
+
+
+## Safe Owner Allocation Metadata
+
+Status: approved S3 addition. The [C target allocation query](../../CoreSpiceBSIM4/DESIGN.md#exact-owner-allocation-query)
+is the sole authority for owner allocation bytes. `BSIM4Evaluator` exposes
+that immutable count as `static var ownerAllocationBytes: UInt64`, using checked
+conversion of the real linked C query. This getter allocates no evaluator and
+exports no C type, pointer or handle layout.
+
+The [native preparation consumer](../../CoreSpiceDevices/MOSPreparation/DESIGN.md)
+admits these bytes before constructing a fresh evaluator. It separately counts
+Swift owner storage, projected configuration and copied diagnostics. This metadata
+does not replace existing initialization failure cleanup or locked exactly-once
+destruction; neither standalone evaluator identity nor physics is changed.
+
+Safe-wrapper tests call the actual linked metadata path and exercise cold failure
+and destruction. C fixtures own agreement with private sizeof; Devices tests own
+local byte-limit refusal before owner publication. These scopes must not infer
+resource success solely from public struct sizes or a compile-only check.
