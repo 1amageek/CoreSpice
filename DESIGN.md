@@ -134,10 +134,11 @@ flowchart LR
     Analysis --> Receipts[Completed execution evidence]
 ```
 
-This section specifies the target boundary, not completed implementation evidence.
-The current migration status is owned solely by the workspace PROGRESS.md,
-B8.6.5.18. The semantic contracts and their local counterexamples are owned by
-MOSContracts and MOSResolution. Parser owns source retention, Lowering owns the
+The [MOS requirement/evidence index](docs/mos-boundary-requirements.md) links
+R01–R35 to their owners, tests and scoped cumulative verification. Workspace
+PROGRESS.md, B8.6.5.18, owns task completion, including the final commit.
+The semantic contracts and their local counterexamples are owned by MOSContracts
+and MOSResolution. Parser owns source retention, Lowering owns the
 adapter, Devices owns preparation and executable lifetime, and the native/CLI
 composition owns complete run ordering. Each owner design records its local
 requirement mapping. BSIM4.5 inspection must succeed independently of executable

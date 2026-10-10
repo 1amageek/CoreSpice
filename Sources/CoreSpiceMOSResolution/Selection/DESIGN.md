@@ -112,3 +112,12 @@ Resolved values retain the original checked geometry scale. Inspection repeats t
 original divide-before-scale per-finger operation with that value, never an inverse
 ratio reconstructed from rounded normalized values. Subnormal values therefore
 preserve the resolver's exact accepted rounding boundary.
+
+[MOSSelectionBoundaryMatrixTests](../../../Tests/CoreSpiceMOSResolutionTests/MOSSelectionBoundaryMatrixTests.swift)
+owns R18/R19/R32 endpoint neighborhoods on both geometry axes, explicit gaps and
+interior overlaps, and visited reversed/missing/nonfinite bounds through the public
+resolver. Accepted results also pass independent inspection against their original
+snapshot/source evidence. Pinned tolerance fixtures check the represented distance
+itself before asserting the strict less-than-1e-9-meter boundary. Missing pinned
+bounds remain profile-defined exclusions; strict omission and invalid visited
+bounds fail. These tests add no new policy or physical qualification claim.
