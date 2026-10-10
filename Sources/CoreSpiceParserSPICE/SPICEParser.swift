@@ -1591,11 +1591,13 @@ private struct SPICEParserImpl {
                     } else {
                         try params.set(value, for: try normalized(pname))
                     }
+                } else {
+                    throw ParserDiagnostic.error("Expected '=' after model parameter", at: assignmentLocation)
                 }
             } else if case .continuation = currentToken {
                 try advance()
             } else {
-                try advance()
+                throw ParserDiagnostic.error("Expected model parameter assignment", at: currentLocation)
             }
         }
 

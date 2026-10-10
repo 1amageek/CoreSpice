@@ -5,6 +5,29 @@ import Testing
 
 @Suite("Owned MOS declaration intake", .timeLimit(.minutes(1)))
 struct MOSDeclarationOwnedIntakeTests {
+    @Test(arguments: ["vto", "level", "version", "unknown", "0.5", "=0.5"])
+    func malformedModelFieldsReleasePartialAccountedOwners(field: String) async throws {
+        let resources = GrammarTestResources()
+        do {
+            let root = try document(".model n nmos kp=1m \(field)\n.end\n",
+                key: "invalid-model", id: 0, resources: resources)
+            let configuration = ParserConfiguration(resolveIncludes: true)
+            let environment = try SPICEPreprocessingEnvironment.empty(policyIdentity: "mos-intake-v1",
+                configuration: configuration, resources: resources, maximumPageByteCount: 256)
+            do {
+                _ = try await SPICEParser().parseProfile(document: root, configuration: configuration,
+                    environment: environment, resolver: MOSIntakeResolver(text: "", resources: resources), resources: resources)
+                Issue.record("Malformed model field published an owned snapshot")
+            } catch let failure as SPICEProfileParseFailure {
+                #expect(failure.diagnostic.location?.file == "invalid-model")
+                #expect(failure.diagnostic.location?.line == 1)
+                #expect(failure.diagnostic.severity == .error)
+            }
+        }
+        #expect(resources.used(.liveOwnedBytes) == 0)
+        #expect(resources.used(.temporaryBytes) == 0)
+    }
+
     @Test func repeatedIncludesRetainLocalFunctionAndAssignmentOccurrenceIdentity() async throws {
         let resources = GrammarTestResources()
         do {

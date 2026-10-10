@@ -203,12 +203,11 @@ public struct SPICESerializer: NetlistSerializer {
     ) -> String {
         var parts = [".model", model.name, model.type.rawValue]
 
-        if let level = model.level {
-            parts.append("level=\(level)")
-        }
-
-        if !model.parameters.isEmpty {
+        if model.level != nil || !model.parameters.isEmpty {
             parts.append("(")
+            if let level = model.level {
+                parts.append("level=\(level)")
+            }
             for (name, value) in sortedIfNeeded(model.parameters, options) {
                 parts.append("\(name)=\(serializeValue(value, options))")
             }

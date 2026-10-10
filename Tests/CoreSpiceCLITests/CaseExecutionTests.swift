@@ -17,6 +17,27 @@ import Synchronization
 
 @Suite("Ordinary CLI completed case evidence", .timeLimit(.minutes(1)))
 struct CaseExecutionTests {
+    @Test(arguments: ["coreStrictV1", "pinnedNgspiceNormalV1"])
+    func malformedMOSModelNeverPublishesCompletedCase(profile: String) async throws {
+        for field in ["vto", "level", "version", "unknown", "0.5", "=0.5"] {
+            let root = try directory(); defer { cleanup(root) }
+            let source = root.appendingPathComponent("deck.cir")
+            try "Invalid model\n.model n nmos kp=1m \(field)\nVD d 0 1\nVG g 0 1\nM1 d g 0 0 n l=1u w=2u\n.op\n.end\n"
+                .write(to: source, atomically: true, encoding: .utf8)
+            let output = root.appendingPathComponent("case")
+            let args = ["-b", source.path, "--mos-profile", profile,
+                "--case-output", output.path, "--case-id", "rejected-model", "--json"]
+            var session = try Session(policy: .developerV1())
+            do {
+                _ = try await CLI(arguments: args).executeBatch(options: .init(arguments: args), session: &session)
+                Issue.record("Malformed MOS input published completed execution")
+            } catch {
+                #expect(!FileManager.default.fileExists(atPath: output.appendingPathComponent("execution.json").path))
+                #expect(!FileManager.default.fileExists(atPath: output.appendingPathComponent("model-receipt-0.json").path))
+            }
+        }
+    }
+
     private func directory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("corespice-case-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)

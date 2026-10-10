@@ -5,6 +5,19 @@ import Testing
 
 @Suite("MOS declaration source intake", .timeLimit(.minutes(1)))
 struct MOSDeclarationIntakeTests {
+    @Test(arguments: ["vto", "level", "version", "unknown", "0.5", "=0.5"])
+    func malformedModelFieldsCannotBecomeOmittedValues(field: String) async throws {
+        let result = await SPICEParser().parse(source:
+            "Invalid model field\n.model n nmos kp=1m \(field)\n.end\n", fileName: "invalid-model.cir")
+        do {
+            _ = try result.get()
+            Issue.record("Malformed model field was discarded")
+        } catch let diagnostic as ParserDiagnostic {
+            #expect(diagnostic.location?.line == 2)
+            #expect(diagnostic.location?.file == "invalid-model.cir")
+        }
+    }
+
     @Test func orderedAssignmentsRetainDuplicatesRolesAndPhysicalLocations() async throws {
         let source = """
         MOS source roles

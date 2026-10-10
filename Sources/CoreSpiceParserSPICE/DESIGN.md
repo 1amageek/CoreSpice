@@ -61,6 +61,15 @@ all body builders are restored by defer when parsing exits or throws.
 fields. `MOSDeclarationIntakeTests` owns source order, source coordinates and
 scope isolation proofs; later MOS resolution owns release/profile admission.
 
+Every model parameter requires `name=value`. A bare name (including `level`,
+`version` or a scalar coefficient) and an unexpected token are located syntax
+failures in the shared ordinary/accounted grammar. They cannot become omitted
+inputs or device defaults. Ordered assignments are published only after the
+whole model statement is admitted; no partial model escapes a failed parse.
+`MOSDeclarationIntakeTests` and `MOSDeclarationOwnedIntakeTests` verify rejection,
+physical locations and accounted-owner release. CLI case tests verify that these
+failures cannot publish completed execution/model receipts (R01/R02/R06/R19).
+
 ### Conditional delimiters and reference names
 
 The shared lexer owns punctuation boundaries. In the unchanged Sky130
