@@ -19,6 +19,7 @@ no algorithm protocol permits replacing normalization or model selection.
 
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
+| [Schema](Schema/DESIGN.md) | child | Exact release/role/kind/scaling contracts | Portable input meaning | Execution capability belongs to provider |
 | [Preparation](Preparation/DESIGN.md) | child | Explicit preparation conditions/identity/topology | Portable execution boundary values | No numerical owner |
 | [Resolution declarations](../CoreSpiceMOSResolution/Declarations/DESIGN.md) | used by | Immutable IDs and programs | Ordered snapshot construction | IDs are snapshot-local |
 | [Devices](../CoreSpiceDevices/DESIGN.md) | used by | Exact release and normalized values | Preparation consumes resolution | Inspectable does not mean executable |

@@ -66,6 +66,79 @@ digests or provenance.
 | Project/run persistence and human approval | Xcircuite / DesignFlowKernel |
 | DRC, LVS, PEX, STA, EM/IR, and physical signoff rules | Domain signoff engines |
 
+## Proposed BSIM4 4.5 Implementation Units
+
+Status: researched design, not implemented capability. Current production still
+refuses 4.5 preparation. The [research record](docs/bsim45-research/RESEARCH.md)
+owns original-source and Sky130 observations. Proposed child designs own their
+respective contracts; this package owns composition, ordering and completion.
+The solver's numerical algorithms remain unchanged.
+
+```mermaid
+flowchart TD
+    Source["Pinned original 4.5.0 + Sky130 inventory"] --> Schema["B45-1 portable schema"]
+    Source --> Owner["B45-2 C preparation owner"]
+    Owner --> Static["B45-3 full I/Q/Jacobians"]
+    Static --> Dynamic["B45-4 AC and transient history"]
+    Static --> Noise["B45-5 original noise"]
+    Schema --> Binding["B45-6 safe Swift and consuming binding"]
+    Dynamic --> Binding
+    Noise --> Binding
+    Binding --> Adoption["B45-7 original PDK and consumer adoption"]
+```
+
+| Unit / responsibility | Dependencies | Independent completion evidence |
+|---|---|---|
+| B45-1: [Schema](Sources/CoreSpiceMOSContracts/Schema/DESIGN.md) | Frozen research | Pure original ID/kind/unit/alias/version tests; unsupported extension refusal; one-evaluation resolver; fixed Native/WASM/Embedded runtime |
+| B45-2: [Native owner](Sources/CoreSpiceBSIM45/DESIGN.md) and [source adaptation](Sources/CoreSpiceBSIM45/Kernel/DESIGN.md) | Frozen research | Standalone C setup/defaults/temp/topology; exact owner-size accounting; allocation/fatal-check/diagnostic/work failure; ASan/UBSan cleanup |
+| B45-3: original current, charge and analytic derivatives | B45-2 | Separate unadapted-source references, n/p reverse/body bias, every enabled selector, full-node finite differences/conservation and SC correction |
+| B45-4: AC and BE/TR state machine | B45-3 | Actual frequency-dependent NQS matrix, all 29 states, accepted/rejected trials, stale/double/cross-owner commit refusal, history preserved by DC/AC |
+| B45-5: release-specific noise | B45-3 | Fourteen original channels, gain-pair/correlation, mode 0/1, temperature/frequency, noise-only topology and unchanged accepted history |
+| B45-6: [Safe owner](Sources/CoreSpiceCompactModels/BSIM45/DESIGN.md) and [production](Sources/CoreSpiceDevices/BSIM45/DESIGN.md) | B45-1, B45-4, B45-5 | Real C-backed Swift evaluator plus public parse->resolve->prepare->compile->consume->bind->Analysis; identity/capability/budget/cancel/cleanup and lock-order proof |
+| B45-7: original PDK and direct/transitive adoption | B45-6 | Source/corner/wrapper-specific DC/AC/transient/noise runs, 4.62 refusal, release performance/resource counters, actual CLI/API/PDK/Host/Studio consumers and dependency pins |
+
+Independence means each unit's contract can be falsified without completing the
+whole platform, not removing its real prerequisites. B45-1 and B45-2 can progress
+on separate responsibilities after source freeze. B45-4 and B45-5 have independent
+proof inputs but share native context/adapter state; serialize those implementation
+changes under the same owner. Package manifest and higher-level composition changes
+have one owner. During implementation, each sprint updates the workspace progress,
+reviews its complete change, verifies only findings after fixes, runs bounded
+focused checks, and creates a coherent local commit before dependent adoption.
+
+Completion is a matrix, not a single supported flag: exact-source kernel behavior,
+public numerical execution, original-PDK wrapper execution, and physical process
+accuracy are distinct evidence. A selected/inspected declaration is not a run.
+BSIM4.62 and unsupported composed wrapper elements remain explicit refusals and
+cannot inflate 4.5 numerical coverage. Full 4.5 kernel qualification includes modes
+absent from Sky130 cards; Sky130 qualification includes wrappers outside that kernel.
+
+For Native CPU integration references, record units and an absolute-plus-relative
+comparison before generating fixtures: DC current uses the child kernel threshold;
+AC complex admittance uses `1e-12 S + 2e-6 relative` per active matrix entry; reference
+waveform voltage uses `1e-6 V + 2e-4 relative` on the same requested sample grid with
+recorded integration tolerances. These are proposed numerical acceptance thresholds,
+not measured 4.5 results or physical accuracy. Step-size/convergence studies must
+explain a failure before any tolerance change; do not tune thresholds just to pass.
+
+Release measurements separate cold parsing/snapshot/preparation/binding/analysis
+from snapshot reuse, with identical input/seed/conditions, sample counts and audit
+settings. Report wall time, allocation/copy counters, retained/temporary peaks,
+expression work, candidate visits and cold setup count. Enforce zero downstream
+model search, binding re-evaluation, candidate-range intermediate copies and
+duplicate same-condition cold setup. Compare 4.8.3 only for infrastructure cost;
+different-release numerical results are not an equivalence oracle. No runtime
+speedup is claimed until measured on the complete changed path.
+
+R01-R20 remain owned by Parser/Lowering/MOSResolution and the release schema;
+B45-1 revalidates their changed release/scale assumptions. R21-R30 are owned by
+MOSPreparation, the new native/safe/bound owners and existing NativeExecution;
+B45-2 through B45-6 provide concrete failure/resource/lifetime counterexamples.
+R31-R35 are owned by independent target tests and B45-7 integration evidence;
+every adopted row records source/release/schema/conditions and actual completed
+analysis, never declaration counts as executed coverage. The package's existing
+requirement-to-test evidence remains valid where its premises are unchanged.
+
 ## Related Designs
 
 | Design | Relationship | Contract Used | Summary | Cautions |
@@ -80,6 +153,8 @@ digests or provenance.
 | [CoreSpiceCLICore](Sources/CoreSpiceCLI/DESIGN.md) | child | Completed phase evidence and explicit case output | Direct developer execution | Baseline binding does not prove sweep or Monte Carlo execution |
 | [CoreSpiceMOSContracts](Sources/CoreSpiceMOSContracts/DESIGN.md) | child | Explicit MOS input profiles, exact release/schema and staged values | Portable semantic dependency floor | Selection is distinct from preparation and physical qualification |
 | [CoreSpiceMOSResolution](Sources/CoreSpiceMOSResolution/DESIGN.md) | child | Immutable declaration snapshot and checked one-evaluation resolution | Independent scoped MOS interpretation | No numerical device/kernel dependency |
+| [CoreSpiceBSIM4](Sources/CoreSpiceBSIM4/DESIGN.md) | child | Exact existing 4.8.3 opaque kernel | Current native release | Release-specific physics and qualification |
+| [CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md) | child, proposed | Exact 4.5.0 opaque kernel and bounded outputs | Independent native implementation unit | Design only; not registered or executable |
 | [CoreSpiceLowering](Sources/CoreSpiceLowering/DESIGN.md) | child | Parsed declaration/program projection and circuit lowering | Source-preserving adapter to MOS resolution | Device preparation belongs to execution composition |
 | [CoreSpiceCompile](Sources/CoreSpiceCompile/DESIGN.md) | child | Auxiliary sparse topology | CPU solver structure | Revalidate direct consumers |
 | [CoreSpiceWaveform](Sources/CoreSpiceWaveform/DESIGN.md) | child | Opaque result-storage retention and waveform views | Export value lifetime | Numerical conversion and IO projection retain the admitted owner |

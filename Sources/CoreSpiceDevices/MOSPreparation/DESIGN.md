@@ -47,6 +47,7 @@ public protocol PreparedMOSDevice: ~Copyable, Sendable {
 | [IR](../../CoreSpiceIR/DESIGN.md) | depends on | Typed resolved/prepared stage and private nodes | Retained receipt | Counts alone do not prove matching preparation |
 | [Classic devices](../Devices/DESIGN.md) | depends on | Parameter validation and existing stamps | L1/L2/L3 physics | Unsupported supplied semantics are refused |
 | [BSIM3](../BSIM3/DESIGN.md) | depends on | Exclusive 3.3.0 owner | Original topology/history | Evaluator cannot escape preparation |
+| [BSIM45](../BSIM45/DESIGN.md) | depends on, proposed | Separate exact 4.5 owner | Native provider extension | Current implementation still refuses 4.5 |
 | [BSIM4](../BSIM4/DESIGN.md) | depends on | Exclusive 4.8.3 owner | Explicit stress/noise intent | Inspectable 4.5 fails before allocation |
 | [Native execution](../../CoreSpice/NativeExecution/DESIGN.md) | used by | Concrete noncopyable owner | Aggregate resources and run ordering | No cold setup per DC point |
 

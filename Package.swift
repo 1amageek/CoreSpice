@@ -60,11 +60,11 @@ let package = Package(
             "Kernel/DESIGN.md", "Kernel/upstream.json", "Kernel/adapt_upstream.py", "Kernel/noise_primitives.inc", "Kernel/NOISE_PRIMITIVE_LICENSE"],
             publicHeadersPath: "include"),
         .target(name: "CoreSpiceCompactModels", dependencies: ["CoreSpiceBSIM3", "CoreSpiceBSIM4", "CoreSpiceMOSContracts"],
-            exclude: ["DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "PreparationStorage/DESIGN.md"]),
+            exclude: ["DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "BSIM45/DESIGN.md", "PreparationStorage/DESIGN.md"]),
 
         // --- Devices ---
         .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceMOSContracts"],
-                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "OutputReferredNoise/DESIGN.md", "MOSPreparation/DESIGN.md"]),
+                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "BSIM45/DESIGN.md", "OutputReferredNoise/DESIGN.md", "MOSPreparation/DESIGN.md"]),
 
         // --- Compile ---
         .target(

@@ -23,6 +23,7 @@ typed numerical failures; devices never label an analysis successful.
 | [Devices](Devices/DESIGN.md) | child | Descriptors and bound devices | Physical models | Current and Jacobian must change together |
 | [MOSPreparation](MOSPreparation/DESIGN.md) | child | Single-owner preparation and consuming binding | Approved S3 boundary | Runtime evidence remains migration-owned |
 | [BSIM3](BSIM3/DESIGN.md) | child | Exact 3.3.0 bound owner | Electrical and history behavior | Preserve both Mutex owners |
+| [BSIM45](BSIM45/DESIGN.md) | child, proposed | Exact 4.5 prepared/bound owner | Existing Analysis composition | Original wrappers need independent qualification |
 | [BSIM4](BSIM4/DESIGN.md) | child | Exact 4.8.3 bound owner | Electrical and history behavior | Preserve stress/noise intent |
 | [Output-referred noise](OutputReferredNoise/DESIGN.md) | child | Correlated spectrum composition | Full-node gain input | Success does not imply qualification |
 | [ParsedIR](../CoreSpiceParsedIR/DESIGN.md) | coordinates with | Original model and instance source roles | Resistor declaration provenance | Unused declaration acceptance is not execution admission |

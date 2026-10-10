@@ -1,0 +1,4365 @@
+{
+  "bsim45": {
+    "exampleDeclarations": [
+      {
+        "file": "sky130_fd_pr__cap_vpp_11p3x11p8_l1m1m2m3m4_shieldm5_nhv__base.model.spice",
+        "line": 25,
+        "name": "sky130_fd_pr__cap_vpp_11p3x11p8_l1m1m2m3m4_shieldm5_nhv__base__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__cap_vpp_11p3x11p8_l1m1m2m3m4_shieldm5_nhv__base"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__esd_nfet_01v8.pm3.spice",
+        "line": 20,
+        "name": "sky130_fd_pr__esd_nfet_01v8__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__esd_nfet_01v8"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__esd_nfet_05v0_nvt.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__esd_nfet_05v0_nvt__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__esd_nfet_05v0_nvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__esd_nfet_g5v0d10v5.pm3.spice",
+        "line": 20,
+        "name": "sky130_fd_pr__esd_nfet_g5v0d10v5__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__esd_nfet_g5v0d10v5"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__esd_pfet_g5v0d10v5.pm3.spice",
+        "line": 20,
+        "name": "sky130_fd_pr__esd_pfet_g5v0d10v5__model.0",
+        "polarity": "pmos",
+        "scope": [
+          "sky130_fd_pr__esd_pfet_g5v0d10v5"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8.pm3.spice",
+        "line": 41,
+        "name": "sky130_fd_pr__nfet_01v8__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8__ff.pm3.spice",
+        "line": 39,
+        "name": "sky130_fd_pr__nfet_01v8__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8__fs.pm3.spice",
+        "line": 39,
+        "name": "sky130_fd_pr__nfet_01v8__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8__leak.pm3.spice",
+        "line": 39,
+        "name": "sky130_fd_pr__nfet_01v8__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8__sf.pm3.spice",
+        "line": 39,
+        "name": "sky130_fd_pr__nfet_01v8__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8__ss.pm3.spice",
+        "line": 39,
+        "name": "sky130_fd_pr__nfet_01v8__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8__tt.pm3.spice",
+        "line": 39,
+        "name": "sky130_fd_pr__nfet_01v8__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8__tt_leak.pm3.spice",
+        "line": 39,
+        "name": "sky130_fd_pr__nfet_01v8__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8_lvt.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_01v8_lvt__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8_lvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8_lvt__ff.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_01v8_lvt__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8_lvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8_lvt__fs.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_01v8_lvt__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8_lvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8_lvt__leak.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_01v8_lvt__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8_lvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8_lvt__sf.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_01v8_lvt__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8_lvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8_lvt__ss.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_01v8_lvt__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8_lvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8_lvt__tt.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_01v8_lvt__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8_lvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_01v8_lvt__tt_leak.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_01v8_lvt__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_01v8_lvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_03v3_nvt.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_03v3_nvt__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_03v3_nvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_05v0_nvt.pm3.spice",
+        "line": 36,
+        "name": "sky130_fd_pr__nfet_05v0_nvt__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_05v0_nvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_20v0__subcircuit.pm3.spice",
+        "line": 64,
+        "name": "sky130_fd_pr__nfet_20v0__base.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_20v0"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_20v0_iso__subcircuit.pm3.spice",
+        "line": 68,
+        "name": "sky130_fd_pr__nfet_20v0__base.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_20v0_iso"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_20v0_nvt__subcircuit.pm3.spice",
+        "line": 68,
+        "name": "sky130_fd_pr__nfet_20v0__base.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_20v0_nvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_20v0_nvt_iso__subcircuit.pm3.spice",
+        "line": 68,
+        "name": "sky130_fd_pr__nfet_20v0__base.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_20v0_nvt_iso"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_20v0_zvt__subcircuit.pm3.spice",
+        "line": 63,
+        "name": "sky130_fd_pr__nfet_20v0_zvt__base.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_20v0_zvt"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_g5v0d10v5.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_g5v0d10v5__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_g5v0d10v5"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_g5v0d10v5__ff.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_g5v0d10v5__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_g5v0d10v5"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_g5v0d10v5__fs.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_g5v0d10v5__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_g5v0d10v5"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_g5v0d10v5__leak.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_g5v0d10v5__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_g5v0d10v5"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_g5v0d10v5__sf.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_g5v0d10v5__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_g5v0d10v5"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_g5v0d10v5__ss.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_g5v0d10v5__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_g5v0d10v5"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_g5v0d10v5__tt.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_g5v0d10v5__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_g5v0d10v5"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_g5v0d10v5__tt_leak.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__nfet_g5v0d10v5__model.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_g5v0d10v5"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__nfet_g5v0d16v0.pm3.spice",
+        "line": 40,
+        "name": "sky130_fd_pr__nfet_g5v0d16v0__model_base.0",
+        "polarity": "nmos",
+        "scope": [
+          "sky130_fd_pr__nfet_g5v0d16v0__base"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__pfet_01v8.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__pfet_01v8__model.0",
+        "polarity": "pmos",
+        "scope": [
+          "sky130_fd_pr__pfet_01v8"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__pfet_01v8__ff.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__pfet_01v8__model.0",
+        "polarity": "pmos",
+        "scope": [
+          "sky130_fd_pr__pfet_01v8"
+        ]
+      },
+      {
+        "file": "sky130_fd_pr__pfet_01v8__fs.pm3.spice",
+        "line": 34,
+        "name": "sky130_fd_pr__pfet_01v8__model.0",
+        "polarity": "pmos",
+        "scope": [
+          "sky130_fd_pr__pfet_01v8"
+        ]
+      }
+    ],
+    "familyCount": 31,
+    "outsideOriginalModelTable": [],
+    "parameterCounts": {
+      "a0": 6108,
+      "a1": 6108,
+      "a2": 6108,
+      "acde": 6108,
+      "acnqsmod": 6108,
+      "af": 6100,
+      "agidl": 6108,
+      "ags": 6108,
+      "aigbacc": 6108,
+      "aigbinv": 6108,
+      "aigc": 6108,
+      "aigsd": 6108,
+      "alpha0": 6108,
+      "alpha1": 6108,
+      "at": 6108,
+      "b0": 6108,
+      "b1": 6108,
+      "beta0": 6108,
+      "bgidl": 6108,
+      "bigbacc": 6108,
+      "bigbinv": 6108,
+      "bigc": 6108,
+      "bigsd": 6108,
+      "binunit": 6108,
+      "bvs": 6108,
+      "capmod": 6108,
+      "cdsc": 6108,
+      "cdscb": 6108,
+      "cdscd": 6108,
+      "cf": 6108,
+      "cgbo": 6108,
+      "cgdl": 6108,
+      "cgdo": 6108,
+      "cgidl": 6108,
+      "cgsl": 6108,
+      "cgso": 6108,
+      "cigbacc": 6108,
+      "cigbinv": 6108,
+      "cigc": 6108,
+      "cigsd": 6108,
+      "cit": 6108,
+      "cjd": 2,
+      "cjs": 6108,
+      "cjswd": 2,
+      "cjswgd": 2,
+      "cjswgs": 6108,
+      "cjsws": 6108,
+      "ckappad": 2,
+      "ckappas": 6108,
+      "clc": 6108,
+      "cle": 6108,
+      "delta": 6108,
+      "diomod": 6108,
+      "dlc": 6108,
+      "dlcig": 6106,
+      "dmcg": 6108,
+      "dmcgt": 6108,
+      "dmdg": 6108,
+      "drout": 6108,
+      "dsub": 6108,
+      "dtox": 6100,
+      "dvt0": 6108,
+      "dvt0w": 6108,
+      "dvt1": 6108,
+      "dvt1w": 6108,
+      "dvt2": 6108,
+      "dvt2w": 6108,
+      "dvtp0": 6108,
+      "dvtp1": 6108,
+      "dwb": 6108,
+      "dwc": 6108,
+      "dwg": 6108,
+      "ef": 6108,
+      "egidl": 6108,
+      "eigbinv": 6108,
+      "em": 6108,
+      "epsrox": 6108,
+      "eta0": 6108,
+      "etab": 6108,
+      "eu": 6108,
+      "fnoimod": 6108,
+      "fprout": 6108,
+      "gbmin": 6100,
+      "geomod": 6108,
+      "igbmod": 6108,
+      "igcmod": 6108,
+      "ijthsfwd": 6108,
+      "ijthsrev": 6100,
+      "jss": 6108,
+      "jsws": 6108,
+      "jtssws": 2,
+      "k1": 6108,
+      "k2": 6108,
+      "k3": 6108,
+      "k3b": 6108,
+      "keta": 6108,
+      "kf": 6100,
+      "kt1": 6108,
+      "kt1l": 6108,
+      "kt2": 6108,
+      "ku0": 6024,
+      "kvsat": 6024,
+      "kvth0": 6024,
+      "la0": 4053,
+      "la2": 1218,
+      "lagidl": 2256,
+      "lags": 4116,
+      "lalpha0": 2639,
+      "lalpha1": 938,
+      "lambda": 6100,
+      "lat": 4333,
+      "lb0": 1647,
+      "lb1": 1565,
+      "lbeta0": 3794,
+      "lbgidl": 1526,
+      "lc": 6100,
+      "lcdscd": 301,
+      "lcgidl": 602,
+      "lcit": 651,
+      "ldelta": 245,
+      "ldrout": 2037,
+      "ldsub": 2870,
+      "legidl": 714,
+      "leta0": 2777,
+      "letab": 2786,
+      "level": 6108,
+      "lint": 6108,
+      "lintnoi": 6106,
+      "lk1": 3738,
+      "lk2": 4613,
+      "lketa": 4160,
+      "lkt1": 4439,
+      "lkt2": 3283,
+      "lku0": 6024,
+      "lkvth0": 6024,
+      "ll": 6108,
+      "llc": 6090,
+      "lln": 6108,
+      "llodku0": 6024,
+      "llodvth": 6024,
+      "lmax": 6108,
+      "lmin": 6108,
+      "lnfactor": 4468,
+      "lodeta0": 6024,
+      "lodk2": 6024,
+      "lp": 6088,
+      "lpclm": 4284,
+      "lpdiblc1": 2261,
+      "lpdiblc2": 3836,
+      "lpdiblcb": 2282,
+      "lpe0": 6108,
+      "lpeb": 6108,
+      "lpscbe1": 2723,
+      "lpscbe2": 2289,
+      "ltvoff": 488,
+      "lu0": 4613,
+      "lua": 4599,
+      "lua1": 3794,
+      "lub": 4592,
+      "lub1": 4095,
+      "luc": 4249,
+      "luc1": 3360,
+      "lute": 4382,
+      "lvoff": 3949,
+      "lvsat": 4025,
+      "lvth0": 4613,
+      "lw": 6108,
+      "lwc": 6090,
+      "lwl": 6108,
+      "lwlc": 6090,
+      "lwn": 6108,
+      "minv": 6108,
+      "mjs": 6108,
+      "mjswgs": 6108,
+      "mjsws": 6108,
+      "mobmod": 6108,
+      "moin": 6108,
+      "ndep": 6108,
+      "nfactor": 6108,
+      "ngate": 6108,
+      "ngcon": 6108,
+      "nigbacc": 6108,
+      "nigbinv": 6108,
+      "nigc": 6108,
+      "njd": 2,
+      "njs": 6108,
+      "noff": 6108,
+      "noia": 6108,
+      "noib": 6108,
+      "noic": 6108,
+      "nsd": 6108,
+      "ntnoi": 6100,
+      "ntox": 6108,
+      "pa0": 1925,
+      "pa2": 609,
+      "pagidl": 1249,
+      "pags": 2049,
+      "palpha0": 1603,
+      "palpha1": 525,
+      "pat": 2051,
+      "pb0": 926,
+      "pb1": 867,
+      "pbeta0": 1895,
+      "pbgidl": 819,
+      "pbs": 6108,
+      "pbswgs": 6108,
+      "pbsws": 6108,
+      "pcdscd": 112,
+      "pcgidl": 357,
+      "pcit": 335,
+      "pclm": 6108,
+      "pdelta": 203,
+      "pdiblc1": 6108,
+      "pdiblc2": 6108,
+      "pdiblcb": 6108,
+      "pdits": 6108,
+      "pditsd": 6108,
+      "pditsl": 6108,
+      "pdrout": 923,
+      "pdsub": 1423,
+      "pegidl": 415,
+      "permod": 6108,
+      "peta0": 1719,
+      "petab": 1683,
+      "phin": 6108,
+      "pigcd": 6108,
+      "pk1": 1575,
+      "pk2": 2845,
+      "pketa": 2373,
+      "pkt1": 2063,
+      "pkt2": 1377,
+      "pku0": 6024,
+      "pkvth0": 6024,
+      "pnfactor": 2281,
+      "poxedge": 6108,
+      "ppclm": 2473,
+      "ppdiblc1": 1200,
+      "ppdiblc2": 2108,
+      "ppdiblcb": 1359,
+      "ppscbe1": 1308,
+      "ppscbe2": 1140,
+      "prt": 6108,
+      "prwb": 6108,
+      "prwg": 6108,
+      "pscbe1": 6108,
+      "pscbe2": 6108,
+      "ptvoff": 272,
+      "pu0": 2397,
+      "pua": 2473,
+      "pua1": 1870,
+      "pub": 2485,
+      "pub1": 2252,
+      "puc": 2131,
+      "puc1": 1932,
+      "pute": 2103,
+      "pvag": 6108,
+      "pvoff": 1771,
+      "pvsat": 2172,
+      "pvth0": 2394,
+      "rbdb": 6100,
+      "rbodymod": 6108,
+      "rbpb": 6100,
+      "rbpd": 6100,
+      "rbps": 6100,
+      "rbsb": 6100,
+      "rdsmod": 6108,
+      "rdsw": 6108,
+      "rdswmin": 6108,
+      "rdw": 6108,
+      "rdwmin": 6108,
+      "rgatemod": 6108,
+      "rnoia": 6106,
+      "rnoib": 6106,
+      "rsh": 6108,
+      "rshg": 6108,
+      "rsw": 6108,
+      "rswmin": 6108,
+      "saref": 6024,
+      "sbref": 6024,
+      "steta0": 6024,
+      "stk2": 6024,
+      "tcj": 6108,
+      "tcjsw": 6108,
+      "tcjswg": 6108,
+      "tempmod": 6106,
+      "tku0": 6024,
+      "tnoia": 6106,
+      "tnoib": 6106,
+      "tnoimod": 6108,
+      "tnom": 6108,
+      "toxe": 6108,
+      "toxm": 6108,
+      "toxref": 6108,
+      "tpb": 6108,
+      "tpbsw": 6108,
+      "tpbswg": 6108,
+      "trnqsmod": 6108,
+      "tvfbsdoff": 6082,
+      "tvoff": 6090,
+      "u0": 6108,
+      "ua": 6108,
+      "ua1": 6108,
+      "ub": 6108,
+      "ub1": 6108,
+      "uc": 6108,
+      "uc1": 6108,
+      "ud": 6088,
+      "up": 6088,
+      "ute": 6108,
+      "vbm": 6108,
+      "version": 6108,
+      "vfb": 656,
+      "vfbcv": 6108,
+      "vfbsdoff": 6100,
+      "voff": 6108,
+      "voffcv": 6108,
+      "voffl": 6108,
+      "vsat": 6108,
+      "vth0": 6108,
+      "vtl": 6106,
+      "w0": 6108,
+      "wa0": 2393,
+      "wa2": 668,
+      "wagidl": 1382,
+      "wags": 2369,
+      "walpha0": 1762,
+      "walpha1": 669,
+      "wat": 2357,
+      "wb0": 1014,
+      "wb1": 946,
+      "wbeta0": 2136,
+      "wbgidl": 942,
+      "wcdscd": 117,
+      "wcgidl": 414,
+      "wcit": 454,
+      "wdelta": 280,
+      "wdrout": 981,
+      "wdsub": 1393,
+      "wegidl": 415,
+      "weta0": 1695,
+      "wetab": 1670,
+      "wint": 6108,
+      "wk1": 1788,
+      "wk2": 3117,
+      "wketa": 2555,
+      "wkt1": 2460,
+      "wkt2": 1574,
+      "wku0": 6024,
+      "wkvth0": 6024,
+      "wl": 6108,
+      "wlc": 6090,
+      "wln": 6108,
+      "wlod": 6024,
+      "wlodku0": 6024,
+      "wlodvth": 6024,
+      "wmax": 6108,
+      "wmin": 6108,
+      "wnfactor": 2696,
+      "wpclm": 2685,
+      "wpdiblc1": 1163,
+      "wpdiblc2": 2280,
+      "wpdiblcb": 1424,
+      "wpscbe1": 1389,
+      "wpscbe2": 1217,
+      "wr": 6108,
+      "wtvoff": 302,
+      "wu0": 2853,
+      "wua": 2863,
+      "wua1": 1959,
+      "wub": 2892,
+      "wub1": 2363,
+      "wuc": 2519,
+      "wuc1": 1980,
+      "wute": 2337,
+      "wvoff": 2039,
+      "wvsat": 2411,
+      "wvth0": 2811,
+      "ww": 6108,
+      "wwc": 6090,
+      "wwl": 6108,
+      "wwlc": 6090,
+      "wwn": 6108,
+      "xgl": 6072,
+      "xgw": 6105,
+      "xj": 6108,
+      "xjbvs": 6108,
+      "xl": 6108,
+      "xn": 6106,
+      "xpart": 6108,
+      "xrcrg1": 6100,
+      "xrcrg2": 6100,
+      "xtid": 2,
+      "xtis": 6108,
+      "xw": 6108
+    },
+    "parameterNames": [
+      "a0",
+      "a1",
+      "a2",
+      "acde",
+      "acnqsmod",
+      "af",
+      "agidl",
+      "ags",
+      "aigbacc",
+      "aigbinv",
+      "aigc",
+      "aigsd",
+      "alpha0",
+      "alpha1",
+      "at",
+      "b0",
+      "b1",
+      "beta0",
+      "bgidl",
+      "bigbacc",
+      "bigbinv",
+      "bigc",
+      "bigsd",
+      "binunit",
+      "bvs",
+      "capmod",
+      "cdsc",
+      "cdscb",
+      "cdscd",
+      "cf",
+      "cgbo",
+      "cgdl",
+      "cgdo",
+      "cgidl",
+      "cgsl",
+      "cgso",
+      "cigbacc",
+      "cigbinv",
+      "cigc",
+      "cigsd",
+      "cit",
+      "cjd",
+      "cjs",
+      "cjswd",
+      "cjswgd",
+      "cjswgs",
+      "cjsws",
+      "ckappad",
+      "ckappas",
+      "clc",
+      "cle",
+      "delta",
+      "diomod",
+      "dlc",
+      "dlcig",
+      "dmcg",
+      "dmcgt",
+      "dmdg",
+      "drout",
+      "dsub",
+      "dtox",
+      "dvt0",
+      "dvt0w",
+      "dvt1",
+      "dvt1w",
+      "dvt2",
+      "dvt2w",
+      "dvtp0",
+      "dvtp1",
+      "dwb",
+      "dwc",
+      "dwg",
+      "ef",
+      "egidl",
+      "eigbinv",
+      "em",
+      "epsrox",
+      "eta0",
+      "etab",
+      "eu",
+      "fnoimod",
+      "fprout",
+      "gbmin",
+      "geomod",
+      "igbmod",
+      "igcmod",
+      "ijthsfwd",
+      "ijthsrev",
+      "jss",
+      "jsws",
+      "jtssws",
+      "k1",
+      "k2",
+      "k3",
+      "k3b",
+      "keta",
+      "kf",
+      "kt1",
+      "kt1l",
+      "kt2",
+      "ku0",
+      "kvsat",
+      "kvth0",
+      "la0",
+      "la2",
+      "lagidl",
+      "lags",
+      "lalpha0",
+      "lalpha1",
+      "lambda",
+      "lat",
+      "lb0",
+      "lb1",
+      "lbeta0",
+      "lbgidl",
+      "lc",
+      "lcdscd",
+      "lcgidl",
+      "lcit",
+      "ldelta",
+      "ldrout",
+      "ldsub",
+      "legidl",
+      "leta0",
+      "letab",
+      "level",
+      "lint",
+      "lintnoi",
+      "lk1",
+      "lk2",
+      "lketa",
+      "lkt1",
+      "lkt2",
+      "lku0",
+      "lkvth0",
+      "ll",
+      "llc",
+      "lln",
+      "llodku0",
+      "llodvth",
+      "lmax",
+      "lmin",
+      "lnfactor",
+      "lodeta0",
+      "lodk2",
+      "lp",
+      "lpclm",
+      "lpdiblc1",
+      "lpdiblc2",
+      "lpdiblcb",
+      "lpe0",
+      "lpeb",
+      "lpscbe1",
+      "lpscbe2",
+      "ltvoff",
+      "lu0",
+      "lua",
+      "lua1",
+      "lub",
+      "lub1",
+      "luc",
+      "luc1",
+      "lute",
+      "lvoff",
+      "lvsat",
+      "lvth0",
+      "lw",
+      "lwc",
+      "lwl",
+      "lwlc",
+      "lwn",
+      "minv",
+      "mjs",
+      "mjswgs",
+      "mjsws",
+      "mobmod",
+      "moin",
+      "ndep",
+      "nfactor",
+      "ngate",
+      "ngcon",
+      "nigbacc",
+      "nigbinv",
+      "nigc",
+      "njd",
+      "njs",
+      "noff",
+      "noia",
+      "noib",
+      "noic",
+      "nsd",
+      "ntnoi",
+      "ntox",
+      "pa0",
+      "pa2",
+      "pagidl",
+      "pags",
+      "palpha0",
+      "palpha1",
+      "pat",
+      "pb0",
+      "pb1",
+      "pbeta0",
+      "pbgidl",
+      "pbs",
+      "pbswgs",
+      "pbsws",
+      "pcdscd",
+      "pcgidl",
+      "pcit",
+      "pclm",
+      "pdelta",
+      "pdiblc1",
+      "pdiblc2",
+      "pdiblcb",
+      "pdits",
+      "pditsd",
+      "pditsl",
+      "pdrout",
+      "pdsub",
+      "pegidl",
+      "permod",
+      "peta0",
+      "petab",
+      "phin",
+      "pigcd",
+      "pk1",
+      "pk2",
+      "pketa",
+      "pkt1",
+      "pkt2",
+      "pku0",
+      "pkvth0",
+      "pnfactor",
+      "poxedge",
+      "ppclm",
+      "ppdiblc1",
+      "ppdiblc2",
+      "ppdiblcb",
+      "ppscbe1",
+      "ppscbe2",
+      "prt",
+      "prwb",
+      "prwg",
+      "pscbe1",
+      "pscbe2",
+      "ptvoff",
+      "pu0",
+      "pua",
+      "pua1",
+      "pub",
+      "pub1",
+      "puc",
+      "puc1",
+      "pute",
+      "pvag",
+      "pvoff",
+      "pvsat",
+      "pvth0",
+      "rbdb",
+      "rbodymod",
+      "rbpb",
+      "rbpd",
+      "rbps",
+      "rbsb",
+      "rdsmod",
+      "rdsw",
+      "rdswmin",
+      "rdw",
+      "rdwmin",
+      "rgatemod",
+      "rnoia",
+      "rnoib",
+      "rsh",
+      "rshg",
+      "rsw",
+      "rswmin",
+      "saref",
+      "sbref",
+      "steta0",
+      "stk2",
+      "tcj",
+      "tcjsw",
+      "tcjswg",
+      "tempmod",
+      "tku0",
+      "tnoia",
+      "tnoib",
+      "tnoimod",
+      "tnom",
+      "toxe",
+      "toxm",
+      "toxref",
+      "tpb",
+      "tpbsw",
+      "tpbswg",
+      "trnqsmod",
+      "tvfbsdoff",
+      "tvoff",
+      "u0",
+      "ua",
+      "ua1",
+      "ub",
+      "ub1",
+      "uc",
+      "uc1",
+      "ud",
+      "up",
+      "ute",
+      "vbm",
+      "version",
+      "vfb",
+      "vfbcv",
+      "vfbsdoff",
+      "voff",
+      "voffcv",
+      "voffl",
+      "vsat",
+      "vth0",
+      "vtl",
+      "w0",
+      "wa0",
+      "wa2",
+      "wagidl",
+      "wags",
+      "walpha0",
+      "walpha1",
+      "wat",
+      "wb0",
+      "wb1",
+      "wbeta0",
+      "wbgidl",
+      "wcdscd",
+      "wcgidl",
+      "wcit",
+      "wdelta",
+      "wdrout",
+      "wdsub",
+      "wegidl",
+      "weta0",
+      "wetab",
+      "wint",
+      "wk1",
+      "wk2",
+      "wketa",
+      "wkt1",
+      "wkt2",
+      "wku0",
+      "wkvth0",
+      "wl",
+      "wlc",
+      "wln",
+      "wlod",
+      "wlodku0",
+      "wlodvth",
+      "wmax",
+      "wmin",
+      "wnfactor",
+      "wpclm",
+      "wpdiblc1",
+      "wpdiblc2",
+      "wpdiblcb",
+      "wpscbe1",
+      "wpscbe2",
+      "wr",
+      "wtvoff",
+      "wu0",
+      "wua",
+      "wua1",
+      "wub",
+      "wub1",
+      "wuc",
+      "wuc1",
+      "wute",
+      "wvoff",
+      "wvsat",
+      "wvth0",
+      "ww",
+      "wwc",
+      "wwl",
+      "wwlc",
+      "wwn",
+      "xgl",
+      "xgw",
+      "xj",
+      "xjbvs",
+      "xl",
+      "xn",
+      "xpart",
+      "xrcrg1",
+      "xrcrg2",
+      "xtid",
+      "xtis",
+      "xw"
+    ],
+    "selectors": {
+      "acnqsmod": {
+        ".000000e+0": 2,
+        "0.0": 6106
+      },
+      "binunit": {
+        "2.0": 6106,
+        "2.000000e+0": 2
+      },
+      "capmod": {
+        "2.0": 6106,
+        "2.000000e+0": 2
+      },
+      "diomod": {
+        "1.0": 6106,
+        "1.000000e+0": 2
+      },
+      "fnoimod": {
+        "1.0": 6106,
+        "1.000000e+0": 2
+      },
+      "geomod": {
+        ".000000e+0": 2,
+        "0.0": 6106
+      },
+      "igbmod": {
+        ".000000e+0": 2,
+        "0.0": 6106
+      },
+      "igcmod": {
+        ".000000e+0": 2,
+        "0.0": 6106
+      },
+      "level": {
+        "5.400000e+1": 2,
+        "54.0": 6106
+      },
+      "mobmod": {
+        ".000000e+0": 2,
+        "0.0": 6106
+      },
+      "permod": {
+        "1.0": 6106,
+        "1.000000e+0": 2
+      },
+      "rbodymod": {
+        "1.0": 6106,
+        "1.000000e+0": 2
+      },
+      "rdsmod": {
+        "0.0": 6039,
+        "1.0": 67,
+        "1.000000e+0": 2
+      },
+      "rgatemod": {
+        ".000000e+0": 2,
+        "0.0": 6044,
+        "3.0": 62
+      },
+      "rgeomod": {
+        "<omitted>": 6108
+      },
+      "tempmod": {
+        "0.0": 6106,
+        "<omitted>": 2
+      },
+      "tnoimod": {
+        "1.0": 6106,
+        "1.000000e+0": 2
+      },
+      "trnqsmod": {
+        ".000000e+0": 2,
+        "0.0": 6106
+      },
+      "version": {
+        "4.5": 6106,
+        "4.500000e+0": 2
+      },
+      "wpemod": {
+        "<omitted>": 6108
+      }
+    }
+  },
+  "commonDefaultExpressionChanges": {
+    "ua": {
+      "45": "(model->BSIM4mobMod == 2) ? 1.0e-15 : 1.0e-9",
+      "483": "((model->BSIM4mobMod == 2 || model->BSIM4mobMod == 6)) ? 1.0e-15 : 1.0e-9"
+    },
+    "uc": {
+      "45": "(model->BSIM4mobMod == 1) ? -0.0465 : -0.0465e-9",
+      "483": "(model->BSIM4mobMod == 1 || model->BSIM4mobMod == 5) ? -0.0465 : -0.0465e-9"
+    },
+    "uc1": {
+      "45": "(model->BSIM4mobMod == 1) ? -0.056 : -0.056e-9",
+      "483": "(model->BSIM4mobMod == 1 || model->BSIM4mobMod == 5) ? -0.056 : -0.056e-9"
+    },
+    "ud": {
+      "45": "1.0e14",
+      "483": "0.0"
+    },
+    "version": {
+      "45": "\"4.5.0\"",
+      "483": "4.83"
+    }
+  },
+  "kernelSourceDiffs": {
+    "b4.c": {
+      "changedBlocks": 74,
+      "lines45": 908,
+      "lines483": 1063
+    },
+    "b4acld.c": {
+      "changedBlocks": 47,
+      "lines45": 668,
+      "lines483": 684
+    },
+    "b4check.c": {
+      "changedBlocks": 65,
+      "lines45": 814,
+      "lines483": 993
+    },
+    "b4geo.c": {
+      "changedBlocks": 33,
+      "lines45": 382,
+      "lines483": 389
+    },
+    "b4ld.c": {
+      "changedBlocks": 586,
+      "lines45": 4784,
+      "lines483": 5202
+    },
+    "b4noi.c": {
+      "changedBlocks": 58,
+      "lines45": 543,
+      "lines483": 727
+    },
+    "b4set.c": {
+      "changedBlocks": 302,
+      "lines45": 2006,
+      "lines483": 2630
+    },
+    "b4temp.c": {
+      "changedBlocks": 191,
+      "lines45": 1830,
+      "lines483": 2423
+    },
+    "bsim4def.h": {
+      "changedBlocks": 200,
+      "lines45": 3171,
+      "lines483": 3666
+    }
+  },
+  "method": {
+    "defaults": "Syntactic comparison of direct !Given/default-assignment pairs only; not exhaustive evaluated-default equivalence.",
+    "expressions": "Balanced top-level assignment scanner preserves unevaluated expressions. Selectors are literal or omitted; wrapper and caller overrides require resolved-instance proof.",
+    "scope": "Physical declarations in 675 flat sky130_fd_pr SPICE files, not include-expanded effective corners or execution coverage."
+  },
+  "pdk": {
+    "bsim45CardOccurrences": 6108,
+    "bytes": 48469978,
+    "familyCount": 32,
+    "fileCount": 675,
+    "files": {
+      "sky130_fd_pr__cap_mim_m3_1.model.spice": {
+        "bytes": 1262,
+        "sha256": "5cb086313d55341351305d30500ca39571d689b692d2be525c4b3b8b4db86e6f"
+      },
+      "sky130_fd_pr__cap_mim_m3_2.model.spice": {
+        "bytes": 1262,
+        "sha256": "a2e9ed5568b23debce5ac002f15df8c675010bac34d05b0c4e8a8dcca916260f"
+      },
+      "sky130_fd_pr__cap_var_hvt.model.spice": {
+        "bytes": 5321,
+        "sha256": "450b49b213811b230d3f3b2e066fd37291f8d76588ecfb9d0d181e016e6e5132"
+      },
+      "sky130_fd_pr__cap_var_lvt.model.spice": {
+        "bytes": 4495,
+        "sha256": "ef07259bd556443e004118ffbfab8f8844f225ecfffb29252e3d1550afeee0d1"
+      },
+      "sky130_fd_pr__cap_vpp_01p8x01p8_m1m2_noshield.model.spice": {
+        "bytes": 1702,
+        "sha256": "5ada599ddd709e0b505fe9e1ba49d0c898c039ea9b1f78929845f68cf378b164"
+      },
+      "sky130_fd_pr__cap_vpp_02p4x04p6_m1m2_noshield.model.spice": {
+        "bytes": 1517,
+        "sha256": "cb18395a9663de9c78cc5b68bd04dc09af0ae955776296f11ed19727a90f51b1"
+      },
+      "sky130_fd_pr__cap_vpp_02p7x06p1_m1m2m3m4_shieldl1_fingercap.model.spice": {
+        "bytes": 2284,
+        "sha256": "1d1e7826d37b70c0d713f8c143c622d29ca5339b7393d4f9e7527942323dd00f"
+      },
+      "sky130_fd_pr__cap_vpp_02p7x11p1_m1m2m3m4_shieldl1_fingercap.model.spice": {
+        "bytes": 2290,
+        "sha256": "574e2bbfa7cd17a8896ef3b5368d83a5be9d5745beecfaad1c6749065945b26e"
+      },
+      "sky130_fd_pr__cap_vpp_02p7x21p1_m1m2m3m4_shieldl1_fingercap.model.spice": {
+        "bytes": 2290,
+        "sha256": "a33318e0ef6424e31d4bdc84bfd3b9b1b7b70666948e7049047f7f9aa1d1a71f"
+      },
+      "sky130_fd_pr__cap_vpp_02p7x41p1_m1m2m3m4_shieldl1_fingercap.model.spice": {
+        "bytes": 2290,
+        "sha256": "d5bbcea2c2037ebc2a18fff481eabf558131c20b0f2ff5412801cf4b4e422af6"
+      },
+      "sky130_fd_pr__cap_vpp_02p9x06p1_m1m2m3m4_shieldl1_fingercap2.model.spice": {
+        "bytes": 2289,
+        "sha256": "426e06d06ae9f9622fd78b2d4541498dda35331458a04a68b2f3161d5e979a78"
+      },
+      "sky130_fd_pr__cap_vpp_03p9x03p9_m1m2_shieldl1_floatm3.model.spice": {
+        "bytes": 1888,
+        "sha256": "89d37d413cfd05ebe4c8ef4f991d87988d32a241c1337cbf2631d0c8ca7bc897"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_l1m1m2_noshield.model.spice": {
+        "bytes": 2007,
+        "sha256": "ef5f762609aaf8d878f53243750be327b49dcae13e85ea513f8f231e6e75f823"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_l1m1m2_noshield_o1.model.spice": {
+        "bytes": 1805,
+        "sha256": "75805b32c6eda8e4a2cf99ce8576665e5cd607a03965f0fab4a710e3542cb114"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_l1m1m2_noshield_o2subcell.spice": {
+        "bytes": 714,
+        "sha256": "0f0740f6cb092a2c4aa6ee3c6953b316335b8112bf174129ceadfee79cc0ecef"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_l1m1m2_shieldpo_floatm3.model.spice": {
+        "bytes": 2275,
+        "sha256": "ec9dd0a27839742020eccd8d029af42b7a136cbe03612924ea3600ebec5fbbac"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_m1m2_noshield.model.spice": {
+        "bytes": 1615,
+        "sha256": "6933291234a614ec15ecc414ad200d768a6071de4582aeca90d240e6d540cbd2"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_m1m2_noshield_o1nhv.model.spice": {
+        "bytes": 1854,
+        "sha256": "6f58199124ce1837e16d31732dea4cc4d1ce0f90901e4c9af71eaad0ec540dd8"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_m1m2_noshield_o1phv.model.spice": {
+        "bytes": 1826,
+        "sha256": "35e9d616992a0daa28f585db8c62c46ddcdf903d36d4bba021f81562055cd1c5"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_m1m2_noshield_o2.model.spice": {
+        "bytes": 1466,
+        "sha256": "077635061076a7424deed26a8287c04463d109c7dade8bd69cc448aeb0e24c94"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_m1m2_shieldl1.model.spice": {
+        "bytes": 1842,
+        "sha256": "a304e161002b025b2b4f2711136e82bf60daf886f44ebd64e2dc21848f8ac24d"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_m1m2m3_shieldl1.model.spice": {
+        "bytes": 2118,
+        "sha256": "843c72841b193f533d3b9202ef5ed8394600e7a1ae76c9e79f668012a7e57c7b"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_m1m2m3_shieldl1m5_floatm4.model.spice": {
+        "bytes": 2347,
+        "sha256": "cf72fe1a83b78d6ea4c1e6642ebbeeed4cce2f1576ebacd1877345169338b4a9"
+      },
+      "sky130_fd_pr__cap_vpp_04p4x04p6_m1m2m3_shieldl1m5_floatm4_top.spice": {
+        "bytes": 1268,
+        "sha256": "8ddb951c58d125c22a727dacd0d0b72a8f7fb73c0e6553564141e673c7b232a8"
+      },
+      "sky130_fd_pr__cap_vpp_05p9x05p9_m1m2m3m4_shieldl1_wafflecap.model.spice": {
+        "bytes": 2281,
+        "sha256": "3ba9ebf584a8d918da8c2e2cd3367d7a4126e987f0b211ce031bcc6315ddd6d4"
+      },
+      "sky130_fd_pr__cap_vpp_06p8x06p1_l1m1m2m3_shieldpom4.model.spice": {
+        "bytes": 2337,
+        "sha256": "1ddbf337f0181395931ae806c62e41f146c3546d4fdbf9f696ad513cdc43964d"
+      },
+      "sky130_fd_pr__cap_vpp_06p8x06p1_l1m1m2m3_shieldpom4_top.spice": {
+        "bytes": 1214,
+        "sha256": "e9cc6162ea72fc6c688315ac998d17c87279cd4914050f627ef3126227ab4b56"
+      },
+      "sky130_fd_pr__cap_vpp_06p8x06p1_m1m2m3_shieldl1m4.model.spice": {
+        "bytes": 2087,
+        "sha256": "bac04f2476f5f59ce3d2635012b45e769d30bf9f7e37184670d7880470ba094c"
+      },
+      "sky130_fd_pr__cap_vpp_06p8x06p1_m1m2m3_shieldl1m4_top.spice": {
+        "bytes": 1196,
+        "sha256": "24362fb78a99094243303cd19ce36ff2d2f2ec6a3be1ff4a472234ed842d16a1"
+      },
+      "sky130_fd_pr__cap_vpp_08p6x07p8_l1m1m2_noshield.model.spice": {
+        "bytes": 2015,
+        "sha256": "75c89ac6b817329916242a2f76c150a51648cbe231d12be6bd486c80b74b2b10"
+      },
+      "sky130_fd_pr__cap_vpp_08p6x07p8_l1m1m2_noshield_o1.model.spice": {
+        "bytes": 1802,
+        "sha256": "7f0bf5a9d06a65f5b5a8ccffef993314d67f1446a88ef1d28de7da07516b7a85"
+      },
+      "sky130_fd_pr__cap_vpp_08p6x07p8_l1m1m2_noshield_o2subcell.spice": {
+        "bytes": 714,
+        "sha256": "7ca66295276733cd3aa80cef32b28767ee378faea4e4fd1054034fb756a1b590"
+      },
+      "sky130_fd_pr__cap_vpp_08p6x07p8_l1m1m2_shieldpo_floatm3.model.spice": {
+        "bytes": 2279,
+        "sha256": "e9e21bc894b057eae0f9ba097f264def5812fb023a0dcc7e191ef419acd08c85"
+      },
+      "sky130_fd_pr__cap_vpp_08p6x07p8_m1m2_noshield.model.spice": {
+        "bytes": 1460,
+        "sha256": "58dbfb2f99a6c018f92f8fcd2b858d7d2557bbb72853f2403429844d3677c382"
+      },
+      "sky130_fd_pr__cap_vpp_08p6x07p8_m1m2_shieldl1.model.spice": {
+        "bytes": 1846,
+        "sha256": "e82ab695db790c216d21cce02af5a92746e594f19baa2b41efafa52fd1423ae5"
+      },
+      "sky130_fd_pr__cap_vpp_08p6x07p8_m1m2m3_shieldl1.model.spice": {
+        "bytes": 2115,
+        "sha256": "af59c5d1cdbee04d8d6b0288222b8a728feb7059c38eb958449ba78cef57b8bf"
+      },
+      "sky130_fd_pr__cap_vpp_08p6x07p8_m1m2m3_shieldl1m5_floatm4.model.spice": {
+        "bytes": 2367,
+        "sha256": "da793ff90e4a0f4c6e391c9df38c4cab8f55fc696caeac53e374299062bc94f8"
+      },
+      "sky130_fd_pr__cap_vpp_08p6x07p8_m1m2m3_shieldl1m5_floatm4_top.spice": {
+        "bytes": 1268,
+        "sha256": "75a0e2c2378c805701ba10371320445fced5d5839067504ac001be8c6b09f7f8"
+      },
+      "sky130_fd_pr__cap_vpp_11p3x11p3_m1m2m3m4_shieldl1_wafflecap.model.spice": {
+        "bytes": 2296,
+        "sha256": "3f097889845cac35adee04665a5294bfa76d3913481012ce5281b50bca070e24"
+      },
+      "sky130_fd_pr__cap_vpp_11p3x11p8_l1m1m2m3m4_shieldm5_nhv.model.spice": {
+        "bytes": 2299,
+        "sha256": "2bb6db3a27902e6e3f95c4184f28347650bfdca806fe0a3e5b4f3d658243c060"
+      },
+      "sky130_fd_pr__cap_vpp_11p3x11p8_l1m1m2m3m4_shieldm5_nhv__base.model.spice": {
+        "bytes": 8397,
+        "sha256": "70941ff54f00d092d781acac4f3e9b1b37b9f69cd47206af585edb816e9b8aa2"
+      },
+      "sky130_fd_pr__cap_vpp_11p3x11p8_l1m1m2m3m4_shieldm5_nhvtop.spice": {
+        "bytes": 1235,
+        "sha256": "5eca2cb926082b895209e31626e918ab8451b97942f6c65b7779dc1065fed4e3"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2_noshield.model.spice": {
+        "bytes": 2018,
+        "sha256": "a692e84e822e06a13a80248817039662b32bd70574bab120dd331d3aeaf860cc"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2_shieldpom3.model.spice": {
+        "bytes": 2240,
+        "sha256": "1756a8075100188aa14e7ea7aa4ebfe5aaf7d952686f4697328de664552d51bc"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3_shieldm4.model.spice": {
+        "bytes": 2271,
+        "sha256": "d061413a098abd3200c8f793cc3d49c0684b694ac92c2a234f9782722d27aa96"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3_shieldm4_top.spice": {
+        "bytes": 1196,
+        "sha256": "8557485aadcd95ba144266133c8ad782cae0b44679545aa008eb4f1eb8e9a438"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3_shieldpom4.model.spice": {
+        "bytes": 2355,
+        "sha256": "f89f5926560580da9b4032a7e7b25b287830c8dc5535dd7f6a70f4922fd344e4"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3_shieldpom4_top.spice": {
+        "bytes": 1214,
+        "sha256": "193ba76e50daee699886a2f6da4acc6120b2558cc5165cb6880a25618d67f7a7"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3m4_shieldm5.model.spice": {
+        "bytes": 2670,
+        "sha256": "4298c99e69fc2d2002c60c0c8cdf2433473523b881756bb3ec6caf2f242eca15"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3m4_shieldm5_top.spice": {
+        "bytes": 1214,
+        "sha256": "bd911cf484f707862e9f63884b8045076b312b6c4c4f06c1a0fcc625024ce0d6"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3m4_shieldpom5.model.spice": {
+        "bytes": 2852,
+        "sha256": "709267ddbf511a083935671e3342abe2b0882eb54408a5f48214a396c067d535"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3m4_shieldpom5_top.spice": {
+        "bytes": 1232,
+        "sha256": "7ce27a59841fb0360afc80521974a60b0dfc183a2d2c80463f8832c0d8973609"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3m4_shieldpom5_x.model.spice": {
+        "bytes": 2953,
+        "sha256": "2c1c793a7a735a73cb660217bfacd2d99488f9783ad7b655bed43085fd940fb4"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3m4_shieldpom5_x6.spice": {
+        "bytes": 845,
+        "sha256": "14272be6e326321f4671680376f2a26cf594f06fd7f79b4497d276617ad11b97"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3m4_shieldpom5_x7.spice": {
+        "bytes": 845,
+        "sha256": "9d9a6bcc862478a0e3b298d2ba1e0f29a92dc9a8bd55bebd0625c34f8a4ec722"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3m4_shieldpom5_x8.spice": {
+        "bytes": 845,
+        "sha256": "6967ac820a2dce1ba62d9040d96b7719326908f717c2e96800bf9a8457a07222"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3m4_shieldpom5_x9.spice": {
+        "bytes": 845,
+        "sha256": "81f811758892a53acb6cd3f5e2daec21b2605e36bf12d23b88d3d47f04626b14"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_l1m1m2m3m4_shieldpom5_xtop.spice": {
+        "bytes": 1233,
+        "sha256": "4c5216ef63ab9800867c67c8a04981ca0067f44ec16baace4024eaaa474711b4"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_m1m2_noshield.model.spice": {
+        "bytes": 1618,
+        "sha256": "dcb7be8ab25bdbd713af1a05d83917087fd8fd84df87d0c358a85d1ed3b0a467"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_m1m2_shieldl1.model.spice": {
+        "bytes": 1848,
+        "sha256": "745d07ac45743c842835d99135bb794c2b761791bddec837aea845c9192cdd6a"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_m1m2m3_shieldl1.model.spice": {
+        "bytes": 2122,
+        "sha256": "470feafc452b3cc8c021b81616db38c4644ce8b2fd8458e59f86fe4693034b67"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_m1m2m3_shieldl1m5_floatm4.model.spice": {
+        "bytes": 2353,
+        "sha256": "3f66908aeba3f7623e41b53c9a7447b84761b64a7404cdc37fc008fd68711748"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_m1m2m3_shieldl1m5_floatm4_top.spice": {
+        "bytes": 1268,
+        "sha256": "c3a030e8f8384b2ada21cd34663efbeede336253e6f19ada471d32c75cc3aae8"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_m1m2m3m4_shieldl1m5.model.spice": {
+        "bytes": 2586,
+        "sha256": "70921b5bac4f58b95e6c1fb435b61f0df848006772c6ededf2fcf445fda56206"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_m1m2m3m4_shieldl1m5_top.spice": {
+        "bytes": 1214,
+        "sha256": "4785fbca82d49c0a3786d3a0ddbb993960cf5cb183cde8c8153c1b604b4a1ecc"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_m1m2m3m4_shieldm5.model.spice": {
+        "bytes": 2532,
+        "sha256": "b8e5ab03db75a9f7094e5afc50cff7bbf7db5d8ae6902d6ece51332ceee3b66d"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_m1m4_noshield.model.spice": {
+        "bytes": 2372,
+        "sha256": "0535b752338e25aaee54a60c9e470c81083ffe5ccbde921c82da69f6414c62fa"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x11p7_pol1m1m2m3m4m5_noshield.spice": {
+        "bytes": 712,
+        "sha256": "b639dfca47ce5f4fc48534acb6bee0192a57028bdf1b5b4d0a73f44756fe02b4"
+      },
+      "sky130_fd_pr__cap_vpp_11p5x23p1_pol1m1m2m3m4m5_noshield.spice": {
+        "bytes": 712,
+        "sha256": "f488278a9fff68b788296003d6134202e60ec6cf5e1666f317af6dfa606c08c5"
+      },
+      "sky130_fd_pr__cap_vpp_22p5x11p7_pol1m1m2m3m4m5_noshield.spice": {
+        "bytes": 712,
+        "sha256": "ef99913d78f80aefff2823aee3d0ff1709a5d945fa7b8a4a3faee7cbf1073853"
+      },
+      "sky130_fd_pr__cap_vpp_22p5x23p1_pol1m1m2m3m4m5_noshield.spice": {
+        "bytes": 712,
+        "sha256": "327e9a52e5352695743a3e027fe35037b512c031d8bf4ec6ebaa4528328004b0"
+      },
+      "sky130_fd_pr__cap_vpp_33p6x11p7_pol1m1m2m3m4m5_noshield.spice": {
+        "bytes": 712,
+        "sha256": "d6d1e8d14524c52d52a772a89f50e4489013ca1d53d6c11101e2302b6bcef183"
+      },
+      "sky130_fd_pr__cap_vpp_33p6x23p1_pol1m1m2m3m4m5_noshield.spice": {
+        "bytes": 712,
+        "sha256": "bddd745d1ab29e8e77cc257f9b96f6f57213d58ff0e53662d757483cea1b670b"
+      },
+      "sky130_fd_pr__cap_vpp_44p7x11p7_pol1m1m2m3m4m5_noshield.spice": {
+        "bytes": 712,
+        "sha256": "09dd8fd55f46a10929345443a12fd084ef6c49ca39511ca4e2999b68da07e17d"
+      },
+      "sky130_fd_pr__cap_vpp_44p7x23p1_pol1m1m2m3m4m5_noshield.model.spice": {
+        "bytes": 2649,
+        "sha256": "9c51ae7a30dc108b6bfe05847199fb94d4e38d8f8ba3bdaad0bca47d4cf30c69"
+      },
+      "sky130_fd_pr__cap_vpp_55p8x11p7_pol1m1m2m3m4m5_noshield.spice": {
+        "bytes": 712,
+        "sha256": "37a2148a86dca923dc5cf3ea4c54e3dde4dd41381c4c0d92154782c96e963f09"
+      },
+      "sky130_fd_pr__cap_vpp_55p8x11p7_pol1m1m2m3m4m5_noshield_m5pullin.spice": {
+        "bytes": 721,
+        "sha256": "ec288f78c11999821eb31161e597c32a9723912d5e81f40b86a6d9eb74326145"
+      },
+      "sky130_fd_pr__cap_vpp_55p8x23p1_pol1m1m2m3m4m5_noshield.spice": {
+        "bytes": 712,
+        "sha256": "a9e0b59cf2ebb86da4ad56fa9d7d6a599582f1748925302222270f09f968422d"
+      },
+      "sky130_fd_pr__cap_vpp_55p8x23p1_pol1m1m2m3m4m5_noshield_m5pullin.spice": {
+        "bytes": 721,
+        "sha256": "a309a99d2c6b45b93e5e7da2ac9df183931e31d2b740226911c3291d9077a306"
+      },
+      "sky130_fd_pr__cap_vpp_55p8x23p1_pol1m1m2m3m4m5_noshield_test.spice": {
+        "bytes": 717,
+        "sha256": "f410999f89d654d7b3a510d7cb3e090fc9d0d869fe2a2d7e2ab85145291cd043"
+      },
+      "sky130_fd_pr__diode_pd2nw_05v5.model.spice": {
+        "bytes": 2025,
+        "sha256": "991227f64be92e63a1751f423e5cc13e92171191e76de9b3a4f195724492028d"
+      },
+      "sky130_fd_pr__diode_pd2nw_05v5_hvt.model.spice": {
+        "bytes": 2028,
+        "sha256": "9f3b9a028e7e4dd5d2d87a26d949de52daee032603ca75c90891dde864dc01a5"
+      },
+      "sky130_fd_pr__diode_pd2nw_05v5_lvt.model.spice": {
+        "bytes": 2035,
+        "sha256": "02c4cf2e034e5f0bbcfac4edb7a32c417233295e48fb60d9ea5a3357d9d689f8"
+      },
+      "sky130_fd_pr__diode_pd2nw_11v0.model.spice": {
+        "bytes": 2019,
+        "sha256": "3134e9ffc310d89e29ce5356b7b55d71f3a47ae4b7517ec5f66d0ca606ccdf18"
+      },
+      "sky130_fd_pr__diode_pd2nw_11v0_no_rs.model.spice": {
+        "bytes": 2024,
+        "sha256": "768e5990e071efeb43a39afb5d8c96b97770e73365b21438c38d1f88324830a6"
+      },
+      "sky130_fd_pr__diode_pw2nd_05v5.model.spice": {
+        "bytes": 1999,
+        "sha256": "ca6cc52ed9449e0e57a2d212aa94582083f4c67f94689d3c384a029919d4aded"
+      },
+      "sky130_fd_pr__diode_pw2nd_05v5__extended_drain.model.spice": {
+        "bytes": 2092,
+        "sha256": "bc57f6aa5bc7d45816b2053d8f9e4d245c5fc1c15f04edf6fa1daa66b0acb82b"
+      },
+      "sky130_fd_pr__diode_pw2nd_05v5_lvt.model.spice": {
+        "bytes": 2013,
+        "sha256": "b303be24a4a7897e3f23425e0069cc4636ca5e62afbe6bdebed9748a4678b95d"
+      },
+      "sky130_fd_pr__diode_pw2nd_05v5_nvt.model.spice": {
+        "bytes": 2021,
+        "sha256": "f6e4452b10e6d3897d34df709824c89063dfc5d68c32391ccd346cb40d0f3129"
+      },
+      "sky130_fd_pr__diode_pw2nd_11v0.model.spice": {
+        "bytes": 2037,
+        "sha256": "47c33e82bd01f8a5419bc08d7de023c220d836f48c47c82be60d95fb8c84487f"
+      },
+      "sky130_fd_pr__diode_pw2nd_11v0_no_rs.model.spice": {
+        "bytes": 2042,
+        "sha256": "994abbe3a243c6b0f8bd30e9b404aa0c061866233c0f25d0fac9a351b4aa1674"
+      },
+      "sky130_fd_pr__esd_nfet_01v8.pm3.spice": {
+        "bytes": 18259,
+        "sha256": "b00978da581468871971827a5d635440c7df9b7648ee52ba3dd8b8f26da64d80"
+      },
+      "sky130_fd_pr__esd_nfet_01v8__ff.corner.spice": {
+        "bytes": 4516,
+        "sha256": "0206cc43047aaa9fbdf2162f70efc716b33e4149362009f1cb8b76ed6e66ff35"
+      },
+      "sky130_fd_pr__esd_nfet_01v8__fs.corner.spice": {
+        "bytes": 4510,
+        "sha256": "b2da31294d07c4ce093c3daef05915467b3fcbc1acc30b56f957258194b3303a"
+      },
+      "sky130_fd_pr__esd_nfet_01v8__leak.corner.spice": {
+        "bytes": 4549,
+        "sha256": "0e8fd11c8482424fbf126b6f5965c7ab0770a0b0a3df2e0ed2f87cdbdf9e17ac"
+      },
+      "sky130_fd_pr__esd_nfet_01v8__sf.corner.spice": {
+        "bytes": 4516,
+        "sha256": "95fa572dc223518cd236d0905e40390a6a6a30e3994881afdc9b16ab4cbe1065"
+      },
+      "sky130_fd_pr__esd_nfet_01v8__ss.corner.spice": {
+        "bytes": 4510,
+        "sha256": "e68650b0bd8e376525fda37bc03e88452d4eaa2790b7823729c8540c6d24fcc0"
+      },
+      "sky130_fd_pr__esd_nfet_01v8__tt.corner.spice": {
+        "bytes": 4497,
+        "sha256": "2fe2461e85a325fc5856da7b47cfd98333af4c7a8c1efa036c7af414e568d77d"
+      },
+      "sky130_fd_pr__esd_nfet_01v8__tt_leak.corner.spice": {
+        "bytes": 4525,
+        "sha256": "25654936e4c67849f611ca1fbd22bd9ac994eff32ba51e4f69a6ed6623e0423e"
+      },
+      "sky130_fd_pr__esd_nfet_01v8__wafer.corner.spice": {
+        "bytes": 4346,
+        "sha256": "1885507cbdefe439cab13edc980da414d8fb976ec17b2eaab80b7252d4ff90e5"
+      },
+      "sky130_fd_pr__esd_nfet_05v0_nvt.pm3.spice": {
+        "bytes": 23050,
+        "sha256": "e2d6f3d08fa664eb5e6f875ea0c02e207b31fbbc29e65c1a522a29eb32412b25"
+      },
+      "sky130_fd_pr__esd_nfet_g5v0d10v5.pm3.spice": {
+        "bytes": 68376,
+        "sha256": "167d3a824f9402a1c75ce96b2e393d7e044578a488fcd5e5155b59ddeabace04"
+      },
+      "sky130_fd_pr__esd_nfet_g5v0d10v5__ff.corner.spice": {
+        "bytes": 16442,
+        "sha256": "b5cc17d0ccaced826597dfeb00dd78227b1f54f085788570a77cb56557dea4a1"
+      },
+      "sky130_fd_pr__esd_nfet_g5v0d10v5__fs.corner.spice": {
+        "bytes": 16402,
+        "sha256": "979da8a91772e6d2421f9e9e2ccbdd79505fbd2ad8c4755589ae5cf1ce2fd538"
+      },
+      "sky130_fd_pr__esd_nfet_g5v0d10v5__leak.corner.spice": {
+        "bytes": 16551,
+        "sha256": "751ca48fa8f5ef04df6b8c5172753f4be89f6b1fe132ee3515ee7ee3550884e2"
+      },
+      "sky130_fd_pr__esd_nfet_g5v0d10v5__sf.corner.spice": {
+        "bytes": 16468,
+        "sha256": "e2c0ccda525494a8ff28eac403a15e285e7ef0216fe6ad3c2d6c61b3420e527c"
+      },
+      "sky130_fd_pr__esd_nfet_g5v0d10v5__ss.corner.spice": {
+        "bytes": 16405,
+        "sha256": "92ca30e89fb3873a7994a632bafd97820e6cc9ad1505628402f55a6bed04d0a3"
+      },
+      "sky130_fd_pr__esd_nfet_g5v0d10v5__tt.corner.spice": {
+        "bytes": 16392,
+        "sha256": "61500e742b5dd0eb4eda5721dba5f1567f36c940b950484e50ce7078d73fa315"
+      },
+      "sky130_fd_pr__esd_nfet_g5v0d10v5__tt_leak.corner.spice": {
+        "bytes": 16464,
+        "sha256": "b1135aeda809554fc41ac56a7c3709b9eb8505ab233184f26ac7ce1ac731983f"
+      },
+      "sky130_fd_pr__esd_nfet_g5v0d10v5__wafer.corner.spice": {
+        "bytes": 15937,
+        "sha256": "990b474eea9b9745d883881837116755cfaed5ab1bd98604a5bb4cf38f171cbe"
+      },
+      "sky130_fd_pr__esd_pfet_g5v0d10v5.pm3.spice": {
+        "bytes": 49985,
+        "sha256": "a1dfbac415cd5b8f0a69f0de4a9bf53b8920e264d3a07783b8d9dd2bf511072f"
+      },
+      "sky130_fd_pr__esd_pfet_g5v0d10v5__ff.corner.spice": {
+        "bytes": 12323,
+        "sha256": "5a21d27681490ef97667eb3210d1258853f4d8246ef0564c50064a05f916feb2"
+      },
+      "sky130_fd_pr__esd_pfet_g5v0d10v5__fs.corner.spice": {
+        "bytes": 12323,
+        "sha256": "386d64641dcc97da2968ddd5cd19b532858807ed9fbc301fdc22890d76c6f43b"
+      },
+      "sky130_fd_pr__esd_pfet_g5v0d10v5__leak.corner.spice": {
+        "bytes": 12385,
+        "sha256": "051359a57eccef4b08301f1e401e6aab1eb9e9c913c704499ede5784bbf2f22e"
+      },
+      "sky130_fd_pr__esd_pfet_g5v0d10v5__sf.corner.spice": {
+        "bytes": 12314,
+        "sha256": "4fd874922e81055ea5a2508e97fe35ccfa90d5eefa1820368a6189916486141e"
+      },
+      "sky130_fd_pr__esd_pfet_g5v0d10v5__ss.corner.spice": {
+        "bytes": 12308,
+        "sha256": "5913c622d254d677a437ec13d8c850445a1cc842b614eb4d65e38a0d3ade96d7"
+      },
+      "sky130_fd_pr__esd_pfet_g5v0d10v5__tt.corner.spice": {
+        "bytes": 12283,
+        "sha256": "ceed8cc24d9ec0291dbdd74adad28178b2e5c1730021ae6757354b71d1f70683"
+      },
+      "sky130_fd_pr__esd_pfet_g5v0d10v5__tt_leak.corner.spice": {
+        "bytes": 12344,
+        "sha256": "3ba72f44bce49b53760ebb1749f415910e4fb75a4e1688e19613349a40043bac"
+      },
+      "sky130_fd_pr__esd_pfet_g5v0d10v5__wafer.corner.spice": {
+        "bytes": 11891,
+        "sha256": "bed91f59232c465911c31500a43c4bfad05c25a4fbf7a44b00e4d81a92defd8f"
+      },
+      "sky130_fd_pr__esd_rf_diode_pd2nw_11v0_100.model.spice": {
+        "bytes": 858,
+        "sha256": "81949e8a3832577373fe5889135ef412655d8c9b66e7778f4b57e5db6ae83ffb"
+      },
+      "sky130_fd_pr__esd_rf_diode_pd2nw_11v0_200.model.spice": {
+        "bytes": 860,
+        "sha256": "ac2d2c6c781eb31bae49ec1bc26816c6181f59e861e0f83c087eec2a0ba37894"
+      },
+      "sky130_fd_pr__esd_rf_diode_pd2nw_11v0_300.model.spice": {
+        "bytes": 860,
+        "sha256": "16674f438a0df89c527c34b97ee83be575edf283e200bb14f2b4769f75a78cb6"
+      },
+      "sky130_fd_pr__esd_rf_diode_pw2nd_11v0_100.model.spice": {
+        "bytes": 852,
+        "sha256": "5f622b163456209f0257634ae856e54187692096c06bed8713e09ef36d6e24c2"
+      },
+      "sky130_fd_pr__esd_rf_diode_pw2nd_11v0_100__parasitic__diode_pw2dn.model.spice": {
+        "bytes": 928,
+        "sha256": "9e4115c3bb67aa99a12007f4de0405d2f6bb399e451fcbace6ab150754631a97"
+      },
+      "sky130_fd_pr__esd_rf_diode_pw2nd_11v0_200.model.spice": {
+        "bytes": 853,
+        "sha256": "5e06256cf70877d885f077161b646c54de8bfe4ed63b1bec1f7f7b79ae95ab07"
+      },
+      "sky130_fd_pr__esd_rf_diode_pw2nd_11v0_200__parasitic__diode_pw2dn.model.spice": {
+        "bytes": 927,
+        "sha256": "95e2e08f759264d321eedfd96b21fbf6fc98410b3173e58253583a989affe6da"
+      },
+      "sky130_fd_pr__esd_rf_diode_pw2nd_11v0_300.model.spice": {
+        "bytes": 853,
+        "sha256": "a69c18728274760f35d64e0553bff48de8008c3b8935289bdd86a254582c2160"
+      },
+      "sky130_fd_pr__esd_rf_diode_pw2nd_11v0_300__parasitic__diode_pw2dn.model.spice": {
+        "bytes": 926,
+        "sha256": "162ee26460125e2f1b09a10ebe2af6a8d93d702f9a1acbfdb54d4a6c25b1392b"
+      },
+      "sky130_fd_pr__esd_rf_nfet_20v0_hbm_21vW60p00.spice": {
+        "bytes": 853,
+        "sha256": "953ee066a98415b7ca9f71353c47251a7220ee1e88bba49d4c95028476dae99e"
+      },
+      "sky130_fd_pr__esd_rf_nfet_20v0_hbm_32vW60p00.spice": {
+        "bytes": 853,
+        "sha256": "4fa8f4f1272c98d468ad9ce46906fd14d56d2aeb772c9ecc99857a7cc8ede617"
+      },
+      "sky130_fd_pr__esd_rf_nfet_20v0_iec_21vW60p00.spice": {
+        "bytes": 853,
+        "sha256": "60d3d9da1b0cede5b9c845b3696d414c451a43ff4bc0bc27cdc0760a6f8ef1b2"
+      },
+      "sky130_fd_pr__esd_rf_nfet_20v0_iec_32vW60p00.spice": {
+        "bytes": 853,
+        "sha256": "75afc4f28abd06a517fd0ee39d1ea1ceafa34d79b70db5e2ddaf7c1aa91f803f"
+      },
+      "sky130_fd_pr__ind_03_90.model.spice": {
+        "bytes": 993,
+        "sha256": "311ef0a69a307ad34063bef89182279470fe0a7a8804e8375699c3ccd3e3e92c"
+      },
+      "sky130_fd_pr__ind_05_125.model.spice": {
+        "bytes": 995,
+        "sha256": "130d7e94b045d0bfeb68111451f03312abcfad9368c8cafba5554ef494f31e74"
+      },
+      "sky130_fd_pr__ind_05_220.model.spice": {
+        "bytes": 995,
+        "sha256": "bd925e52ae0e8c89bbe395a039ffdf12d04c9dd79e6d5c055fe163856ec920df"
+      },
+      "sky130_fd_pr__nfet_01v8.pm3.spice": {
+        "bytes": 420496,
+        "sha256": "6a1254b3af66d379c5a7944ed0b5c71f739b6055b905b78f32a9fb51539e1a54"
+      },
+      "sky130_fd_pr__nfet_01v8__ff.corner.spice": {
+        "bytes": 67078,
+        "sha256": "440a5b78e0aa92f9cae53a7fc750493211c9e08dbdf0169de8396de0a53e7c55"
+      },
+      "sky130_fd_pr__nfet_01v8__ff.pm3.spice": {
+        "bytes": 1141843,
+        "sha256": "abbf671996e76bf3e75ea2bb26036fa17b99f92599330e25bb814ac498b600fe"
+      },
+      "sky130_fd_pr__nfet_01v8__fs.corner.spice": {
+        "bytes": 67330,
+        "sha256": "d87e32075fa5b2616fd07e3f6309ef43eebe866e14c3404ea3928ee3631d6664"
+      },
+      "sky130_fd_pr__nfet_01v8__fs.pm3.spice": {
+        "bytes": 1141429,
+        "sha256": "85f26c62c5c6ce318d6f28dcb2e65e36144a6878e2758136ea1ecd8ad55e0e96"
+      },
+      "sky130_fd_pr__nfet_01v8__leak.corner.spice": {
+        "bytes": 67910,
+        "sha256": "348e7eccc9992735ad0ebabc751fcb8e69a045ffa82aa1e0d54e48b305890f44"
+      },
+      "sky130_fd_pr__nfet_01v8__leak.pm3.spice": {
+        "bytes": 1153585,
+        "sha256": "33b30f173f219bdb047050bbc8b692b87beaac170011be088344cdde4127eed2"
+      },
+      "sky130_fd_pr__nfet_01v8__mismatch.corner.spice": {
+        "bytes": 962,
+        "sha256": "24a3b29d7d7f26f99098811c31eb5497950a3aed520ab83768a96f35467fe818"
+      },
+      "sky130_fd_pr__nfet_01v8__sf.corner.spice": {
+        "bytes": 67280,
+        "sha256": "304ad8f1cb845c4e9f638d07a04bb1c7a350a6e04084f858c45af7ac3a4d294c"
+      },
+      "sky130_fd_pr__nfet_01v8__sf.pm3.spice": {
+        "bytes": 1143316,
+        "sha256": "f0a46f156adb47c6dc156dc46bc5f7781a46a8c2c181af6e1fc3f428681caf23"
+      },
+      "sky130_fd_pr__nfet_01v8__ss.corner.spice": {
+        "bytes": 67129,
+        "sha256": "896cd2d75e86826556819d92048c99a14bab6b9e4ae9d9295519a1bd64a3210f"
+      },
+      "sky130_fd_pr__nfet_01v8__ss.pm3.spice": {
+        "bytes": 1140045,
+        "sha256": "4a70607ef6e016b426e9b447fe75ca417cdb7e44fe98ca6d7f0319656e65ed0c"
+      },
+      "sky130_fd_pr__nfet_01v8__subvt_mismatch.corner.spice": {
+        "bytes": 962,
+        "sha256": "24a3b29d7d7f26f99098811c31eb5497950a3aed520ab83768a96f35467fe818"
+      },
+      "sky130_fd_pr__nfet_01v8__tt.corner.spice": {
+        "bytes": 66384,
+        "sha256": "0c03b2e5727c414942f1d2b27e19a68724fb84be90b2c73b361ad41779311130"
+      },
+      "sky130_fd_pr__nfet_01v8__tt.pm3.spice": {
+        "bytes": 1137294,
+        "sha256": "459eca963a134574cf7c842ad6d3814e7e0752bfb5de8e581c2f483534b5ad06"
+      },
+      "sky130_fd_pr__nfet_01v8__tt_correln.corner.spice": {
+        "bytes": 69336,
+        "sha256": "6d7658697add7bb96aeac759695d80af0b5351a7afa25d1b37984ee503458045"
+      },
+      "sky130_fd_pr__nfet_01v8__tt_correlp.corner.spice": {
+        "bytes": 69335,
+        "sha256": "af27709f708e0edba59d513446c57bc97d2477a1643f2432d2e0dd1c9609aa93"
+      },
+      "sky130_fd_pr__nfet_01v8__tt_leak.corner.spice": {
+        "bytes": 67350,
+        "sha256": "912e658e7d9db82dae7ae011c67d0e29d7070bab30fe298a92e3a284f842aafd"
+      },
+      "sky130_fd_pr__nfet_01v8__tt_leak.pm3.spice": {
+        "bytes": 1148428,
+        "sha256": "ddb54f2abaa16116fe47750630cbc6f23235202c0dfc51dc6f5c34c9551304f2"
+      },
+      "sky130_fd_pr__nfet_01v8__wafer.corner.spice": {
+        "bytes": 64034,
+        "sha256": "247f284fbbfaaa128f40ce2a8e57e2ac6e16044b98e13b28e2a10860cab92956"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt.pm3.spice": {
+        "bytes": 282800,
+        "sha256": "5c875168764259a5ed8d40293751429acf3668347cb9415e0eda20bb8333af77"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__ff.corner.spice": {
+        "bytes": 787,
+        "sha256": "e84da569821a546bb7d59834543d680b1bd09523f5951ff5be0c67ff32370601"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__ff.pm3.spice": {
+        "bytes": 613741,
+        "sha256": "75f096a448b5e6c9f5e6b5970f598f839a9081ae1f687e5aaccbf1dba37cd675"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__ff_discrete.corner.spice": {
+        "bytes": 43947,
+        "sha256": "2ad96c3e19487caa26bcd6f6e01091a5116b3ad048c4b6f58bd6da1a39cc2841"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__fs.corner.spice": {
+        "bytes": 787,
+        "sha256": "b44b14281fb42ca617e81d2f7c4c837e4cfddc6ec6a340871029a253860640d6"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__fs.pm3.spice": {
+        "bytes": 613517,
+        "sha256": "8b17df56616e9f52564faf30a423205505e6e3cf0528f500ad29cedea9d155e5"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__fs_discrete.corner.spice": {
+        "bytes": 43928,
+        "sha256": "2714f54b1e42d2f2f0128b4d83ffe93842f3512d85044bf9b9e04813f45585c9"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__leak.corner.spice": {
+        "bytes": 803,
+        "sha256": "f1cf379d116d123f207a4bc1ef71d847c2824ecf1fd25d7487313335081171c9"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__leak.pm3.spice": {
+        "bytes": 617650,
+        "sha256": "eb615d32cd3b8e3aaccc9dea2052b820af101a4cea45f8140f218d8e0bdb561b"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__leak_discrete.corner.spice": {
+        "bytes": 44426,
+        "sha256": "fa8096b68fb6d8d7f23008dba11e55eb012b88f408274e5e2ec013470f97f12e"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__mismatch.corner.spice": {
+        "bytes": 1105,
+        "sha256": "1855038a2ad2fe3989b64a17128d47daaa3dbc15d0f4db2c4526988923daa311"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__sf.corner.spice": {
+        "bytes": 787,
+        "sha256": "5e4122da6a18aca51d6158fb326c2e27238564bdbc4d23da4cff66e22633603f"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__sf.pm3.spice": {
+        "bytes": 612678,
+        "sha256": "f795dd0400c46833a4ab49f3b99bdcde69c5b8c6f58313db349ccae36bbb2659"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__sf_discrete.corner.spice": {
+        "bytes": 43923,
+        "sha256": "8290da740af80e3022c6e15e4403981147630e672aa9bc5c6ccea32da84f9b9d"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__ss.corner.spice": {
+        "bytes": 787,
+        "sha256": "23eb2d35ada169b393a334d4ada4dcb587f074f993315b8f23ccd241429819aa"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__ss.pm3.spice": {
+        "bytes": 612485,
+        "sha256": "b7639f99ca4633080da895a9ea305f531371f26b53d658a0ccb02239fc402f35"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__ss_discrete.corner.spice": {
+        "bytes": 43924,
+        "sha256": "d966b1814ca754cdc1421b0c386d131b8efde98a50c56656f10f6a3c6b68a1f2"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__subvt_mismatch.corner.spice": {
+        "bytes": 1106,
+        "sha256": "b66b6f0607d6b5619c3462200ba31cdcbcddb5798734439f20109542fe5de6d8"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__tt.corner.spice": {
+        "bytes": 787,
+        "sha256": "716b48c11275bb1edbb228807f1b8849453884adf498ac7c57a31b9295335f2b"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__tt.pm3.spice": {
+        "bytes": 612861,
+        "sha256": "7e946eed0e30b40fd1f1788510a2e8ab128ea0fa93865cf9f9204004276d20bc"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__tt_correln.corner.spice": {
+        "bytes": 45884,
+        "sha256": "5ab51c728a74d31335050ef543cac793be0f6e675c3a625f93d934ccf6f5e9c4"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__tt_correlp.corner.spice": {
+        "bytes": 45883,
+        "sha256": "87bf5897367e2bb0d710f7283d4de8c55e266b169a8aacf8ea35e6bc68887e44"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__tt_discrete.corner.spice": {
+        "bytes": 45011,
+        "sha256": "5dce457b6f3f541f9c7d29115cb2d4e037cd0a495945311b646e118b0db25daa"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__tt_leak.corner.spice": {
+        "bytes": 808,
+        "sha256": "e0f171ad2ad380cf8a8f3c9df30ffd3a3e2bbaf9d8d82356472eab3ae860867b"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__tt_leak.pm3.spice": {
+        "bytes": 617861,
+        "sha256": "471064992d09e26a84ac1f84d5615c1e7db527b1ad7f782297882f6afdad1eb2"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__tt_leak_discrete.corner.spice": {
+        "bytes": 44398,
+        "sha256": "313deccfc080def3921c484bba12643cd424a593ab487f142c02d183cb4861b8"
+      },
+      "sky130_fd_pr__nfet_01v8_lvt__wafer.corner.spice": {
+        "bytes": 42252,
+        "sha256": "d626db33307d73d267260120b84194d3bef58bf689f75e3c2dec0296bf1d9e39"
+      },
+      "sky130_fd_pr__nfet_03v3_nvt.pm3.spice": {
+        "bytes": 65591,
+        "sha256": "b4bd56719dbce94a0a9134d4224a226cdf586238a9ff142c0ea7654065a55a8c"
+      },
+      "sky130_fd_pr__nfet_03v3_nvt__ff.corner.spice": {
+        "bytes": 11173,
+        "sha256": "0fdaf141f890121d6f67e9dfdd942d1afd8d97065b30405c803712168c308e73"
+      },
+      "sky130_fd_pr__nfet_03v3_nvt__fs.corner.spice": {
+        "bytes": 11147,
+        "sha256": "8925259365575206f468e2288924aae14e4e72484b484b248cc11ae3f628c7c7"
+      },
+      "sky130_fd_pr__nfet_03v3_nvt__mismatch.corner.spice": {
+        "bytes": 978,
+        "sha256": "fd3813731a14eb0c987b0ce58a3ed26c0a76a8a4eb152ecd7260ba15d34936c2"
+      },
+      "sky130_fd_pr__nfet_03v3_nvt__sf.corner.spice": {
+        "bytes": 11201,
+        "sha256": "cd6e52b931d54b3dde4c89b7825ccf82c683612aac0b74a11881c3fd82ce28e2"
+      },
+      "sky130_fd_pr__nfet_03v3_nvt__ss.corner.spice": {
+        "bytes": 11165,
+        "sha256": "a7e9ecf9dad2a681c9a11ee6d46812261836121b6d09e7d4a4dc6f99724cf59c"
+      },
+      "sky130_fd_pr__nfet_03v3_nvt__tt.corner.spice": {
+        "bytes": 11153,
+        "sha256": "6ac550dbda38845d879cb665dbbf3a2acc874e833fa53abf1e2d3b8bb7d331b4"
+      },
+      "sky130_fd_pr__nfet_03v3_nvt__tt_correln.corner.spice": {
+        "bytes": 11665,
+        "sha256": "31917d684fd774f7dfafa71694e69376179fdff84c4128491ca2f043f4e57d1a"
+      },
+      "sky130_fd_pr__nfet_03v3_nvt__tt_correlp.corner.spice": {
+        "bytes": 11664,
+        "sha256": "4877d8306768c21b6e266364aea2180a94c6363c584f0ea0c3c3d9a4c1760fdd"
+      },
+      "sky130_fd_pr__nfet_03v3_nvt__wafer.corner.spice": {
+        "bytes": 10750,
+        "sha256": "d5744b8322cbfaf619bcf7de68526f85a4a6a718c65fb38a849c58ec40828dc7"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt.pm3.spice": {
+        "bytes": 79947,
+        "sha256": "03c6de985d6ad50aada78ac92fded0912a552ebc3fbdf65d667f842e437c480e"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt__ff.corner.spice": {
+        "bytes": 13512,
+        "sha256": "2adc32d1c5f38df8dd6ba496d5aa92cd2e0b573bc59ea837819d1f43e5e5e131"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt__fs.corner.spice": {
+        "bytes": 13471,
+        "sha256": "e5d71444f619711837f9334dc49cbde9ca840dc3b7a9bfe136975e6f4c3b5dcd"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt__leak.corner.spice": {
+        "bytes": 13505,
+        "sha256": "f068c948edba179323ed0e7c717cb1add513d27008acfba13706b8d8fcc03a83"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt__mismatch.corner.spice": {
+        "bytes": 1097,
+        "sha256": "4c1ce4d79656afd5087dc73417740c506c8465bb361ece5db8835ad3d9b362df"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt__sf.corner.spice": {
+        "bytes": 13506,
+        "sha256": "070556259bde129f85b5520d1962c50593ac884b8a04a40dac4badd76fdecbb2"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt__ss.corner.spice": {
+        "bytes": 13476,
+        "sha256": "47dcdf2c517f75df8a76b7b292f1a4f31276262058d4b20a3028b14a14d950e1"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt__tt.corner.spice": {
+        "bytes": 13498,
+        "sha256": "ad6f98b01ba312f9817a9154d12bb73bcf1e323c2a8a599fd26bafda54397b28"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt__tt_correln.corner.spice": {
+        "bytes": 14109,
+        "sha256": "dcf69d06c0d6009a131c44ff9db7afa201899676a18ce762dc542e55ade72581"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt__tt_correlp.corner.spice": {
+        "bytes": 14108,
+        "sha256": "ef3c48cf92340d58774cf6b54e5f134386c1014ce15767fc5d641e160c9b1d93"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt__tt_leak.corner.spice": {
+        "bytes": 13799,
+        "sha256": "5f537131fc4dd29be16802ce98acfaa83d4dcb29287d95776e0325d42c4678f5"
+      },
+      "sky130_fd_pr__nfet_05v0_nvt__wafer.corner.spice": {
+        "bytes": 12913,
+        "sha256": "3def2a4c0b3934ce04f3cb9c99913711d13bc9b2b3d3ae6bc72c4bb5363012c3"
+      },
+      "sky130_fd_pr__nfet_20v0__fs_discrete.corner.spice": {
+        "bytes": 1643,
+        "sha256": "6f8acc38821304a85341972c34a5d6bd5599228c502c491301172cc80008cf50"
+      },
+      "sky130_fd_pr__nfet_20v0__leak_discrete.corner.spice": {
+        "bytes": 1670,
+        "sha256": "216973faeb1442c27ce7d8f9919fe6a48a33cb2a22349e3107c86198804cac38"
+      },
+      "sky130_fd_pr__nfet_20v0__sf_discrete.corner.spice": {
+        "bytes": 1668,
+        "sha256": "86c6b605f6748542400029ac41b264c929e973ea4fb277b634aadfbafc7dc932"
+      },
+      "sky130_fd_pr__nfet_20v0__subcircuit.pm3.spice": {
+        "bytes": 8994,
+        "sha256": "64b63a8bd76ca1a5f7f14849d80399e99dd85ed39534c452ae65c4a3fa19e270"
+      },
+      "sky130_fd_pr__nfet_20v0__tt_discrete.corner.spice": {
+        "bytes": 1836,
+        "sha256": "437039ebf2762d9f1124f05c68743a9dde63c58e541666913ce0931faf900a24"
+      },
+      "sky130_fd_pr__nfet_20v0__wafer_discrete.corner.spice": {
+        "bytes": 1590,
+        "sha256": "b6ef91d0761ec9b4015d977ae2dd72ef00ac56d54a7bf3682f7be01d83510ac9"
+      },
+      "sky130_fd_pr__nfet_20v0_iso__subcircuit.pm3.spice": {
+        "bytes": 9121,
+        "sha256": "0ba6101d75c9ca9271c9e0254901804a33f2981d6a7b60e35d3a71e311e9fc56"
+      },
+      "sky130_fd_pr__nfet_20v0_nvt__fs_discrete.corner.spice": {
+        "bytes": 973,
+        "sha256": "23e9c408698a7632746b668a5016529e36abb15d92485ab467bcba6535fce5bb"
+      },
+      "sky130_fd_pr__nfet_20v0_nvt__parasitic__diode_ps2dn.model.spice": {
+        "bytes": 2438,
+        "sha256": "af1de0925ac35d8cbc2f7fc04d636d15e76bc199d00045b860fc169194998e22"
+      },
+      "sky130_fd_pr__nfet_20v0_nvt__sf_discrete.corner.spice": {
+        "bytes": 974,
+        "sha256": "9a7208e7fcba94cd06dcc7d9a50c93a709ee5679f0d35f25fb9dfbff3364faaa"
+      },
+      "sky130_fd_pr__nfet_20v0_nvt__subcircuit.pm3.spice": {
+        "bytes": 9181,
+        "sha256": "1b3c68a09794e92515d24ff596f92e087b527f68eb696df63dfadb3a78cb9c04"
+      },
+      "sky130_fd_pr__nfet_20v0_nvt__tt_discrete.corner.spice": {
+        "bytes": 973,
+        "sha256": "8a4e88bcbce811f316a21c21842fe87afdd2d7abf82a26449082652a536adfaf"
+      },
+      "sky130_fd_pr__nfet_20v0_nvt_iso__fs_discrete.corner.spice": {
+        "bytes": 993,
+        "sha256": "c8f9c82f0bfe947497b4e94a91e0cf97a503caebc5ffdc1a1232b09819eeaaa8"
+      },
+      "sky130_fd_pr__nfet_20v0_nvt_iso__sf_discrete.corner.spice": {
+        "bytes": 994,
+        "sha256": "d8a3eb016d731a23b88d1ca15588d57c3bcd57e3d76c18270ee1e8765ae67245"
+      },
+      "sky130_fd_pr__nfet_20v0_nvt_iso__subcircuit.pm3.spice": {
+        "bytes": 9243,
+        "sha256": "fcdf3169ba6a10affe47ba05ede00eab7d47c1d473e66f71c0656d91f102afc7"
+      },
+      "sky130_fd_pr__nfet_20v0_nvt_iso__tt_discrete.corner.spice": {
+        "bytes": 993,
+        "sha256": "8ee9596e32540421b6c8d3b8283e829b74a3ee1e4d45fabad6c3cc3bc9be04e4"
+      },
+      "sky130_fd_pr__nfet_20v0_reverse_iso__subcircuit.pm3.spice": {
+        "bytes": 8979,
+        "sha256": "062eab05dff385bd35c8505351b7a15c38e47cbdb723aa7a056018bc0834c742"
+      },
+      "sky130_fd_pr__nfet_20v0_zvt__fs_discrete.corner.spice": {
+        "bytes": 1289,
+        "sha256": "d9e116bbf8c2ff0db28fa472e33f7130c54c5bd5841317b4059fef45ecc5e1c3"
+      },
+      "sky130_fd_pr__nfet_20v0_zvt__leak_discrete.corner.spice": {
+        "bytes": 1292,
+        "sha256": "cd9aee0129c4230f24560415054d0d2986bf80f943ffb938e6b9b075e4b36d5f"
+      },
+      "sky130_fd_pr__nfet_20v0_zvt__parasitic__diode_ps2dn__extended_drain.model.spice": {
+        "bytes": 2829,
+        "sha256": "bcd6c8cc696074cbdd06c670286b7756bf9ec76a827e4851ecbbdb9f518a5013"
+      },
+      "sky130_fd_pr__nfet_20v0_zvt__sf_discrete.corner.spice": {
+        "bytes": 1292,
+        "sha256": "2366432b5213e267e85cb63b0d3444ef89985955763a5a54e5eba70ff9be1c1c"
+      },
+      "sky130_fd_pr__nfet_20v0_zvt__subcircuit.pm3.spice": {
+        "bytes": 9346,
+        "sha256": "a2173e3b3d601fc070e8c2babad25c01f6d0c61df8b3432d25245c800d51389d"
+      },
+      "sky130_fd_pr__nfet_20v0_zvt__tt_discrete.corner.spice": {
+        "bytes": 1262,
+        "sha256": "c7d5cfef6e9cd1e742e9e97da0e823ee81f2fa087a1ba8d1e9517f70335167f5"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5.pm3.spice": {
+        "bytes": 362094,
+        "sha256": "50aee0481defd69970d9ac09eafe9b27435b9a88f1d8b41fde99a418c3445f8e"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__ff.corner.spice": {
+        "bytes": 810,
+        "sha256": "23e17fb740ff03ff47f0c5cddfbcfa3af5c16465f388d521520d7ea057935bc2"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__ff.pm3.spice": {
+        "bytes": 588170,
+        "sha256": "7d76a0f2023e966607fddfca92f53b2a2fd74db585917abb217261f0cf70c7ef"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__ff_discrete.corner.spice": {
+        "bytes": 65017,
+        "sha256": "9c1f5e5fe0ec7a58d736b946618517bba8ef779b19d89e15776eeb840947a996"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__fs.corner.spice": {
+        "bytes": 810,
+        "sha256": "00c599d50c81e8a5c8c6423ebcd22c07f714a119c867d1465eb39664ee4f1e8a"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__fs.pm3.spice": {
+        "bytes": 586474,
+        "sha256": "9220f82518bbc29e935a8ecb9b18fac06b07c869e1856aa576e2e4997f4a5f53"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__fs_discrete.corner.spice": {
+        "bytes": 64911,
+        "sha256": "a3ed4d98aa7632dc67393791c2a6a540c17900aeac603d9a0eaf3d32ededb87d"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__leak.corner.spice": {
+        "bytes": 809,
+        "sha256": "1fdacfb803fb4ed9fc0ebbf54be3996272046d9b54ce1bfa5f499bab9f58de5b"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__leak.pm3.spice": {
+        "bytes": 599362,
+        "sha256": "e84937c8980ad12226bd636158a2605e223ccf5a69bffc944b3de3bb12c69ada"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__leak_discrete.corner.spice": {
+        "bytes": 65609,
+        "sha256": "501f40a6ce1ff573663f172ef4cce5b2cc43edad0f75368aa66d3a0bb27d8cec"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__mismatch.corner.spice": {
+        "bytes": 1267,
+        "sha256": "e4124d91feee11f97c53b40752c711bb4293d94cd22c2778291a163c8abf3e9c"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__sf.corner.spice": {
+        "bytes": 810,
+        "sha256": "93fdae80469c761f3bd3bfbaa8f2d5bf091d035e004ebdb5a947a51f292f15c1"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__sf.pm3.spice": {
+        "bytes": 587467,
+        "sha256": "8c8f7d1c16cfb37962282fa76a29e759ae0497873056d68eba0e816e75ae279f"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__sf_discrete.corner.spice": {
+        "bytes": 64991,
+        "sha256": "e2b4b289d5d6d8aa795fe68e94958744f95e77608dd69a85cea831f5cacfd6fe"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__ss.corner.spice": {
+        "bytes": 810,
+        "sha256": "5b2ef445a9fa6f8686eba7a2bfcbca327c35fde17ae8a8f60eb4f4b9f03942ab"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__ss.pm3.spice": {
+        "bytes": 587693,
+        "sha256": "84fd6f1eafb18dc709d278bd6f3c382218dbc27fe0079740bd839cb83257af3e"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__ss_discrete.corner.spice": {
+        "bytes": 64942,
+        "sha256": "4fb980f0f89fbbd117ea3a30743cbca1ba44224c413686be78d7f0cd5cb73ed6"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__tt.corner.spice": {
+        "bytes": 810,
+        "sha256": "c6220fd1b3ed009078cc3bfe66f6fabccddd5b33653c8efd8c9c4b344253cd25"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__tt.pm3.spice": {
+        "bytes": 586394,
+        "sha256": "9a848a7f7d1e6d1cbf1992662b8f3b8123f4ba4eb60892784add24b7869fd966"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__tt_correln.corner.spice": {
+        "bytes": 67549,
+        "sha256": "653554fce785b92b9c62165820e7c6b8388fa1e134d53670e3dd51e1b79e4bb1"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__tt_correlp.corner.spice": {
+        "bytes": 67548,
+        "sha256": "19967b7762a7061935d249fda3e42359299978a5f5eb5f77389a46af18108e41"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__tt_discrete.corner.spice": {
+        "bytes": 64988,
+        "sha256": "37046f5584250059c2f8e4a2070d701461821326cf126a008b561120358b89de"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__tt_leak.corner.spice": {
+        "bytes": 811,
+        "sha256": "da93ff83c7a7b0894b5d4976cd729ddc7794946decf40960c4b6bd55f56d227e"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__tt_leak.pm3.spice": {
+        "bytes": 595559,
+        "sha256": "25e149bc336d35cd704e03bba832ace01e9a24bd51246e83bab8814161c4324c"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__tt_leak_discrete.corner.spice": {
+        "bytes": 65631,
+        "sha256": "b42176206b59d007eac03e17ea3d359b0bfe2f9deabcd969b874fbc4b46ca998"
+      },
+      "sky130_fd_pr__nfet_g5v0d10v5__wafer.corner.spice": {
+        "bytes": 62680,
+        "sha256": "673ca3622f67e68fc438e78f22fa7ae470973b0fce0efeba50b17c08711f5007"
+      },
+      "sky130_fd_pr__nfet_g5v0d16v0.pm3.spice": {
+        "bytes": 39046,
+        "sha256": "95d37f7f07b7bd93fdcbcbae43ab23478360348394dced4f467a69d15a17d0d5"
+      },
+      "sky130_fd_pr__nfet_g5v0d16v0__ff_discrete.corner.spice": {
+        "bytes": 7225,
+        "sha256": "7e258c446bbdcac9021b7500b0eafc5a5e5f4fa06dd50962b02097a0e2d55361"
+      },
+      "sky130_fd_pr__nfet_g5v0d16v0__fs_discrete.corner.spice": {
+        "bytes": 7204,
+        "sha256": "6ded3c7b9b92e8d8bca353e8a71b454ef7bcaf038fb0c69090b24ad22b4fec31"
+      },
+      "sky130_fd_pr__nfet_g5v0d16v0__leak_discrete.corner.spice": {
+        "bytes": 7288,
+        "sha256": "d5400ecdcaaba4c06e1b0cbc861f96f21e5149f81ee7355b831caa48779c1331"
+      },
+      "sky130_fd_pr__nfet_g5v0d16v0__sf_discrete.corner.spice": {
+        "bytes": 7272,
+        "sha256": "40d2f37f470698e01fce033dfec45943ec4924e772e629ddc3edb19bc5d709b7"
+      },
+      "sky130_fd_pr__nfet_g5v0d16v0__ss_discrete.corner.spice": {
+        "bytes": 7214,
+        "sha256": "4608d0b5f22966918278cf81551d31b6708dbfc8b0d23eaffbb87321bcd217c5"
+      },
+      "sky130_fd_pr__nfet_g5v0d16v0__subcircuit.pm3.spice": {
+        "bytes": 1532,
+        "sha256": "8da026795a287790d5ad324f90ceae2130eaf2fe38ce4f70648c984141fa5f63"
+      },
+      "sky130_fd_pr__nfet_g5v0d16v0__tt_discrete.corner.spice": {
+        "bytes": 7629,
+        "sha256": "4345c8cad35b7e1b703d73db2d727a5c490ca60c9082546224a304f7cfd6a646"
+      },
+      "sky130_fd_pr__nfet_g5v0d16v0__tt_leak_discrete.corner.spice": {
+        "bytes": 7634,
+        "sha256": "955d15600a96353ace7c7f1bfd549108144018f376bd0ab4bb50c4ceeeaa7255"
+      },
+      "sky130_fd_pr__nfet_g5v0d16v0__wafer.corner.spice": {
+        "bytes": 7550,
+        "sha256": "f93a430565e0550dd43af8192f7ea504185ac86e7fa9139b2acab41308c480eb"
+      },
+      "sky130_fd_pr__npn_05v5_W1p00L1p00.model.spice": {
+        "bytes": 3109,
+        "sha256": "02f9057ac1ba5dc1ac8dadb15c6308a5f899b6e63e9dc68ccf85216e10bc8b6c"
+      },
+      "sky130_fd_pr__npn_05v5_W1p00L2p00.model.spice": {
+        "bytes": 3113,
+        "sha256": "e37da16e95b991202fbafe559bda34b9e5d4c67eb30de64c5d2c2fecdf8b6b7a"
+      },
+      "sky130_fd_pr__npn_05v5__f.corner.spice": {
+        "bytes": 771,
+        "sha256": "0bbd20b5b08c2cc975be4557a62418175a033b9a0b9364b117732898933353f5"
+      },
+      "sky130_fd_pr__npn_05v5__s.corner.spice": {
+        "bytes": 771,
+        "sha256": "7fbf55b3c6092f6b20a01463afffca43cefd9daebafa984be63ae12e04ca8a5b"
+      },
+      "sky130_fd_pr__npn_05v5__t.corner.spice": {
+        "bytes": 770,
+        "sha256": "625e1d8028c8d3e569ef6ab62c56c7e5225e5053cd5b63591c7f02e79a67a29b"
+      },
+      "sky130_fd_pr__npn_05v5__wafer.corner.spice": {
+        "bytes": 913,
+        "sha256": "816fd13b4786709caeaaaa81d751fc1b3a66152ada99f34837fc3d4d1a7a7cd8"
+      },
+      "sky130_fd_pr__npn_11v0_W1p00L1p00.model.spice": {
+        "bytes": 4774,
+        "sha256": "1ce8a924194dbdbb198b714aae82692687246130d3f8011a25aec5b83eb0260a"
+      },
+      "sky130_fd_pr__nwdiode_top.model.spice": {
+        "bytes": 940,
+        "sha256": "b370d12defd21a26570f665c3f10da6c0cde5ff967272718ef91457f1bc1b7e0"
+      },
+      "sky130_fd_pr__pfet_01v8.pm3.spice": {
+        "bytes": 471975,
+        "sha256": "4a634f10ffd773e92e8e95ef1dec820534172164a696ea0f10c19a825cfd6656"
+      },
+      "sky130_fd_pr__pfet_01v8__ff.corner.spice": {
+        "bytes": 792,
+        "sha256": "30ba71bde4024ff291a68352930bf2fc3e07f627efb090e1575b9dbd7b6e75da"
+      },
+      "sky130_fd_pr__pfet_01v8__ff.pm3.spice": {
+        "bytes": 812668,
+        "sha256": "2712f1132a4b21c608db59697c9ed284a8702b6a5a38c9e09a49fc592255d958"
+      },
+      "sky130_fd_pr__pfet_01v8__ff_discrete.corner.spice": {
+        "bytes": 63104,
+        "sha256": "791cacc6214d5945ed2a91f228e4ff353020727105f4f3d82e61fbc9e9399e50"
+      },
+      "sky130_fd_pr__pfet_01v8__fs.corner.spice": {
+        "bytes": 792,
+        "sha256": "b3dc4e47f87a780ed7de8126839ca4620454b6de85307341672c903b0c164d01"
+      },
+      "sky130_fd_pr__pfet_01v8__fs.pm3.spice": {
+        "bytes": 810949,
+        "sha256": "55e4f670a758a036b02316030357bb647f388e788117b4fe6b965a68e72af378"
+      },
+      "sky130_fd_pr__pfet_01v8__fs_discrete.corner.spice": {
+        "bytes": 63064,
+        "sha256": "e08fd0ed22f94e5ad1092d1faffc361da8a59bbd9af114cdf0e65bedcc030bf2"
+      },
+      "sky130_fd_pr__pfet_01v8__leak.corner.spice": {
+        "bytes": 794,
+        "sha256": "4f4290308a9d01aed6b6086b686a09c0d6cce4c23e129888c39e126ccdb29e42"
+      },
+      "sky130_fd_pr__pfet_01v8__leak.pm3.spice": {
+        "bytes": 814372,
+        "sha256": "f1df08cedc3786c9f73d4cbf46f0ee5e17af153ba457f3e923d35a226b16cc17"
+      },
+      "sky130_fd_pr__pfet_01v8__leak_discrete.corner.spice": {
+        "bytes": 63451,
+        "sha256": "8ed8ff5637aa9fc9a74357cc1d67f2b2e5f844ddc86a7f74f8fafd3fefa211b4"
+      },
+      "sky130_fd_pr__pfet_01v8__mismatch.corner.spice": {
+        "bytes": 1322,
+        "sha256": "f4d560668712678ea60641de923fce7691e64acda951949f840986837c31741a"
+      },
+      "sky130_fd_pr__pfet_01v8__sf.corner.spice": {
+        "bytes": 789,
+        "sha256": "857ce650534be04b5663787f03302f580624d6a6a477d27e293cf6ae93fc7d2f"
+      },
+      "sky130_fd_pr__pfet_01v8__sf.pm3.spice": {
+        "bytes": 810136,
+        "sha256": "1d99c32aaf14705e609349010669ceb40a7158844ae9f71c417ed2e2587caf71"
+      },
+      "sky130_fd_pr__pfet_01v8__sf_discrete.corner.spice": {
+        "bytes": 63183,
+        "sha256": "82337de247f563278a614576ef1eb5ffefb34de3973074739574fdd5bf1ff246"
+      },
+      "sky130_fd_pr__pfet_01v8__ss.corner.spice": {
+        "bytes": 790,
+        "sha256": "8d8b59726b48aa7a435b8f9bf0d0ecce0cef9f6359d4bb206f0a31306712e310"
+      },
+      "sky130_fd_pr__pfet_01v8__ss.pm3.spice": {
+        "bytes": 810967,
+        "sha256": "14f5f987c67b0d1d0b0c3d0f5ea21fcee06485798661a44832cf36a9da0b80f2"
+      },
+      "sky130_fd_pr__pfet_01v8__ss_discrete.corner.spice": {
+        "bytes": 63168,
+        "sha256": "f64255ff14aa21bd5557e64e1d7996659aa1765d54a3cec1fa4bf6b007ab5050"
+      },
+      "sky130_fd_pr__pfet_01v8__subvt_mismatch.corner.spice": {
+        "bytes": 1327,
+        "sha256": "e88a8f0d477363a8e9c4ca3bfbc6c1f1a1e4bf2d7180be3f87cfb4faf5013277"
+      },
+      "sky130_fd_pr__pfet_01v8__tt.corner.spice": {
+        "bytes": 796,
+        "sha256": "641d251a08bf9ddcfc67ba4bd4698ae1978d09447eb6ebf90055fdf3d21917ab"
+      },
+      "sky130_fd_pr__pfet_01v8__tt.pm3.spice": {
+        "bytes": 809553,
+        "sha256": "c943246ce012ea3db2777e3f4633ddccdfee7c8f1bf4dca79af9f7ff17b3d51f"
+      },
+      "sky130_fd_pr__pfet_01v8__tt_correln.corner.spice": {
+        "bytes": 65586,
+        "sha256": "c06742f5ed8feafe62408e21e294f3dbc1b7e37c7c07a838a1ca0a91c2ec4933"
+      },
+      "sky130_fd_pr__pfet_01v8__tt_correlp.corner.spice": {
+        "bytes": 65585,
+        "sha256": "521a22d70537eb4b479e7d93ffceb15d608be03024a30a4ae000c8fc593172a0"
+      },
+      "sky130_fd_pr__pfet_01v8__tt_discrete.corner.spice": {
+        "bytes": 63947,
+        "sha256": "c241c484e04f7cbf2212204f9e3102932188a1567c91c71ecf24cb82e671703d"
+      },
+      "sky130_fd_pr__pfet_01v8__tt_leak.corner.spice": {
+        "bytes": 796,
+        "sha256": "eed6239d417bbf2437ca7431555e962fa7d9453b40b627bb97b090135c75e6ab"
+      },
+      "sky130_fd_pr__pfet_01v8__tt_leak.pm3.spice": {
+        "bytes": 810699,
+        "sha256": "b1ea2148893cc1ec031c97b3d8ff064b48e8baa5e1e5f3235e64228bf7b04e3e"
+      },
+      "sky130_fd_pr__pfet_01v8__tt_leak_discrete.corner.spice": {
+        "bytes": 63482,
+        "sha256": "c09ecaae17620a8d87884bb8db1f9bb58d3f285c2fd2d157a9f357195bca072b"
+      },
+      "sky130_fd_pr__pfet_01v8__wafer.corner.spice": {
+        "bytes": 60370,
+        "sha256": "d2bcbedbe95afa5d6db72c0d038ce0f27603e700c0fcdfcdd2d9dfa88e859f19"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt.pm3.spice": {
+        "bytes": 482170,
+        "sha256": "802f51505b9e68e3d0286505e509c136f79e269fe3e091bf1206dfd922d01f92"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__ff.corner.spice": {
+        "bytes": 89002,
+        "sha256": "209003cb03ec551cd1dfe51259a1e795fef8d6ef1bde697f74d62db28c51ae79"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__ff.pm3.spice": {
+        "bytes": 1359519,
+        "sha256": "d67e1b0f7f379ea42f2e21d8976dbb94e93c52bbc77ece644b63ffa152c4d7ef"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__fs.corner.spice": {
+        "bytes": 88963,
+        "sha256": "36c47bc06665932ede54f4fa5badad0d767c0987d996e2250b605140985cdbd0"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__fs.pm3.spice": {
+        "bytes": 1359020,
+        "sha256": "2e59b0a4a07f3411d070e73492fb48b463577fc39fd54d59ae000e1ae85b5aa1"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__leak.corner.spice": {
+        "bytes": 89340,
+        "sha256": "0c3bcc3be012e02b9b8a5d67cf15da1793735635aed8a8844dc3fd37268681d8"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__leak.pm3.spice": {
+        "bytes": 1359778,
+        "sha256": "ac644c0f2ac8ef647daf75268070d04b26c4f5424f7acb41dab093335a57b5c4"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__mismatch.corner.spice": {
+        "bytes": 1039,
+        "sha256": "05e258ab6724c8276cc058f6dba732e8024c5f0bb79ff3131ca219143491d631"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__sf.corner.spice": {
+        "bytes": 89287,
+        "sha256": "c9d9d52c83e0079572c0d80b4b8afd3cb8ca7ff078c2b1a1f3bc24289b6cff9b"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__sf.pm3.spice": {
+        "bytes": 1361804,
+        "sha256": "4b9ec19b7681511f9e233bd6f6fa623c3f982179518a5292919c97f57eeb1f4c"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__ss.corner.spice": {
+        "bytes": 89097,
+        "sha256": "514f2133d1a022a7956374c69bb66fe549ab5977669ae284159916d75e1324dc"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__ss.pm3.spice": {
+        "bytes": 1359338,
+        "sha256": "ec4f1b79d6dc56c48f4bbf2a5d8aa33274e6e881b68433120974e27056f28076"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__subvt_mismatch.corner.spice": {
+        "bytes": 1043,
+        "sha256": "97938519e185e539a0e1a6abcc4604e276eb951b3727bce0f6fc16e9001b7ec3"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__tt.corner.spice": {
+        "bytes": 88134,
+        "sha256": "69401f9b657f9ebb20d201d39e3fbf36b68628307d6fa982168fa51db3e77b03"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__tt.pm3.spice": {
+        "bytes": 1355141,
+        "sha256": "3a1be2e1c50d710bdb951d414ecca711113a8c3fe8bcc1be65fb16c6fe004e83"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__tt_correln.corner.spice": {
+        "bytes": 91591,
+        "sha256": "4133a1d851c171af0df75355186f952d8284be4fe737c998e8cd9e6c6b6b94ed"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__tt_correlp.corner.spice": {
+        "bytes": 91590,
+        "sha256": "3e596ceadda3a638e882940cd3ed337e0956e78eb61bb0e30b805f966abce995"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__tt_leak.corner.spice": {
+        "bytes": 88895,
+        "sha256": "1ee9255260cc47ea7f0f1bf60504991fd46d68cc73e9543e161cdfc4dc26b791"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__tt_leak.pm3.spice": {
+        "bytes": 1356041,
+        "sha256": "b3aaf4cdc4316596e3ec48af15c0fbc3c39eb9c5adb5da75b5506dffd438bc3d"
+      },
+      "sky130_fd_pr__pfet_01v8_hvt__wafer.corner.spice": {
+        "bytes": 85250,
+        "sha256": "402cb4ca63e618422e081492de9b6fb78a57eda63550c84f0f4b51121a05ddc0"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt.pm3.spice": {
+        "bytes": 292162,
+        "sha256": "186b33f469160d46403c0d8f08918733b8b007efe996131a843b5007a62e5919"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__ff.corner.spice": {
+        "bytes": 787,
+        "sha256": "4be6d4c6ee9e4ffcef6f438bbd1b83a1436b896c33a4061b9563500943eeb3d7"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__ff.pm3.spice": {
+        "bytes": 319514,
+        "sha256": "7aaf05bda602e2e45dc9836460988d74a5ed4f571f7c6902e3e8c5017c3d7ae7"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__ff_discrete.corner.spice": {
+        "bytes": 51783,
+        "sha256": "7f9c4ebaddbe7d17bf89c41322fa46540d0b24d3c866c50deab6f5bfd669429d"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__fs.corner.spice": {
+        "bytes": 787,
+        "sha256": "53eefa3929c612891ceb52c7bf3f7e3214611f899b2a2c629df823cbbdc6439b"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__fs.pm3.spice": {
+        "bytes": 319313,
+        "sha256": "2d85a3e1586f31cc26ef3bf2e756c9425b1fcc29baff6327f557bb8a40b76854"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__fs_discrete.corner.spice": {
+        "bytes": 51790,
+        "sha256": "39a893223b81cc93e0ba4bf5bcc0707830ca84e1a7bad923c42cee8e61db4b84"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__leak.corner.spice": {
+        "bytes": 810,
+        "sha256": "01e09d9bbb44e70cc8381d7336466c53c86d5751502bde6e59307dbc3e849fd6"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__leak.pm3.spice": {
+        "bytes": 325492,
+        "sha256": "d5a1c6d904dd4516b8b41634d728478357232742566640762b07a053181cae8c"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__leak_discrete.corner.spice": {
+        "bytes": 52335,
+        "sha256": "ff625b8c8e5cbbd63bcf487d8b63a0e73064784f908d023688de9c0dca7ac15f"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__mismatch.corner.spice": {
+        "bytes": 1218,
+        "sha256": "6fa9be51a32f2f66d8d0858159e1db7b72e37adca31020af8b1a0c2df6e72cb9"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__sf.corner.spice": {
+        "bytes": 787,
+        "sha256": "96f4ed1667765219d2c07434f9d87b76f63f02c4fbe11596bb3cc3d6e759c06a"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__sf.pm3.spice": {
+        "bytes": 319142,
+        "sha256": "05504c4e4994c22d89c60d4df51b3a58241885dc3457481a3f5a912c118fb240"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__sf_discrete.corner.spice": {
+        "bytes": 51798,
+        "sha256": "094d17778c0d5ce63100ea0951c497964defb7e77cee6152a052e5fd80364c78"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__ss.corner.spice": {
+        "bytes": 787,
+        "sha256": "838e42d3bd0394b05f248b53c2a54a6a3012c897aafaa730faf35d665b9cd14a"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__ss.pm3.spice": {
+        "bytes": 319088,
+        "sha256": "d91f2ac093039a522afeadec110c3fd2e782fd8673f20dbfec4bfb15d588be97"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__ss_discrete.corner.spice": {
+        "bytes": 51797,
+        "sha256": "efb35e03216a84ca2c9a6b316a29c9ce2fa84498d7a7a49cc82124be9248e757"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__subvt_mismatch.corner.spice": {
+        "bytes": 1223,
+        "sha256": "bccbb1f7ac3f4a60ec80421c8b84e0b18946d151d80b73866e367089c030e128"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__tt.corner.spice": {
+        "bytes": 787,
+        "sha256": "ddb3ddcd4ccb85c1f68c51e41fd1d999d04de5d2836b43217841efd79912888a"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__tt.pm3.spice": {
+        "bytes": 318265,
+        "sha256": "57d99ed36c675cf756a33916a462c3b7235cbc2364e2c871133551c77ffb564f"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__tt_correln.corner.spice": {
+        "bytes": 53892,
+        "sha256": "7ade826aa47ef66b1bd41820d3c494ac9977265d2db90f0250cc2c4fc7c0c790"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__tt_correlp.corner.spice": {
+        "bytes": 53891,
+        "sha256": "79cba49be49b294d09583fe622f69927c80fb2bf4f15499d4a1f351322fb51f5"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__tt_discrete.corner.spice": {
+        "bytes": 52863,
+        "sha256": "961c653f7ec22ec2271f33fa20409766891984967fa9312059033630332b23f3"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__tt_leak.corner.spice": {
+        "bytes": 808,
+        "sha256": "b90f4f5e9ff2d17b327b93d99e28f2e2629bdc70eaed90206cbc1950792fe7a1"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__tt_leak.pm3.spice": {
+        "bytes": 322214,
+        "sha256": "3b35488612f89816f04fcdf38182c88cc49ae8a4aa07e1e0d7bdfeb1a8d45fe0"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__tt_leak_discrete.corner.spice": {
+        "bytes": 52175,
+        "sha256": "b3ec3ee0f8a51242595e5954fded414094a7e769db5f37722f4bf87b4a1cf590"
+      },
+      "sky130_fd_pr__pfet_01v8_lvt__wafer.corner.spice": {
+        "bytes": 50635,
+        "sha256": "64988a63f2d54c29a64656fa8dfb9f9e56dd645892038261a4cbd5c19ccd2920"
+      },
+      "sky130_fd_pr__pfet_01v8_mvt.pm3.spice": {
+        "bytes": 15240,
+        "sha256": "0ce88958b752e4311cee9119a34d606a2883022134d35f99e679b92d7603d5b1"
+      },
+      "sky130_fd_pr__pfet_20v0__fs_discrete.corner.spice": {
+        "bytes": 1447,
+        "sha256": "835aa506b3d5e671fd73742472ac4157bf6c923d896f478349a88246ea41bb07"
+      },
+      "sky130_fd_pr__pfet_20v0__leak_discrete.corner.spice": {
+        "bytes": 1453,
+        "sha256": "2c89135b289e2704418de24764654b36fa02ed778c5ec871134e6526e7da43fd"
+      },
+      "sky130_fd_pr__pfet_20v0__parasitic__diode_pw2dn.model.spice": {
+        "bytes": 3527,
+        "sha256": "cd6817a3318398c8a373583e9455a2f07fa12500c7df5cddc5738c6fe74a1c57"
+      },
+      "sky130_fd_pr__pfet_20v0__sf_discrete.corner.spice": {
+        "bytes": 1443,
+        "sha256": "c22b2c86558d22e75a6d3844c2e25b7af2cbc86cbbcad03f5e94202242a6a57a"
+      },
+      "sky130_fd_pr__pfet_20v0__subcircuit.pm3.spice": {
+        "bytes": 7476,
+        "sha256": "5ac0449e927e098e43b89b7ad84c506e59aca864fd8d1dae8e1f15b1dece9660"
+      },
+      "sky130_fd_pr__pfet_20v0__tt_discrete.corner.spice": {
+        "bytes": 1407,
+        "sha256": "3027fce9091c0cdd8f097dabe70a7bad076e991054ad746de49831ae7cc798eb"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5.pm3.spice": {
+        "bytes": 362546,
+        "sha256": "aa0aa0635756128716906b01d700c7dc5f2c90131148c688f409b66a3663551f"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__ff.corner.spice": {
+        "bytes": 810,
+        "sha256": "70c2630c319f9856b6ef8bdf671d7ed0813ee3d07bcc4734dff5ec3beef4dfe8"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__ff.pm3.spice": {
+        "bytes": 669782,
+        "sha256": "952ec743d60aa649b90fd45552ed0da204ac6c26f24666c9b56ad7f0ec20694d"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__ff_discrete.corner.spice": {
+        "bytes": 65005,
+        "sha256": "a36ec234c046e60ac6f31148aaaef12f8cd319a60395df465e126d162f2b3b77"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__fs.corner.spice": {
+        "bytes": 810,
+        "sha256": "914a77dd766de318c7c6ca08f72c2dd730433f52021507310b1456e8dcf84cae"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__fs.pm3.spice": {
+        "bytes": 665542,
+        "sha256": "e06180cbc540e4708a4959cf4f5d3276196bfd312595713eb6fc5bd7e0e163f5"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__fs_discrete.corner.spice": {
+        "bytes": 64965,
+        "sha256": "5cf85400d8e671cbdefad414676c59573f7bd1d8a25c3002a529ee79fddbb01c"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__leak.corner.spice": {
+        "bytes": 809,
+        "sha256": "08dc0c050abb3f900e9237fd84836be593bbfdeb4b2d7ae0f7a7b71aaf80af92"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__leak.pm3.spice": {
+        "bytes": 645646,
+        "sha256": "4769b5efcde8c33df881d59d50c86f6b6f8f74f77ceaa5709b4efde6c2a810d4"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__leak_discrete.corner.spice": {
+        "bytes": 65581,
+        "sha256": "349812c054720d7e36e38ffb8ea7d066cee97df41075b18dc7663a390ee1dba4"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__mismatch.corner.spice": {
+        "bytes": 1187,
+        "sha256": "7564bd6e8ba2e7a19d594970b1db2b37202a8117cb49fc22861d2579d77d0339"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__sf.corner.spice": {
+        "bytes": 810,
+        "sha256": "64d84750c79144bc455621c536d6eaba5e6dd4569202a2229fd02949f1a8107e"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__sf.pm3.spice": {
+        "bytes": 665513,
+        "sha256": "ff31bd1dfdbf19f836a94cea2e34a279fff338f9e54776745413d678529daae5"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__sf_discrete.corner.spice": {
+        "bytes": 64968,
+        "sha256": "8099af9051356f11cf3d7a46aac0f9624e8575a8a3a7c74525976f88e8f33c59"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__ss.corner.spice": {
+        "bytes": 810,
+        "sha256": "171fe57846f7562cde7f32ef5012a7a21ec20c2e843f80bbfcbf91a1a13184a8"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__ss.pm3.spice": {
+        "bytes": 668332,
+        "sha256": "a9c660373b84d60013f326d8ee00ad21e0ebaeff406775cfe6c78a5af53ae7cf"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__ss_discrete.corner.spice": {
+        "bytes": 64970,
+        "sha256": "af5f29e560daeb5eb8cfbde6c25540be5a72b3900c5077df268f9c1fd0510d3a"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__subvt_mismatch.corner.spice": {
+        "bytes": 1187,
+        "sha256": "6946224d4df4ee703b95c37fd33d27dc0c0d2ec134919e7bc085c56cf1fde9c8"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__tt.corner.spice": {
+        "bytes": 810,
+        "sha256": "52707b93246551402e9467132ce3d9cb4939d810cd910aa9968dbd534e3f7907"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__tt.pm3.spice": {
+        "bytes": 666818,
+        "sha256": "d3d1497098047ad3de2e778c5eb72f6e535a3d09900fa93c2e27d2452173e549"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__tt_discrete.corner.spice": {
+        "bytes": 64994,
+        "sha256": "5f101ec5d594e159bc46afdaf6daa7af39b419e0d7337fed88fb2ba99daaa9b0"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__tt_leak.corner.spice": {
+        "bytes": 808,
+        "sha256": "634e066a0a7090cefc5f6d753e387abe8c951d9c005dfddcbe49efbeee66e52b"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__tt_leak.pm3.spice": {
+        "bytes": 667164,
+        "sha256": "4093f50178e1946b2f3b04d02c083267dcb2cd865f2c058a3c96e4904dbe5316"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__tt_leak_discrete.corner.spice": {
+        "bytes": 65504,
+        "sha256": "7eb47e8aa4247deaae4171a2f10a27f8aca301bfc60d19423d24098763326d0e"
+      },
+      "sky130_fd_pr__pfet_g5v0d10v5__wafer.corner.spice": {
+        "bytes": 62680,
+        "sha256": "3c3f72722ddc23ece8383deb675c5c9f67c5a3c2ee860e3e3eac0beedc1d130d"
+      },
+      "sky130_fd_pr__pfet_g5v0d16v0.pm3.spice": {
+        "bytes": 20431,
+        "sha256": "f61567098b8dcc89adae232b90321c46e1e92cb24fede2cf1973732cba6c6400"
+      },
+      "sky130_fd_pr__pfet_g5v0d16v0__ff.corner.spice": {
+        "bytes": 5000,
+        "sha256": "be86f65df228255832bddeb9d9527d019f729691cac383fcc16c59880bcd96c3"
+      },
+      "sky130_fd_pr__pfet_g5v0d16v0__fs.corner.spice": {
+        "bytes": 4998,
+        "sha256": "79c2d084e6cc9db66b680355274a4a8e63548e089b4a5a63c76969a4a6bef9fa"
+      },
+      "sky130_fd_pr__pfet_g5v0d16v0__leak.corner.spice": {
+        "bytes": 4996,
+        "sha256": "bd1afda58ce42a50ca863114d178ef6378af5a254cf0fe73dbbf96f690425f56"
+      },
+      "sky130_fd_pr__pfet_g5v0d16v0__parasitic__diode_pw2dn.model.spice": {
+        "bytes": 2085,
+        "sha256": "becc765e76e24279783b114eedbd29f3d14b74e87ea71d81374a8b7f003c7400"
+      },
+      "sky130_fd_pr__pfet_g5v0d16v0__sf.corner.spice": {
+        "bytes": 4994,
+        "sha256": "5f7ce22905a1aff0143821c7b54f84d3897959d32b411d1272f1f6a96b598e1b"
+      },
+      "sky130_fd_pr__pfet_g5v0d16v0__ss.corner.spice": {
+        "bytes": 4995,
+        "sha256": "7ae02c1c3aaf0c09ebf112d7e7465df3a749b2ef1f74e0f3f744670f8b2954ee"
+      },
+      "sky130_fd_pr__pfet_g5v0d16v0__subcircuit.pm3.spice": {
+        "bytes": 1438,
+        "sha256": "1e0c19100db1bb3f78b2faf59d8e5a12d890fba53866da570302f7cc4605c9f5"
+      },
+      "sky130_fd_pr__pfet_g5v0d16v0__tt.corner.spice": {
+        "bytes": 5120,
+        "sha256": "a4d9c6839b8668a058a325a8c6f510d8c041396a8500295dd1febbcd61bc99c0"
+      },
+      "sky130_fd_pr__pfet_g5v0d16v0__tt_leak.corner.spice": {
+        "bytes": 5134,
+        "sha256": "66e90066d0e55437ea4c1f9aba51360bfec71adf4d0b63abff712104dbd39e29"
+      },
+      "sky130_fd_pr__pfet_g5v0d16v0__wafer.corner.spice": {
+        "bytes": 4933,
+        "sha256": "02b85c11ea9831bfa3049f9258a01eca8b786cd1fe4257b232bb4f7a3ce43118"
+      },
+      "sky130_fd_pr__pnp_05v5_W0p68L0p68.model.spice": {
+        "bytes": 2396,
+        "sha256": "512f1b81a1b09382552dda04acbbecc3dad95fa7e73d7e1d6bb740e5657a2637"
+      },
+      "sky130_fd_pr__pnp_05v5_W3p40L3p40.model.spice": {
+        "bytes": 2909,
+        "sha256": "c77f3564d71b285d2a17520ebdf21ccb553151f0931436ed7bba06aaa5bfd3c8"
+      },
+      "sky130_fd_pr__res_generic_nd.model.spice": {
+        "bytes": 890,
+        "sha256": "69ac9426c1e2dd1abb3cdefb77b7a813fd6c23272b7bcf5e77a730f533a8e692"
+      },
+      "sky130_fd_pr__res_generic_pd.model.spice": {
+        "bytes": 916,
+        "sha256": "c953cb9b1158ceb37684bfa4a587692e4f884fa8a4fcfcf89f6584898d6c8ada"
+      },
+      "sky130_fd_pr__res_high_po.model.spice": {
+        "bytes": 2505,
+        "sha256": "dfe6e94934301aab023df90baeed14b0ee0e43689e2ad3475bf5963b59cdad4c"
+      },
+      "sky130_fd_pr__res_high_po_0p35.model.spice": {
+        "bytes": 2426,
+        "sha256": "5012e5c17781fda2201468075affa44e833ee67479fef18d745ca52a6ae237e4"
+      },
+      "sky130_fd_pr__res_high_po_0p69.model.spice": {
+        "bytes": 2398,
+        "sha256": "ebdc054a2461258c5120a3d7c085d3beb6b75ae99778adc9c4a4fb91d6f0eb76"
+      },
+      "sky130_fd_pr__res_high_po_1p41.model.spice": {
+        "bytes": 2363,
+        "sha256": "125257861ec797b4abc7160c13b6a06f6ebaacbb43e1f32df0fe832c14a4cc77"
+      },
+      "sky130_fd_pr__res_high_po_2p85.model.spice": {
+        "bytes": 2381,
+        "sha256": "7cf177af04ad913db53ce388d9a2140b27a355670e9964510dddf8d9765a8eab"
+      },
+      "sky130_fd_pr__res_high_po_5p73.model.spice": {
+        "bytes": 2373,
+        "sha256": "6f255b1ba5a50a8ba84d90518bd4cfc382ec566aa432c01572b701cf888684e8"
+      },
+      "sky130_fd_pr__res_iso_pw.model.spice": {
+        "bytes": 986,
+        "sha256": "9cce1db3f8aba6fbe02f237430143799314130cf0949d8429f1384ce159f2a27"
+      },
+      "sky130_fd_pr__res_xhigh_po.model.spice": {
+        "bytes": 2424,
+        "sha256": "cc1ded14e18d11570d32f9106a862ebd777cd198e848a219df7eaec58c4bc1d9"
+      },
+      "sky130_fd_pr__res_xhigh_po_0p35.model.spice": {
+        "bytes": 1047,
+        "sha256": "940ed59e4935e9f8bda6fe493bf0e5a33f7d7a6961f73fdb15e666637fa50f83"
+      },
+      "sky130_fd_pr__res_xhigh_po_0p69.model.spice": {
+        "bytes": 1047,
+        "sha256": "d35a4b6371a9bd678f7fa1dabfbcfdbd3f29059ab5073516b4e55b6f92cb6b32"
+      },
+      "sky130_fd_pr__res_xhigh_po_1p41.model.spice": {
+        "bytes": 1047,
+        "sha256": "c5993a674226d7878ac8a7400db00a26bfd25db3bd35c7b9a9da29db8ca11c14"
+      },
+      "sky130_fd_pr__res_xhigh_po_2p85.model.spice": {
+        "bytes": 1047,
+        "sha256": "ecce036dde19fe4f0404652375a0ef549df115f393696f4c55639fde33cd9a47"
+      },
+      "sky130_fd_pr__res_xhigh_po_5p73.model.spice": {
+        "bytes": 1047,
+        "sha256": "d4e13ad468f778656baf3438a3a2e7c5a6f64644678995f6ab6ec7e2e1636e3b"
+      },
+      "sky130_fd_pr__res_xhigh_po__base.model.spice": {
+        "bytes": 2518,
+        "sha256": "dfd4555cbf283e9140650b6bd8b6f4a26651589f71c68c7ac982015cf457c96f"
+      },
+      "sky130_fd_pr__rf_aura_blocking.spice": {
+        "bytes": 1191,
+        "sha256": "75342359e892e39be0830b7bb1b8b7dba0386ac7014812a1223df962be116d38"
+      },
+      "sky130_fd_pr__rf_aura_drc_flag_check.spice": {
+        "bytes": 6379,
+        "sha256": "364d3e3b5592811994325cf6f90e15d8576eae30a47683601a21927b710cdd8f"
+      },
+      "sky130_fd_pr__rf_aura_lvs_drc.spice": {
+        "bytes": 2026,
+        "sha256": "821b7155e9a8e9debccca839781bcc21fb0932613b943409832ac2d3f6990f6e"
+      },
+      "sky130_fd_pr__rf_nfet_01v8.pm3.spice": {
+        "bytes": 9653,
+        "sha256": "dd1d04c190d31692e149c9a59f0901a6e9ea2666e43f842178d329ec840ccb8d"
+      },
+      "sky130_fd_pr__rf_nfet_01v8__mismatch.corner.spice": {
+        "bytes": 1169,
+        "sha256": "ca52edda038b4cf56f39c9a6335d91bccabb4a3b12b6f98895060c4b37d68a98"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM02W1p65L0p15.spice": {
+        "bytes": 869,
+        "sha256": "28b85e95c344564e4974cc6328ca017bf3f34af267b4053ce0d81774b58f2164"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM02W1p65L0p18.spice": {
+        "bytes": 869,
+        "sha256": "5468e3d7b606b3e010e8d9d62b263b03de66235f18504b766f3eb02420bb2402"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM02W1p65L0p25.spice": {
+        "bytes": 869,
+        "sha256": "50cc4570898d6669f52413d2161ef3d38e15b82dd61d8a131f9f3092df56b06e"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM02W3p00L0p15.spice": {
+        "bytes": 869,
+        "sha256": "505e912d11a7e11954001d0d6accc7d90796cd35d957d6d5f43f8a186307ca59"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM02W3p00L0p18.spice": {
+        "bytes": 869,
+        "sha256": "8fab7710417d3f0981784f4c6d72324f912ef9b82ad1f24038c09baafb59eb31"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM02W3p00L0p25.spice": {
+        "bytes": 869,
+        "sha256": "4cc2b8166b698501eb7f8241ac6cb2d6d32fadcbcd90ca5d08c9f14187bbe561"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM02W5p00L0p15.spice": {
+        "bytes": 869,
+        "sha256": "15c0f60a287a891d838dfc2efebe95ff2ffdb1d4f73a0342efd88070c325f8ae"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM02W5p00L0p18.spice": {
+        "bytes": 869,
+        "sha256": "5d438f4afd69c9d269eeb9c84f0dbe146ce03a91520e1dfeff8833faaf92c15d"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM02W5p00L0p25.spice": {
+        "bytes": 869,
+        "sha256": "a2a116616d06793eef85ea5e15f571cdf034e3d5c057d8b3ef1836c6b41cd447"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM04W1p65L0p15.spice": {
+        "bytes": 1023,
+        "sha256": "6adc72db707a66730ec8c0cad432a82dcedde3a2374271001ce7960cf03e8f6e"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM04W1p65L0p18.spice": {
+        "bytes": 1023,
+        "sha256": "789687635580b8713776a0fd27046a0b13b43fd236c070f5f94655be560dfa60"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM04W1p65L0p25.spice": {
+        "bytes": 1023,
+        "sha256": "382a3c8907dbda8c17606507a1939f9f68c566ab2b5bda6d09826ee5eda2244d"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM04W3p00L0p15.spice": {
+        "bytes": 1023,
+        "sha256": "96acf9b11c58dce4257fc94976f36f327f92dfd5d1f449fb7a5f997970f296ab"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM04W3p00L0p18.spice": {
+        "bytes": 1023,
+        "sha256": "9c816fd150d2e62bdee097d412d3d40df86d3e410889b52df93d1e36e98833db"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM04W3p00L0p25.spice": {
+        "bytes": 1023,
+        "sha256": "672b45d2d3e51daf098a4380425b4f96fdb21e0f51a4b2ef7309bce28c618b17"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM04W5p00L0p15.spice": {
+        "bytes": 1023,
+        "sha256": "1119fc65cb46840610befff6a0ce660b275293ffc87390275a2f572fbcc28877"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM04W5p00L0p18.spice": {
+        "bytes": 1023,
+        "sha256": "334acb5952dec60ab00c2ea308170709dcbf95527923e3b32c3de7c89fd917cb"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_aM04W5p00L0p25.spice": {
+        "bytes": 1023,
+        "sha256": "3c77b002a89eaa7f3fb00225fe156c68552775acc91b7c6ffac68bb0b591536f"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_b.pm3.spice": {
+        "bytes": 114102,
+        "sha256": "b3eca56bef28f3478720070144fd6d9a96dfeba2f8929033958f6debb54d31d2"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_b__ff.corner.spice": {
+        "bytes": 16883,
+        "sha256": "b0d63e167d520cf29ca61039c4de84c43a678ada8ce73c4678d81fee7dcc553b"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_b__fs.corner.spice": {
+        "bytes": 16863,
+        "sha256": "bf63eefa1cd2facd2b1b3a1395589949231dbc5bbc678179aabe2381cc0c6dc6"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_b__leak.corner.spice": {
+        "bytes": 17039,
+        "sha256": "bd16770fa8ad675bccc92aeddda0ec2126014d9dc1614cb127f6313d41bd0b07"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_b__sf.corner.spice": {
+        "bytes": 16884,
+        "sha256": "f90e8bacff05b2caf4cd60357bc31a7d7c149289b47ce711986d564bcfb8a457"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_b__ss.corner.spice": {
+        "bytes": 16865,
+        "sha256": "1f26d2444234120c2b2399d182fa55d456e9fd7e528db21709f0ea37781c6236"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_b__tt.corner.spice": {
+        "bytes": 16855,
+        "sha256": "0cdef6b84f4779b97623b2dab53f5a51b97128e46906bb088fcc1960bfbc5ac2"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_b__tt_correln.corner.spice": {
+        "bytes": 17836,
+        "sha256": "36a916c3375ad14300ac681b75c7f4b91c4d1ad668bf60ec56dcbf38cf52084f"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_b__tt_correlp.corner.spice": {
+        "bytes": 17835,
+        "sha256": "0f911d47def88bb5f8ec79c104e02acb53b76f9e6bc1a17e28cc03d743526fd8"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_b__tt_leak.corner.spice": {
+        "bytes": 17017,
+        "sha256": "645ffd389d79e0cbc1caf92b0d379a3e1c196e8ec34771269d493b0560f0b339"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_b__wafer.corner.spice": {
+        "bytes": 16437,
+        "sha256": "003aa539bc5b2dad3889536ddd279c805b735023233fb46e63982fcb88e1e49c"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_hcM04W3p00L0p15.spice": {
+        "bytes": 1024,
+        "sha256": "9d10fabc2e02ab71c46a607c041a82bdf4893774ed1aff58beb40909d885c42c"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_hcM04W5p00L0p15.spice": {
+        "bytes": 1024,
+        "sha256": "c478ab097bf5c5b2834accf22b5033c76e860c59aaa497fbada21814b606882c"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt.pm3.spice": {
+        "bytes": 8326,
+        "sha256": "0bb1e7a3df76f120ba9b3afaaf125eab8c7c112d9fe0f62e0759ac0cd0c4626f"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt__mismatch.corner.spice": {
+        "bytes": 856,
+        "sha256": "f199d4f4e906ba3939aebe2a06752fd24bc749b61332fcdc5f69d7954b5372b4"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aF02W1p65L0p15.spice": {
+        "bytes": 881,
+        "sha256": "c87d6e68600610a6f91340a08bc38dd90271615c27e4ec0397734a8aaaa9c59a"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aF04W0p42L0p15.spice": {
+        "bytes": 1035,
+        "sha256": "6ed8dd9004c7aea9feaa3affda67b49b01ae525df7b2b8a833c1b7f43ae90ee8"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aF04W1p65L0p15.spice": {
+        "bytes": 1043,
+        "sha256": "8244abf6daf635131f8750638cb9457ea07bb32bd6c82a6f4aaae556e32b999b"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aF06W0p42L0p15.spice": {
+        "bytes": 1193,
+        "sha256": "9c360c10d649eab51c8c891ec2f43bed4c37248e9c39c7b773db5f29a926b618"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aF06W0p84L0p15.spice": {
+        "bytes": 1193,
+        "sha256": "34ea219284858b72163e108cf80d41e39298595fb247c2cb61000f9b81b0be7a"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aF06W1p65L0p15.spice": {
+        "bytes": 1205,
+        "sha256": "c24fed212d167667fbba243bfdf76e141d8a4536cdff15709e7e36b4ce36aff8"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aF06W3p00L0p15.spice": {
+        "bytes": 1187,
+        "sha256": "0a777179a189c2944f8c83de1ca0358a8eeccdc2a3f8c1a9d270542b9d7e69cb"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aF08W0p42L0p15.spice": {
+        "bytes": 1351,
+        "sha256": "9d6aa75d1cda9c8f9133497d9f5382858081358fd05213d148aa16b4475948a3"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aF08W1p65L0p15.spice": {
+        "bytes": 1367,
+        "sha256": "c7ba99a0e9a9f91a7901ba1d54f1bf77f3ff2fd266806a10841461d0d5a47245"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM02W1p65L0p15.spice": {
+        "bytes": 881,
+        "sha256": "0c04702cac865d3adb5790dcff4f9e2d89f6592a0315499316ae3c2f8f6fcd0f"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM02W1p65L0p18.spice": {
+        "bytes": 881,
+        "sha256": "151c958abd315f40abb52267d0066cc43e5c910b61bfb160a0d2ee2cca29338c"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM02W1p65L0p25.spice": {
+        "bytes": 881,
+        "sha256": "9ac041e26fffd4e39eec015155dc4aec5c3f5dbc82a8d0880126d70766b0d39f"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM02W3p00L0p15.spice": {
+        "bytes": 881,
+        "sha256": "bac3501fbfe3e2e2b5bd3f74b1ffda131c33689c6c31d3ea07786d58d6176680"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM02W3p00L0p18.spice": {
+        "bytes": 881,
+        "sha256": "0a6035d41f810486fb5e2dd7164443fde6761ae0dcbe008574dde4cc965244eb"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM02W3p00L0p25.spice": {
+        "bytes": 881,
+        "sha256": "c34bb0d3ba3ae6d33601eb218b44749dbfe06c402508c0f26f1113ddb5904287"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM02W5p00L0p15.spice": {
+        "bytes": 881,
+        "sha256": "19de5eafb9614eec48af1d65caa852b36ac4d1f44be4a9726e6097b6b0009a7e"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM02W5p00L0p18.spice": {
+        "bytes": 881,
+        "sha256": "12d18dfed97a37e1f1c046ea34f2d873bba2cdaeab6db78d7ec605756cb7dc67"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM02W5p00L0p25.spice": {
+        "bytes": 866,
+        "sha256": "043d8ba428278359f968b9302a313a529f0add006ba7ff3cccd5503fc3c7ebc2"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM04W1p65L0p15.spice": {
+        "bytes": 1043,
+        "sha256": "5665753ad0f113977f595ed85e689b518cf70085c3c065088d20874080b2fc70"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM04W1p65L0p18.spice": {
+        "bytes": 1043,
+        "sha256": "29a9e8ef4e83cc3189b49f81fed88f5b7a5ad4a71e1c609bf9cd09915a086889"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM04W1p65L0p25.spice": {
+        "bytes": 1043,
+        "sha256": "97efacf7b31269a651fe953dfa16b4b5c048d2c6b50c42d07f7544bdcc3a2fc9"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM04W3p00L0p15.spice": {
+        "bytes": 1043,
+        "sha256": "6354087f43c2adb9b56764438059fc888ccb9b24fe64c07146abba58d07b21a4"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM04W3p00L0p18.spice": {
+        "bytes": 1043,
+        "sha256": "5e5b1d173e3d094cd06d0f08da6afec8353e2c2b0a6692196431324a37c1a937"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM04W3p00L0p25.spice": {
+        "bytes": 1043,
+        "sha256": "0a81252b90701d17f6ce3515650472b49439a10946ce07317737542f1177a598"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM04W5p00L0p15.spice": {
+        "bytes": 1043,
+        "sha256": "605ba9432f8e71e98cc7956d13ef8463b67faaae73868a5fa9c4a4080b9e6be1"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM04W5p00L0p18.spice": {
+        "bytes": 1043,
+        "sha256": "9b1b65184e3a0e7ebe9a06d8ee4ec0d0b8853755efc5d43558363a4370a1a5f0"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_aM04W5p00L0p25.spice": {
+        "bytes": 1043,
+        "sha256": "b603684c03111de2227e5df29431a55dae298e7fdf5716499b16a3bdc2862e11"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_b.pm3.spice": {
+        "bytes": 116684,
+        "sha256": "188171b49208b7c63a8f265d97cc96c73398735610ef05ee9f6d322cbd45a1c7"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM02W1p65L0p15.spice": {
+        "bytes": 1061,
+        "sha256": "1d2efecf1c15be8d4263d4b2108030c4aeddab75b45411703d0332902d36c4be"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM02W1p65L0p18.spice": {
+        "bytes": 1061,
+        "sha256": "3b445f1992357abb82fa8314e886860f30714777c522fa8bd79fed215586d580"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM02W1p65L0p25.spice": {
+        "bytes": 1061,
+        "sha256": "2473f2a6201dbafe2d45ab35271204982a9beb7d6f7a1049c43758cb0ec3f347"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM02W3p00L0p15.spice": {
+        "bytes": 1061,
+        "sha256": "8cfc24b93485585abc56a6cf0c0ef3b6619cefc2d57d8b34f34d9e80a10f1918"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM02W3p00L0p18.spice": {
+        "bytes": 1061,
+        "sha256": "c9bdea6ac44cdb84d78f23acc725b94cd89f6174c05bbddf1b56b28c3d96a07a"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM02W3p00L0p25.spice": {
+        "bytes": 1061,
+        "sha256": "0b4504aefd1c1ac56829e2f1e4420cb655a8f5b2d3be3444245422c1306a3f70"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM02W5p00L0p15.spice": {
+        "bytes": 1061,
+        "sha256": "c0e9a91ac3ac59fcc67b45258610ddfbe58ce486fae00dfb4a9af6080743f2b2"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM04W1p65L0p15.spice": {
+        "bytes": 1223,
+        "sha256": "9a13ce2ef1ffb62b0e5b5c9dd7ebec084b20bf64841d83c48001941314a440bd"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM04W1p65L0p18.spice": {
+        "bytes": 1223,
+        "sha256": "30b35ccc30e98b6986c2df0bd2470657b99bc3ba353f6b7afed7d945ff0b02e1"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM04W1p65L0p25.spice": {
+        "bytes": 1223,
+        "sha256": "bbb57a042cace0bca4ede4904bde9efa74573a8b13958de153365f18da424ee2"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM04W3p00L0p15.spice": {
+        "bytes": 1223,
+        "sha256": "51d74e863502eeed4b585a1e05001d4dbc29d1967bb3ce68a7ab1bb2fb7c06a9"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM04W3p00L0p18.spice": {
+        "bytes": 1223,
+        "sha256": "c06e467675fb12789f1f0f177e76b1037da84528b5f344300f3fe786a9ef83bd"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM04W3p00L0p25.spice": {
+        "bytes": 1223,
+        "sha256": "73ed509d19d79ca0f1de42566153a88932a7ff6bf18322ab3377c33df9e3b058"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_bM04W5p00L0p15.spice": {
+        "bytes": 1223,
+        "sha256": "f2335bc06f3af70443c3b1d3f5d7d7589274fa5eb9c0ad9e29841026e111e068"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_b__ff.corner.spice": {
+        "bytes": 19535,
+        "sha256": "57a43c568eb7a35c8ffe4fa32a22c9cb0a266318d36d700a675efd820256fe05"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_b__fs.corner.spice": {
+        "bytes": 19499,
+        "sha256": "e4e57542f3d65f1c3fb25aa4eac1278238c31c58bd36e08bd28454d8b7ed85b8"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_b__leak.corner.spice": {
+        "bytes": 19679,
+        "sha256": "4a0b35d53bd7ddd73fde5db9c47565663c341365c9b9378a72c956169f6a18ac"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_b__sf.corner.spice": {
+        "bytes": 19523,
+        "sha256": "20cbbd6c2e6fc2ca96c2e6255939bb2eb847f54ec664b34b04923e03f5aced63"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_b__ss.corner.spice": {
+        "bytes": 19513,
+        "sha256": "c04e981d19d05d8eb9b694f982202a2c7e7e8e260b048a5db2a8ffdb299a839e"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_b__tt.corner.spice": {
+        "bytes": 19491,
+        "sha256": "d48d5b1be4fe96b97e80115b25e38d1a5d324cb5b817faceabe2f364df9e4b77"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_b__tt_correln.corner.spice": {
+        "bytes": 20548,
+        "sha256": "cee548750d9c7597970c3f0ae458730dec6bd4aed3413a48e49309179bc4dcec"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_b__tt_correlp.corner.spice": {
+        "bytes": 20547,
+        "sha256": "ca0313c1cbae2b63e5f87757ce35108d91575bd4e43f0dd92b25448997337ba2"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_b__tt_leak.corner.spice": {
+        "bytes": 19656,
+        "sha256": "c89770fc853bc9512209a2d5bf1c51485a0bec585b38a4b22ce9863390f031d5"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_b__wafer.corner.spice": {
+        "bytes": 19045,
+        "sha256": "8f268663c50ec8c8393fe7f3975d3f9fa5ec87f1f9671c43cee430acb04bddf8"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM02W1p65L0p15.spice": {
+        "bytes": 1061,
+        "sha256": "6d6177435f57ca62cf11740e879ed24ab2835725b5ddf40364c1475364dee6df"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM02W1p65L0p18.spice": {
+        "bytes": 1061,
+        "sha256": "d5f3887029c2582e28bab332953cd446339a87d921be93cf6a495b3f39420521"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM02W1p65L0p25.spice": {
+        "bytes": 1061,
+        "sha256": "3c99611aee08f9a0efb81f81eff5397e7faa4e03b344df2b12b1707c011721bf"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM02W3p00L0p15.spice": {
+        "bytes": 1061,
+        "sha256": "980648f640a6e1edbe00265786ea53a5d8639a9cb3d008d50338ba93cce0ce34"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM02W3p00L0p18.spice": {
+        "bytes": 1061,
+        "sha256": "7cc88abd33e49e4a4df98dcd656772c81bccaf8dd641025ef271a730b2775830"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM02W3p00L0p25.spice": {
+        "bytes": 1061,
+        "sha256": "4b86cd40c567446a1fa0debfd17b25c12c5daa67905fa716a03c4502401ad458"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM02W5p00L0p15.spice": {
+        "bytes": 1061,
+        "sha256": "2dbe9dce1667b2606f9a34d401a4839f099eec57ad711932acf72537b3564bc0"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM02W5p00L0p18.spice": {
+        "bytes": 1061,
+        "sha256": "f93b2c2a0b201ab84f1bbd7cb1263c19112ba2f2e0562f0be60d604f721e39da"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM02W5p00L0p25.spice": {
+        "bytes": 1061,
+        "sha256": "fefb7f74f4650a48c7c4080864172880caac1a4f93ee9777730a3055ceeedac5"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM04W1p65L0p15.spice": {
+        "bytes": 1223,
+        "sha256": "c9bed5d9d85bbf3c6d309ac40d40abcd25143a1e32df23085f2b16f151ee11f5"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM04W1p65L0p18.spice": {
+        "bytes": 1223,
+        "sha256": "d665a2fb38cacf39ac403cf71b6d8dc84c2a70ffddb697331416a3d8f19db5bc"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM04W1p65L0p25.spice": {
+        "bytes": 1223,
+        "sha256": "dcf4c8ae0779e8bec7c60e81f6893f22c9c087f51fee9caddf43c7614baf7e5f"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM04W3p00L0p15.spice": {
+        "bytes": 1223,
+        "sha256": "6369d84af1a7928aea199318fd514820858be8f1251a31260f2cfddfd018f093"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM04W3p00L0p18.spice": {
+        "bytes": 1223,
+        "sha256": "aab27bd02da1e00978ea4ffff9c51a168d245e3683b19ee497d496e082aaf828"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM04W3p00L0p25.spice": {
+        "bytes": 1223,
+        "sha256": "8b7d1705ab389e7f43be58ab8791243e5fd099ada027e3d482e2fbc75153f4fa"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM04W5p00L0p15.spice": {
+        "bytes": 1223,
+        "sha256": "810489454cd0aa9f4d0032195959f37536cf907934e735b1a05b53ff2a863b15"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM04W5p00L0p18.spice": {
+        "bytes": 1223,
+        "sha256": "458617a901833b1b67d4c76eeff22342ed8e8e220d55d0a3e24e360535683283"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_lvt_cM04W5p00L0p25.spice": {
+        "bytes": 1223,
+        "sha256": "e781404a1d907028360ed71e7b6ce0254285c1a20da575771320107110147fe0"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_mcM04W3p00L0p15.spice": {
+        "bytes": 1024,
+        "sha256": "b5a5938aae7f4965389070155995f2303fc11336e1a0dc5d41f05f467748e336"
+      },
+      "sky130_fd_pr__rf_nfet_01v8_mcM04W5p00L0p15.spice": {
+        "bytes": 1024,
+        "sha256": "57ac9db23162f3c6e47d4631b4d4316d545d18bdff409bc61589500d42f4a038"
+      },
+      "sky130_fd_pr__rf_nfet_20v0_aup.spice": {
+        "bytes": 867,
+        "sha256": "4ac2a67cb44cb5579f4c76154bbeb3fe409481a2a2fc1a4bc6ec84bd7882985e"
+      },
+      "sky130_fd_pr__rf_nfet_20v0_noptap_iso.spice": {
+        "bytes": 876,
+        "sha256": "f31c9cbeb074d18abbc1d97166ee4b9b232b3fab2e660154bb6e392fbb776e8b"
+      },
+      "sky130_fd_pr__rf_nfet_20v0_nvt_aup.spice": {
+        "bytes": 837,
+        "sha256": "64a219193e37c8b4861d87b916ceb43ed7ef769fe0f0e760278c183549f5e15c"
+      },
+      "sky130_fd_pr__rf_nfet_20v0_nvt_noptap_iso.spice": {
+        "bytes": 888,
+        "sha256": "6e3a3c38e1911d84a7a7f673b1112f44f32dc512cd02904d372f47180ca65284"
+      },
+      "sky130_fd_pr__rf_nfet_20v0_nvt_withptap.spice": {
+        "bytes": 820,
+        "sha256": "b34b9ef19fdad4f2e78dcecad438a7b967fdcfa4146da8de54e1e9b0eb268079"
+      },
+      "sky130_fd_pr__rf_nfet_20v0_nvt_withptap_iso.spice": {
+        "bytes": 890,
+        "sha256": "0306cb1acf5ee9b30b2695f52a4277f3831620f82e9b96795f2df78d1d72c9fe"
+      },
+      "sky130_fd_pr__rf_nfet_20v0_withptap.spice": {
+        "bytes": 872,
+        "sha256": "6855b4d32921f86279bc0a989e5ca318c3a43d09cce3774427d8dfd9aa6cf466"
+      },
+      "sky130_fd_pr__rf_nfet_20v0_withptap_iso.spice": {
+        "bytes": 878,
+        "sha256": "52eee83d5c3701804448fa21b401d16c7a864b0e328840bdbd054ad6fc99f75d"
+      },
+      "sky130_fd_pr__rf_nfet_20v0_zvt_withptap.spice": {
+        "bytes": 838,
+        "sha256": "439abfe3b3ad1c06a603198390645304166eb43a51068bd3747a3d9f7f90546f"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5.pm3.spice": {
+        "bytes": 4885,
+        "sha256": "cc1cd3b324345059e5d21abf48c731ba740ad1d5b7ac073ec015ba2817b8ae1c"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5__mismatch.corner.spice": {
+        "bytes": 2067,
+        "sha256": "29cf2ce6e1910f3c58dd74300ff330ea918053384a29652db134367c110584bb"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_aM04W3p00L0p50.spice": {
+        "bytes": 1048,
+        "sha256": "9481ca8e6201f5f2df904723c9305f17307b612428ebd304448e7fe2911c2a72"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_aM04W5p00L0p50.spice": {
+        "bytes": 1048,
+        "sha256": "0df2524bc485e5ba4e8b1f8c7afc7b854948c3d2af9c7f703bcb1c4b25729d9d"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_aM04W7p00L0p50.spice": {
+        "bytes": 1048,
+        "sha256": "c807e692a484b447d21ccee6a42795d65f70dc0fffe4db6200bce1ec8df6cef5"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_aM10W3p00L0p50.spice": {
+        "bytes": 1540,
+        "sha256": "5a73e2f5894b9a2bbd60f1cc7a8f4bc6a047420d8d1d3ddc844083a4aa15cbc8"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_aM10W5p00L0p50.spice": {
+        "bytes": 1540,
+        "sha256": "261160ccfdaf2cc94f92857d8ac366b7a84a0419cc2d7e33ed01cd59f2b01695"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_aM10W7p00L0p50.spice": {
+        "bytes": 1540,
+        "sha256": "6c4dfff70f1f23eac584630377a4c07159cf22df6851914b2db308a6a2bab648"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_b.pm3.spice": {
+        "bytes": 56002,
+        "sha256": "31414444562c296ec69fa20e871e18f09a796417d6fa268027f7196c12ac64ef"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_b__ff.corner.spice": {
+        "bytes": 9305,
+        "sha256": "57f151000b60dc65cfeab38fd8929dc4db983a94534b7c524a1f1009bb007de6"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_b__fs.corner.spice": {
+        "bytes": 9279,
+        "sha256": "95b9700e0a64fad6a355cb9ac80f4584493812b8b4e0dd3c6093d4969f6224cf"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_b__leak.corner.spice": {
+        "bytes": 9383,
+        "sha256": "faadf9380a4e5b135399a64c83d76c7e719facd457bbdc114c5cff73a4f0960d"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_b__sf.corner.spice": {
+        "bytes": 9310,
+        "sha256": "0b8e9ed968e99e8115404cbe648fba8c9f93f605d614487751e30caf7ae2bb17"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_b__ss.corner.spice": {
+        "bytes": 9284,
+        "sha256": "cec1fc1e8d0b0377d821d1c8f80c1117963b34d954c0e8d11c479e7b9dc435b6"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_b__tt.corner.spice": {
+        "bytes": 9277,
+        "sha256": "120c2c096ff8702947b7f8593a0591cb66cd2a7228f97d97068e68c9ded393d3"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_b__tt_correln.corner.spice": {
+        "bytes": 9792,
+        "sha256": "db67e1f0223e72fc3028f8d573af7150a12b1a9f46fb9130329febbf1a003e51"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_b__tt_correlp.corner.spice": {
+        "bytes": 9791,
+        "sha256": "f4b041660a401166f4ffd5f58b0c600e20efde3156ae5773f15b52e646336061"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_b__tt_leak.corner.spice": {
+        "bytes": 9354,
+        "sha256": "5e767c5c5f3e41bb04724a09fe1d8b95f871b2f8391e74d55e48cb5c40cf5939"
+      },
+      "sky130_fd_pr__rf_nfet_g5v0d10v5_b__wafer.corner.spice": {
+        "bytes": 9073,
+        "sha256": "19f3dfe0ee6746178d3a0136d7650b3cb9c157a40b40dba8cf2dbff218913c12"
+      },
+      "sky130_fd_pr__rf_npn_05v5_W1p00L1p00.spice": {
+        "bytes": 768,
+        "sha256": "db929b9194a94c514b995a8b537509a72d0e989910cb53e496b520b9c7e6a7a9"
+      },
+      "sky130_fd_pr__rf_npn_05v5_W1p00L2p00.spice": {
+        "bytes": 768,
+        "sha256": "2efe85bfa8fef3e1ddf0a8fb9059dad6e4fd3b1e4ee013d2bb8c1721dbff9503"
+      },
+      "sky130_fd_pr__rf_npn_05v5_W1p00L4p00.spice": {
+        "bytes": 693,
+        "sha256": "295b9854ba173a6c2b9ed2036db6e03a09f440bc50bc2dec1de26555ddd1f246"
+      },
+      "sky130_fd_pr__rf_npn_05v5_W1p00L8p00.spice": {
+        "bytes": 693,
+        "sha256": "2398065b8ab8c6db4ff82edd82ab3a0aa5f34d32ab8b9fbe12c994cc7d4f5139"
+      },
+      "sky130_fd_pr__rf_npn_05v5_W2p00L2p00.spice": {
+        "bytes": 693,
+        "sha256": "44403d67eaf6063d124611160da1e0e610ff7beb5bb4ec38dfeb0d2e967087de"
+      },
+      "sky130_fd_pr__rf_npn_05v5_W2p00L4p00.spice": {
+        "bytes": 693,
+        "sha256": "96e2a03dae9732c8d4d8b4e27a18c777d334f9293161281ee6f1b6ca186bcfdb"
+      },
+      "sky130_fd_pr__rf_npn_05v5_W2p00L8p00.spice": {
+        "bytes": 693,
+        "sha256": "6dbf0db95ef7016486fd6e38c6226f7e353808a14a4b643f049949bf4fcb1608"
+      },
+      "sky130_fd_pr__rf_npn_05v5_W5p00L5p00.spice": {
+        "bytes": 693,
+        "sha256": "fdeafea62dc8606d37891ce8fa1571cdf6b1a5987b96aceadcfe1745a8d40b35"
+      },
+      "sky130_fd_pr__rf_npn_11v0_W1p00L1p00.spice": {
+        "bytes": 741,
+        "sha256": "d48d4077a4a16e724e9b821b0675802ac0a60426d12ec727f82078a8421207d8"
+      },
+      "sky130_fd_pr__rf_pfet_01v8.pm3.spice": {
+        "bytes": 14970,
+        "sha256": "089d6c9a4cc5fc7aa4cc2da6ed62fe843cdc4e387faa92efb59f7681c5d785b7"
+      },
+      "sky130_fd_pr__rf_pfet_01v8__mismatch.corner.spice": {
+        "bytes": 1520,
+        "sha256": "329b992466fa736b42ee32d5f15fc163410f7745bc57a9aa57a77bb732dfaaab"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aF02W2p00L0p15.spice": {
+        "bytes": 848,
+        "sha256": "ac2996bb2b8880d4b032f139ef230257a26f0ecfbb3f7c38fe500f059dc1f0c1"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aF04W0p84L0p15.spice": {
+        "bytes": 990,
+        "sha256": "efedfa895833982b0b3b575565aeeaa660d14c967dc48154e303bf3cd5d4c070"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aF04W2p00L0p15.spice": {
+        "bytes": 986,
+        "sha256": "4eac48fbfb09d81d46727c893b65cd829d550f3a56fb6d4c736451d25a521226"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aF04W3p00L0p15.spice": {
+        "bytes": 986,
+        "sha256": "631f14e094b94630d7a38de3c242aedabd6a0af8a458047b6140e11547cdef1d"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aF04W5p00L0p15.spice": {
+        "bytes": 986,
+        "sha256": "a8106753dc284e4851e8601571efe639cdd59b2db98d254637608db6babd8bf4"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aF06W0p84L0p15.spice": {
+        "bytes": 1130,
+        "sha256": "2b2a25337ac72d990cbc035daff59dda073cdb5a931ecfbd88901fd178acb764"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aF06W1p68L0p15.spice": {
+        "bytes": 1142,
+        "sha256": "54c4a8f33c9cec73aa58d625030fb51372f660672fa3dab9f0db78e8be154503"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aF06W2p00L0p15.spice": {
+        "bytes": 1124,
+        "sha256": "4bb91ca51c0ea3946141ee5981ef4eaae862f718dadd99c9e46299c86a2ed151"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aF06W3p00L0p15.spice": {
+        "bytes": 1124,
+        "sha256": "dc22c21b87c77d9f641a949797ac9fc22e922e6670f6acf475c1e42041d7aab1"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aF08W0p84L0p15.spice": {
+        "bytes": 1270,
+        "sha256": "9a61c82fa8aed95f4fc9d4bf57903c2964947ff75d86d3333d3d52d40f75e5ab"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aF08W1p68L0p15.spice": {
+        "bytes": 1286,
+        "sha256": "80f816e0cf3176eec7154f9b6f80ba8f089b6a9b3141e81bc495d3546e1265c0"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM02W1p65L0p15.spice": {
+        "bytes": 854,
+        "sha256": "b14d8905d882f86dbe3d69e18bc32eb25eaa2c1ddb86e05770cdc823aacccc64"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM02W1p65L0p18.spice": {
+        "bytes": 854,
+        "sha256": "bd9b150b65a8a17e6b6133ef8f369158582c663dce0bef13a3718b02750a318a"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM02W1p65L0p25.spice": {
+        "bytes": 854,
+        "sha256": "c0f38c5d85b99e8ad557ed77caac4143423535777893393376cabecfaf1e0276"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM02W3p00L0p15.spice": {
+        "bytes": 854,
+        "sha256": "9d46c38648a35d9b0cc5498b3e8099fef68746c1365e50def0f9ba602fcf5cef"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM02W3p00L0p18.spice": {
+        "bytes": 854,
+        "sha256": "b6e5162bbdb92cb3463f4e61504bbaf58876d2b43fc98ab1606cbf79913cb4b1"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM02W3p00L0p25.spice": {
+        "bytes": 854,
+        "sha256": "40fe17ef9d959b3f3752d3f554f74e22be14b8f243daea56064765e55734a123"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM02W5p00L0p15.spice": {
+        "bytes": 854,
+        "sha256": "35c15fbb81e4395163fa24745647c9d8031aab1bf9ea666dedba2f97dc6f8442"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM02W5p00L0p18.spice": {
+        "bytes": 854,
+        "sha256": "ea646d084e53483eb84cb222dac88fb62dd9c0e5446749522624ce45acc4520e"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM02W5p00L0p25.spice": {
+        "bytes": 854,
+        "sha256": "11f177e165a2f82e3f58fdc3ee4065f6a257588b01302113a81de184507040bf"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM04W1p65L0p15.spice": {
+        "bytes": 998,
+        "sha256": "a80c307756fc475bf3f414c54b46e12a471e26ce025391ddb887fe61059a6bc0"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM04W1p65L0p18.spice": {
+        "bytes": 998,
+        "sha256": "1ba6f6f456825719b17203a9fbc5645b6c97a85d378737aeb1440296729c368e"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM04W1p65L0p25.spice": {
+        "bytes": 998,
+        "sha256": "a8da7e5c5b96c4de421b85f15acc470ea95c5797ce22bf04323e54849e4ef3ef"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM04W3p00L0p15.spice": {
+        "bytes": 998,
+        "sha256": "f867233e6224b1f5f1ceb0e9e6b99dd1749b7a2f59b545bede2b12c968693b4f"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM04W3p00L0p18.spice": {
+        "bytes": 998,
+        "sha256": "2579e0141e93fd26c18cf4f8f14da7f66e4939804bc8922af5ad8770d8efe303"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM04W3p00L0p25.spice": {
+        "bytes": 998,
+        "sha256": "43a114b27b03e595eab2a4494a8019d233801fc7ff5b93934d6d8b5c01788131"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM04W5p00L0p15.spice": {
+        "bytes": 998,
+        "sha256": "0e0c8e3c9c88e15a90ecc23e426ddff13d2112fd24b6988643bfe7b96c73191a"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM04W5p00L0p18.spice": {
+        "bytes": 998,
+        "sha256": "0d3502a8946e8173e7438634c9c9f572567322bfbe25bf809e667efc6bea5493"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_aM04W5p00L0p25.spice": {
+        "bytes": 998,
+        "sha256": "13ba61de9d8de45221c32808759874169149b31bebaeef81065e99d4e392edfa"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_b.pm3.spice": {
+        "bytes": 115195,
+        "sha256": "e5ed14af71ad71967109753d727cf47125a8d5f3b049f130cf9201aac8625e3c"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_b__ff.corner.spice": {
+        "bytes": 17329,
+        "sha256": "41c98373171935548b2e28c548d63a0e68aa79761956b2e388dcfba7e164652b"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_b__fs.corner.spice": {
+        "bytes": 17339,
+        "sha256": "0c7a88b0eb5afe5b2fa8b18f62d1b1259c70c3a9631f97208145947eb5d13787"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_b__leak.corner.spice": {
+        "bytes": 17566,
+        "sha256": "cd03e4ac7dab951d638f6a976101ba4a834de29b5478133796268a9bd593f563"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_b__sf.corner.spice": {
+        "bytes": 17313,
+        "sha256": "8659d8ff6e78a8230aa75d74b986a660cb47ea89e8ae46a92dbaff29fd78ae02"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_b__ss.corner.spice": {
+        "bytes": 17322,
+        "sha256": "e6170a98263edd3cf7718944b3c767397da94951794d4b30638e488c5de427de"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_b__tt.corner.spice": {
+        "bytes": 17280,
+        "sha256": "06457396b67c95ffa49b13984171e9d4c3ac58b0f31a329d5f936a9f4a6052ee"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_b__tt_correln.corner.spice": {
+        "bytes": 18259,
+        "sha256": "c0344964142d2c001203450413fbbb643ca1361d1122a14dfc5f21b9b8f25780"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_b__tt_correlp.corner.spice": {
+        "bytes": 18258,
+        "sha256": "ad37b937fd73dc860085b741c7623bb1432d934b9892d7b41fe20e615e8e211e"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_b__tt_leak.corner.spice": {
+        "bytes": 17369,
+        "sha256": "2617230a54c82b9791accd28cce9c052d9964a564db24c48b670978dfdb11e4f"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_b__wafer.corner.spice": {
+        "bytes": 16852,
+        "sha256": "a1485f6caf1ac63132a9a8c489fe9a97fffc588bbae1ad4842d4cc31c9c10681"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_hcM04W3p00L0p15.spice": {
+        "bytes": 999,
+        "sha256": "134657d4526440b4104a1c22edd11dee0af4675304477f8225d65415f503566f"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_hcM04W5p00L0p15.spice": {
+        "bytes": 999,
+        "sha256": "0742b8b8f094be65b37404793b889bce31e8b827df03a2918ad418b391ffff6f"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_lvt_aM02W3p00L0p35.spice": {
+        "bytes": 866,
+        "sha256": "0f3af3d5abd79ee2d7ad6eb289c2b9524aafe33596c392ad223d36ca198fde38"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_lvt_aM02W3p00L0p50.spice": {
+        "bytes": 866,
+        "sha256": "b3ed352d2fafead44f5aaf8d35b72e18f8cd5b8abd43c95e647927845ef809ed"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_lvt_aM02W5p00L0p35.spice": {
+        "bytes": 866,
+        "sha256": "a27cee9102f00b83f2ac1479bce48eb4e5632af5fed3d05be05f411dde6900f2"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_lvt_aM02W5p00L0p50.spice": {
+        "bytes": 866,
+        "sha256": "de63bfad93e51219687452b1c4ef990f641c1fe8d77a73e8a7a85ab86a7a866a"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_lvt_aM04W3p00L0p35.spice": {
+        "bytes": 1018,
+        "sha256": "5aaed3ff819dd5c2b2325f2c4312931e70c60ea95aafe10c30fc634ab48cb962"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_lvt_aM04W3p00L0p50.spice": {
+        "bytes": 1018,
+        "sha256": "dcccfd6fcef5a1404f2a4e4c4c2db1de53f6582e446e379b2017b4977dbc2679"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_lvt_aM04W5p00L0p35.spice": {
+        "bytes": 1018,
+        "sha256": "4f228c30fbecc384e6a0362a5ab7f661b039f1db87a088d72ec9606492f622c5"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_lvt_aM04W5p00L0p50.spice": {
+        "bytes": 1018,
+        "sha256": "116a525287171ba1544361773ee4073953fe7a22bf6e43fe58501c4368f6978b"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mcM04W3p00L0p15.spice": {
+        "bytes": 999,
+        "sha256": "99a7c128d299e7103e44c1ecd5a9b27dec6bd3d36e759cfcdeff78609180be33"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mcM04W5p00L0p15.spice": {
+        "bytes": 1015,
+        "sha256": "c25db65d0445586cc2875d5f28114fc24e3d2b470ec5d61668215013fffbd20f"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mvt.pm3.spice": {
+        "bytes": 3906,
+        "sha256": "c1994983307665666126446655157fc4cf458a5e43b464bd74e1a12e6e9b790c"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mvt__ff_discrete.corner.spice": {
+        "bytes": 4053,
+        "sha256": "98813f397c0c0a4b77fa8c238051cb22521ea3a062c16720af844efcec54b74f"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mvt__fs_discrete.corner.spice": {
+        "bytes": 4043,
+        "sha256": "46d50c031a15a866a993f3909a2e32c8f6c3badda0a7021bdf168c59a5efa381"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mvt__leak_discrete.corner.spice": {
+        "bytes": 4024,
+        "sha256": "1260531c1053ca189fa847ce14ecce9c42b7454ded2f891800b37d5de7436dfd"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mvt__mismatch.corner.spice": {
+        "bytes": 826,
+        "sha256": "4be07e841b5c0e6534c25b823133aaa1b9f9689afdd780b66305e82a4460f636"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mvt__sf_discrete.corner.spice": {
+        "bytes": 4040,
+        "sha256": "076f6a5297330254b303325fbea7eb92e87826f313ddec2fd0acfff36c2cedc9"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mvt__ss_discrete.corner.spice": {
+        "bytes": 4050,
+        "sha256": "a85aa19e3ffadb05f5f5154cc21371a0783313f2d3ae7a55f8bf0f41acec1f19"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mvt__tt_discrete.corner.spice": {
+        "bytes": 3972,
+        "sha256": "cf21900fade43a2e9040d15c69d07a2e5705a87b5909894ff3f9673c5dc99bf5"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mvt__tt_leak_discrete.corner.spice": {
+        "bytes": 3972,
+        "sha256": "cf21900fade43a2e9040d15c69d07a2e5705a87b5909894ff3f9673c5dc99bf5"
+      },
+      "sky130_fd_pr__rf_pfet_01v8_mvt__wafer_discrete.corner.spice": {
+        "bytes": 3957,
+        "sha256": "67aea41691b34c851874be8b3d1e54cecb58ff916dc3fb0121085cb862fa1519"
+      },
+      "sky130_fd_pr__rf_pfet_20v0_withptap.spice": {
+        "bytes": 871,
+        "sha256": "dbad4e3666023352af57b3e972a0414da1aa7681f206522239b4e3b7294e6973"
+      },
+      "sky130_fd_pr__rf_test_coil1.spice": {
+        "bytes": 684,
+        "sha256": "d093970b69823e1896803165cdb4a4a0a84d9b502ccb46bfac1294b08faef243"
+      },
+      "sky130_fd_pr__rf_test_coil2.spice": {
+        "bytes": 684,
+        "sha256": "bb611911363cff96a8f1d292b6019690b00cf2725a4a91d53e9defe3447a3982"
+      },
+      "sky130_fd_pr__rf_test_coil3.spice": {
+        "bytes": 684,
+        "sha256": "5bb841a4f1a2a8854b84beed0f239dc63cdd62ffd60d47d054950155ac71ffe4"
+      },
+      "sky130_fd_pr__special_nfet_01v8.pm3.spice": {
+        "bytes": 15296,
+        "sha256": "bd4edf2ff53c974132103dc082cd4732442f1c36f25a9ee56e329a30f91aa07b"
+      },
+      "sky130_fd_pr__special_nfet_01v8__ff.corner.spice": {
+        "bytes": 3526,
+        "sha256": "99c4eaf8b9787f5b0b64925eb94e6adff8791f7dec8b3a59bfa32ab7130ea9ca"
+      },
+      "sky130_fd_pr__special_nfet_01v8__ff.pm3.spice": {
+        "bytes": 14463,
+        "sha256": "db1157e340dc49953c09693d25f3c5a34782120c3d69c29a45ec118f41937cfe"
+      },
+      "sky130_fd_pr__special_nfet_01v8__fs.corner.spice": {
+        "bytes": 3546,
+        "sha256": "96c8a3a3bd919b0ff298bbcba648029a3d62d67a18cf03f9e18a41fde4570732"
+      },
+      "sky130_fd_pr__special_nfet_01v8__fs.pm3.spice": {
+        "bytes": 14567,
+        "sha256": "b6ead1d5d3ad27116afb5a9aea44b18d2c31ae7e78c4af47e1fbfba968f1a416"
+      },
+      "sky130_fd_pr__special_nfet_01v8__leak.corner.spice": {
+        "bytes": 3558,
+        "sha256": "ea8d431c1a4a050c87d040c40624b2f3295d09e6b5a75efde165413fdf89b897"
+      },
+      "sky130_fd_pr__special_nfet_01v8__leak.pm3.spice": {
+        "bytes": 14802,
+        "sha256": "84db58cb2281f6b962e9a9d5aab1f040feaf5d047642fbd70a21c1adde10f029"
+      },
+      "sky130_fd_pr__special_nfet_01v8__mismatch.corner.spice": {
+        "bytes": 1018,
+        "sha256": "ebda8ffaa57a68df4b9e467b927ba95515c2a802a01458d67affca3da177c4f1"
+      },
+      "sky130_fd_pr__special_nfet_01v8__sf.corner.spice": {
+        "bytes": 3556,
+        "sha256": "893888b5ff32ebf7d2420eb3547ad8019ac48eed0027deee4260d000586ab5e4"
+      },
+      "sky130_fd_pr__special_nfet_01v8__sf.pm3.spice": {
+        "bytes": 14757,
+        "sha256": "9001688ee49176a20a668a45ed655bc20d867798a0e835ace0b22458aa45dae2"
+      },
+      "sky130_fd_pr__special_nfet_01v8__ss.corner.spice": {
+        "bytes": 3525,
+        "sha256": "8b7b47087b84a1861e03e2de1469030d4478b1d565ee9ecb45423175ea11d2ee"
+      },
+      "sky130_fd_pr__special_nfet_01v8__ss.pm3.spice": {
+        "bytes": 14409,
+        "sha256": "680a995de68b4028f3cad1fdfc7ca66b5f18dcff4715543b83ac72b347d85172"
+      },
+      "sky130_fd_pr__special_nfet_01v8__subvt_mismatch.corner.spice": {
+        "bytes": 1018,
+        "sha256": "ebda8ffaa57a68df4b9e467b927ba95515c2a802a01458d67affca3da177c4f1"
+      },
+      "sky130_fd_pr__special_nfet_01v8__tt.corner.spice": {
+        "bytes": 3416,
+        "sha256": "74be703060f128356ccc841e8576afe8cfda1ae5f1d8a44faf6fbacc33b06e87"
+      },
+      "sky130_fd_pr__special_nfet_01v8__tt.pm3.spice": {
+        "bytes": 14232,
+        "sha256": "011048865bed73bcc169cd4639ad1a338201e7f8f5bc263e05ea4e4371054f09"
+      },
+      "sky130_fd_pr__special_nfet_01v8__tt_correln.corner.spice": {
+        "bytes": 3586,
+        "sha256": "c95cb1649ed2ffd5b5b2184df91b53d5721fa68cbd5e295c3d128cbc0935b594"
+      },
+      "sky130_fd_pr__special_nfet_01v8__tt_correlp.corner.spice": {
+        "bytes": 3585,
+        "sha256": "7467fcc5565003c721bb3acdaf3e51a59a39a7247026897979b639d4bf40f94b"
+      },
+      "sky130_fd_pr__special_nfet_01v8__tt_leak.corner.spice": {
+        "bytes": 3417,
+        "sha256": "029b4e4531e56839d807a24117d5c4b4c81a2eb898309d9cdf3a16ec9004f9c2"
+      },
+      "sky130_fd_pr__special_nfet_01v8__tt_leak.pm3.spice": {
+        "bytes": 14472,
+        "sha256": "4291e3a662e3937f8cfc6635acc93ed0544a02f9aaa535bcc8938577fbe22536"
+      },
+      "sky130_fd_pr__special_nfet_01v8__wafer.corner.spice": {
+        "bytes": 3359,
+        "sha256": "c72d3366964ddcb56d5edfe8d70238642dd28fe4ef4032e351f680ff9c630b0c"
+      },
+      "sky130_fd_pr__special_nfet_latch.pm3.spice": {
+        "bytes": 6185,
+        "sha256": "634af21934ab8f0838888ca695fea99b73b23136b5dc998a68c8bd40cf837f11"
+      },
+      "sky130_fd_pr__special_nfet_latch__mismatch.corner.spice": {
+        "bytes": 958,
+        "sha256": "2fa340dc33350ac2aefedccc380019570a23ac0ad03d269817f8c8ac21cf9749"
+      },
+      "sky130_fd_pr__special_nfet_pass.pm3.spice": {
+        "bytes": 6155,
+        "sha256": "065c3a36cd891edc4cba6f8c6fe5d1318a103e90cb4c3a0c02d20b06abfe3256"
+      },
+      "sky130_fd_pr__special_nfet_pass__mismatch.corner.spice": {
+        "bytes": 953,
+        "sha256": "6211325195acde110081a7ebe0485df31921a5185a9d2147f5e616e1985aec55"
+      },
+      "sky130_fd_pr__special_nfet_pass_flash.pm3.spice": {
+        "bytes": 10248,
+        "sha256": "484f90f58677ce58e6cf0a46513275618ec61369aef7b684bd7b12c8ef56a2c0"
+      },
+      "sky130_fd_pr__special_nfet_pass_flash__mismatch.corner.spice": {
+        "bytes": 991,
+        "sha256": "3e1ac9dc32bad9a21b4ca34bc3c9d3d3f63f0458feed4b74a3ee30126c5faebc"
+      },
+      "sky130_fd_pr__special_nfet_pass_lvt.pm3.spice": {
+        "bytes": 7160,
+        "sha256": "a19185ab805a9bb542c911fc9e3184406b8b173c8f49caa52beaa09a83ba466b"
+      },
+      "sky130_fd_pr__special_nfet_pass_lvt__ff.corner.spice": {
+        "bytes": 1884,
+        "sha256": "c4e3d962522f9e96a75dd18bf19b8622d4d97f28868fc4a3f58bf96ffa42289d"
+      },
+      "sky130_fd_pr__special_nfet_pass_lvt__leak.corner.spice": {
+        "bytes": 1883,
+        "sha256": "e43a14f2f6dffe7eb75435f71da5aa6efe3d8f75d9561dba7c684e71802adf64"
+      },
+      "sky130_fd_pr__special_nfet_pass_lvt__ss.corner.spice": {
+        "bytes": 1881,
+        "sha256": "d1aad00138019e9a74faa229977802536aade2333e845818c819a550c9bde2b3"
+      },
+      "sky130_fd_pr__special_nfet_pass_lvt__tt.corner.spice": {
+        "bytes": 1869,
+        "sha256": "9f736cd439c64f0a1b49348e54fb6f023ecaab4708d97f8475c8a0e74cd4672e"
+      },
+      "sky130_fd_pr__special_nfet_pass_lvt__wafer.corner.spice": {
+        "bytes": 1819,
+        "sha256": "0af6fd2af150e35a96ac40930b50635dc21c6aa9943112e066633c48bb5bdd3e"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt.pm3.spice": {
+        "bytes": 9229,
+        "sha256": "2d843339a7e1930fa485c44079dd7b8f5ee1fd55cd4dd85854ae5244c1ae73b2"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__ff.corner.spice": {
+        "bytes": 2555,
+        "sha256": "7d917a9410d6f42288f2d6a78f7c6bbba67f281d0a9a2decd05fb82fcf776707"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__ff.pm3.spice": {
+        "bytes": 9767,
+        "sha256": "98e520ba81735b17e1ace07589932a2faeba70edbacb688542299b12f8741340"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__fs.corner.spice": {
+        "bytes": 2554,
+        "sha256": "47b88a5bf320a7ba99d3d3f9df86f4758f1741f2b4999a6cb8647766143cb0b8"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__fs.pm3.spice": {
+        "bytes": 9766,
+        "sha256": "d7850da5e54df1706a894c14bce7e4e39421571af1340381987e23d77c7e51b1"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__leak.corner.spice": {
+        "bytes": 2613,
+        "sha256": "2090e4d8bcf8011bcf88021cc81926f94f2ab44061075ad318c389d8982ced43"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__leak.pm3.spice": {
+        "bytes": 9677,
+        "sha256": "c0c6d964ffe6426f7d8e8ada1207ab55b1d7f3cec6054f2398d5a2ebdbf557a6"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__mismatch.corner.spice": {
+        "bytes": 1103,
+        "sha256": "bd03b8f948e853b950f409720ccc1012addf109f39f1f69511d821237d4a60b0"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__sf.corner.spice": {
+        "bytes": 2558,
+        "sha256": "83c035f303ee29ddec28055f31ac981fbe12d9450d75f1a8b6d28aa4da46ec18"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__sf.pm3.spice": {
+        "bytes": 9831,
+        "sha256": "f800e00f908eb5f7bd5a00eda9737017c9e1a855c8c1ee141a212a5bdce6ed81"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__ss.corner.spice": {
+        "bytes": 2552,
+        "sha256": "6c1ef321385f11f0ce5ad819a6eaa67b8967a8bc3840b2550111cb718b6e2b6c"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__ss.pm3.spice": {
+        "bytes": 9764,
+        "sha256": "bdbe3d3d5f4d767ad2d8ac1a99cfdd982f24110aa77d996d28d195d81d95ace1"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__subvt_mismatch.corner.spice": {
+        "bytes": 1107,
+        "sha256": "5b04b720dc340d1150e28ff95720abeca5180ce728562a613d2367c5f05f6b14"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__tt.corner.spice": {
+        "bytes": 2527,
+        "sha256": "98511152c7c0b05414e665f3cb11f1124dfee6fdc6add512e8afcb8b4f8381c6"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__tt.pm3.spice": {
+        "bytes": 9752,
+        "sha256": "9b3044a9ac8e0c39f63e573b02fb73f7e34991ee94b697b2be796f756651f5e7"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__tt_correln.corner.spice": {
+        "bytes": 2650,
+        "sha256": "3678f3bfc97be226641e4fb4d5077287447e989c2f1775e9aa3af85fde0f940d"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__tt_correlp.corner.spice": {
+        "bytes": 2649,
+        "sha256": "0191d7028051c1aed64d2ba4fbf104f68da97f35d3eb6c687bcbd26a17cb7938"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__tt_leak.corner.spice": {
+        "bytes": 2528,
+        "sha256": "b98f30de92296b47234c67ec309d798a8d54855b143f473f88be1904a4980e9d"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__tt_leak.pm3.spice": {
+        "bytes": 9664,
+        "sha256": "6cdae5746e9f75701bfd76424328779a7f44f19cce52df6115046e1268422835"
+      },
+      "sky130_fd_pr__special_pfet_01v8_hvt__wafer.corner.spice": {
+        "bytes": 2496,
+        "sha256": "13bbf3b08fcd8395b224c4e1e3d65cbed58f7b8f6e6a6c2147671575a0a7e5e6"
+      },
+      "sky130_fd_pr__special_pfet_latch.pm3.spice": {
+        "bytes": 10564,
+        "sha256": "a71d8e707ff90f4ee23cfe84c1c660f6c50609ce320c3602573bb646ac510978"
+      },
+      "sky130_fd_pr__special_pfet_latch__mismatch.corner.spice": {
+        "bytes": 961,
+        "sha256": "8538ce99191b69de8bf38dc87eab0366245322ade8501908c21fb74496219430"
+      }
+    },
+    "level54CardOccurrences": 6109,
+    "root": "/Users/1amageek/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b/sky130A/libs.ref/sky130_fd_pr/spice",
+    "selectors": {
+      "acnqsmod": {
+        ".000000e+0": 2,
+        "0.0": 6107
+      },
+      "binunit": {
+        "2.0": 6107,
+        "2.000000e+0": 2
+      },
+      "capmod": {
+        "2.0": 6107,
+        "2.000000e+0": 2
+      },
+      "diomod": {
+        "1.0": 6107,
+        "1.000000e+0": 2
+      },
+      "fnoimod": {
+        "1.0": 6107,
+        "1.000000e+0": 2
+      },
+      "geomod": {
+        ".000000e+0": 2,
+        "0.0": 6107
+      },
+      "igbmod": {
+        ".000000e+0": 2,
+        "0.0": 6107
+      },
+      "igcmod": {
+        ".000000e+0": 2,
+        "0.0": 6107
+      },
+      "level": {
+        "5.400000e+1": 2,
+        "54.0": 6107
+      },
+      "mobmod": {
+        ".000000e+0": 2,
+        "0.0": 6107
+      },
+      "permod": {
+        "1.0": 6107,
+        "1.000000e+0": 2
+      },
+      "rbodymod": {
+        "1.0": 6107,
+        "1.000000e+0": 2
+      },
+      "rdsmod": {
+        "0.0": 6040,
+        "1.0": 67,
+        "1.000000e+0": 2
+      },
+      "rgatemod": {
+        ".000000e+0": 2,
+        "0.0": 6045,
+        "3.0": 62
+      },
+      "rgeomod": {
+        "<omitted>": 6109
+      },
+      "tempmod": {
+        "0.0": 6107,
+        "<omitted>": 2
+      },
+      "tnoimod": {
+        "1.0": 6107,
+        "1.000000e+0": 2
+      },
+      "trnqsmod": {
+        ".000000e+0": 2,
+        "0.0": 6107
+      },
+      "version": {
+        "4.5": 6106,
+        "4.500000e+0": 2,
+        "4.62": 1
+      },
+      "wpemod": {
+        "<omitted>": 6109
+      }
+    },
+    "sourceTableDifferences": {
+      "instance": {
+        "added483": [
+          "mult_fn",
+          "mult_i",
+          "mult_q"
+        ],
+        "changed": {
+          "sc": {
+            "45": {
+              "kind": "IF_REAL",
+              "selector": "BSIM4_SCA"
+            },
+            "483": {
+              "kind": "IF_REAL",
+              "selector": "BSIM4_SC"
+            }
+          }
+        },
+        "count45": 33,
+        "count483": 36,
+        "removed483": []
+      },
+      "model": {
+        "added483": [
+          "ados",
+          "agisl",
+          "aigd",
+          "aigs",
+          "bdos",
+          "bg0sub",
+          "bgisl",
+          "bigd",
+          "bigs",
+          "cgisl",
+          "cigd",
+          "cigs",
+          "cvchargemod",
+          "dlcigd",
+          "dvtp2",
+          "dvtp3",
+          "dvtp4",
+          "dvtp5",
+          "easub",
+          "egisl",
+          "eot",
+          "epsrgate",
+          "epsrsub",
+          "fgidl",
+          "fgisl",
+          "gidlclamp",
+          "gidlmod",
+          "idovvds",
+          "jtweff",
+          "ketac",
+          "kgidl",
+          "kgisl",
+          "lagisl",
+          "laigd",
+          "laigs",
+          "lbgisl",
+          "lbigd",
+          "lbigs",
+          "lcgisl",
+          "lcigd",
+          "lcigs",
+          "ldvtp2",
+          "ldvtp3",
+          "ldvtp4",
+          "ldvtp5",
+          "leffeot",
+          "legisl",
+          "lfgidl",
+          "lfgisl",
+          "lketac",
+          "lkgidl",
+          "lkgisl",
+          "lminvcv",
+          "lrgidl",
+          "lrgisl",
+          "lteta0",
+          "ltnfactor",
+          "ltvoffcv",
+          "lucs",
+          "lucste",
+          "minvcv",
+          "mtrlcompatmod",
+          "mtrlmod",
+          "ni0sub",
+          "njtsd",
+          "njtsswd",
+          "njtsswgd",
+          "pagisl",
+          "paigd",
+          "paigs",
+          "pbgisl",
+          "pbigd",
+          "pbigs",
+          "pcgisl",
+          "pcigd",
+          "pcigs",
+          "pdvtp2",
+          "pdvtp3",
+          "pdvtp4",
+          "pdvtp5",
+          "pegisl",
+          "pfgidl",
+          "pfgisl",
+          "phig",
+          "pketac",
+          "pkgidl",
+          "pkgisl",
+          "pminvcv",
+          "prgidl",
+          "prgisl",
+          "pteta0",
+          "ptnfactor",
+          "ptvoffcv",
+          "pucs",
+          "pucste",
+          "rgidl",
+          "rgisl",
+          "rnoic",
+          "tbgasub",
+          "tbgbsub",
+          "tempeot",
+          "teta0",
+          "tnfactor",
+          "tnjtsd",
+          "tnjtsswd",
+          "tnjtsswgd",
+          "tnoic",
+          "tvoffcv",
+          "ucs",
+          "ucste",
+          "vddeot",
+          "voffcvl",
+          "wagisl",
+          "waigd",
+          "waigs",
+          "wbgisl",
+          "wbigd",
+          "wbigs",
+          "wcgisl",
+          "wcigd",
+          "wcigs",
+          "wdvtp2",
+          "wdvtp3",
+          "wdvtp4",
+          "wdvtp5",
+          "weffeot",
+          "wegisl",
+          "wfgidl",
+          "wfgisl",
+          "wketac",
+          "wkgidl",
+          "wkgisl",
+          "wminvcv",
+          "wrgidl",
+          "wrgisl",
+          "wteta0",
+          "wtnfactor",
+          "wtvoffcv",
+          "wucs",
+          "wucste"
+        ],
+        "changed": {
+          "version": {
+            "45": {
+              "kind": "IF_STRING",
+              "selector": "BSIM4_MOD_VERSION"
+            },
+            "483": {
+              "kind": "IF_REAL",
+              "selector": "BSIM4_MOD_VERSION"
+            }
+          }
+        },
+        "count45": 746,
+        "count483": 886,
+        "removed483": []
+      }
+    }
+  },
+  "probe": {
+    "result": "original45_sc_table_maps_sca=1 direct_sc_setter=1 states=29 noise_sources=14 model_bytes=6256 instance_bytes=2496\n",
+    "scope": "Original 4.5 parameter admission only. Existing adapter headers supply simulator types; no setup or numerical physics executes.",
+    "sourceSHA256": "f5bda9f9d39680e1f9eafba6001e725881ffb057aa06f96e863e1ded0d3dab96"
+  },
+  "sourceIdentity": {
+    "archive45": "2d0bc2496bf9b9c18dd2f790c679bfa76426fcac4a1691688fcb6a80a590f3e8",
+    "archive483": "3e3bb0ccb0699cb50d3844b6a2f6ee00f3ec6e1149e3ce4867cf47f5b27b56f7",
+    "files45": {
+      "B4TERMS_OF_USE": "98092879bfd6c02653e0308bb1f42800a9a49815c4581151ed45bfeeb17c642d",
+      "b4.c": "521d73140143fa32f2bd93a090a99b81dbe18cc621a2bd84f711e18dfb5713ec",
+      "b4acld.c": "fa0170f09d5d5d34b9f1f34deef7e3a5724bdfb3e3e64d5115d4962299da2ab5",
+      "b4ask.c": "2b036960a7bc56e9adc2212ade83861c216da4c1953b3230101b68f5fc60186e",
+      "b4check.c": "1b51dd970a3b209ab4ffd3d2df7a8f06be027df8653b658cad1f29db4391c9c0",
+      "b4cvtest.c": "431fc77d516c45ae2afc413973c532b56c05fae4a852588645c3a93c1f535d27",
+      "b4del.c": "edc11322ce345e5da5868a4aa8c9e517f67c11b3e3cce9663f0da3f757ea81e1",
+      "b4dest.c": "5da583dc724ffd3584f030e400e05f507135d0875410b715b4caa06b60e5cf4d",
+      "b4geo.c": "c8454d8813f6db25f347906c15307ac9ef9eb01d5cb8e7b3a866d2f2becea20b",
+      "b4getic.c": "dae728efef0a5afe31b18908f6c9f735e05849f19b56c98e596650ad744072f6",
+      "b4ld.c": "2eee97eb8a46fc68303787c0936a3c05d56d255d701a79899a111950dc3f4e5b",
+      "b4mask.c": "5956c15b21ec5e873646bf059c62942fb9702d7f2bba40d7da711ab796e235d5",
+      "b4mdel.c": "b111eeec93e37e66122d7497a762447f922aa3e3c8476c2b1469246052bc44e3",
+      "b4mpar.c": "bf6e24fe76c6ab3334b91c6b38f03d61f0d70960ad49780a927e32bb550c478e",
+      "b4noi.c": "770fe2eadf4ccb82beb78802f4e5b24cdbfa73c3a6e9842e791b18dc9401d32c",
+      "b4par.c": "e1af32cb9e611e1f49af0510ebf2040dc8b5a121af4a8dd3d18501ae2e44d63b",
+      "b4pzld.c": "fa284ff10976c701f7831dbb78ffbaa116dd767cd0184ce7e0d39371792bfddd",
+      "b4set.c": "9c1fb9809d9b6f2cd367759cc990716d6bef57cc9ae430e6930bb397c772adf4",
+      "b4temp.c": "ad34e115d714178a13e2277fba25fa46107f54446a12569357459fb60aa21447",
+      "b4trunc.c": "acfe8530c56028bd38d4e8e7fb279c006571eefb5b2e1845cda01cfadbdc657c",
+      "bsim4def.h": "9a73d6f1eb41ea9a5741b33f8aafd38068f1fbdda569a3ce119e1ff436d4c544",
+      "bsim4ext.h": "dda61c7db5058249f6b842edea144d90f879dbb2a1d6ba4cb589916ef773a0c5",
+      "bsim4itf.h": "2583cb8f96723d440bdd249f3fc7e58514d5b26dc9170908544eff76f4d35258",
+      "inp2m.c": "21a2171a92489bf629ac3543d977ee0c2919891879568b5131ca137adf8d87a6",
+      "inpdomod.c": "0c68ab21ebecac04fc75f6bf2002781f29c3689fddd01dde8bb664e2f57024bd",
+      "inpfindl.c": "1e18863915c460ad3b3fe347b924d9ca96e210661da5617bba2f1d532d7b922c",
+      "makedefs": "e0d004a76f775120cbb87146784e2968b72ff3cd98cc83ccf0990117fef47620",
+      "noisean.c": "83f4ede702b4ed3630f4a36cc0e9746aa258aaf286838d311034382b9b7bd22b"
+    },
+    "files483": {
+      "b4.c": "2d61e2c373faeb259d014f140c94b9c4ab5ea6139285a38ec850d64174df71a5",
+      "b4acld.c": "a9cce09ae3dce4d0c76a969539760034442ab7d7745d61c206bb473ff623e5f1",
+      "b4ask.c": "62eccfa2feb3e17c3ba3bac40222eef43f85c480e5e3e138bc50a895cf922ecb",
+      "b4check.c": "85d342529c39d53dd6a45f742e6a5f8ab88c403146730514906215b388b065dd",
+      "b4cvtest.c": "f229bfde0a25e8e5bc07ce1218d18745841e47b318fc7c79a45d993f219efecf",
+      "b4del.c": "d288ea9c5010cb94fc4355ae51fd6c3d0d90e02050d0870b7a92c57c08160fee",
+      "b4dest.c": "5b210597dc3b45ff85672cce813ca218d4749dbe7aa1e01890f327555d2a01ea",
+      "b4geo.c": "3892c0fc84d72a424994864728e4a63ca7eb0eec14b18f3b0956406b5a45eaee",
+      "b4getic.c": "2433d58aaa5410a352fb5da9149ea80b9b403b24f8653649665d0ec5a0147b75",
+      "b4ld.c": "610f79c04c6dc7b05fca9c2773b2f47a7ee12f2215253e210617619d051c87c0",
+      "b4mask.c": "ea6bd0365d62cb0c94e80edbe7be7af3db328d50e13ad2a0baeab9a6aae304fe",
+      "b4mdel.c": "5f39bddef610a33d0c228a3af0b072d9395fad093adb34ecbebe3a017a5fb173",
+      "b4mpar.c": "ff064ff75c059b3be8b6dab55dabe896fb97492de25cf473b0ef6afa22dae98b",
+      "b4noi.c": "2c0bfbe2b1ca4cac9c0b23b5584e9195d4bd0c3de948d83b8e1f10e14d4dd78f",
+      "b4par.c": "0595dad5ae6c648e7d00b19f3b5d19f8d363896e6eaea6f497f4b37271dfb600",
+      "b4pzld.c": "0c5f237a4fca269b4654bd398005c7892ffc8afa5e7e208ba02413774076fa28",
+      "b4set.c": "bbcdc9f0bdd751895c11024b949cdd5fa49418cd46c17f8afcb48417dcdb5f31",
+      "b4temp.c": "44247548723edd06cd12674195b8e5365d8bc41457fcbb6f9fa26eadda7500b1",
+      "b4trunc.c": "581a2fab76913add44d73b4ba198bd7f9b5324638611d01e34704d70a257b91d",
+      "bsim4def.h": "2300991a9d8ace76b330b66a0217c4e38914c7881666363fe622b6f8b46f7923",
+      "bsim4ext.h": "617496050dc5dede2c77ab6dfea20ceaf1701f02e099aa4cff95d086b4a800c4",
+      "bsim4itf.h": "67dabb3ebe99b79829f339f1e0fa1039a02c1982fb46c7ce5c31c2ae05b52d51",
+      "devsup.c": "f7163194dc2f80f41b5b2c4988094fff9fb88de3a75c82eb0f657d13e1cc4c88",
+      "inp2m.c": "6c51826d2f2ac22f33be3cf86ea3db275c047ba9884eab43ca4830c1b7e0b2a6",
+      "inpdomod.c": "9db821f48b048195d522e43cd25b48fbec66b2b0881332e6a1d76c5c41488ca0",
+      "inpfindl.c": "4ce06e25cb57514a45967f531db990d8e54c7727b0099c23430319c92eb21e5d",
+      "makedefs": "71d2be3ee4976edbe768669fb7be197f6b8c69eb87d054602f445bb85f04cfb3",
+      "nevalsrc2.c": "d07c07079adf4632f4ee30a7dcc4b3cb1574c54f270118d0cb93b3767f73f607",
+      "noisean.c": "fa33d26afb7b381564cab3e62125ee3b2feee8d1a565c0161f40dadc67768a9e"
+    },
+    "nested45": "d94a1df9367d565787f555cc8ce6bd515a34f4d1752fb1da91df6ab54c56e39f",
+    "url45": "https://www.bsim.berkeley.edu/BSIM4/BSIM450.zip",
+    "url483": "https://www.bsim.berkeley.edu/wp-content/uploads/BSIM4/BSIM4_4.8.3_standard_05192025.tar"
+  }
+}

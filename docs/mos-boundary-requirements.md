@@ -349,3 +349,25 @@ resolution work delta and analysis source-work delta were zero; each of eight MO
 receipts retained one cold setup through all five sweep points. Source review
 verifies direct candidate-range traversal without intermediate materialization;
 these assertions do not claim zero copies across the complete execution pipeline.
+
+## Proposed BSIM4 4.5 Extension Evidence
+
+Status: design only. The [package unit graph](../DESIGN.md#proposed-bsim4-45-implementation-units)
+and [primary-source research](bsim45-research/RESEARCH.md) define future adoption;
+they do not replace or expand the executed evidence above. Current 4.5 numerical
+preparation remains an explicit refusal. New tests below are proposed test owners,
+not existing passing methods or completed coverage.
+
+| Requirements affected | Proposed unit / existing owner | Violation to detect | Required new evidence |
+|---|---|---|---|
+| R01, R02, R10, R14, R17, R23 | B45-1 / Schema | Unknown spelling rounds to 4.5, later coefficient accepted, SC scaled as SCA, model/instance roles merged | Pure schema table/unit/version tests and original SC correction regression |
+| R03, R06, R07, R08, R09, R11, R12, R13, R15, R16, R18, R19, R20 | B45-1, B45-7 / existing Parser and MOSResolution | Original corner/source lost, inner family fallback, duplicate/overlap silently chosen, expression redrawn, W/NF selection confused with physical geometry | Existing resolver counterexamples plus original-card resolved-instance/seed/dimension traces |
+| R04, R21, R22, R24, R25 | B45-6 / MOSPreparation and NativeExecution | Portable semantic enum claims execution, wrong release dispatched, conditions changed at bind, model re-searched | Actual public-path owner/capability/receipt/binding tests |
+| R26, R27, R28, R29, R30 | B45-2 through B45-6 / native, safe and bound owners | Partial owner survives failure, wrong owner token commits, history races, guessed capacities or truncated diagnostics succeed | Standalone sanitizer tests, real safe-owner concurrency, budget/cancel/cleanup and source-context failures |
+| R05, R31, R32, R33 | B45-3 through B45-7 / independent proofs and Analysis | Differential oracle repeats original defect, derivatives disagree, native results stand in for portable targets, tolerance tuned to pass | Manual/analytic/conservation references, finite differences, Native CPU analyses, fixed pure-target runtime matrix |
+| R34, R35 | B45-7 / existing evidence publication and this index | Card count claims execution, 4.62 or unsupported wrapper counted as 4.5, missing performance metric marked complete | Exact executed source/corner/wrapper/analysis matrix and calibrated release allocation/copy/setup evidence |
+
+Each implementation sprint must replace its proposed evidence row with exact test
+method IDs, commands, input/build/source identities and actual outcomes. An
+unsupported or unexecuted row remains pending or explicitly refused; it cannot
+inherit numerical qualification from the existing 4.8.3 run.
