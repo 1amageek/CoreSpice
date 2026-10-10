@@ -46,6 +46,16 @@ package struct MOSStorageBudget {
         guard let source else { return }
         try addText(source.captureID); try addText(source.path)
     }
+    /// Measures shared payload without resetting the caller's work or cancellation ledger.
+    package mutating func addText(_ text: String?, chargingWorkTo work: inout MOSStorageBudget) throws(MOSResolutionFailure) {
+        guard let text else { return }
+        for _ in text.utf8 { try work.spend(); try add(1) }
+    }
+    package mutating func addSource(_ source: MOSSourceOccurrence?, chargingWorkTo work: inout MOSStorageBudget) throws(MOSResolutionFailure) {
+        guard let source else { return }
+        try addText(source.captureID, chargingWorkTo: &work)
+        try addText(source.path, chargingWorkTo: &work)
+    }
     package static func growthBytes<Element>(_ values: [Element], required: Int) throws(MOSResolutionFailure) -> UInt64 {
         guard required > 0 else { return 0 }
         let requested: Int

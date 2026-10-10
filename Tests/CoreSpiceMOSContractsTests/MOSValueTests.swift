@@ -24,14 +24,16 @@ struct MOSValueTests {
     @Test func checkedResultsRetainSourceSymbolsAndOmittedGeometry() throws {
         let source = MOSSourceOccurrence(captureID: "opaque-capture", occurrenceID: 7, path: "model.sp",
             line: 12, column: 1, statementByteOffset: 128, statementOrdinal: 5)
-        let result = try ResolvedMOSInstance(source: source, instanceSource: nil, selectedName: .init(0),
+        let resultLimits = try limits()
+        var validationBudget = MOSStorageBudget(maximumBytes: resultLimits.maximumRetainedBytes, maximumSteps: resultLimits.maximumEvaluationSteps)
+        let result = try ResolvedMOSInstance(identitySpace: MOSIdentitySpace(), source: source, instanceSource: nil, selectedName: .init(0),
             symbolNames: ["nm", "vth0"], scope: .init(2), scopeInstantiation: 99, instance: "x1.m1",
             declaration: .init(3), polarity: .nmos, release: .bsim4_4_5,
             releaseOrigin: .explicit("4.5"), schema: MOSModelRelease.bsim4_4_5.schemaIdentity,
             modelCoefficients: [.init(symbol: .init(1), value: 0.7)], instanceParameters: [],
             rawGeometry: .init(length: nil, width: nil), normalizedGeometry: .init(length: nil, width: nil),
             selectionGeometry: .init(length: nil, width: nil, fingerDivisor: 1),
-            profile: .coreStrictV1, rules: [.exactName], candidates: [.init(declaration: .init(3), disposition: .selected)], limits: try limits())
+            profile: .coreStrictV1, geometryScale: 1, rules: [.exactName], candidates: [.init(declaration: .init(3), disposition: .selected)], limits: resultLimits, workBudget: &validationBudget)
         #expect(result.source == source)
         #expect(result.symbolNames[Int(result.modelCoefficients[0].symbol.rawValue)] == "vth0")
         #expect(result.normalizedGeometry.length == nil)
@@ -44,7 +46,7 @@ struct MOSValueTests {
             try MOSResolutionRequest(instance: "m1", scope: .init(0), scopeInstantiation: 1,
                 modelReference: .init(0), profile: .coreStrictV1,
                 bindings: [.init(symbol: .init(2), program: .init(0)), .init(symbol: .init(2), program: .init(1))],
-                parameterOverrides: [], geometryScale: 1, seed: 7, limits: try self.limits())
+                geometryScale: 1, seed: 7, limits: try self.limits())
         }
     }
 
@@ -68,7 +70,7 @@ struct MOSValueTests {
             statementByteOffset: nil, statementOrdinal: nil)
         #expect(throws: MOSResolutionFailure.limitExceeded(.retainedBytes)) {
             try MOSResolutionRequest(source: source, instance: "m1", scope: .init(0), scopeInstantiation: 1,
-                modelReference: .init(0), profile: .coreStrictV1, bindings: [], parameterOverrides: [],
+                modelReference: .init(0), profile: .coreStrictV1, bindings: [],
                 geometryScale: 1, seed: 7, limits: try self.limits(bytes: 1024))
         }
     }
@@ -76,23 +78,27 @@ struct MOSValueTests {
     @Test func checkedResultRefusesOversizedSourceBeforeRetention() throws {
         let source = MOSSourceOccurrence(captureID: String(repeating: "c", count: 1_048_576),
             occurrenceID: nil, path: nil, line: nil, column: nil, statementByteOffset: nil, statementOrdinal: nil)
+        let resultLimits = try limits(bytes: 1024)
+        var validationBudget = MOSStorageBudget(maximumBytes: resultLimits.maximumRetainedBytes, maximumSteps: resultLimits.maximumEvaluationSteps)
         #expect(throws: MOSResolutionFailure.limitExceeded(.retainedBytes)) {
-            try ResolvedMOSInstance(source: source, instanceSource: nil, selectedName: .init(0),
+            try ResolvedMOSInstance(identitySpace: MOSIdentitySpace(), source: source, instanceSource: nil, selectedName: .init(0),
                 symbolNames: ["nm"], scope: .init(0), scopeInstantiation: 1, instance: "m1",
                 declaration: .init(0), polarity: .nmos, release: .level1,
                 releaseOrigin: .defaulted(.coreStrictV1), schema: MOSModelRelease.level1.schemaIdentity,
                 modelCoefficients: [], instanceParameters: [],
                 rawGeometry: .init(length: nil, width: nil), normalizedGeometry: .init(length: nil, width: nil),
                 selectionGeometry: .init(length: nil, width: nil, fingerDivisor: 1),
-                profile: .coreStrictV1, rules: [], candidates: [.init(declaration: .init(0), disposition: .selected)],
-                limits: try self.limits(bytes: 1024))
+                profile: .coreStrictV1, geometryScale: 1, rules: [], candidates: [.init(declaration: .init(0), disposition: .selected)],
+                limits: resultLimits, workBudget: &validationBudget)
         }
     }
 
     private func limits(nodes: Int = 64, bytes: UInt64 = 1_000_000) throws(MOSResolutionFailure) -> MOSResolutionLimits {
         try MOSResolutionLimits(maximumRetainedBytes: bytes, maximumDiagnosticBytes: 1024, maximumScopeDepth: 16,
-            maximumSymbols: 64, maximumScopes: 16, maximumDeclarations: 64, maximumPrograms: 64,
-            maximumBindings: 64, maximumFunctions: 16, maximumExpressionNodes: nodes, maximumExpressionDepth: 16,
+            maximumSymbols: 64, maximumScopes: 16, maximumInvocations: 64, maximumInvocationBindings: 256,
+            maximumDeclarations: 64, maximumPrograms: 64,
+            maximumBindings: 64, maximumFunctions: 16, maximumFunctionDepth: 16,
+            maximumExpressionNodes: nodes, maximumExpressionDepth: 16,
             maximumCandidates: 64, maximumCacheEntries: 64, maximumEvaluationSteps: 1_000)
     }
 }

@@ -171,8 +171,10 @@ struct MOSSnapshotTests {
     }
     private func limits(scopeDepth: Int = 16, bytes: UInt64 = 1_000_000, steps: UInt64 = 1_000, symbols: Int = 64) throws(MOSResolutionFailure) -> MOSResolutionLimits {
         try MOSResolutionLimits(maximumRetainedBytes: bytes, maximumDiagnosticBytes: 1024, maximumScopeDepth: scopeDepth,
-            maximumSymbols: symbols, maximumScopes: 16, maximumDeclarations: 64, maximumPrograms: 64,
-            maximumBindings: 64, maximumFunctions: 16, maximumExpressionNodes: 64, maximumExpressionDepth: 64,
+            maximumSymbols: symbols, maximumScopes: 16, maximumInvocations: 64, maximumInvocationBindings: 256,
+            maximumDeclarations: 64, maximumPrograms: 64,
+            maximumBindings: 64, maximumFunctions: 16, maximumFunctionDepth: 16,
+            maximumExpressionNodes: 64, maximumExpressionDepth: 64,
             maximumCandidates: 64, maximumCacheEntries: 64, maximumEvaluationSteps: steps)
     }
 }

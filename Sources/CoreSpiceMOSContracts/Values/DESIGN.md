@@ -9,9 +9,14 @@ typed failures and invocation work/cancellation requirements. No children.
 
 Snapshot-local IDs identify interned symbols, scopes, declarations, programs,
 bindings and functions. Expression references use symbols only; the concrete
-resolver resolves lexical bindings and evaluates each binding once per scope
-instantiation. Requests retain supplied expression programs and explicit binding
-overrides. Resolved results have a package-only checked constructor.
+resolver follows concrete caller ancestry for numeric binding lookup and evaluates
+each final binding once per owning invocation. Requests retain supplied instance
+expression programs; a checked immutable invocation graph is the sole parameter
+environment authority. Explicit invocation actuals can replace or introduce symbols with snapshot
+programs or finite constants. Program actuals retain their exact caller identity
+for self-reference when a caller exists; root constants support global overrides
+without mutating or duplicating the shared snapshot. Resolved results have a
+package-only checked constructor.
 
 ## Related Designs
 
@@ -56,6 +61,21 @@ CoreSpiceMOSContractsTests verifies actual constructor failures, AST metadata an
 source/result preservation. Resolver and device consumers must revalidate when
 these contracts change.
 
+### Snapshot-local identity and coefficient provenance
+
+`MOSIdentitySpace` is an immutable process-local identity token. A snapshot creates
+one token; a resolved result shares that exact token. Inspection must compare token
+identity before dereferencing declaration/candidate/symbol IDs against a supplied
+snapshot. Equal numeric IDs from another snapshot are never interchangeable. The
+token retains only identity, not the snapshot; inspection therefore requires a
+live shared snapshot owner. No persistent digest or independent source-search
+capability is implied.
+
+Coefficient IDs reference accepted original input symbols. Canonical uniqueness
+means one setter group, as defined by schema canonicalName, not canonical spelling.
+Selection keeps the last winning raw symbol/value for pinned alias assignments;
+the immutable snapshot and its source occurrences are not mutated or re-interned.
+
 ### Retained payload and construction capacity accounting
 
 `maximumRetainedBytes` counts record strides, encoded UTF-8 text payload per
@@ -68,7 +88,8 @@ headers, alignment rounding, indirect-enum box headers, owner bookkeeping and
 hash-table bucket metadata are outside this payload metric; it is not a physical heap measurement.
 
 Request and checked-result construction require explicit limits before retaining
-source or backing arrays. Program construction uses an admitted pending stack and
+source or backing arrays. Request equality/hash cover semantic inputs and exclude
+retained-byte/capacity admission metadata. Program construction uses an admitted pending stack and
 metadata arrays, with no Set or sorting scratch. Requested growth is checked
 before `reserveCapacity`; the returned actual capacity is checked before append.
 During growth both old and new element capacities count toward the peak. If the
@@ -77,3 +98,14 @@ before retention/publication. Heap sort and in-place deduplication retain the
 admitted arrays. `retainedBytes`, `peakOwnedBufferBytes` and `workUnits` expose the
 counted result, construction peak and work. Program construction within a builder
 uses its remaining budget and returns consumed work even on failure.
+
+Composed checked-result construction borrows the evaluation session's work ledger.
+Every text byte and validation iteration consumes that same cumulative work and
+cancellation contract. Its local transitive payload metric does not re-add shared
+snapshot/cache buffers to the session's live storage. New validation scratch is
+admitted by the session and released on every exit. Independent constructor tests
+provide their own explicit validation ledger; resolution never resets it.
+
+Selected candidate bounds and missing masks are owned by
+[Selection](../../CoreSpiceMOSResolution/Selection/DESIGN.md). Classic explicit
+level selectors retain explicitLevel origin independently of BSIM version origin.

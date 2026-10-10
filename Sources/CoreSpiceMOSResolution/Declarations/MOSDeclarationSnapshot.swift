@@ -2,6 +2,7 @@ import CoreSpiceMOSContracts
 
 /// One immutable storage identity, reusable across sessions without array hashing.
 public final class MOSDeclarationSnapshot: Sendable {
+    public let identitySpace = MOSIdentitySpace()
     public let symbols: [String]
     public let scopes: [MOSScopeDeclaration]
     public let declarations: [MOSModelDeclaration]

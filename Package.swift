@@ -40,7 +40,7 @@ let package = Package(
         // --- Portable MOS interpretation boundary ---
         .target(name: "CoreSpiceMOSContracts", exclude: ["DESIGN.md", "Values/DESIGN.md", "Schema/DESIGN.md"]),
         .target(name: "CoreSpiceMOSResolution", dependencies: ["CoreSpiceMOSContracts"],
-                exclude: ["DESIGN.md", "Declarations/DESIGN.md"]),
+                exclude: ["DESIGN.md", "Declarations/DESIGN.md", "Evaluation/DESIGN.md", "Selection/DESIGN.md"]),
 
         // --- IR ---
         .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent"], exclude: ["README.md", "DESIGN.md"]),

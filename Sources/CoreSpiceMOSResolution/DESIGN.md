@@ -4,9 +4,10 @@
 
 This module owns independently inspectable MOS input interpretation. Parent:
 [CoreSpice](../../DESIGN.md). The [Declarations](Declarations/DESIGN.md) child
-owns immutable source declarations and indices. Evaluation and checked selection
-are added in the next migration sprint; their implementation is not claimed by
-this snapshot boundary.
+owns immutable source declarations and indices. [Evaluation](Evaluation/DESIGN.md)
+owns concrete invocation environments and the shared evaluation-session contract.
+[Selection](Selection/DESIGN.md) owns checked normalization, model selection and
+independent inspection; declaration construction alone does not prove resolution.
 
 ## Responsibilities and Boundaries
 
@@ -24,6 +25,8 @@ but cannot replace scope, normalization or selection invariants.
 | [CoreSpice](../../DESIGN.md) | parent | Boundary composition | Source to executable ownership | Selection is not numerical support |
 | [MOSContracts](../CoreSpiceMOSContracts/DESIGN.md) | depends on | Profiles, IDs, schema, values and failures | Portable semantic floor | Exact version and supplied/default roles remain distinct |
 | [Declarations](Declarations/DESIGN.md) | child | Immutable snapshot and indexed ranges | Source occurrence authority | No declaration may disappear during index construction |
+| [Evaluation](Evaluation/DESIGN.md) | child | Checked invocation graph and evaluation contract | Shared numeric environments | Numeric caller ancestry differs from lexical model/function lookup |
+| [Selection](Selection/DESIGN.md) | child | Checked resolution and independent inspection | Exact selected values and retained reasons | Inspection never repeats evaluation |
 | [Lowering](../CoreSpiceLowering/DESIGN.md) | used by | Declaration/program adapter | Parsed input projection | No device preparation in adapter |
 | [Devices](../CoreSpiceDevices/DESIGN.md) | used by | Resolved input | Exact numerical preparation | Unsupported release remains independently inspectable |
 
@@ -69,9 +72,11 @@ source ownership without intermediate candidate array materialization.
 
 [Contract tests](../../Tests/CoreSpiceMOSContractsTests) and
 [snapshot tests](../../Tests/CoreSpiceMOSResolutionTests/MOSSnapshotTests.swift)
-verify the local construction contract. Resolution tests will verify selected and
-refused behavior, expression draw counts and boundary counterexamples before the
-resolution sprint is marked complete. Native and matching Swift 6.4.0 normal and
+verify construction, selected/refused behavior, expression draw counts and
+boundary counterexamples. Five aggregate-review counterexamples additionally
+verify cumulative result-validation work, every lexical-owner traversal hop,
+capacity-independent request identity, incoming failure diagnostics and original
+scale preservation at subnormal rounding boundaries. Native and matching Swift 6.4.0 normal and
 Embedded WASM compile/link/runtime proofs are required for this module, using
 the [MOSContracts runtime requirements](../CoreSpiceMOSContracts/DESIGN.md#verification-and-change-impact). Devices
 is separately verified on Native CPU. Changes to IDs/schema/selection require
