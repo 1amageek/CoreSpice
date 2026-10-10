@@ -238,3 +238,13 @@ and [declaration intake](Sources/CoreSpiceMOSResolution/Declarations/DESIGN.md#n
 own non-scalar coefficient refusal and global width-selection transport. Public
 source callers use those shared contracts; Devices and solver algorithms do not
 interpret source options or repair omitted invalid coefficients.
+
+### MOS boundary regression and performance closure
+
+The parser rejects malformed model fields before declaration publication; native
+preparation separates its IR/MOS reservation from exact-topology compile admission.
+Their owning contracts are [parser](Sources/CoreSpiceParserSPICE/DESIGN.md#mos-declaration-intake)
+and [native execution](Sources/CoreSpice/NativeExecution/DESIGN.md#incremental-result-capacity-ownership).
+The reproducible [MOS boundary benchmark](Benchmarks/MOSBoundary/DESIGN.md) owns
+calibrated allocation/copy API measurements and their scope; it creates no new
+physical-model or portable numerical qualification.

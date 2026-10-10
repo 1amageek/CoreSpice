@@ -316,3 +316,36 @@ The [owning frontend contract](../Sources/CoreSpiceLowering/Frontend/DESIGN.md#m
 defines source spelling, profile/scope admission, typed override precedence and
 one-evaluation ownership. The workspace MF progress items own completion and
 current exact-revision evidence; these test links alone are not execution proof.
+
+## Syntax, topology admission and measured copy closure
+
+The subsequent RF review repairs supplement R01/R06/R19/R26–R30/R35. Model
+fields are admitted atomically as assignments by both parser paths; malformed
+`vto`, `level` or `version` cannot disappear and become a successful default.
+The [parser contract](../Sources/CoreSpiceParserSPICE/DESIGN.md) owns this rule.
+The [native preparation contract](../Sources/CoreSpice/NativeExecution/DESIGN.md)
+separates the conservative linear preparation-storage envelope from actual matrix
+rows. The prepared topology owns matrix admission before auxiliary IR allocation
+and compilation; preparation and compilation hold separate live leases, with
+nonoverlapping scratch lifetimes. An upper bound on possible private nodes is not
+the logical matrix dimension.
+
+| Evidence | Observed behavior | Scope |
+|---|---|---|
+| [Parser suites](../../.verification/runs/mos-boundary-fix-20261010/rf1-green-final/verification.json), [12 CLI refusals](../../.verification/runs/mos-boundary-fix-20261010/rf1-process/verification.json) | Malformed fields fail with source locations under both profiles and publish no execution facts | Ordinary/accounted parsing and actual CLI |
+| [Native suite](../../.verification/runs/mos-boundary-fix-20261010/rf2-full/verification.json), [actual CLI ceilings](../../.verification/runs/mos-boundary-fix-20261010/rf2-process/verification.json) | Exact rows succeed, one row below fails; private-node topology and late lease refusal release owners; ceilings 4 and 12 produce the same current | Native CPU Level 1 / BSIM3 / BSIM4 preparation and binding |
+| [Calibrated release measurements](../../.verification/runs/mos-boundary-fix-20261010/performance-final/verification.json) | Five known copy calls / 101 bytes and one allocation / 257 bytes calibrate; instrumented and ordinary five-point DC signatures agree | Native CPU allocation/copy API entries, heap, reservations and cold/reused phases |
+
+The [reproducible benchmark](../Benchmarks/MOSBoundary/DESIGN.md) supplies the
+previously unavailable copy metric at an explicit API boundary. It counts the
+`memcpy`/`memmove`/`bcopy` family, with verified fortified forwarding; inlined
+copies and private runtime loops are outside coverage. Five uninstrumented samples
+per model measured cold/reused medians of 2.238/0.575 ms (Level 1), 2.822/1.306 ms
+(BSIM3), and 3.529/1.884 ms (BSIM4). These are current-source measurements, not a
+before/after speedup claim. Instrumented cold copy calls/argument bytes were
+5,162/1,719,635, 5,435/1,419,738 and 8,610/8,162,460 respectively. Reservations,
+allocator requests and physical heap remain separate quantities. The downstream
+resolution work delta and analysis source-work delta were zero; each of eight MOS
+receipts retained one cold setup through all five sweep points. Source review
+verifies direct candidate-range traversal without intermediate materialization;
+these assertions do not claim zero copies across the complete execution pipeline.
