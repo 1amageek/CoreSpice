@@ -3,7 +3,7 @@
 ## Purpose and Scope
 
 Status: original preparation and static numerical source intake implemented;
-AC/frequency NQS is implemented; transient BE/TR/NQS services are implemented; noise remains a future unit. Parent:
+AC/frequency NQS is implemented; transient BE/TR/NQS services are implemented; noise spectra/integration are implemented. Parent:
 [CoreSpiceBSIM45](../DESIGN.md). No children. This component owns exact physical
 source intake, original equations and the private simulator ABI adaptation.
 
@@ -41,7 +41,7 @@ official zip -> nested BSIM450.tar.Z -> per-file hashes + original notices
   Model bounds are resolver selection inputs; physical correction never selects
   a different bin or changes resolved coefficients.
 - Compile setup, temperature, geometry, checker and DC/charge from the same
-  source manifest; AC and future noise intake must use that same release. Pin the original constants, units and simulator-service
+  source manifest; AC and noise intake use that same release. Pin the original constants, units and simulator-service
   semantics; reusing current compatibility constants without comparison is invalid.
 - All changes are deterministic transformations with original/adapted hashes and
   a reason classified as symbol isolation, simulator ABI, bounded storage,
@@ -274,8 +274,8 @@ corrections already owned above; those are not new AC physics.
 | History/resource/failure | Proof/ac.c | Accepted history mutation, reallocation, partial output |
 
 Transient BE/TR and trial/commit lifecycle are qualified by the separate B45-4
-unit; no callable placeholder is introduced. Noise and public adoption remain
-B45-5/B45-6. Propagate ABI changes to the parent and package status without
+unit; no callable placeholder is introduced. B45-5 noise has its independent qualification below; public adoption remains
+B45-6. Propagate ABI changes to the parent and package status without
 claiming these later contracts are implemented.
 
 Sanitizer AC verification keeps all 580 topology/parameter conditions and seven
@@ -344,3 +344,53 @@ nonzero. Set those voltage derivatives to zero for XPART<0, matching the retaine
 zero relaxation law, while preserving residuals and every state value. Record
 `nqs-disabled-charge-derivative-v1`; verify all augmented finite differences for
 this branch too. No QS fallback or new charge law is introduced.
+
+## B45-5 Source and Service Ownership
+
+The [parent noise contract](../DESIGN.md#b45-5-noise-contract) owns ABI, source
+order, units, limits and failure policy. Import the exact nested b4noi.c
+Eval1ovFNoise and local N_DENS branch before simulator traversal/integration.
+Retain original copyright and per-file hashes. Names, plots, frontend jobs,
+nVar integration and sweep buffers remain outside the device kernel.
+
+`noise_primitives.inc` owns scoped thermal/shot pair projection using pinned
+SPICE3f5 constants. Apply source power to normalized complex gain without first
+squaring an unscaled huge gain; zero source power remains exactly zero. Flicker
+source power is computed before gain projection, algebraically preserving the
+original formula. `noise_evaluation.inc` owns atomic publication and topology
+admission; `noise_integration.inc` owns the bounded stateless interval primitive.
+The parent owns retained staging; each stack context borrows gains synchronously.
+No change to static physics, accepted history or numerical solver is planned.
+
+| Invariant | Violation detector |
+|---|---|
+| Exact 13 sources plus sum, both TNOIMOD/FNOIMOD values | Separate original noise process and per-source independent equations |
+| Theta/beta partition and reverse gate-shot mapping | Both polarities/directions, mode isolation and analytic coefficient identities |
+| Body networks and noise-only prime nodes | All body/gate/series modes, RBODYMOD=2 bodymode 1/3/5 given-bit cases |
+| Complex gains and independent sources | Phase rotation/scaling, equal pair gains, source pair isolation, exact sum |
+| Stable integral, flat/1/f/zero limits | Pinned original primitive plus analytic and high-precision interval integrals |
+| Exclusive bounded lifetime and failure atomicity | Exact allocation/setup/release counts, all history/nVar bytes, pending tokens, malformed/extreme requests and ASan/UBSan |
+
+### Low-Inversion Flicker Cancellation Correction
+
+Independent trap-integral evaluation at fixture 0, VGS=-0.608 V and VDS=0.09 V
+finds N0=0.00758102, Nl=0.0013838 and nstar=2.04847e15. Original
+log((N0+nstar)/(Nl+nstar)) rounds to log(1)=0 and loses the finite trap-A
+contribution. Replace it with log1p((N0-Nl)/(Nl+nstar)); factor the quadratic
+difference as (N0-Nl)*(N0+Nl). These are equivalent original 4.5 expressions,
+not a new trap law. Record `noise-flicker-cancellation-v1`. Independently factored
+trap-integral tests use a relative criterion even far below the absolute raw
+reference threshold; original comparisons retain their fixed tolerance.
+
+### Frequency and Gain Scaling
+
+A public regression with KF=0, FNOIMOD=0, EF=2 and finite DBL_MAX Hz has
+finite, frequency-independent thermal/shot PSD. Computing freq^EF before
+examining zero flicker incorrectly rejects it. The 4.5 flicker law is exactly
+separable as S(1 Hz)*f^(-EF). Evaluate intrinsic flicker at unit frequency and
+combine its logarithm, -EF*log(f), and normalized complex pair gain at final
+projection. This also avoids an overflowing bare gain or frequency power when
+the final PSD is representable. Record `noise-frequency-scaling-v1`. The
+strong/weak harmonic combination uses min/(1+min/max), with explicit finite
+nonnegative admission, instead of a product that can underflow. Zero powers
+remain exact zero; unrepresentable positive final PSD is a typed failure.

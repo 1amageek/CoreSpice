@@ -6,6 +6,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#define BSIM4noise cs_bsim45_noise
+#define Eval1ovFNoise cs_bsim45_Eval1ovFNoise
+#define CONSTboltz 1.3806226e-23
+#define N_MINLOG 1e-38
+#define SHOTNOISE 1
+#define THERMNOISE 2
+#define N_GAIN 3
 #define BSIM4acLoad cs_bsim45_acLoad
 #define BSIM4load cs_bsim45_load
 #define BSIM4polyDepletion cs_bsim45_polyDepletion

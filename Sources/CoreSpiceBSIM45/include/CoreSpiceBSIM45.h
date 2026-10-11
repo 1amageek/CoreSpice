@@ -10,7 +10,7 @@ typedef struct CSBSIM45Owner CSBSIM45Owner;
 typedef enum {
  CS_BSIM45_OK, CS_BSIM45_VERSION, CS_BSIM45_SCHEMA, CS_BSIM45_PARAMETER,
  CS_BSIM45_STATE, CS_BSIM45_RESOURCE, CS_BSIM45_MEMORY, CS_BSIM45_DIAGNOSTICS,
- CS_BSIM45_KERNEL, CS_BSIM45_NONFINITE, CS_BSIM45_HISTORY
+ CS_BSIM45_KERNEL, CS_BSIM45_NONFINITE, CS_BSIM45_HISTORY, CS_BSIM45_NOISE_UNPREPARED
 } CSBSIM45Status;
 typedef enum { CS_BSIM45_INSTANCE, CS_BSIM45_MODEL, CS_BSIM45_KERNEL_ROLE = -1 } CSBSIM45Role;
 typedef enum { CS_BSIM45_REAL=1, CS_BSIM45_INTEGER, CS_BSIM45_FLAG, CS_BSIM45_TEXT, CS_BSIM45_VECTOR } CSBSIM45Kind;
@@ -63,6 +63,17 @@ typedef struct {
 typedef struct {
  double accepted[CS_BSIM45_STATE_SLOTS], older[CS_BSIM45_STATE_SLOTS];
 } CSBSIM45History;
+/* Thirteen independent sources in original order, followed by their sum.
+   TNOIMOD=1 partition effects are already included; no extra cross source. */
+typedef enum {
+ CS_BSIM45_NOISE_RD, CS_BSIM45_NOISE_RS, CS_BSIM45_NOISE_RG,
+ CS_BSIM45_NOISE_RBPS, CS_BSIM45_NOISE_RBPD, CS_BSIM45_NOISE_RBPB,
+ CS_BSIM45_NOISE_RBSB, CS_BSIM45_NOISE_RBDB, CS_BSIM45_NOISE_ID,
+ CS_BSIM45_NOISE_FLICKER, CS_BSIM45_NOISE_IGS, CS_BSIM45_NOISE_IGD,
+ CS_BSIM45_NOISE_IGB, CS_BSIM45_NOISE_TOTAL, CS_BSIM45_NOISE_SLOTS
+} CSBSIM45NoiseSource;
+typedef struct { double frequency,density[CS_BSIM45_NOISE_SLOTS]; } CSBSIM45NoiseSpectrum;
+typedef struct { double power[CS_BSIM45_NOISE_SLOTS],rmsVoltage; } CSBSIM45NoiseIntegral;
 /* All calls, including destroy, require exclusive access to the owner.
    create borrows its arguments only for the call and clears *out on failure.
    The allocation contains every mutable byte; owner_size excludes malloc metadata.
@@ -112,6 +123,18 @@ CSBSIM45Status cs_bsim45_commit(CSBSIM45Owner *, CSBSIM45TrialToken);
 CSBSIM45Status cs_bsim45_reject(CSBSIM45Owner *, CSBSIM45TrialToken);
 /* Nonmutating inspection is available after internal failure if initialized. */
 CSBSIM45Status cs_bsim45_history(const CSBSIM45Owner *, CSBSIM45History *out);
+/* Noise-prepared topology required. Frequency is Hz > 0; real/imaginary are
+   thirteen complex transfer gains in V/A, ground/unused/deficit zero. Borrows all
+   buffers synchronously; invalidates pending trials, preserves accepted/older
+   and noise history. Atomic finite nonnegative output in V^2/Hz. */
+CSBSIM45Status cs_bsim45_noise_spectrum(CSBSIM45Owner *,const double *bias,size_t count,
+ double gmin,double frequency,const double *real,const double *imaginary,CSBSIM45NoiseSpectrum *out);
+/* Stateless adjacent-interval integration: strictly increasing positive Hz;
+   nonnegative finite spectra with exact ordered totals. Positive endpoints use
+   log-log power interpolation; zero endpoints use linear PSD. No physical floor.
+   Power is V^2 and sqrt(total) is Vrms. Failure preserves out. Caller owns sweep. */
+CSBSIM45Status cs_bsim45_integrate_noise(const CSBSIM45NoiseSpectrum *lower,
+ const CSBSIM45NoiseSpectrum *upper,CSBSIM45NoiseIntegral *out);
 size_t cs_bsim45_diagnostic_count(const CSBSIM45Owner *);
 CSBSIM45Status cs_bsim45_diagnostic_at(const CSBSIM45Owner *, size_t index, CSBSIM45Diagnostic *out);
 size_t cs_bsim45_parameter_count(CSBSIM45Role);

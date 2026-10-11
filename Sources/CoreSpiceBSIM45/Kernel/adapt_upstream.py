@@ -9,11 +9,11 @@ def publish(path, data):
  else: path.write_bytes(data)
 files = ['b4.c','b4mpar.c','b4par.c','b4set.c','b4temp.c','b4check.c','b4geo.c','b4ld.c','bsim4def.h','bsim4ext.h','b4acld.c']
 geometry = ['BSIM4NumFingerDiff','BSIM4PAeffGeo','BSIM4RdseffGeo','BSIM4RdsEndIso','BSIM4RdsEndSha']
-manifest = dict(release='4.5.0', adaptation='nqs-disabled-charge-derivative-v1.nqs-channel-charge-v1.transient-v1.ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants',
+manifest = dict(release='4.5.0', adaptation='noise-frequency-scaling-v1.noise-flicker-cancellation-v1.noise-v1.noise-power-integral-v1.nqs-disabled-charge-derivative-v1.nqs-channel-charge-v1.transient-v1.ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants',
  archiveURL='https://www.bsim.berkeley.edu/BSIM4/BSIM450.zip',
  archiveSHA256='2d0bc2496bf9b9c18dd2f790c679bfa76426fcac4a1691688fcb6a80a590f3e8',
  nestedSHA256='d94a1df9367d565787f555cc8ce6bd515a34f4d1752fb1da91df6ab54c56e39f',
- corrections=['nqs-disabled-charge-derivative-v1','nqs-channel-charge-v1','sc-selector-v1','cap0-chain-rule-v1','cv-drain-body-v1','ud-chain-rule-v1','ac-nqs-stable-v1','ac-qs-authority-v1'],
+ corrections=['noise-frequency-scaling-v1','noise-flicker-cancellation-v1','nqs-disabled-charge-derivative-v1','nqs-channel-charge-v1','sc-selector-v1','cap0-chain-rule-v1','cv-drain-body-v1','ud-chain-rule-v1','ac-nqs-stable-v1','ac-qs-authority-v1'],
  files={}, diagnosticSites={})
 fields = {}
 original_diagnostics = []
@@ -160,6 +160,54 @@ for name in files:
  s='\n'.join(line.expandtabs(8).rstrip() for line in s.splitlines()).rstrip()+'\n'
  publish(target/name,s)
  manifest['files'][name]=dict(originalSHA256=hashlib.sha256(original).hexdigest(),adaptedSHA256=hashlib.sha256(s.encode()).hexdigest())
+# Retain the original local spectrum and flicker law, excluding host sweep state.
+noise=(source/'b4noi.c').read_text()
+header=noise[:noise.index('\nint\nBSIM4noise')].replace('#include "fteconst.h"','')
+header='#include "bsim4def.h"\n'+re.sub(r'^#include.*$', '', header, flags=re.M)
+header=re.sub(r'extern (?:void\s+NevalSrc|double Nintegrate)\(\);', '', header)
+header=header.replace('log(MAX(((N0 + here->BSIM4nstar) / (Nl + here->BSIM4nstar)), N_MINLOG))','log1p((N0-Nl)/(Nl+here->BSIM4nstar))')
+header=header.replace('(N0 * N0 - Nl * Nl)','((N0-Nl)*(N0+Nl))')
+start=noise.index('if (model->BSIM4tnoiMod == 0)',noise.index('case N_CALC:'))
+end=noise.index('\n\t\t              *OnDens +=',start)
+density=noise[start:end].replace('data->freq','frequency')
+density=density.replace('pow(frequency, model->BSIM4ef)','1.0').replace('data->freq','1.0')
+density,count=re.subn(r'(Eval1ovFNoise\(Vds, model, here,\s*)frequency',r'\g<1>1.0',density);assert count==1
+pattern=r'NevalSrc\(&noizDens\[BSIM4FLNOIZ\], \(double\*\) NULL,.*?\(double\) 0.0\);'
+density,count=re.subn(pattern,'noizDens[BSIM4FLNOIZ]=1.0;',density,flags=re.S);assert count==1
+marker='lnNdens[BSIM4FLNOIZ] ='
+assert density.count(marker)==1
+old="""T1 = Swi + Ssi;
+                                      if (T1 > 0.0)
+                                          noizDens[BSIM4FLNOIZ] *= (Ssi * Swi) / T1;
+                                      else
+                                          noizDens[BSIM4FLNOIZ] *= 0.0;"""
+assert density.count(old)==1
+density=density.replace(old,"""if(!isfinite(Ssi)||!isfinite(Swi)||Ssi<0||Swi<0)return CS_BSIM45_NONFINITE;
+                                      noizDens[BSIM4FLNOIZ] *= (Ssi==0||Swi==0)?0:fmin(Ssi,Swi)/(1+fmin(Ssi,Swi)/fmax(Ssi,Swi));""")
+density=density.replace(marker,"""if(!isfinite(noizDens[BSIM4FLNOIZ])||noizDens[BSIM4FLNOIZ]<0)return CS_BSIM45_NONFINITE;
+                              noizDens[BSIM4FLNOIZ]=cs_noise_project(&context,here->BSIM4dNodePrime,here->BSIM4sNodePrime,
+                                  noizDens[BSIM4FLNOIZ]>0?log(noizDens[BSIM4FLNOIZ])-model->BSIM4ef*log(frequency):0,noizDens[BSIM4FLNOIZ]==0);
+                              """+marker)
+wrapper="""
+#include "noise_primitives.inc"
+int cs_bsim45_noise_density(BSIM4model *model,BSIM4instance *here,CKTcircuit *ckt,double frequency,
+ const double *real,const double *imaginary,double noizDens[14]) {
+ CSBSIM45NoiseContext context={real,imaginary,ckt,0};
+ struct bsim4SizeDependParam *pParam=here->pParam;double lnNdens[14];
+ double T0,T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13,Vds,n,ExpArg,Ssi,Swi;
+ double tmp,gdpr,gspr,npart_theta,npart_beta,igsquare,bodymode;
+ if(model->BSIM4fnoiMod==1&&pParam->BSIM4leff-2*model->BSIM4lintnoi<=0)return CS_BSIM45_NONFINITE;
+"""
+ending="""
+ if(context.failed)return CS_BSIM45_NONFINITE;
+ for(int n=0;n<14;n++)if(!isfinite(noizDens[n])||noizDens[n]<0)return CS_BSIM45_NONFINITE;
+ return CS_BSIM45_OK;
+}
+"""
+text='/* Modified for CoreSpice: exact local noise with scoped transfer gains; no simulator sweep/history. */\n'+header+wrapper+density+ending
+text='\n'.join(line.expandtabs(8).rstrip() for line in text.splitlines()).rstrip()+'\n'
+publish(target/'b4noi.c',text)
+manifest['files']['b4noi.c']=dict(originalSHA256=hashlib.sha256(noise.encode()).hexdigest(),adaptedSHA256=hashlib.sha256(text.encode()).hexdigest(),adaptation='Original local N_DENS and Eval1ovFNoise; scoped stable pair-gain projection, pinned SPICE3f5 constants; no traversal, nVar writes or simulator integration')
 publish(target/'B4TERMS_OF_USE',(source/'B4TERMS_OF_USE').read_bytes())
 publish(target/'upstream.json',json.dumps(manifest,indent=2)+'\n')
 

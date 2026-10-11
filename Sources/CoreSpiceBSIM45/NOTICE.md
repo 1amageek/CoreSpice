@@ -31,7 +31,21 @@ use exclusive 29-state trial/reject/commit history. `nqs-channel-charge-v1` reta
 channel/source charge before cancelling accumulation/depletion additions;
 `nqs-disabled-charge-derivative-v1` differentiates zero relaxation as zero when
 XPART disables intrinsic charge. Both preserve the original physical charge law.
-Noise and public Devices adoption remain unavailable.
+Noise adds original b4noi.c local N_DENS/Eval1ovFNoise, retaining original notices.
+`noise-flicker-cancellation-v1` uses log1p and factored carrier differences;
+`noise-frequency-scaling-v1` separates the exact frequency power and stable
+strong/weak combination before complex gain projection. These arithmetic
+corrections preserve the original source laws and are independently verified.
+Public Devices adoption remains unavailable.
+
+Thermal/shot and log-log interval services implement the pinned SPICE3f5 laws.
+The proof compiles unchanged `src/lib/ckt/nevalsrc.c` and `ninteg.c` from commit
+`73335519d0d7046c754c652569258c5ff1107cf4`, respectively SHA-256
+`c544ab1421f2a23e7ed4bf45b877dca97b469dde99f875d86392a78e91f264e0` and
+`9b89c061e9ffa524b86c236877a0928394b20fffea23bae62a86271bafd6e7d7`.
+Production uses scoped borrowed gains and stateless interval output instead of
+original simulator-global sweep/history. No original log floor creates physical
+power; zero endpoint interpolation follows the explicit native ABI contract.
 
 The bounded BE/TR integration service implements the pinned SPICE3f5 companion
 semantics; the proof compiles unmodified

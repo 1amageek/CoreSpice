@@ -94,7 +94,7 @@ flowchart TD
 | B45-2: [Native owner](Sources/CoreSpiceBSIM45/DESIGN.md) and [source adaptation](Sources/CoreSpiceBSIM45/Kernel/DESIGN.md) | Frozen research | Standalone C setup/defaults/temp/topology; exact owner-size accounting; allocation/fatal-check/diagnostic/work failure; ASan/UBSan cleanup |
 | B45-3: original current, charge and analytic derivatives | B45-2 | Separate unadapted-source references, n/p reverse/body bias, every enabled selector, full-node finite differences/conservation and SC correction |
 | B45-4: AC and BE/TR state machine | B45-3 | Actual frequency-dependent NQS matrix, all 29 states, accepted/rejected trials, stale/double/cross-owner commit refusal, history preserved by DC/AC |
-| B45-5: release-specific noise | B45-3 | Fourteen original channels, gain-pair/correlation, mode 0/1, temperature/frequency, noise-only topology and unchanged accepted history |
+| B45-5: release-specific noise | B45-3 | Thirteen original sources plus total, gain-pair/partition, mode 0/1, temperature/frequency, noise-only topology and unchanged accepted history |
 | B45-6: [Safe owner](Sources/CoreSpiceCompactModels/BSIM45/DESIGN.md) and [production](Sources/CoreSpiceDevices/BSIM45/DESIGN.md) | B45-1, B45-4, B45-5 | Real C-backed Swift evaluator plus public parse->resolve->prepare->compile->consume->bind->Analysis; identity/capability/budget/cancel/cleanup and lock-order proof |
 | B45-7: original PDK and direct/transitive adoption | B45-6 | Source/corner/wrapper-specific DC/AC/transient/noise runs, 4.62 refusal, release performance/resource counters, actual CLI/API/PDK/Host/Studio consumers and dependency pins |
 
@@ -328,7 +328,7 @@ physical-model or portable numerical qualification.
 B45-1/B45-2 evidence covers portable interpretation and Native CPU C
 preparation. B45-3 implements independently verified static I/Q and analytic
 Jacobians with explicit derivative correction identities. The C target is not
-yet composed into Devices. B45-4 Native C AC/transient is implemented; B45-5 through B45-7 remain unfinished;
+yet composed into Devices. B45-4 Native C AC/transient and B45-5 noise are implemented; B45-6/B45-7 remain unfinished;
 public 4.5 numerical refusal and existing 4.8.3 execution remain intentional.
 
 B45-4 AC/frequency NQS is implemented/qualified separately from its transient
@@ -340,4 +340,10 @@ does not imply public simulation capability.
 B45-4 transient BE/TR/NQS qualification uses the Native C history contract in
 [CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md#b45-4-transient-contract).
 The 29-state owner and augmented deficit equation do not change Analysis methods;
-public 4.5 preparation refusal remains until B45-6 adoption and B45-5 noise proof.
+public 4.5 preparation refusal remains until B45-6 adoption.
+
+B45-5 Native C spectra and interval integration are independently qualified under
+[the noise contract](Sources/CoreSpiceBSIM45/DESIGN.md#b45-5-noise-contract).
+The C target owns bounded source evaluation; the future execution composition
+owns sweep storage, frequency policy, input referral and cumulative sums.
+No existing Analysis integration policy or public numerical capability changes.

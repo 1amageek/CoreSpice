@@ -1,10 +1,12 @@
 {
   "release": "4.5.0",
-  "adaptation": "nqs-disabled-charge-derivative-v1.nqs-channel-charge-v1.transient-v1.ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants",
+  "adaptation": "noise-frequency-scaling-v1.noise-flicker-cancellation-v1.noise-v1.noise-power-integral-v1.nqs-disabled-charge-derivative-v1.nqs-channel-charge-v1.transient-v1.ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants",
   "archiveURL": "https://www.bsim.berkeley.edu/BSIM4/BSIM450.zip",
   "archiveSHA256": "2d0bc2496bf9b9c18dd2f790c679bfa76426fcac4a1691688fcb6a80a590f3e8",
   "nestedSHA256": "d94a1df9367d565787f555cc8ce6bd515a34f4d1752fb1da91df6ab54c56e39f",
   "corrections": [
+    "noise-frequency-scaling-v1",
+    "noise-flicker-cancellation-v1",
     "nqs-disabled-charge-derivative-v1",
     "nqs-channel-charge-v1",
     "sc-selector-v1",
@@ -58,6 +60,11 @@
     "b4acld.c": {
       "originalSHA256": "fa0170f09d5d5d34b9f1f34deef7e3a5724bdfb3e3e64d5115d4962299da2ab5",
       "adaptedSHA256": "195949b1aab1d27c3bed07dd03c26d2b6f13920938058dd95eb53bbced1eac9c"
+    },
+    "b4noi.c": {
+      "originalSHA256": "770fe2eadf4ccb82beb78802f4e5b24cdbfa73c3a6e9842e791b18dc9401d32c",
+      "adaptedSHA256": "ff93457db27684c82234d9aa73995a632ff4784b9a8875ed2b610c021b68b42c",
+      "adaptation": "Original local N_DENS and Eval1ovFNoise; scoped stable pair-gain projection, pinned SPICE3f5 constants; no traversal, nVar writes or simulator integration"
     }
   },
   "diagnosticSites": {

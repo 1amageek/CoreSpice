@@ -3,10 +3,10 @@
 ## Purpose and Scope
 
 Status: B45-2 preparation and B45-3 static I/Q/Jacobians are implemented in
-independent SwiftPM C target `CoreSpiceBSIM45`. B45-4 AC/frequency NQS and BE/TR/transient NQS are implemented in the same target; noise and safe-owner
-public execution adoption remain proposed and unavailable.
+independent SwiftPM C target `CoreSpiceBSIM45`. B45-4 AC/frequency NQS and BE/TR/transient NQS are implemented in the same target. B45-5 noise spectra and interval integration are
+implemented; safe-owner/public execution adoption remains proposed and unavailable.
 Parent: [CoreSpice](../../DESIGN.md). Child: [Kernel](Kernel/DESIGN.md).
-It exposes an independently buildable exact-release preparation/static/AC/transient C boundary. It owns no
+It exposes an independently buildable exact-release preparation/static/AC/transient/noise C boundary. It owns no
 parser, model search, expression evaluation, circuit compiler or solver.
 
 ## Responsibilities and Boundaries
@@ -34,7 +34,7 @@ portable MOSContracts; neither C target imports Swift or Foundation.
 checked numeric parameter IDs + explicit temperature/capabilities/work limits
  -> cs_bsim45_create -> original setup/temperature/check -> frozen topology
  -> static I/Q/Jacobians (implemented)
- -> complex AC/NQS | transient trial/reject/commit (implemented) | noise spectrum (future)
+ -> complex AC/NQS | transient trial/reject/commit | noise spectrum (implemented)
  -> finite checked output publication
  -> cs_bsim45_destroy
 ```
@@ -45,8 +45,7 @@ No external SPICE engine is needed for build, link or runtime.
 
 ## Contracts and Invariants
 
-Preparation, static, AC/NQS and transient/history APIs are implemented. Noise
-remains future design with no public declaration. Release and adaptation identities are immutable
+Preparation, static, AC/NQS, transient/history and noise APIs are implemented. Release and adaptation identities are immutable
 and queryable independently of a successful numerical run.
 
 | ABI operation | Guarantee / failure boundary |
@@ -59,7 +58,8 @@ and queryable independently of a successful numerical run.
 | `cs_bsim45_evaluate_ac` | Atomic finite physical admittance with explicit angular frequency and frozen ACNQSMOD |
 | `cs_bsim45_evaluate_transient` | Exact local bias and separate deficit coordinate; full augmented residual/Jacobian and 29 trial states; explicit BE/TR and dt |
 | `cs_bsim45_initialize_history`, `cs_bsim45_commit`, `cs_bsim45_reject`, `cs_bsim45_history` | Explicit equilibrium initialization; exclusive accepted/older banks; owner/generation-bound token commits once or is rejected; inspection is nonmutating |
-| Future `cs_bsim45_noise_spectrum` | Full local complex transfer gains borrowed for call; release-specific PSD channels |
+| `cs_bsim45_noise_spectrum` | Full local complex transfer gains borrowed for call; release-specific PSD slots and atomic publication |
+| `cs_bsim45_integrate_noise` | Stateless adjacent-spectrum integration; source powers and RMS; no owner or sweep state |
 | `cs_bsim45_destroy` | Exactly-once release, including any partial preparation state |
 
 ABI statuses distinguish release/schema/parameter/state errors, allocation/resource/
@@ -129,8 +129,9 @@ topology combinations, exact allocation/failure/release counts and ASan/UBSan.
 Simultaneous 4.5/4.8.3 linkage prepares and destroys independent owners. [Proof/verify_static.py](Proof/verify_static.py) owns current full-node I/Q,
 original references, finite differences, conservation and static ownership.
 [Proof/verify_ac.py](Proof/verify_ac.py) owns AC/NQS. [Proof/verify_transient.py](Proof/verify_transient.py) owns BE/TR/transient NQS,
-history/token behavior and ASan/UBSan lifecycle/failure paths. Noise evidence is
-reserved for B45-5. Each implementation unit builds and
+history/token behavior and ASan/UBSan lifecycle/failure paths.
+[Proof/verify_noise.py](Proof/verify_noise.py) owns source spectra, integration,
+complex projection and bounded noise lifetime. Each implementation unit builds and
 executes only this target's needed sources, with a subprocess timeout. They do
 not require GPU, parser, PDK or a whole package test build.
 
@@ -145,8 +146,7 @@ Native CPU qualification is separate from portable schema runtime evidence.
 ## B45-2 Preparation-Only Implementation Contract
 
 B45-2 implements create, typed numeric/vector admission, prepare, prepared
-inspection and destroy; B45-3 adds static evaluation and B45-4 adds AC/transient operations specified below.
-Only future noise operations remain undeclared design proposals. A failed setter or prepare
+inspection and destroy; B45-3 adds static evaluation, B45-4 adds AC/transient and B45-5 adds noise operations specified below. A failed setter or prepare
 poisons the owner; inspection publishes prepared values only after success.
 Repeated preparation is a state error. The constructor admits owner byte budget,
 diagnostic record capacity, temperature, polarity, noise topology intent and
@@ -312,3 +312,69 @@ Newton-policy input. Otherwise original limiter scaffolding can choose a
 roundtrip subtraction according to the previous orientation even when the
 limiter function itself returns its input. This removes that history-dependent
 roundoff without changing solver policy or the 4.5 physical law.
+
+## B45-5 Noise Contract
+
+Native C only; Swift safe-owner and public Devices/Analysis composition remain
+B45-6. `cs_bsim45_noise_spectrum` consumes the same thirteen physical bias slots,
+finite gmin >= 0, frequency in Hz strictly positive, and thirteen complex
+output-voltage transfer gains (V/A). Ground, unused and deficit gain slots must
+be zero. Preparation must explicitly request noise topology. Changing that
+intent requires a new owner; evaluation never performs setup.
+
+The spectrum contains frequency and fourteen V^2/Hz entries in the release's
+exact order: RD, RS, RG, RBPS, RBPD, RBPB, RBSB, RBDB, ID, flicker, IGS, IGD,
+IGB and total. There are thirteen stochastic sources and one sum, not fourteen
+independent generators. BSIM4.5 has no additional induced-gate correlated source
+or cross-spectrum output. TNOIMOD=1 includes its original theta/beta partition
+effects in series and channel noise. Never import 4.8.3 mode 2 or NevalSrc2.
+Complex pair gain is |H_positive-H_negative|^2, preserving phase within each
+pair. Independent source powers are summed once; a total is never reinjected.
+Constants use the pinned SPICE3f5 host definitions, including Boltzmann
+1.3806226e-23 J/K and charge 1.6021918e-19 C.
+
+```text
+noise-prepared owner + validated bias/frequency/gains
+ -> qualified static coefficients -> original N_DENS equations
+ -> scoped pair-gain projection -> finite nonnegative source/total validation
+ -> atomic spectrum publication
+caller-owned adjacent spectra -> bounded interval integral -> caller-owned sum
+```
+
+All calls require exclusive access. Every spectrum attempt invalidates pending
+transient authorization, even invalid input. Accepted/older 29-state banks and
+original noise history nVar remain unchanged. Caller arrays are borrowed only
+for the call; no gain pointer is stored in the owner. One owner allocation
+includes spectrum staging and is queried by owner_size; fixed stack work and
+allocator metadata are separate from retained payload. No per-frequency
+allocation, setup, temperature preparation, callback, file or global state.
+Invalid caller inputs preserve output/history and the prepared owner; a missing
+noise topology has a separate status. Invalid physical coefficients, negative
+PSD or nonfinite final output terminally fail without partial publication.
+
+`cs_bsim45_integrate_noise` is a stateless, bounded two-endpoint service, not a
+sweep owner. Frequencies must be finite, positive and strictly increasing;
+spectra must be nonnegative finite with an exact ordered source sum as total.
+For strictly positive endpoints integrate the unique log-log power-law
+interpolant, including flat and 1/f limits; stable endpoint-anchored arithmetic
+avoids the original primitive's cancelling powers. If either endpoint is zero,
+log interpolation is undefined: the explicit contract is linear PSD on that
+interval (two zero endpoints integrate to zero). No N_MINLOG floor creates
+physical power. Integrate thirteen sources separately, sum total power (V^2)
+and report sqrt(total) Vrms. Caller owns sweep storage, accumulation, input
+referral, frequency policy, cancellation and resource admission. The service
+retains nothing and never accesses a device owner or transient token. Invalid
+inputs or unrepresentable positive results leave caller output unchanged.
+This does not change existing NoiseAnalysis's trapezoidal integration policy.
+
+Proof owners: `Proof/noise_reference.c` compares untouched nested 4.5 N_DENS
+with unmodified pinned SPICE3f5 NevalSrc/Nintegrate in separate processes.
+`Proof/noise.c` independently checks each source's thermal/shot/flicker formulas,
+TNOIMOD=1 partition, body topology suppression, complex phase/scale identities,
+source sums, integration limits/refinement and history/token/resource failures.
+`Proof/verify_noise.py` records fixed source hashes, deadlines and ASan/UBSan.
+Reference PSD tolerance is 1e-32 V^2/Hz + 2e-7 relative; interval RMS tolerance
+is 1e-18 V + 2e-7 relative. Independent identities use relative/roundoff bounds
+with explicit units. Original integral comparisons cover positive resolved
+power-law endpoints; zero endpoints, near-flat/1/f and extreme conditioning
+use independent analytic/high-precision references, with no physical floor.

@@ -20,6 +20,7 @@ struct CSBSIM45Owner {
  CSBSIM45StaticResult result;
  CSBSIM45ACResult acResult;
  CSBSIM45TransientResult transientResult;
+ CSBSIM45NoiseSpectrum noiseResult;
  uint64_t trialGeneration;
  int historyReady,trialReady;
  uint32_t maximumStressIterations,stressIterations;
@@ -51,7 +52,7 @@ void *cs_allocate_size(CKTcircuit *c,size_t bytes) {
 }
 size_t cs_bsim45_owner_size(void){return sizeof(CSBSIM45Owner);}
 const char *cs_bsim45_release(void){return "4.5.0";}
-const char *cs_bsim45_adaptation(void){return "nqs-disabled-charge-derivative-v1.nqs-channel-charge-v1.transient-v1.ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants";}
+const char *cs_bsim45_adaptation(void){return "noise-frequency-scaling-v1.noise-flicker-cancellation-v1.noise-v1.noise-power-integral-v1.nqs-disabled-charge-derivative-v1.nqs-channel-charge-v1.transient-v1.ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants";}
 CSBSIM45Status cs_bsim45_create(const char *release,uint32_t schemaRevision,int polarity,const CSBSIM45Conditions *conditions,CSBSIM45Owner **out) {
  if(!out)return CS_BSIM45_PARAMETER;*out=NULL;
  if(!release||strcmp(release,cs_bsim45_release()))return CS_BSIM45_VERSION;
@@ -192,3 +193,7 @@ static void invalidate_trial(CSBSIM45Owner *h){if(h)h->trialReady=0;}
 #include "ac_evaluation.inc"
 
 #include "transient_evaluation.inc"
+
+#include "noise_evaluation.inc"
+
+#include "noise_integration.inc"
