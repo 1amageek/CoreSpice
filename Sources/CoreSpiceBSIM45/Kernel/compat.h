@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#define BSIM4acLoad cs_bsim45_acLoad
 #define BSIM4load cs_bsim45_load
 #define BSIM4polyDepletion cs_bsim45_polyDepletion
 #define NIintegrate cs_bsim45_static_integrate
@@ -77,10 +78,11 @@ typedef void Ndata;
 typedef struct {int number;} CKTnode;
 typedef struct {double values[13][13][2];} SMPmatrix;
 typedef struct {
- double CKTtemp,CKTnomTemp;
+ double CKTtemp,CKTnomTemp,CKTomega;
  double CKTabstol,CKTreltol,CKTvoltTol,CKTgmin,CKTdelta,CKTag[7],CKTdeltaOld[7];
  int CKTmode,CKTbypass,CKTnoncon;
  double *CKTrhs,*CKTrhsOld,*CKTstate0,*CKTstate1,*CKTstate2;
+ double *CKTstates[3];
  int nodeCount,noiseRequested;
  CKTnode nodes[13];
  void *sizeStorage; size_t sizeCapacity; int sizeAllocated,allocationFailed;
@@ -108,4 +110,12 @@ static inline double cs_exact_drain_bias(double v,double old){return v;}
 static inline double cs_exact_junction_bias(double v,double old,double vt,double crit,int *check){*check=0;return v;}
 int NIintegrate(CKTcircuit *,double *,double *,double,int);
 int BSIM4load(GENmodel *,CKTcircuit *);
+/* Stable H=1/(1+j*omega*tau), including an overflowing omega*tau.
+   Validated nonnegative finite inputs; no history or caller storage retained. */
+static inline void cs_bsim45_relaxation(double omega,double tau,double *real,double *lag,double *conductanceScale) {
+ if(tau==0||omega==0){*real=1;*lag=0;*conductanceScale=0;return;}
+ if(omega<=1/tau){double x=omega*tau,d=1+x*x;*real=1/d;*lag=x/d;*conductanceScale=omega*(*lag);}
+ else {double r=(1/omega)/tau,d=1+r*r;*real=r*r/d;*lag=r/d;*conductanceScale=(1/tau)/d;}
+}
+int BSIM4acLoad(GENmodel *,CKTcircuit *);
 #endif

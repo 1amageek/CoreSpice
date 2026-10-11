@@ -1,4 +1,4 @@
-# Source and static evaluation scope
+# Source and numerical evaluation scope
 
 This product acknowledges the UC Berkeley BSIM Research Group, which developed
 BSIM4.5.0. Copyright 2005 Regents of the University of California. Original notices
@@ -22,7 +22,12 @@ See [Kernel design](Kernel/DESIGN.md) for derivations and independent proof.
 Original current/charge expressions, defaults and physical release are preserved.
 The adaptation identity and manifest expose every correction; corrected Jacobians
 are not claimed to match defective original Jacobians bitwise.
-AC, transient and noise evaluation remain unavailable.
+AC/NQS adds the original b4acld.c. `ac-nqs-stable-v1` replaces only relaxation
+factor arithmetic with equivalent reciprocal forms; `ac-qs-authority-v1` uses
+qualified static G+j*omega*C for QS to avoid frequency-amplified cancellation
+from the original per-term AC stamp. The original isolated transient charge-node
+diagonal is excluded from physical admittance. Transient/noise and public
+Devices adoption remain unavailable; this is an exclusive Native C capability.
 
 The original preparation files reference only `CONSTvt0`, `CONSTroot2` and
 `CONSTCtoK` from the host simulator. Their definitions are pinned to Berkeley

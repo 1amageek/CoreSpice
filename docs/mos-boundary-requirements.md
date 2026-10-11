@@ -411,3 +411,17 @@ contract in [Kernel design](../Sources/CoreSpiceBSIM45/Kernel/DESIGN.md).
 
 These proofs execute C directly and through Native SwiftPM linkage; they qualify
 neither public Analysis/CLI BSIM4.5 execution nor WASM/Embedded numerical physics.
+
+B45-4 AC/NQS scoped proof: `python3 Sources/CoreSpiceBSIM45/Proof/verify_ac.py
+--original <official-nested-450-code-directory> --output <local-evidence-directory>`.
+
+| Implemented proof owner | Requirements / local invariant | Test or driver |
+|---|---|---|
+| Native AC C owner | R02/R21/R24/R25/R33: exact original AC source and coefficient-isolated comparison, explicit correction identities | `ac_reference.c`, `verify_ac.py` |
+| Independent complex identities | R05/R31/R32/R33: QS Y=G+j*omega*C, channel/charge NQS transfer, complex KCL/gauge, zero/high frequency | `ac.c`; 100-digit Decimal transfer checks |
+| Exclusive bounded AC lifetime | R26/R28/R29/R30: no allocation/setup, accepted/older history unchanged, request atomicity, terminal overflow | `ac.c`, ASan/UBSan |
+
+These AC receipts close only Native C frequency analysis, not transient B45-4,
+noise B45-5, synchronized Swift/public execution B45-6 or PDK adoption B45-7.
+The parent [C contract](../Sources/CoreSpiceBSIM45/DESIGN.md) is the correction
+and publication authority; this table does not grant public numerical capability.

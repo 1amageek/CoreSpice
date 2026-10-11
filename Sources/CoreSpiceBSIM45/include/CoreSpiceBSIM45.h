@@ -5,7 +5,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* Exact-release preparation and static physical I/Q/Jacobians; no dynamic history. */
+/* Exact-release preparation and static I/Q/Jacobians and AC/NQS; no transient history API. */
 typedef struct CSBSIM45Owner CSBSIM45Owner;
 typedef enum {
  CS_BSIM45_OK, CS_BSIM45_VERSION, CS_BSIM45_SCHEMA, CS_BSIM45_PARAMETER,
@@ -46,6 +46,10 @@ typedef struct {
  double conductance[CS_BSIM45_LOCAL_SLOTS * CS_BSIM45_LOCAL_SLOTS];
  double capacitance[CS_BSIM45_LOCAL_SLOTS * CS_BSIM45_LOCAL_SLOTS];
 } CSBSIM45StaticResult;
+typedef struct {
+ double real[CS_BSIM45_LOCAL_SLOTS * CS_BSIM45_LOCAL_SLOTS];
+ double imaginary[CS_BSIM45_LOCAL_SLOTS * CS_BSIM45_LOCAL_SLOTS];
+} CSBSIM45ACResult;
 /* All calls, including destroy, require exclusive access to the owner.
    create borrows its arguments only for the call and clears *out on failure.
    The allocation contains every mutable byte; owner_size excludes malloc metadata.
@@ -70,6 +74,12 @@ CSBSIM45Status cs_bsim45_prepared_info(const CSBSIM45Owner *, CSBSIM45PreparedIn
    out is written only after every result element passes finite validation. */
 CSBSIM45Status cs_bsim45_evaluate_static(CSBSIM45Owner *, const double *bias,
  size_t count, double gmin, CSBSIM45StaticResult *out);
+/* Physical complex nodal admittance (S), row-major, angular frequency rad/s.
+   Same bias/exclusivity/atomic-failure contract as static. omega is finite >= 0.
+   No allocation/setup or accepted/older history mutation. State0 is scratch.
+   Transient deficit row/column are zero; ACNQSMOD is preparation-owned. */
+CSBSIM45Status cs_bsim45_evaluate_ac(CSBSIM45Owner *, const double *bias,
+ size_t count, double gmin, double omega, CSBSIM45ACResult *out);
 size_t cs_bsim45_diagnostic_count(const CSBSIM45Owner *);
 CSBSIM45Status cs_bsim45_diagnostic_at(const CSBSIM45Owner *, size_t index, CSBSIM45Diagnostic *out);
 size_t cs_bsim45_parameter_count(CSBSIM45Role);

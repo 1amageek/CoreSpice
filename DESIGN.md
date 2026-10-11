@@ -330,3 +330,9 @@ preparation. B45-3 implements independently verified static I/Q and analytic
 Jacobians with explicit derivative correction identities. The C target is not
 yet composed into Devices. B45-4 through B45-7 remain unimplemented design units;
 public 4.5 numerical refusal and existing 4.8.3 execution remain intentional.
+
+B45-4 AC/frequency NQS is implemented/qualified separately from its transient
+history unit. Its ABI, exclusive ownership and verification authority are
+[CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md#b45-4-ac-and-frequency-nqs-contract).
+Native Devices remains unsupported for 4.5 until B45-6 composition; C capability
+does not imply public simulation capability.

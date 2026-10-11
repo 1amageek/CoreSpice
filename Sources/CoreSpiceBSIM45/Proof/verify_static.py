@@ -15,7 +15,7 @@ def run(label,args,limit=30):
  if proc.returncode:raise RuntimeError(output[-6000:])
  return output
 def build(name,files,includes,flags=()):
- binary=out/name;run('build-'+name,['clang','-std=gnu17','-Wno-deprecated-non-prototype',*flags,*['-I'+str(x)for x in includes],*files,'-o',binary]);return binary
+ binary=out/name;run('build-'+name,['clang','-std=gnu17','-Wno-deprecated-non-prototype',*flags,*['-I'+str(x)for x in includes],*files,'-o',binary],limit=120);return binary
 try:
  manifest=json.loads((k/'upstream.json').read_text())
  for name,hashes in manifest['files'].items():
@@ -27,7 +27,6 @@ try:
  compat=(k/'compat.h').read_text().replace('#include "../include/CoreSpiceBSIM45.h"','#include "CoreSpiceBSIM45.h"')
  compat=re.sub(r'^int BSIM4(?:NumFingerDiff|PAeffGeo|RdseffGeo|RdsEndIso|RdsEndSha)\([^\n]+\);\n','',compat,flags=re.M)
  compat=compat.replace('double CKTtemp,CKTnomTemp;','double CKTtemp,CKTnomTemp,CKTomega;')
- compat=compat.replace('int CKTmode,CKTbypass,CKTnoncon;', 'int CKTmode,CKTbypass,CKTnoncon; double *CKTstates[3];')
  compat=compat.replace('#endif','''
 typedef struct JOB {const char *JOBname;struct JOB *JOBnextJob;} JOB;
 typedef struct {JOB *jobs;} TSKtask;

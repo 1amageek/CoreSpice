@@ -18,6 +18,7 @@ struct CSBSIM45Owner {
  double states[3][CS_BSIM45_STATE_SLOTS];
  double bias[CS_BSIM45_LOCAL_SLOTS],rhs[CS_BSIM45_LOCAL_SLOTS];
  CSBSIM45StaticResult result;
+ CSBSIM45ACResult acResult;
  uint32_t maximumStressIterations,stressIterations;
  int state,stateCount;
 };
@@ -47,7 +48,7 @@ void *cs_allocate_size(CKTcircuit *c,size_t bytes) {
 }
 size_t cs_bsim45_owner_size(void){return sizeof(CSBSIM45Owner);}
 const char *cs_bsim45_release(void){return "4.5.0";}
-const char *cs_bsim45_adaptation(void){return "static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants";}
+const char *cs_bsim45_adaptation(void){return "ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants";}
 CSBSIM45Status cs_bsim45_create(const char *release,uint32_t schemaRevision,int polarity,const CSBSIM45Conditions *conditions,CSBSIM45Owner **out) {
  if(!out)return CS_BSIM45_PARAMETER;*out=NULL;
  if(!release||strcmp(release,cs_bsim45_release()))return CS_BSIM45_VERSION;
@@ -67,6 +68,7 @@ CSBSIM45Status cs_bsim45_create(const char *release,uint32_t schemaRevision,int 
  CKTcircuit *c=&h->circuit;c->CKTtemp=conditions->ambientKelvin;c->CKTnomTemp=conditions->nominalKelvin;
  c->nodeCount=4;c->noiseRequested=conditions->noiseTopology;c->diagnosticLimit=conditions->maximumDiagnostics;
  c->CKTstate0=h->states[0];c->CKTstate1=h->states[1];c->CKTstate2=h->states[2];
+ for(int n=0;n<3;n++)c->CKTstates[n]=h->states[n];
  c->CKTrhs=h->rhs;c->CKTrhsOld=h->bias;
  c->CKTabstol=1e-12;c->CKTreltol=1e-3;c->CKTvoltTol=1e-6;
  c->sizeStorage=&h->geometry;c->sizeCapacity=sizeof(h->geometry);
@@ -179,3 +181,5 @@ CSBSIM45Status cs_bsim45_parameter_at(CSBSIM45Role role,size_t index,CSBSIM45Par
 void cs_bsim45_destroy(CSBSIM45Owner *h){free(h);}
 
 #include "static_evaluation.inc"
+
+#include "ac_evaluation.inc"

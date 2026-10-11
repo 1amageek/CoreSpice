@@ -3,7 +3,7 @@
 ## Purpose and Scope
 
 Status: original preparation and static numerical source intake implemented;
-AC/transient/noise services remain future units. Parent:
+AC/frequency NQS is implemented; transient/noise services remain future units. Parent:
 [CoreSpiceBSIM45](../DESIGN.md). No children. This component owns exact physical
 source intake, original equations and the private simulator ABI adaptation.
 
@@ -30,7 +30,7 @@ official zip -> nested BSIM450.tar.Z -> per-file hashes + original notices
  -> deterministic adaptation manifest
  -> b4set + b4temp + b4check + b4geo
  -> b4ld (static I, Q, derivatives implemented)
- -> b4acld / transient services / b4noi (future units)
+ -> b4acld (AC/NQS) / transient services / b4noi (future units)
  -> parent ABI's finite output checks and context-local diagnostics
 ```
 
@@ -247,3 +247,42 @@ finite differences execute separately in the release proof; repeating its
 half-million perturbations under -O0 sanitizers adds no topology or ownership
 coverage. The initial combined sanitizer run exceeded 60 seconds; the separated
 memory proof retains all 4,060 operating points with a 30-second deadline.
+
+## B45-4 AC Source and Independent Proof
+
+Import nested original b4acld.c into the same namespaced target; preserve all
+release topology, gate-current and NQS stamps. The parent owns physical-slot
+projection and atomic publication. AC scratch CKTstates aliases the same owned
+state arrays as CKTstate0/1/2. No history data is copied from caller buffers.
+
+The original computes (omega*tau)^2 directly. Replace only relaxation factor
+arithmetic with reciprocal forms when omega*tau > 1; compute omega*T3 without
+an overflowing product. This preserves H=1/(1+j*omega*tau) for representable
+results, including very large finite omega. Record `ac-nqs-stable-v1` separately.
+All other AC equations remain exact original source until a concrete independent
+counterexample establishes a correction. Original AC receives static coefficient
+corrections already owned above; those are not new AC physics.
+
+| Invariant | Proof owner | Counterexample |
+|---|---|---|
+| Original AC stamp | Proof/ac_reference.c | Wrong sign, pointer topology, release dispatch |
+| QS Y=G+j*omega*C | Proof/ac.c | NQS selector leakage, missing static derivatives |
+| Independent NQS H | Proof/ac.c | Wrong channel/charge relaxation or reverse permutation |
+| Complex KCL/gauge | Proof/ac.c | Missing row/column or alias accumulation |
+| History/resource/failure | Proof/ac.c | Accepted history mutation, reallocation, partial output |
+
+Transient BE/TR and trial/commit lifecycle remain a separate unfinished B45-4
+unit; no callable placeholder is introduced. Noise and public adoption remain
+B45-5/B45-6. Propagate ABI changes to the parent and package status without
+claiming these later contracts are implemented.
+
+Sanitizer AC verification keeps all 580 topology/parameter conditions and seven
+biases, using zero, 1e12 and DBL_MAX/16 rad/s. It checks order independence once
+per bias, while the release proof checks all eight frequencies and order after
+each. No ownership or topology branch is removed. Actual setup/temperature
+functions are instrumented in the proof translation unit; each is called exactly
+once per owner. Concurrent native compilation exceeded the original deadlines;
+final verification is serialized, with 120-second compile and 60-second compact
+sanitizer-runtime limits for AC. The retained full eight-frequency sanitizer
+binary is additionally executed with a 120-second deadline, preserving its
+source and artifact hashes instead of recompiling unchanged production sources.

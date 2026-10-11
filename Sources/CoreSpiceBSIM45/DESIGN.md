@@ -3,7 +3,7 @@
 ## Purpose and Scope
 
 Status: B45-2 preparation and B45-3 static I/Q/Jacobians are implemented in
-independent SwiftPM C target `CoreSpiceBSIM45`. AC/transient/noise and safe-owner
+independent SwiftPM C target `CoreSpiceBSIM45`. B45-4 AC/NQS is implemented in the same target; transient/noise and safe-owner
 public execution adoption remain proposed and unavailable.
 Parent: [CoreSpice](../../DESIGN.md). Child: [Kernel](Kernel/DESIGN.md).
 It exposes an independently buildable exact-release preparation/static C boundary. It owns no
@@ -34,7 +34,7 @@ portable MOSContracts; neither C target imports Swift or Foundation.
 checked numeric parameter IDs + explicit temperature/capabilities/work limits
  -> cs_bsim45_create -> original setup/temperature/check -> frozen topology
  -> static I/Q/Jacobians (implemented)
- -> complex AC | transient trial/accept | noise spectrum (future B45-4/B45-5)
+ -> complex AC/NQS (implemented) | transient trial/accept | noise spectrum (future)
  -> finite checked output publication
  -> cs_bsim45_destroy
 ```
@@ -45,7 +45,7 @@ No external SPICE engine is needed for build, link or runtime.
 
 ## Contracts and Invariants
 
-Preparation and static APIs are implemented; general analysis/history/noise
+Preparation, static and AC/NQS APIs are implemented; general history/noise
 operations below are future design only and have no public declarations. Release and adaptation identities are immutable
 and queryable independently of a successful numerical run.
 
@@ -56,6 +56,7 @@ and queryable independently of a successful numerical run.
 | `cs_bsim45_set_model`, `cs_bsim45_set_instance` | Separate generated parameter ID/kind admission; supplied bits preserved; finite/range checks precede C casts |
 | `cs_bsim45_prepare` | Single setup; caller-selected noise intent and work budget; publishes topology only on complete success |
 | `cs_bsim45_evaluate_static` | Physical static I/Q and full analytic Jacobians; selected-branch derivative at VDS=0; atomic finite output |
+| `cs_bsim45_evaluate_ac` | Atomic finite physical admittance with explicit angular frequency and frozen ACNQSMOD |
 | Future `cs_bsim45_evaluate` | Exact local bias, full residual/RHS/current/charge/Jacobians; explicit DC/AC/BE/TR method and conditions |
 | Future `cs_bsim45_initialize_history`, `cs_bsim45_commit` | Exclusive accepted/older history; generation-bound successful trial token commits once |
 | Future `cs_bsim45_noise_spectrum` | Full local complex transfer gains borrowed for call; release-specific PSD channels |
@@ -125,7 +126,7 @@ the Swift boundary; work limits bound the longest uninterruptible native call.
 topology combinations, exact allocation/failure/release counts and ASan/UBSan.
 Simultaneous 4.5/4.8.3 linkage prepares and destroys independent owners. [Proof/verify_static.py](Proof/verify_static.py) owns current full-node I/Q,
 original references, finite differences, conservation and static ownership.
-Future tests own AC/NQS, BE/TR history/token behavior,
+[Proof/verify_ac.py](Proof/verify_ac.py) owns AC/NQS. Future tests own BE/TR history/token behavior,
 noise and ASan/UBSan lifecycle/failure paths. Each implementation unit builds and
 executes only this target's needed sources, with a subprocess timeout. They do
 not require GPU, parser, PDK or a whole package test build.
@@ -195,3 +196,58 @@ selected branch. Tests preserve that branch for D/S finite differences.
 Explicit derivative corrections and their proof are owned only by
 [Kernel](Kernel/DESIGN.md#capmod0-analytic-chain-rule-correction); original current
 and charge laws remain unchanged. No foundry accuracy certification is implied.
+
+## B45-4 AC and Frequency NQS Contract
+
+`cs_bsim45_evaluate_ac` borrows thirteen physical voltages, finite gmin >= 0
+and finite angular frequency omega >= 0 (rad/s). It publishes row-major real
+and imaginary admittance in siemens. All static input/topology rules apply.
+The transient deficit slot is not a voltage: its input and published row/column
+are zero. The original AC-only isolated unit diagonal on that nonphysical slot
+is excluded from this physical projection, independently of ACNQSMOD.
+
+```text
+prepared -> validate complete request -> static operating-point coefficients
+ -> QS: static G+j*omega*C; NQS: original b4acld with owner-local matrix
+ -> physical projection -> finite validation -> single output copy
+invalid input -> unchanged owner/output
+kernel/nonfinite failure -> terminal owner; unchanged caller output
+```
+
+The operation consumes the existing static coefficient path and performs one AC
+stamp; no allocation, setup or accepted/older history write is permitted. State0
+is scratch; states1/2 are accepted/older history. Result staging belongs to the
+single allocation and is included in owner_size, not charged again per call.
+Input/output pointers live only for the exclusive synchronous call. No new
+shared state or target-specific synchronization is introduced.
+
+QS must equal static G+j*omega*C, including aliases, gate/body/series networks
+and either transient NQS selector. AC NQS relaxes channel conductances and
+source/drain intrinsic charges by H=1/(1+j*omega*taunet), retaining bulk,
+overlap and junction contributions. At zero frequency it reduces to static G.
+The kernel owns stable relaxation factors without squaring a large omega*tau;
+negative/nonfinite relaxation time is a terminal nonfinite physics failure.
+Large finite frequencies whose final admittance overflows also fail atomically.
+There is no transient integration/history-commit API in this unit.
+
+Proof/verify_ac.py owns raw original and coefficient-isolated AC comparisons,
+QS identity, independent complex relaxation, row/column conservation, frequency
+and bias order independence, arbitrary history sentinels, exact allocation,
+invalid requests and terminal failure under ASan/UBSan. Raw original derivative
+differences remain restricted to B45-3's documented correction footprint; the
+coefficient-isolated oracle uses the unmodified original AC source and the
+already independently qualified static coefficients, with no difference waiver.
+Native CPU only. AC tolerance is 1e-12 S + 2e-6 relative per cell, fixed by the
+package design. Changes invalidate this proof and actual C-import SwiftPM runtime.
+
+### QS Frequency-Amplified Cancellation Correction
+
+Independent QS tests at omega=1e100 and DBL_MAX/16 detect nonzero original
+imaginary entries where the qualified final C is exactly zero, and discrepancies
+above the fixed tolerance in tiny active entries. Multiplying each capacitance
+before summing amplifies rounding error. `ac-qs-authority-v1` constructs QS from
+the final qualified static G/C directly, giving one derivative authority and
+exact floating-point Y=G+j*omega*C for every representable result. Original AC
+remains the NQS stamp authority. The coefficient-isolated original comparison
+covers omega 0 through 1e16 without waivers; extreme relaxation factors are
+independently checked against 100-digit Decimal arithmetic over 36 cases.

@@ -7,13 +7,13 @@ def publish(path, data):
  if isinstance(data,str): data=data.encode()
  if check: assert path.read_bytes()==data,path
  else: path.write_bytes(data)
-files = ['b4.c','b4mpar.c','b4par.c','b4set.c','b4temp.c','b4check.c','b4geo.c','b4ld.c','bsim4def.h','bsim4ext.h']
+files = ['b4.c','b4mpar.c','b4par.c','b4set.c','b4temp.c','b4check.c','b4geo.c','b4ld.c','bsim4def.h','bsim4ext.h','b4acld.c']
 geometry = ['BSIM4NumFingerDiff','BSIM4PAeffGeo','BSIM4RdseffGeo','BSIM4RdsEndIso','BSIM4RdsEndSha']
-manifest = dict(release='4.5.0', adaptation='static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants',
+manifest = dict(release='4.5.0', adaptation='ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants',
  archiveURL='https://www.bsim.berkeley.edu/BSIM4/BSIM450.zip',
  archiveSHA256='2d0bc2496bf9b9c18dd2f790c679bfa76426fcac4a1691688fcb6a80a590f3e8',
  nestedSHA256='d94a1df9367d565787f555cc8ce6bd515a34f4d1752fb1da91df6ab54c56e39f',
- corrections=['sc-selector-v1','cap0-chain-rule-v1','cv-drain-body-v1','ud-chain-rule-v1'],
+ corrections=['sc-selector-v1','cap0-chain-rule-v1','cv-drain-body-v1','ud-chain-rule-v1','ac-nqs-stable-v1','ac-qs-authority-v1'],
  files={}, diagnosticSites={})
 fields = {}
 original_diagnostics = []
@@ -125,6 +125,13 @@ for name in files:
   block=block.replace('dDenomi_dVd = 0.0;', 'dDenomi_dVd = 2.0 * pParam->BSIM4ud * Vth / (T3 * T3) * dVth_dVd;')
   block=block.replace('dDenomi_dVb = T1 * pParam->BSIM4uc;', 'dDenomi_dVb = T1 * pParam->BSIM4uc + 2.0 * pParam->BSIM4ud * Vth / (T3 * T3) * dVth_dVb;')
   s=s[:start]+block+s[end:]
+ if name == 'b4acld.c':
+  s=s.replace('double capbd, capbs, omega;', 'double capbd, capbs, omega, nqsConductanceScale;')
+  old='T0 = omega * here->BSIM4taunet;\n                  T1 = T0 * T0;\n                  T2 = 1.0 / (1.0 + T1);\n                  T3 = T0 * T2;'
+  assert s.count(old)==1
+  s=s.replace(old,'cs_bsim45_relaxation(omega, here->BSIM4taunet, &T2, &T3, &nqsConductanceScale);')
+  s,count=re.subn(r'T3 \* omega', 'nqsConductanceScale', s)
+  assert count==6
  s='/* Modified for CoreSpice: exclusive bounded preparation; see adapt_upstream.py and DESIGN.md. */\n'+s
  s='\n'.join(line.expandtabs(8).rstrip() for line in s.splitlines()).rstrip()+'\n'
  publish(target/name,s)
