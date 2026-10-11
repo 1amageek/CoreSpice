@@ -52,7 +52,7 @@ static void differences(CSBSIM45PreparedInfo p,double bias[13],CSBSIM45StaticRes
     double numerical=((a?plus.charge[row]:plus.current[row])-(a?minus.charge[row]:minus.current[row]))/(2*steps[h]);
     if(direction)numerical=(-3*(a?base.charge[row]:base.current[row])+4*(a?plus.charge[row]:plus.current[row])-(a?minus.charge[row]:minus.current[row]))/(2*direction*steps[h]);
     double analytic=(a?base.capacitance:base.conductance)[row*13+col];last[a][row]=numerical;
-    if(close_value(analytic,numerical,a?1e-20:1e-10,2e-4)){streak[a][row]++;if(streak[a][row]>best[a][row])best[a][row]=streak[a][row];}else streak[a][row]=0;
+    if(close_value(analytic,numerical,a?1e-20:1e-10,(!a && id>=580)?1e-6:2e-4)){streak[a][row]++;if(streak[a][row]>best[a][row])best[a][row]=streak[a][row];}else streak[a][row]=0;
    }
   }
   for(int row=0;row<13;row++)for(int a=0;a<2;a++) {

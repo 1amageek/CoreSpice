@@ -233,7 +233,7 @@ static void differences(double bias[13],double deficit,int method,double dt,CSBS
 }
 
 int main(int argc,char **argv){
- int end=argc>1?atoi(argv[1]):580,compact=argc>2;
+ int end=argc>1?atoi(argv[1]):STATIC_FIXTURES,compact=argc>2;
  for(int id=0;id<end;id++){
   StaticFixture f=fixture(id);CSBSIM45Conditions conditions={cs_bsim45_owner_size(),100,128,f.ambient,300.15,0};
   assert(cs_bsim45_create("4.5.0",2,f.polarity,&conditions,&owner)==CS_BSIM45_OK);fixture_parameters(f);assert(cs_bsim45_prepare(owner)==CS_BSIM45_OK);

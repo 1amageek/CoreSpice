@@ -1,10 +1,11 @@
 {
   "release": "4.5.0",
-  "adaptation": "noise-frequency-scaling-v1.noise-flicker-cancellation-v1.noise-v1.noise-power-integral-v1.nqs-disabled-charge-derivative-v1.nqs-channel-charge-v1.transient-v1.ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants",
+  "adaptation": "source-velocity-chain-v1.noise-frequency-scaling-v1.noise-flicker-cancellation-v1.noise-v1.noise-power-integral-v1.nqs-disabled-charge-derivative-v1.nqs-channel-charge-v1.transient-v1.ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants",
   "archiveURL": "https://www.bsim.berkeley.edu/BSIM4/BSIM450.zip",
   "archiveSHA256": "2d0bc2496bf9b9c18dd2f790c679bfa76426fcac4a1691688fcb6a80a590f3e8",
   "nestedSHA256": "d94a1df9367d565787f555cc8ce6bd515a34f4d1752fb1da91df6ab54c56e39f",
   "corrections": [
+    "source-velocity-chain-v1",
     "noise-frequency-scaling-v1",
     "noise-flicker-cancellation-v1",
     "nqs-disabled-charge-derivative-v1",
@@ -47,7 +48,7 @@
     },
     "b4ld.c": {
       "originalSHA256": "2eee97eb8a46fc68303787c0936a3c05d56d255d701a79899a111950dc3f4e5b",
-      "adaptedSHA256": "725f75395e67b9ebe350c28a93105a54090f4c8fe35510e89cda173415e213e6"
+      "adaptedSHA256": "4eddb14a3dede19271a25ebe14bd1198e8a521b5ad91815a830cb33661a3b4cd"
     },
     "bsim4def.h": {
       "originalSHA256": "9a73d6f1eb41ea9a5741b33f8aafd38068f1fbdda569a3ce119e1ff436d4c544",

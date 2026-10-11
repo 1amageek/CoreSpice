@@ -9,11 +9,11 @@ def publish(path, data):
  else: path.write_bytes(data)
 files = ['b4.c','b4mpar.c','b4par.c','b4set.c','b4temp.c','b4check.c','b4geo.c','b4ld.c','bsim4def.h','bsim4ext.h','b4acld.c']
 geometry = ['BSIM4NumFingerDiff','BSIM4PAeffGeo','BSIM4RdseffGeo','BSIM4RdsEndIso','BSIM4RdsEndSha']
-manifest = dict(release='4.5.0', adaptation='noise-frequency-scaling-v1.noise-flicker-cancellation-v1.noise-v1.noise-power-integral-v1.nqs-disabled-charge-derivative-v1.nqs-channel-charge-v1.transient-v1.ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants',
+manifest = dict(release='4.5.0', adaptation='source-velocity-chain-v1.noise-frequency-scaling-v1.noise-flicker-cancellation-v1.noise-v1.noise-power-integral-v1.nqs-disabled-charge-derivative-v1.nqs-channel-charge-v1.transient-v1.ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants',
  archiveURL='https://www.bsim.berkeley.edu/BSIM4/BSIM450.zip',
  archiveSHA256='2d0bc2496bf9b9c18dd2f790c679bfa76426fcac4a1691688fcb6a80a590f3e8',
  nestedSHA256='d94a1df9367d565787f555cc8ce6bd515a34f4d1752fb1da91df6ab54c56e39f',
- corrections=['noise-frequency-scaling-v1','noise-flicker-cancellation-v1','nqs-disabled-charge-derivative-v1','nqs-channel-charge-v1','sc-selector-v1','cap0-chain-rule-v1','cv-drain-body-v1','ud-chain-rule-v1','ac-nqs-stable-v1','ac-qs-authority-v1'],
+ corrections=['source-velocity-chain-v1','noise-frequency-scaling-v1','noise-flicker-cancellation-v1','nqs-disabled-charge-derivative-v1','nqs-channel-charge-v1','sc-selector-v1','cap0-chain-rule-v1','cv-drain-body-v1','ud-chain-rule-v1','ac-nqs-stable-v1','ac-qs-authority-v1'],
  files={}, diagnosticSites={})
 fields = {}
 original_diagnostics = []
@@ -94,6 +94,19 @@ for name in files:
     s,count=re.subn(r'('+function+r'\(ckt, [^)]*\)\n)',r'\1CKTcircuit *ckt;\n',s)
     assert count == 1,(function,count)
  if name == 'b4ld.c':
+  # Differentiate every denominator factor in the retained source velocity law.
+  old="""T10 = -T11 / Vgsteff;
+          vs = cdrain * T11; /* vs */
+          dvs_dVg = Gm * T11 + cdrain * T10 * dVgsteff_dVg;
+          dvs_dVd = Gds * T11 + cdrain * T10 * dVgsteff_dVd;
+          dvs_dVb = Gmb * T11 + cdrain * T10 * dVgsteff_dVb;"""
+  assert s.count(old)==1
+  s=s.replace(old,"""T9 = dCoxeff_dVg / Coxeff + dWeff_dVg / Weff;
+          vs = cdrain * T11; /* vs */
+          dvs_dVg = Gm * T11 - vs * (1.0 / Vgsteff + T9) * dVgsteff_dVg;
+          dvs_dVd = Gds * T11 - vs * (1.0 / Vgsteff + T9) * dVgsteff_dVd;
+          dvs_dVb = Gmb * T11 - vs * ((1.0 / Vgsteff + T9) * dVgsteff_dVb
+                    + dWeff_dVb / Weff) * dVbseff_dVb;""")
   # Retain channel-only expressions before accumulation/depletion cancellation.
   declaration='double stableChannelCharge=0, stableChannelGate=0, stableChannelDrain=0, stableChannelBody=0, stableSourceGate=0, stableSourceDrain=0, stableSourceBody=0;'
   s=s.replace('register BSIM4instance *here;', 'register BSIM4instance *here;\n'+declaration)

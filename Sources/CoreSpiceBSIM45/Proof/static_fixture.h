@@ -6,9 +6,13 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-enum { STATIC_FIXTURES=580, STATIC_BIASES=7 };
-typedef struct {int polarity,mob,cap,diode,temp,gate,body,series,nqs,acnqs,igc,igb,wpe,geom,rgeom,minimum,per,bin;double ambient,nf,xpart,ud,ngate;} StaticFixture;
+enum { STATIC_FIXTURES=596, STATIC_BIASES=7 };
+typedef struct {int polarity,mob,cap,diode,temp,gate,body,series,nqs,acnqs,igc,igb,wpe,geom,rgeom,minimum,per,bin;double ambient,nf,xpart,ud,ngate,vtl;} StaticFixture;
 static StaticFixture fixture(int id) {
+ if(id>=580) {
+  StaticFixture f=fixture(id-580);f.vtl=(id/2)%2?2e4:2e5;
+  f.series=(id/2)%2;f.nqs=(id/4)%2;f.acnqs=(id/8)%2;return f;
+ }
  StaticFixture f={0};int n=id;
  f.polarity=n%2?1:-1;n/=2;
  if(id<324) {
@@ -42,6 +46,7 @@ static void fixture_parameters(StaticFixture f) {
  set(0,BSIM4_RGEOMOD,CS_BSIM45_INTEGER,f.rgeom);set(0,BSIM4_MIN,CS_BSIM45_INTEGER,f.minimum);
  MODEL(XPART,REAL,f.xpart);MODEL(AT,REAL,0);MODEL(TOXE,REAL,3e-9);MODEL(TOXM,REAL,3e-9);
  MODEL(VTH0,REAL,f.polarity*0.45);MODEL(U0,REAL,0.05);MODEL(NGATE,REAL,f.ngate);MODEL(UD,REAL,f.ud);
+ if(f.vtl) { MODEL(VTL,REAL,f.vtl);MODEL(DWG,REAL,1e-8);MODEL(DWB,REAL,1e-8); }
  MODEL(RSH,REAL,10);MODEL(RDW,REAL,100);MODEL(RSW,REAL,80);MODEL(RDSW,REAL,120);
  MODEL(RSHG,REAL,10);MODEL(CGSO,REAL,1e-10);MODEL(CGDO,REAL,1.5e-10);MODEL(CGBO,REAL,1e-10);
  MODEL(AGIDL,REAL,2e-9);MODEL(BGIDL,REAL,2e8);MODEL(CGIDL,REAL,0.5);

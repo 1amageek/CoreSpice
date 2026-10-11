@@ -47,6 +47,7 @@ struct BSIM45KernelTests {
         #expect((0..<13).reduce(0) { $0 + noise.outputSpectralDensities[$1] } == noise.outputSpectralDensities[13])
         #expect(noise.outputSpectralDensities[14] == 0 && noise.outputSpectralDensities[15] == 0)
         #expect(BSIM45Evaluator.adaptationIdentity.contains("noise-frequency-scaling-v1"))
+        #expect(BSIM45Evaluator.adaptationIdentity.contains("source-velocity-chain-v1"))
     }
     @Test func everyTrialHasOwnerIdentityAndGeneration() throws {
         for nqs in [false, true] {

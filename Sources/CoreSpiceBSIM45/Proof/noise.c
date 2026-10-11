@@ -156,7 +156,7 @@ int main(int argc,char **argv) {
  size_t originalLayout[5],layout[]={sizeof(BSIM4model),sizeof(BSIM4instance),sizeof(struct bsim4SizeDependParam),offsetof(BSIM4instance,BSIM4gm),offsetof(BSIM4instance,BSIM4nVar)};
  cs_noise_oracle_layout(originalLayout);assert(!memcmp(layout,originalLayout,sizeof(layout)));
 #endif
- int count=argc>1?atoi(argv[1]):580;
+ int count=argc>1?atoi(argv[1]):STATIC_FIXTURES;
  for(int id=0;id<count;id++)for(int thermal=0;thermal<2;thermal++)for(int flicker=0;flicker<2;flicker++){
   StaticFixture f=fixture(id);CSBSIM45Conditions c={cs_bsim45_owner_size(),100,128,f.ambient,300.15,1};assert(cs_bsim45_create("4.5.0",2,f.polarity,&c,&owner)==0);noise_parameters(id,thermal,flicker);assert(cs_bsim45_prepare(owner)==0);
   CSBSIM45PreparedInfo p;assert(cs_bsim45_prepared_info(owner,&p)==0);double history[2][29],noise[3][14],bias[13],real[13],imaginary[13];

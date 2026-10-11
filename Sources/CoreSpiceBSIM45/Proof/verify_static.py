@@ -1,7 +1,7 @@
 """Exact-release static proof, independent original oracle and physical invariants."""
 from pathlib import Path
 import argparse,hashlib,json,math,os,re,signal,subprocess,time
-p=argparse.ArgumentParser();p.add_argument('--original',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--fixtures',type=int,default=580);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--original',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--fixtures',type=int,default=596);a=p.parse_args()
 a.original=a.original.resolve()
 root=Path(__file__).resolve().parents[3];module=root/'Sources/CoreSpiceBSIM45';k=module/'Kernel';proof=module/'Proof';out=a.output.resolve();out.mkdir(parents=True,exist_ok=True)
 report=dict(status='running',scope='Native CPU original static physical current/charge and full-node analytic Jacobians; no AC/transient/noise/public binding',commands=[])
@@ -63,7 +63,7 @@ int BSIM4RdsEndSha(double,double,double,double,double,double,int,int,double *);
    matrix=n-26 if n<195 else n-195;row,col=divmod(matrix,13)
    # Only the documented derivative corrections may differ. Original I/Q laws
    # and every row/column outside their affected physical nodes remain strict.
-   correctedG=26<=n<195 and float(meta[8])!=0 and row in resistive and col in intrinsic
+   correctedG=26<=n<195 and (float(meta[8])!=0 or float(meta[-1])>0) and row in resistive and col in intrinsic
    correctedC=n>=195 and row in intrinsic and col in intrinsic
    if correctedG or correctedC:
     key='conductance' if correctedG else 'capacitance';corrections[key]+=1
@@ -73,7 +73,7 @@ int BSIM4RdsEndSha(double,double,double,double,double,double,int,int,double *);
  report['documentedDerivativeDifferences']=corrections;report['correctionExamples']=examples
  report['referencePolicy']='All I/Q, topology and unaffected G/C must match original; documented intrinsic chain corrections additionally require independent finite differences at every physical node.'
  report['referenceTolerance']=dict(relative=2e-7,currentA=1e-13,chargeC=1e-23,conductanceS=1e-10,capacitanceF=1e-20)
- report['finiteDifferenceTolerance']=dict(relative=2e-4,conductanceS=1e-10,capacitanceF=1e-20,centralStepsV=[1e-2,3e-3,1e-3,3e-4,1e-4,1e-5,1e-6],minimumAdjacentPassingSteps=2,zeroVDS='Second-order forward-branch one-sided D/S differences; central for other columns')
+ report['finiteDifferenceTolerance']=dict(relative=2e-4,conductanceS=1e-10,capacitanceF=1e-20,centralStepsV=[1e-2,3e-3,1e-3,3e-4,1e-4,1e-5,1e-6],minimumAdjacentPassingSteps=2,explicitVTLLimiterConductanceRelative=1e-6,zeroVDS='Second-order forward-branch one-sided D/S differences; central for other columns')
  report['oracleSourceSHA256']={x.name:digest(x)for x in originals}
  assert not errors,errors[:10]
  if a.fixtures>=18:assert all(corrections.values())

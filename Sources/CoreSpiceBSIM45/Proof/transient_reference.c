@@ -43,7 +43,7 @@ int main(int argc,char **argv) {
   assert(cs_bsim45_prepare(owner)==CS_BSIM45_OK);assert(cs_bsim45_prepared_info(owner,&p)==CS_BSIM45_OK);
   double bias[13];
 #endif
-  printf("TOPO %d %d %d %d %d %d %d %d %.17g %.17g %d\n",id,f.cap,f.gate,p.gatePrime,p.drainPrime,p.sourcePrime,p.bodyPrime,p.gateMid,f.ud,f.ngate,p.chargeNode);
+  printf("TOPO %d %d %d %d %d %d %d %d %.17g %.17g %d %.17g\n",id,f.cap,f.gate,p.gatePrime,p.drainPrime,p.sourcePrime,p.bodyPrime,p.gateMid,f.ud,f.ngate,p.chargeNode,f.vtl);
   for(int method=1;method<=2;method++)for(int point=0;point<STATIC_BIASES;point++) {
    fixture_bias(p,f.polarity,point,bias);CSBSIM45TransientResult result={0};
    double dt=point%3==0?1e-10:point%3==1?2e-10:5e-11;double deficit=f.nqs&&point?f.polarity*point*1e-6:0;

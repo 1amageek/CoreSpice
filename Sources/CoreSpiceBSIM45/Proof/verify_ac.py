@@ -2,7 +2,7 @@
 from pathlib import Path
 from decimal import Decimal, localcontext
 import argparse,hashlib,json,math,os,re,signal,subprocess,time
-p=argparse.ArgumentParser();p.add_argument('--original',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--fixtures',type=int,default=580);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--original',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--fixtures',type=int,default=596);a=p.parse_args()
 a.original=a.original.resolve()
 root=Path(__file__).resolve().parents[3];module=root/'Sources/CoreSpiceBSIM45';k=module/'Kernel';proof=module/'Proof';out=a.output.resolve();out.mkdir(parents=True,exist_ok=True)
 report=dict(status='running',scope='Native CPU AC/frequency NQS only; no transient/noise/public binding',commands=[])
@@ -61,7 +61,7 @@ int BSIM4RdsEndSha(double,double,double,double,double,double,int,int,double *);
    if abs(left-right)<=1e-12+2e-6*max(abs(left),abs(right)):continue
    row,col=divmod(n%169,13)
    correctedC=row in intrinsic and col in intrinsic
-   correctedG=float(meta[8])!=0 and row in resistive and col in intrinsic
+   correctedG=(float(meta[8])!=0 or float(meta[-1])>0) and row in resistive and col in intrinsic
    if correctedC or correctedG:corrections+=1
    else:errors.append((x[0],x[1],n,left,right))
  report['originalReferenceCases']=len(old);report['documentedStaticDerivativeDifferences']=corrections

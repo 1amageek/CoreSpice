@@ -250,6 +250,30 @@ half-million perturbations under -O0 sanitizers adds no topology or ownership
 coverage. The initial combined sanitizer run exceeded 60 seconds; the separated
 memory proof retains all 4,060 operating points with a 30-second deadline.
 
+### Source-End Velocity-Limit Chain Rule
+
+The original Sky130 RF coefficients explicitly supply VTL=2e5. Its circuit AC
+slope differs from converged DC Richardson differences by 5.4e-5 relative in
+both the adapted kernel and ngspice46. Direct physical-node finite differences
+isolate the source-end velocity limiter; disabling VTL removes the discrepancy.
+The retained current law uses `vs = I / (Coxeff * Weff * Vgsteff)`. Its derivative
+must include all three denominator factors. With `A = dCoxeff_dVg/Coxeff +
+dWeff_dVg/Weff`, the missing logarithmic factors are `A*dVgsteff_dVg` for gate,
+`A*dVgsteff_dVd` for drain, and `(A*dVgsteff_dVb + dWeff_dVb/Weff)*dVbseff_dVb`
+for raw body. The existing Vgsteff body contribution also requires that final
+body factor. Apply these only to `dvs`, preserving vs, Fsevl, current and charge.
+Record `source-velocity-chain-v1` in the reproducible adaptation identity.
+
+The static proof owns explicit VTL on/off cases, nonconstant effective width,
+both polarities/directions and all physical columns at a stricter 1e-6 relative
+conductance criterion. Original I/Q equality, conservation, gauge invariance
+and unchanged history remain required. Changed intrinsic G is an intentional
+qualified correction; raw-original equality is not evidence of its derivative
+correctness. AC and transient consume the corrected common load, and their
+original comparison policies retain the documented derivative exception.
+Original Sky130 RF circuit AC must agree with independent converged DC slopes;
+external original-derived AC agreement alone cannot close this requirement.
+
 ## B45-4 AC Source and Independent Proof
 
 Import nested original b4acld.c into the same namespaced target; preserve all

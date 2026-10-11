@@ -2,7 +2,7 @@
 from pathlib import Path
 from decimal import Decimal,localcontext
 import argparse,hashlib,json,math,os,re,signal,subprocess,tarfile,time
-p=argparse.ArgumentParser();p.add_argument('--original',type=Path,required=True);p.add_argument('--spice-archive',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--fixtures',type=int,default=580);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--original',type=Path,required=True);p.add_argument('--spice-archive',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--fixtures',type=int,default=596);a=p.parse_args()
 a.original=a.original.resolve();root=Path(__file__).resolve().parents[3];module=root/'Sources/CoreSpiceBSIM45';k=module/'Kernel';proof=module/'Proof';out=a.output.resolve();out.mkdir(parents=True,exist_ok=True)
 report=dict(status='running',scope='Native CPU B45-5 C noise only; no public Devices/Analysis or portable numerical adoption',commands=[])
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()

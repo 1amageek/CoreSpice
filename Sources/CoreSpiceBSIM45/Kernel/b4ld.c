@@ -1922,11 +1922,12 @@ for (; model != NULL; model = model->BSIM4nextModel)
         if((model->BSIM4vtlGiven) && (model->BSIM4vtl > 0.0) ) {
           T12 = 1.0 / Leff / CoxeffWovL;
           T11 = T12 / Vgsteff;
-          T10 = -T11 / Vgsteff;
+          T9 = dCoxeff_dVg / Coxeff + dWeff_dVg / Weff;
           vs = cdrain * T11; /* vs */
-          dvs_dVg = Gm * T11 + cdrain * T10 * dVgsteff_dVg;
-          dvs_dVd = Gds * T11 + cdrain * T10 * dVgsteff_dVd;
-          dvs_dVb = Gmb * T11 + cdrain * T10 * dVgsteff_dVb;
+          dvs_dVg = Gm * T11 - vs * (1.0 / Vgsteff + T9) * dVgsteff_dVg;
+          dvs_dVd = Gds * T11 - vs * (1.0 / Vgsteff + T9) * dVgsteff_dVd;
+          dvs_dVb = Gmb * T11 - vs * ((1.0 / Vgsteff + T9) * dVgsteff_dVb
+                    + dWeff_dVb / Weff) * dVbseff_dVb;
           T0 = 2 * MM;
           T1 = vs / (pParam->BSIM4vtl * pParam->BSIM4tfactor);
           if(T1 > 0.0)
