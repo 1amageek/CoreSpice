@@ -3,7 +3,7 @@
 ## Purpose and Scope
 
 Parent: [CompactModels](../DESIGN.md). No children. Own local preparation payload
-capacity/work accounting shared by the two safe native evaluators.
+capacity/work accounting shared by the safe native evaluators.
 
 ## Responsibilities and Boundaries
 
@@ -57,3 +57,9 @@ preserves exactly-once C destruction. No unlimited native policy is supplied.
 Safe and Devices tests cover low ceilings, actual nonempty diagnostics, bounded
 parameter projection, cancellation and failure cleanup. Payload metric changes
 require both safe evaluators and native preparation receipt revalidation.
+
+BSIM45 borrows separate numeric-ID buffers instead of allocating name dictionaries.
+Its uniqueness set and fixed diagnostic conversion are admitted before use and
+actual capacities are rechecked. The same limit/work/cancellation contract applies;
+C inline diagnostics are already included in the queried owner allocation. Swift
+retained diagnostics and text are additional payload, never charged as C memory.

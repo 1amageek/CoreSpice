@@ -185,6 +185,7 @@ CSBSIM45Status cs_bsim45_parameter_at(CSBSIM45Role role,size_t index,CSBSIM45Par
 void cs_bsim45_destroy(CSBSIM45Owner *h){free(h);}
 
 static void invalidate_trial(CSBSIM45Owner *h){if(h)h->trialReady=0;}
+void cs_bsim45_invalidate_trial(CSBSIM45Owner *h){invalidate_trial(h);}
 
 #include "transient_integration.inc"
 

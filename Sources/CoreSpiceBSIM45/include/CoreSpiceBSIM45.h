@@ -119,6 +119,8 @@ CSBSIM45Status cs_bsim45_initialize_history(CSBSIM45Owner *, const double *bias,
 CSBSIM45Status cs_bsim45_evaluate_transient(CSBSIM45Owner *, const double *bias,
  size_t count, double deficitCoordinate, double gmin,
  CSBSIM45IntegrationMethod method, double dt, CSBSIM45TransientResult *out);
+/* Invalidates authorization without touching accepted history; exclusive access. */
+void cs_bsim45_invalidate_trial(CSBSIM45Owner *);
 CSBSIM45Status cs_bsim45_commit(CSBSIM45Owner *, CSBSIM45TrialToken);
 CSBSIM45Status cs_bsim45_reject(CSBSIM45Owner *, CSBSIM45TrialToken);
 /* Nonmutating inspection is available after internal failure if initialized. */

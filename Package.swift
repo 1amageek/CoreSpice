@@ -62,7 +62,7 @@ let package = Package(
         .target(name: "CoreSpiceBSIM4", exclude: ["DESIGN.md", "NOTICE.md", "LICENSE.txt", "ECL-2.0.txt", "Proof",
             "Kernel/DESIGN.md", "Kernel/upstream.json", "Kernel/adapt_upstream.py", "Kernel/noise_primitives.inc", "Kernel/NOISE_PRIMITIVE_LICENSE"],
             publicHeadersPath: "include"),
-        .target(name: "CoreSpiceCompactModels", dependencies: ["CoreSpiceBSIM3", "CoreSpiceBSIM4", "CoreSpiceMOSContracts"],
+        .target(name: "CoreSpiceCompactModels", dependencies: ["CoreSpiceBSIM3", "CoreSpiceBSIM4", "CoreSpiceBSIM45", "CoreSpiceMOSContracts"],
             exclude: ["DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "BSIM45/DESIGN.md", "PreparationStorage/DESIGN.md"]),
 
         // --- Devices ---
@@ -212,6 +212,7 @@ let package = Package(
         // Tests
         // ==========================================================================
 
+        .testTarget(name: "CoreSpiceBSIM45KernelTests", dependencies: ["CoreSpiceCompactModels", "CoreSpiceMOSContracts"]),
         .testTarget(name: "CoreSpiceBSIM3IntegrationTests", dependencies: ["CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceBSIM3NoiseTests", dependencies: ["CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceBSIM4IntegrationTests", dependencies: ["CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),

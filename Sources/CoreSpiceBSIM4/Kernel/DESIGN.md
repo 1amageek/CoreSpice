@@ -102,3 +102,7 @@ implementation. Its body/NQS charge correction provenance remains explicit.
 The public Analysis owns trapezoidal integration; original simulator Nintegrate
 is not part of this spectrum ABI. C sanitizer/lifecycle and complex-interference
 proof verify the new noise boundary, without re-auditing unchanged model physics.
+
+The compatibility header defines the original pi constant when an ISO C17 libc
+does not expose POSIX `M_PI`. This preserves the same rounded Double constant
+on WASI and Native; no 4.8.3 equation or runtime capability is changed.

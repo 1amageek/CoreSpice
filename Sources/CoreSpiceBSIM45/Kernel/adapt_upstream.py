@@ -214,11 +214,14 @@ publish(target/'upstream.json',json.dumps(manifest,indent=2)+'\n')
 # Compile-time scalar checks cover all original owned doubles, including geometry
 # key fields. Pointer fields and noise/history arrays are not scalar inputs.
 definition = (target/'bsim4def.h').read_text()
+macros = set(re.findall(r'^#define\s+(\w+)\b', definition, re.M))
 finite = '/* Generated scalar finiteness checks for original owned physical fields. */\nstatic int prepared_finite(const CSBSIM45Owner *h) {\n'
 for pattern, owner in [(r'typedef struct sBSIM4instance\s*\{(.*?)\}\s*BSIM4instance\s*;','instance'), (r'typedef struct sBSIM4model\s*\{(.*?)\}\s*BSIM4model\s*;','model'), (r'struct bsim4SizeDependParam\s*\{(.*?)\};','geometry')]:
     match = re.search(pattern, definition, re.S)
     assert match, owner
     for field in re.findall(r'\bdouble\s+(\w+)\s*;', match[1]):
+        # Original state aliases (not physical scalars) shadow some field names.
+        if field in macros: continue
         finite += f' if(!isfinite(h->{owner}.{field}))return 0;\n'
 finite += ' return 1;\n}\n'
 publish(target/'finite.inc',finite)

@@ -347,3 +347,11 @@ B45-5 Native C spectra and interval integration are independently qualified unde
 The C target owns bounded source evaluation; the future execution composition
 owns sweep storage, frequency policy, input referral and cumulative sums.
 No existing Analysis integration policy or public numerical capability changes.
+
+## Fixed Native Dependency Lock
+
+The repository tracks its root `Package.resolved`. Direct revision requirements
+and transitive versions are resolved from published Git objects; normal and
+qualification builds use `--force-resolved-versions`. Local edits/overrides are
+not final execution evidence. Updating this lock requires actual target build
+and public-path regression, with no implicit release/tag or dependency downgrade.

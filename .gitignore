@@ -13,6 +13,7 @@ DerivedData/
 /Benchmarks/.build
 /Packages
 Package.resolved
+!/Package.resolved
 
 # SwiftPM Xcode integration
 .swiftpm/configuration/registries.json

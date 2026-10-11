@@ -26,12 +26,12 @@ struct CompactModelPreparationStorage {
         temporaryBytes = max(temporaryBytes, payload)
     }
 
-    mutating func charge() throws {
+    mutating func charge(_ units: UInt64 = 1) throws {
         try control?.checkCancellation()
-        let (next, overflow) = workUnits.addingReportingOverflow(1)
+        let (next, overflow) = workUnits.addingReportingOverflow(units)
         guard !overflow else { throw MOSPreparationFailure.arithmeticOverflow }
         guard next <= limits.maximumWorkUnits else { throw MOSPreparationFailure.workLimitExceeded }
-        try control?.chargeWork(units: 1)
+        try control?.chargeWork(units: units)
         workUnits = next
     }
 

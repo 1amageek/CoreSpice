@@ -378,3 +378,8 @@ is 1e-18 V + 2e-7 relative. Independent identities use relative/roundoff bounds
 with explicit units. Original integral comparisons cover positive resolved
 power-law endpoints; zero endpoints, near-flat/1/f and extreme conditioning
 use independent analytic/high-precision references, with no physical floor.
+
+B45-6 adds `cs_bsim45_invalidate_trial`: exclusive, allocation-free authorization
+invalidation without accepted-history mutation. The Swift owner invokes it before
+its own padded-buffer validation, so rejected Swift inputs cannot leave a stale
+commit token valid. All C numerical equations and resource ownership are unchanged.

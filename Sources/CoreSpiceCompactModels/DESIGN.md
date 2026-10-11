@@ -3,7 +3,7 @@
 ## Purpose and Scope
 
 This SwiftPM module is an independently usable native compact-model evaluator.
-Its parent is [CoreSpice](../../DESIGN.md); its children are [BSIM3](BSIM3/DESIGN.md), [BSIM4](BSIM4/DESIGN.md), and [PreparationStorage](PreparationStorage/DESIGN.md).
+Its parent is [CoreSpice](../../DESIGN.md); its children are [BSIM3](BSIM3/DESIGN.md), [BSIM4](BSIM4/DESIGN.md), [BSIM45](BSIM45/DESIGN.md), and [PreparationStorage](PreparationStorage/DESIGN.md).
 
 ## Responsibilities and Boundaries
 
@@ -17,7 +17,7 @@ provides no circuit solver, frontend model selection, or foundry qualification.
 |---|---|---|---|---|
 | [CoreSpice](../../DESIGN.md) | parent | Native simulation domain | Independent evaluator product | Selector qualification is owned by Devices BSIM3 |
 | [BSIM3](BSIM3/DESIGN.md) | child | Safe model evaluation | Berkeley 3.3.0 physics | Preserve full NQS and series-node semantics |
-| [BSIM45](BSIM45/DESIGN.md) | child, proposed | Exact 4.5 synchronized evaluator | Separate C owner | No numerical runtime capability yet |
+| [BSIM45](BSIM45/DESIGN.md) | child | Exact 4.5 synchronized evaluator | Separate C owner | Numerical qualification is Native CPU only |
 | [BSIM4](BSIM4/DESIGN.md) | child | Safe original evaluator | Independent host kernel | Production requires separate Devices proof |
 | [PreparationStorage](PreparationStorage/DESIGN.md) | child | Explicit local preparation budgets | Shared payload accounting | Actual capacities are checked before use; allocator metadata is excluded |
 
@@ -49,3 +49,10 @@ verify actual DC/AC/transient before model selection can advertise support.
 [BSIM4 evaluator](BSIM4/DESIGN.md) owns exact Berkeley 4.8.3 host CPU evaluation. This lower
 contract does not open the native Level 54 frontend/binding gate; production
 integration and correlated noise composition remain incomplete.
+
+## BSIM4 4.5 Kernel Composition
+
+[BSIM45](BSIM45/DESIGN.md) owns independent exact 4.5 safe numerical access;
+[CoreSpiceBSIM45](../CoreSpiceBSIM45/DESIGN.md) owns its exclusive C ABI.
+All targets use the same `Mutex<State>` storage and witness requirements. Native
+CPU evidence does not grant WASM/Embedded numerical capability.

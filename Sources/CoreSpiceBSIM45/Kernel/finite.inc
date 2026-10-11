@@ -169,7 +169,6 @@ static int prepared_finite(const CSBSIM45Owner *h) {
  if(!isfinite(h->instance.BSIM4qbulk))return 0;
  if(!isfinite(h->instance.BSIM4qdrn))return 0;
  if(!isfinite(h->instance.BSIM4qsrc))return 0;
- if(!isfinite(h->instance.BSIM4qdef))return 0;
  if(!isfinite(h->instance.BSIM4qchqs))return 0;
  if(!isfinite(h->instance.BSIM4taunet))return 0;
  if(!isfinite(h->instance.BSIM4gtau))return 0;

@@ -394,3 +394,11 @@ the final PSD is representable. Record `noise-frequency-scaling-v1`. The
 strong/weak harmonic combination uses min/(1+min/max), with explicit finite
 nonnegative admission, instead of a product that can underflow. Zero powers
 remain exact zero; unrepresentable positive final PSD is a typed failure.
+
+### State Alias Classification
+
+The generated finite-scalar checks exclude names shadowed by the original
+header's state-index macros. `BSIM4qdef` expands to an integer bank offset, not
+the unused identically named Double field. State-bank finiteness remains checked
+at evaluation publication. This avoids classifying an integer as floating point
+on WASI without casting or weakening physical-value admission.

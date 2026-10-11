@@ -20,6 +20,10 @@
 #define BSIM4DioIjthVjmEval cs_bsim4_DioIjthVjmEval
 #define BSIM4polyDepletion cs_bsim4_polyDepletion
 #include <math.h>
+/* ISO C17 does not require the POSIX pi macro (notably on WASI). */
+#ifndef M_PI
+#define M_PI 3.14159265358979323846264338327950288
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
