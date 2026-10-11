@@ -131,6 +131,43 @@ duplicate same-condition cold setup. Compare 4.8.3 only for infrastructure cost;
 different-release numerical results are not an equivalence oracle. No runtime
 speedup is claimed until measured on the complete changed path.
 
+The first original-source adoption matrix uses unchanged Volare
+`c6d73a35f524070e85faff4a6a9eef49553ebc2b` files: `nfet_01v8` TT/FF/SS,
+`pfet_01v8` TT, `rf_nfet_01v8_bM02W1p65L0p15` TT (including its dummy
+MOS), and `esd_nfet_01v8` TT. Each row retains its exact pm3/corner/mismatch
+file catalog, micron caller scale, seed 42 and supplied geometry. Original LOD
+parameters supply pFET stress defaults; original invariant parameters supply
+RF/ESD global corrections. RF/ESD corner files expand their own pm3 include,
+rather than adding a duplicate model occurrence at the root. The original
+20V composed wrappers currently refuse undefined numeric scope bindings before
+preparation. A separate unchanged pFET model-declaration inspection rejects exact
+4.62 before coefficient evaluation. The latter is not a full-wrapper release
+refusal; neither result establishes high-voltage numerical coverage.
+This matrix establishes these rows only, not every Sky130 family/corner or
+foundry process accuracy.
+
+`Sky130OriginalExecutionTests` owns public exact-source preparation and numerical
+execution of each accepted row. A single immutable resolution is reused across
+explicit new DC/AC/transient/noise preparation owners; each completed phase must
+refer to that resolution, correct conditions and one cold setup per MOS. Output
+KCL, source waveforms and noise-channel accumulation/integration are independent
+network checks. Recorded numerical arrays permit external simulator comparison;
+the comparator identity and any release adaptation differences remain explicit.
+The matrix requests the same explicit convergence conditions for all four analyses:
+ABSTOL=1e-12 A, RELTOL=1e-8, VNTOL=1e-10 V and solver GMIN=0.
+The earlier 1e-13 A noise-start experiment is retained as a refusal: the original
+noise topology can insert 1e3 S prime-node conductances, and the NFET TT solve
+stalls at 1.1368683772161603e-13 A, consistent with cancellation at these
+conductances (the exact matrix-product roundoff floor is not independently
+qualified here). The standard 1e-12 A admission criterion stays below independent network
+comparison tolerances; derivative criteria are unchanged. RF differential probes
+separately use ABSTOL=1e-15 A and step refinement to isolate analytic correctness.
+The original-source tests additionally require zero outstanding live/temporary
+reservations after the row owner is released. Input snapshots retain the original
+bytes and digest. Resource observations
+separate admitted logical capacity from actual allocation, and record parsing
+and reused-resolution wall times with identical observer settings.
+
 R01-R20 remain owned by Parser/Lowering/MOSResolution and the release schema;
 B45-1 revalidates their changed release/scale assumptions. R21-R30 are owned by
 MOSPreparation, the new native/safe/bound owners and existing NativeExecution;
