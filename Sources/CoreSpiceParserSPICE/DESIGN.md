@@ -61,6 +61,17 @@ all body builders are restored by defer when parsing exits or throws.
 fields. `MOSDeclarationIntakeTests` owns source order, source coordinates and
 scope isolation proofs; later MOS resolution owns release/profile admission.
 
+Model `version` is source text, including numeric-looking spellings. The parser
+must not reconstruct it from a Double: trailing zeros, exponent spelling/case and
+scale suffixes reach the release/profile schema unchanged. Numeric token boundaries
+and the existing monotonic projected-source cursor delimit the retained text;
+conditional projection, continuations and EOF retain their physical coordinates.
+The accounted path reserves exact UTF-8 storage before copying and retains that
+reservation in the parsed snapshot. Work and cancellation use the existing source
+ledger; no additional source owner or per-declaration whole-source scan is added.
+Ordinary/accounted MOS intake tests prove spelling parity and release, and CLI
+case tests distinguish schema rejection from native preparation refusal.
+
 Every model parameter requires `name=value`. A bare name (including `level`,
 `version` or a scalar coefficient) and an unexpected token are located syntax
 failures in the shared ordinary/accounted grammar. They cannot become omitted

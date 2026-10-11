@@ -17,6 +17,36 @@ import Synchronization
 
 @Suite("Ordinary CLI completed case evidence", .timeLimit(.minutes(1)))
 struct CaseExecutionTests {
+    @Test(arguments: [MOSInputProfile.coreStrictV1, .pinnedNgspiceNormalV1])
+    func exactReleaseSpellingReachesProfileAdmissionBeforeNativeRefusal(profile: MOSInputProfile) async throws {
+        for version in ["4.5", "4.5.0", "4.500000e+0", "4.500000E+0", "4.50", "4.5k", "4.62"] {
+            let root = try directory(); defer { cleanup(root) }
+            let source = root.appendingPathComponent("deck.cir")
+            try "Exact version\n.model n nmos level=54 version=\(version)\nVD d 0 1\nVG g 0 1\nM1 d g 0 0 n l=1u w=2u\n.op\n.end\n"
+                .write(to: source, atomically: true, encoding: .utf8)
+            let output = root.appendingPathComponent("case")
+            let args = ["-b", source.path, "--mos-profile", profile.rawValue,
+                "--case-output", output.path, "--case-id", "exact-version", "--json"]
+            let admitted = version == "4.5" || version == "4.5.0" ||
+                (version == "4.500000e+0" && profile == .pinnedNgspiceNormalV1)
+            var session = try Session(policy: .developerV1(profile: profile))
+            do {
+                _ = try await CLI(arguments: args).executeBatch(options: .init(arguments: args), session: &session)
+                Issue.record("Preparation-only release published numerical execution")
+            } catch let failure as MOSResolutionFailure {
+                #expect(!admitted)
+                #expect(failure == .schema(.unsupportedRelease(level: 54, version: version)))
+            } catch let failure as SPICENativePreparationError {
+                #expect(admitted)
+                guard case .mosPreparation(.unsupportedRelease(.bsim4_4_5)) = failure else {
+                    Issue.record("Unexpected preparation failure: \(failure)"); continue
+                }
+            }
+            #expect(!FileManager.default.fileExists(atPath: output.appendingPathComponent("execution.json").path))
+            #expect(!FileManager.default.fileExists(atPath: output.appendingPathComponent("model-receipt-0.json").path))
+        }
+    }
+
     @Test func exactMOSMatrixCeilingReachesNativePreparation() async throws {
         for dimension in [3, 4] {
             let root = try directory(); defer { cleanup(root) }

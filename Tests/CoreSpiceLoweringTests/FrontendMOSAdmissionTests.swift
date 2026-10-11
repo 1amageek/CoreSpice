@@ -8,6 +8,24 @@ import Testing
 
 @Suite("MOS source admission", .timeLimit(.minutes(1)))
 struct FrontendMOSAdmissionTests {
+    @Test(arguments: ["4.5", "4.5.0", "4.500000e+0"])
+    func publicParseRetainsExactReleaseOriginInResolvedBinding(version: String) async throws {
+        let source = try await parsed(".model n nmos level=54 version=\(version)")
+        let result = try lower(source)
+        guard case .resolved(let mos) = result.circuit.instances[0].mos else {
+            Issue.record("Missing resolved MOS"); return
+        }
+        #expect(mos.release == .bsim4_4_5)
+        #expect(mos.releaseOrigin == .explicit(version))
+        #expect(mos.profile == .pinnedNgspiceNormalV1)
+        #expect(mos.normalizedGeometry.length == 1e-6)
+        if version == "4.500000e+0" {
+            #expect(throws: MOSResolutionFailure.schema(.unsupportedRelease(level: 54, version: version))) {
+                _ = try lower(source, profile: .coreStrictV1)
+            }
+        }
+    }
+
     private func parsed(_ declarations: String, controls: String = "", model: String = "n") async throws -> ParsedNetlist {
         try await SPICEParser().parse(source: "Admission\n\(controls)\n\(declarations)\nM1 d g 0 0 \(model) l=1u w=4u nf=4\n.end\n").get()
     }

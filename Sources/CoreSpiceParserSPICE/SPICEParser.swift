@@ -1563,8 +1563,8 @@ private struct SPICEParserImpl {
                         case .quotedExpression(let text):
                             value = .string(try decodedQuotedText(text))
                             try advance()
-                        case .number(let number):
-                            value = .string(try doubleText(number))
+                        case .number:
+                            value = .string(try exactNumericModelVersion())
                             try advance()
                         default:
                             throw ParserDiagnostic.error("Expected exact model version", at: currentLocation)
@@ -1676,7 +1676,47 @@ private struct SPICEParserImpl {
         return .expression(expression)
     }
 
-    private mutating func modelSourceIndex(at location: SourceLocation) throws -> String.Index {
+    private mutating func exactNumericModelVersion() throws -> String {
+        guard current + 1 < tokens.count else {
+            throw ParserDiagnostic.error("Missing model version source boundary", at: currentLocation)
+        }
+        let lower = try modelSourceIndex(at: tokens[current].location)
+        let limit = try modelSourceIndex(at: tokens[current + 1].location, allowingEnd: true)
+        // The lexer supplies the next token boundary. Stop before intervening
+        // whitespace/comments, including a newline preceding an elided continuation.
+        var upper = lower
+        var byteCount = 0
+        while upper < limit {
+            try work?.checkCancellation()
+            let character = modelExpressionSource[upper]
+            try work?.charge(.lexicalBytes, units: UInt64(character.utf8.count))
+            if character.isWhitespace || character == "$" || character == ";" { break }
+            byteCount += character.utf8.count
+            upper = modelExpressionSource.index(after: upper)
+        }
+        guard lower < upper else {
+            throw ParserDiagnostic.error("Empty model version source", at: currentLocation)
+        }
+        guard let resources = profileResources else {
+            return String(modelExpressionSource[lower..<upper])
+        }
+        let receipt = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: UInt64(byteCount))
+        try resources.charge(.projectedBytes, units: UInt64(byteCount))
+        var output = ""
+        output.reserveCapacity(byteCount)
+        var index = lower
+        while index < upper {
+            try resources.checkCancellation()
+            let character = modelExpressionSource[index]
+            try resources.charge(.lexicalBytes, units: UInt64(character.utf8.count))
+            output.append(character)
+            index = modelExpressionSource.index(after: index)
+        }
+        try profileStorage!.retain(output, reservation: receipt)
+        return output
+    }
+
+    private mutating func modelSourceIndex(at location: SourceLocation, allowingEnd: Bool = false) throws -> String.Index {
         guard location.line > modelSourceLine ||
                 (location.line == modelSourceLine && location.column >= modelSourceColumn) else {
             throw ParserDiagnostic.error("Invalid model expression source order", at: location)
@@ -1696,7 +1736,7 @@ private struct SPICEParserImpl {
             }
             modelSourceCursor = modelExpressionSource.index(after: modelSourceCursor)
         }
-        guard modelSourceCursor < modelExpressionSource.endIndex else {
+        guard allowingEnd || modelSourceCursor < modelExpressionSource.endIndex else {
             throw ParserDiagnostic.error("Invalid model expression source location", at: location)
         }
         return modelSourceCursor

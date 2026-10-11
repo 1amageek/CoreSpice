@@ -529,6 +529,10 @@ rather than omitted as unsupplied. A supplied version must be exact text; a diff
 ParsedIR value kind is marked invalid and cannot trigger version defaults. ParsedIR keeps the complete original assignment
 list. The resolver owns active-candidate refusal and profile-specific duplicate
 admission; compilation alone never evaluates or rejects a discarded model card.
+The adapter passes Parser-owned version spelling unchanged, including numeric-looking
+exponents and suffixes. Release/profile admission belongs to the schema; neither
+the adapter nor numerical preparation repairs the spelling. Public frontend and
+CLI tests verify the selected binding's raw version and profile-specific rejection.
 
 The exclusive lowering session owns the global MOS width selection input.
 `lower(geometryScale:globalWidthPerFinger:expandModels:)` accepts an optional typed

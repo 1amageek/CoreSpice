@@ -5,6 +5,28 @@ import Testing
 
 @Suite("Owned MOS declaration intake", .timeLimit(.minutes(1)))
 struct MOSDeclarationOwnedIntakeTests {
+    @Test(arguments: ["4.5", "4.50", "4.500000e+0", "4.500000E+0", "4.5k"])
+    func numericVersionPreservesAccountedSourceSpelling(version: String) async throws {
+        let resources = GrammarTestResources()
+        do {
+            let root = try document(".model n nmos level=54 version=\(version)\r\n+ tox={\"1e-9\"}\r\n.model p pmos level=54 version=\(version)",
+                key: "exact-version", id: 0, resources: resources)
+            let configuration = ParserConfiguration(resolveIncludes: true)
+            let environment = try SPICEPreprocessingEnvironment.empty(policyIdentity: "mos-intake-v1",
+                configuration: configuration, resources: resources, maximumPageByteCount: 256)
+            let result = try await SPICEParser().parseProfile(document: root, configuration: configuration,
+                environment: environment, resolver: MOSIntakeResolver(text: "", resources: resources), resources: resources)
+            #expect(result.netlist.models.count == 2)
+            for model in result.netlist.models {
+                #expect(model.parameters["version"] == .string(version))
+                #expect(model.parameterAssignments[1].value == .string(version))
+            }
+            #expect(resources.used(.temporaryBytes) == 0)
+        }
+        #expect(resources.used(.liveOwnedBytes) == 0)
+        #expect(resources.used(.temporaryBytes) == 0)
+    }
+
     @Test(arguments: ["vto", "level", "version", "unknown", "0.5", "=0.5"])
     func malformedModelFieldsReleasePartialAccountedOwners(field: String) async throws {
         let resources = GrammarTestResources()

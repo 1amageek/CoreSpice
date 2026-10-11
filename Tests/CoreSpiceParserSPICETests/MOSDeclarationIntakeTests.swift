@@ -5,6 +5,17 @@ import Testing
 
 @Suite("MOS declaration source intake", .timeLimit(.minutes(1)))
 struct MOSDeclarationIntakeTests {
+    @Test(arguments: ["4.5", "4.50", "4.500000e+0", "4.500000E+0", "4.5k"])
+    func numericVersionPreservesSourceSpelling(version: String) async throws {
+        for tail in ["", "   ", "$ ignored 9.9", "; ignored 9.9", " tox=1n\n.end\n", "\r\n+ tox={1e-9}\r\n.end\r\n"] {
+            let parsed = try await SPICEParser().parse(source:
+                "Exact version\n.model n nmos level=54 version=\(version)\(tail)").get()
+            let model = try #require(parsed.models.first)
+            #expect(model.parameters["version"] == .string(version))
+            #expect(model.parameterAssignments[1].value == .string(version))
+        }
+    }
+
     @Test(arguments: ["vto", "level", "version", "unknown", "0.5", "=0.5"])
     func malformedModelFieldsCannotBecomeOmittedValues(field: String) async throws {
         let result = await SPICEParser().parse(source:

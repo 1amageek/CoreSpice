@@ -385,6 +385,7 @@ original PDK numerical adoption remain B45-3 through B45-7, not claimed coverage
 | Implemented proof owner | Requirements / local invariant | Test or driver |
 |---|---|---|
 | Schema and checked values | R01/R02/R14/R17/R23: exact registered spellings, role/kind/ID, SC/SCA units and extension refusal | `MOSSchemaTests`; `MOSNormalizationTests.exact45SpellingsPreserveOriginAndScaleSCOnlyOnce` |
+| Public source intake | R01/R02/R06/R24: numeric-looking version spelling remains source text through ordinary/accounted parsing, selected binding and CLI profile admission | `MOSDeclarationIntakeTests.numericVersionPreservesSourceSpelling`; `MOSDeclarationOwnedIntakeTests.numericVersionPreservesAccountedSourceSpelling`; `FrontendMOSAdmissionTests.publicParseRetainsExactReleaseOriginInResolvedBinding`; `CaseExecutionTests.exactReleaseSpellingReachesProfileAdmissionBeforeNativeRefusal` |
 | C preparation | R21/R24/R25/R26/R28/R30: preparation-only identity, temperature/topology, terminal failure, exact bytes and bounded work/diagnostics | `Sources/CoreSpiceBSIM45/Proof/preparation.c`, `ownership.c` |
 | C source boundary | R02/R27/R31/R32/R33: original source sites, original defaults/preprocessing, compiled parameter table and independent prepared-value references | `Sources/CoreSpiceBSIM45/Proof/verify.py`, `tables.c`, `reference.c`, `coexistence.c` |
 | Existing native execution boundary | R04/R22/R24: Compiler receipt authority and explicit native 4.5 numerical refusal | `MOSStageAdmissionTests`; `MOSPreparationTests` |
