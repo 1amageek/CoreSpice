@@ -4,6 +4,7 @@ import argparse, json, os, signal, subprocess, time
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', required=True, type=Path)
+parser.add_argument('--benchmark', action='store_true')
 args = parser.parse_args()
 package = Path(__file__).resolve().parents[2]
 output = args.output.resolve()
@@ -61,5 +62,20 @@ for name, sdk in [('wasm', 'swift-6.4.0-RELEASE_wasm'), ('embedded', 'swift-6.4.
     build = output / (name + '-build')
     run(name + '-build', ['xcrun', 'swift', 'build', '--build-path', str(build), '--swift-sdk', sdk, '-j', '6', '--product', 'SyncProbe', '-Xlinker', '-z', '-Xlinker', 'stack-size=1048576'])
     run(name + '-runtime', ['node', str(runner), str(build / 'out/Products/Debug-webassembly-wasm32/SyncProbe.wasm')])
+if args.benchmark:
+    link = fixture / 'Sources/AllocationProbe'
+    if not link.exists(): link.symlink_to(package / 'tools/bsim45/AllocationProbe', target_is_directory=True)
+    benchmark = fixture / 'Sources/BenchmarkProbe'
+    benchmark.mkdir(exist_ok=True)
+    (benchmark / 'BenchmarkProbe.swift').write_text((package / 'tools/bsim45/BenchmarkProbe.swift').read_text())
+    manifest = fixture / 'Package.swift'
+    manifest.write_text(manifest.read_text().replace('], cLanguageStandard:', ',.systemLibrary(name: "AllocationProbe"),.executableTarget(name: "BenchmarkProbe", dependencies: ["AllocationProbe", "CoreSpiceCompactModels", "CoreSpiceMOSContracts"])], cLanguageStandard:'))
+    run('build-allocation-probe', ['xcrun', 'clang', '-dynamiclib', '-std=c17',
+        '-I' + str(package / 'tools/bsim45/AllocationProbe/include'),
+        str(package / 'tools/bsim45/AllocationProbe/AllocationProbe.c'),
+        '-Wl,-install_name,' + str(output / 'libAllocationProbe.dylib'),
+        '-o', str(output / 'libAllocationProbe.dylib')])
+    run('release-benchmark', ['xcrun', 'swift', 'run', '-c', 'release', '-j', '6',
+        '-Xlinker', '-L' + str(output), '-Xlinker', '-rpath', '-Xlinker', str(output), 'BenchmarkProbe'])
 report['status'] = 'passed'
 (output / 'verification.json').write_text(json.dumps(report, indent=2))

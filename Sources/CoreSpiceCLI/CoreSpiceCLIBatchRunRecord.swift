@@ -16,6 +16,7 @@ public struct CoreSpiceCLIBatchRunRecord: Codable, Sendable, Hashable {
   public let measurements: [CoreSpiceCLIMeasurement]
   public let bsim4NoisePreparationRequested: Bool
   public let bsim4PreparationPolicy: BSIM4PreparationPolicy?
+  public let bsim45Models: [CoreSpiceCLIBSIM45Record]
   public let bsim4Models: [CoreSpiceCLIBSIM4Record]
   public let waveform: CoreSpiceCLIWaveformSummary?
 
@@ -32,7 +33,8 @@ public struct CoreSpiceCLIBatchRunRecord: Codable, Sendable, Hashable {
     waveform: CoreSpiceCLIWaveformSummary?,
     bsim4PreparationPolicy: BSIM4PreparationPolicy? = nil,
     bsim4NoisePreparationRequested: Bool = false,
-    bsim4Models: [CoreSpiceCLIBSIM4Record] = []
+    bsim4Models: [CoreSpiceCLIBSIM4Record] = [],
+    bsim45Models: [CoreSpiceCLIBSIM45Record] = []
   ) {
     self.resolutionProfile = resolutionProfile
     self.resolutionSeed = resolutionSeed
@@ -40,7 +42,8 @@ public struct CoreSpiceCLIBatchRunRecord: Codable, Sendable, Hashable {
     self.bsim4NoisePreparationRequested = bsim4NoisePreparationRequested
     self.bsim4PreparationPolicy = bsim4PreparationPolicy
     self.bsim4Models = bsim4Models
-    self.schemaVersion = .v1
+    self.bsim45Models = bsim45Models
+    self.schemaVersion = .v2
     self.status = "succeeded"
     self.producer = producer
     self.invocation = invocation

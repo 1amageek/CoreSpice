@@ -66,11 +66,11 @@ digests or provenance.
 | Project/run persistence and human approval | Xcircuite / DesignFlowKernel |
 | DRC, LVS, PEX, STA, EM/IR, and physical signoff rules | Domain signoff engines |
 
-## Proposed BSIM4 4.5 Implementation Units
+## BSIM4 4.5 Implementation Units
 
 Status: B45-1 portable schema, B45-2 isolated C preparation and B45-3 static
 I/Q/Jacobians are implemented.
-The public native execution provider still refuses 4.5 numerical preparation. The [research record](docs/bsim45-research/RESEARCH.md)
+The public native execution provider adopts the separate 4.5 safe/prepared owner. The [research record](docs/bsim45-research/RESEARCH.md)
 owns original-source and Sky130 observations. Child designs own their
 respective implemented/proposed contracts; this package owns composition, ordering and completion.
 The solver's numerical algorithms remain unchanged.
@@ -155,7 +155,7 @@ requirement-to-test evidence remains valid where its premises are unchanged.
 | [CoreSpiceMOSContracts](Sources/CoreSpiceMOSContracts/DESIGN.md) | child | Explicit MOS input profiles, exact release/schema and staged values | Portable semantic dependency floor | Selection is distinct from preparation and physical qualification |
 | [CoreSpiceMOSResolution](Sources/CoreSpiceMOSResolution/DESIGN.md) | child | Immutable declaration snapshot and checked one-evaluation resolution | Independent scoped MOS interpretation | No numerical device/kernel dependency |
 | [CoreSpiceBSIM4](Sources/CoreSpiceBSIM4/DESIGN.md) | child | Exact existing 4.8.3 opaque kernel | Current native release | Release-specific physics and qualification |
-| [CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md) | child | Exact 4.5.0 opaque preparation/static kernel and bounded outputs | Independent native C implementation | Public Devices adoption and dynamic analysis remain future units |
+| [CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md) | child | Exact 4.5.0 opaque preparation/static kernel and bounded outputs | Independent native C implementation | Native Devices adoption is owned by B45-6; original PDK adoption remains B45-7 |
 | [CoreSpiceLowering](Sources/CoreSpiceLowering/DESIGN.md) | child | Parsed declaration/program projection and circuit lowering | Source-preserving adapter to MOS resolution | Device preparation belongs to execution composition |
 | [CoreSpiceCompile](Sources/CoreSpiceCompile/DESIGN.md) | child | Auxiliary sparse topology | CPU solver structure | Revalidate direct consumers |
 | [CoreSpiceWaveform](Sources/CoreSpiceWaveform/DESIGN.md) | child | Opaque result-storage retention and waveform views | Export value lifetime | Numerical conversion and IO projection retain the admitted owner |
@@ -218,8 +218,9 @@ The semantic contracts and their local counterexamples are owned by MOSContracts
 and MOSResolution. Parser owns source retention, Lowering owns the
 adapter, Devices owns preparation and executable lifetime, and the native/CLI
 composition owns complete run ordering. Each owner design records its local
-requirement mapping. BSIM4.5 inspection must succeed independently of executable
-support; numerical preparation must reject that exact unsupported release.
+requirement mapping. BSIM4.5 inspection succeeds independently of executable support. The exact
+Native CPU provider now admits 4.5 through its separate B45-6 owner; a provider
+without that capability rejects it without release substitution.
 No loaded or selected declaration is counted as executed model coverage.
 
 ## Verification and Change Impact
@@ -327,26 +328,27 @@ physical-model or portable numerical qualification.
 
 B45-1/B45-2 evidence covers portable interpretation and Native CPU C
 preparation. B45-3 implements independently verified static I/Q and analytic
-Jacobians with explicit derivative correction identities. The C target is not
-yet composed into Devices. B45-4 Native C AC/transient and B45-5 noise are implemented; B45-6/B45-7 remain unfinished;
-public 4.5 numerical refusal and existing 4.8.3 execution remain intentional.
+Jacobians with explicit derivative correction identities. B45-4 AC/transient and
+B45-5 noise feed the implemented B45-6 safe/prepared/bound owner on Native CPU.
+Original PDK and downstream consumer adoption remains B45-7; existing 4.8.3
+execution remains separate.
 
 B45-4 AC/frequency NQS is implemented/qualified separately from its transient
 history unit. Its ABI, exclusive ownership and verification authority are
 [CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md#b45-4-ac-and-frequency-nqs-contract).
-Native Devices remains unsupported for 4.5 until B45-6 composition; C capability
+Native Devices uses the B45-6 composition for 4.5; C capability
 does not imply public simulation capability.
 
 B45-4 transient BE/TR/NQS qualification uses the Native C history contract in
 [CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md#b45-4-transient-contract).
 The 29-state owner and augmented deficit equation do not change Analysis methods;
-public 4.5 preparation refusal remains until B45-6 adoption.
+public 4.5 adoption is owned by the B45-6 prepared-owner contract.
 
 B45-5 Native C spectra and interval integration are independently qualified under
 [the noise contract](Sources/CoreSpiceBSIM45/DESIGN.md#b45-5-noise-contract).
-The C target owns bounded source evaluation; the future execution composition
-owns sweep storage, frequency policy, input referral and cumulative sums.
-No existing Analysis integration policy or public numerical capability changes.
+The C target owns bounded source evaluation; existing Analysis owns sweep
+storage, frequency policy, input referral and cumulative sums. B45-6 connects
+the exact-release sources without changing that integration policy.
 
 ## Fixed Native Dependency Lock
 

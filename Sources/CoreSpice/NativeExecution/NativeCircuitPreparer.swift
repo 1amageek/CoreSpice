@@ -105,9 +105,14 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
         }
         var receipts: [MOSPreparationReceipt] = []
         var bsim4: [NativeBSIM4PreparationRecord] = []
+        var bsim45: [NativeBSIM45PreparationRecord] = []
         receipts.reserveCapacity(mosCount)
         for device in devices {
             if case .prepared(let receipt) = device.instance.mos { receipts.append(receipt) }
+            if let model = device as? BoundBSIM45, case .prepared(let receipt) = model.instance.mos {
+                bsim45.append(.init(device: model.instance.name,
+                    implementationIdentity: receipt.identity.implementationIdentity, diagnostics: model.diagnostics))
+            }
             if let model = device as? BoundBSIM4 {
                 bsim4.append(.init(device: model.instance.name, diagnostics: model.diagnostics,
                     maintainerUnsupportedNoiseMode: model.topology.maintainerUnsupportedNoiseMode))
@@ -116,7 +121,7 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
         try resources.checkCancellation()
         return PreparedNativeCircuit(record: .init(plan: plan, operatingConditions: operatingConditions,
             limits: limits, numericalLimits: numericalLimits, mosPreparationReceipts: receipts,
-            bsim4Models: bsim4, resources: resources, compileCapacity: compileBytes, reservations: [preparationReservation, compilationReservation]), devices: devices)
+            bsim45Models: bsim45, bsim4Models: bsim4, resources: resources, compileCapacity: compileBytes, reservations: [preparationReservation, compilationReservation]), devices: devices)
     }
     private func context(plan: ExecutionPlan, operatingConditions: OperatingConditions) throws -> BindingContext {
         let structure = plan.matrixStructure

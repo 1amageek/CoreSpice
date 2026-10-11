@@ -12,6 +12,12 @@ public struct NativeMOSDevicePreparer: MOSDevicePreparing {
         throws(MOSPreparationFailure) -> NativePreparedMOSDevice {
         do { return try checkedPrepare(input, limits: limits, control: control) }
         catch let failure as MOSPreparationFailure { throw failure }
+        catch let failure as BSIM45PreparationFailure {
+            if failure.reason == .resourceBudgetExceeded { throw .workLimitExceeded }
+            if failure.reason == .diagnosticCapacityExceeded { throw .capacityExceeded }
+            let resolved = input.resolved
+            throw .kernelRejected("MOS \(resolved.instance); model source=\(resolved.source); instance source=\(String(describing: resolved.instanceSource)); \(failure)")
+        }
         catch { throw .kernelRejected(String(describing: error)) }
     }
 
@@ -21,7 +27,9 @@ public struct NativeMOSDevicePreparer: MOSDevicePreparing {
         var budget = MOSPreparationBudget(limits: limits, control: control)
         try budget.charge()
         let identity = try MOSPreparationIdentity(resolved: resolved, conditions: conditions,
-            implementationIdentity: Self.implementationIdentity)
+            implementationIdentity: resolved.release == .bsim4_4_5
+                ? Self.implementationIdentity + ".BSIM45-4.5.0." + BSIM45Evaluator.adaptationIdentity
+                : Self.implementationIdentity)
         try budget.retain(UInt64(MemoryLayout<NativePreparedMOSDevice>.stride))
         switch resolved.release {
         case .level1, .level2, .level3:
@@ -83,10 +91,39 @@ public struct NativeMOSDevicePreparer: MOSDevicePreparing {
                 retainedBytes: budget.retained, peakTemporaryBytes: budget.temporary, coldSetupCount: 1, limits: limits)
             try control.checkCancellation()
             return .bsim4(receipt: receipt, device: consume device, control: control)
-        // FIXME(INCOMPLETE_IMPLEMENTATION): Exact 4.5 numerical physics is not implemented.
-        // Native API/CLI preparation reaches this branch after resolution; admit
-        // it only after current/charge/AC/transient/noise and owner adoption proofs.
-        case .bsim4_4_5: throw MOSPreparationFailure.unsupportedRelease(resolved.release)
+        case .bsim4_4_5:
+            let schema = MOSModelSchema(release: resolved.release)
+            var multiplier = 1.0
+            var initial = SIMD3<Double>.zero
+            var hasInitial = false
+            let model = try Self.project45(resolved.modelCoefficients, role: .model, schema: schema,
+                resolved: resolved, existingBytes: 0, multiplier: &multiplier, initial: &initial,
+                hasInitial: &hasInitial, budget: &budget)
+            let modelBytes = try MOSPreparationBudget.bytes(model.capacity, of: BSIM45Parameter.self)
+            let parameters = try Self.project45(resolved.instanceParameters, role: .instance, schema: schema,
+                resolved: resolved, existingBytes: modelBytes, multiplier: &multiplier, initial: &initial,
+                hasInitial: &hasInitial, budget: &budget)
+            let projectionBytes = try MOSPreparationBudget.add(modelBytes,
+                MOSPreparationBudget.bytes(parameters.capacity, of: BSIM45Parameter.self))
+            let ownerBytes = BSIM45Evaluator.ownerAllocationBytes + BSIM45Evaluator.storedPayloadBytes
+            try budget.retain(ownerBytes)
+            let configuration = BSIM45Configuration(polarity: resolved.polarity == .nmos ? .nmos : .pmos,
+                temperature: conditions.ambientKelvin, nominalTemperature: conditions.nominalKelvin,
+                noiseRequested: conditions.analysisCapabilities.contains(.noise),
+                maximumStressIterations: conditions.maximumStressIterations,
+                modelParameters: model, instanceParameters: parameters, initialConditions: hasInitial ? initial : nil)
+            let device = try BSIM45PreparedDevice(configuration: configuration, multiplier: multiplier,
+                initialConditions: hasInitial ? initial : nil, preparationIdentity: identity,
+                preparationLimits: Self.kernelLimits(limits,
+                    remainingRetained: limits.maximumRetainedBytes - budget.retained + ownerBytes,
+                    projectionBytes: projectionBytes, work: budget.work), preparationControl: control)
+            try budget.includeChargedWork(device.preparationWorkUnits)
+            try budget.retain(device.diagnosticStorageBytes)
+            try budget.admitTemporary(MOSPreparationBudget.add(projectionBytes, device.preparationTemporaryBytes))
+            let receipt = try MOSPreparationReceipt(identity: identity, topology: Self.topology(device.topology),
+                retainedBytes: budget.retained, peakTemporaryBytes: budget.temporary, coldSetupCount: 1, limits: limits)
+            try control.checkCancellation()
+            return .bsim45(receipt: receipt, device: consume device, control: control)
         }
     }
 
@@ -96,6 +133,34 @@ public struct NativeMOSDevicePreparer: MOSDevicePreparing {
         return try MOSPreparationLimits(maximumRetainedBytes: remainingRetained,
             maximumTemporaryBytes: limits.maximumTemporaryBytes - projectionBytes,
             maximumDiagnosticBytes: limits.maximumDiagnosticBytes, maximumWorkUnits: limits.maximumWorkUnits - work)
+    }
+
+    private static func project45(_ values: [MOSNumericParameter], role: MOSParameterRole,
+                                  schema: MOSModelSchema, resolved: ResolvedMOSInstance, existingBytes: UInt64,
+                                  multiplier: inout Double, initial: inout SIMD3<Double>, hasInitial: inout Bool,
+                                  budget: inout MOSPreparationBudget) throws -> [BSIM45Parameter] {
+        try budget.admitTemporary(MOSPreparationBudget.add(existingBytes,
+            MOSPreparationBudget.bytes(values.count, of: BSIM45Parameter.self)))
+        var result: [BSIM45Parameter] = []
+        result.reserveCapacity(values.count)
+        try budget.admitTemporary(MOSPreparationBudget.add(existingBytes,
+            MOSPreparationBudget.bytes(result.capacity, of: BSIM45Parameter.self)))
+        for value in values {
+            try budget.charge()
+            let name = resolved.symbolNames[Int(value.symbol.rawValue)]
+            let definition = try schema.parameter(named: name, role: role)
+            switch definition.authority {
+            case .native(let id): result.append(.init(id: id, kind: definition.kind, value: value.value))
+            case .parallelMultiplicity:
+                guard value.value.isFinite, value.value > 0 else { throw MOSPreparationFailure.invalidParameter(name) }
+                multiplier = value.value
+            case .initialConditionComponent(let index):
+                guard value.value.isFinite else { throw MOSPreparationFailure.invalidParameter(name) }
+                initial[index] = value.value; hasInitial = true
+            case .schema: throw MOSPreparationFailure.invalidParameter(name)
+            }
+        }
+        return result
     }
 
     private static func project(_ values: [MOSNumericParameter], resolved: ResolvedMOSInstance,
@@ -124,6 +189,12 @@ public struct NativeMOSDevicePreparer: MOSDevicePreparing {
     }
 
     static func topology(_ value: BSIM4Topology) throws(MOSPreparationFailure) -> MOSPreparedTopology {
+        try MOSPreparedTopology(localNodeCount: value.nodeCount, drainPrime: value.drainPrime,
+            sourcePrime: value.sourcePrime, gatePrime: value.gatePrime, gateMid: value.gateMid,
+            bodyPrime: value.bodyPrime, drainBody: value.drainBody, sourceBody: value.sourceBody, chargeNode: value.chargeNode)
+    }
+
+    static func topology(_ value: BSIM45Topology) throws(MOSPreparationFailure) -> MOSPreparedTopology {
         try MOSPreparedTopology(localNodeCount: value.nodeCount, drainPrime: value.drainPrime,
             sourcePrime: value.sourcePrime, gatePrime: value.gatePrime, gateMid: value.gateMid,
             bodyPrime: value.bodyPrime, drainBody: value.drainBody, sourceBody: value.sourceBody, chargeNode: value.chargeNode)

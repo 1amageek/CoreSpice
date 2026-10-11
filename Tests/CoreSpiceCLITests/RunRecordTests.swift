@@ -116,7 +116,7 @@ struct RunRecordTests {
   func versionedBatchRunFixtureDecodesFoundationArtifactReferences() throws {
     let fixtureURL = try #require(
       Bundle.module.url(
-        forResource: "cli-batch-run-v1",
+        forResource: "cli-batch-run-v2",
         withExtension: "json",
         subdirectory: "Fixtures"
       )
@@ -126,7 +126,7 @@ struct RunRecordTests {
       from: Data(contentsOf: fixtureURL)
     )
 
-    #expect(record.schemaVersion == .v1)
+    #expect(record.schemaVersion == .v2)
     #expect(record.resolutionProfile == "pinnedNgspiceNormalV1")
     #expect(record.resolutionSeed == 1)
     #expect(record.resolutionPolicy == "corespice-cli-developer-v1")
@@ -139,6 +139,13 @@ struct RunRecordTests {
     #expect(record.outputArtifacts.first?.descriptor.kind == .waveform)
     #expect(record.outputArtifacts.first?.descriptor.format == .raw)
     #expect(record.producer.identifier == "CoreSpiceCLI")
+    #expect(record.bsim45Models.isEmpty)
+    var incomplete = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL)) as? [String: Any])
+    incomplete.removeValue(forKey: "bsim45Models")
+    let missingEvidence = try JSONSerialization.data(withJSONObject: incomplete)
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(CoreSpiceCLIBatchRunRecord.self, from: missingEvidence)
+    }
   }
 
   @Test

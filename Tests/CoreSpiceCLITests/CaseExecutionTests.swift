@@ -18,11 +18,11 @@ import Synchronization
 @Suite("Ordinary CLI completed case evidence", .timeLimit(.minutes(1)))
 struct CaseExecutionTests {
     @Test(arguments: [MOSInputProfile.coreStrictV1, .pinnedNgspiceNormalV1])
-    func exactReleaseSpellingReachesProfileAdmissionBeforeNativeRefusal(profile: MOSInputProfile) async throws {
+    func exactReleaseSpellingReachesProfileAdmissionAndNativeExecution(profile: MOSInputProfile) async throws {
         for version in ["4.5", "4.5.0", "4.500000e+0", "4.500000E+0", "4.50", "4.5k", "4.62"] {
             let root = try directory(); defer { cleanup(root) }
             let source = root.appendingPathComponent("deck.cir")
-            try "Exact version\n.model n nmos level=54 version=\(version)\nVD d 0 1\nVG g 0 1\nM1 d g 0 0 n l=1u w=2u\n.op\n.end\n"
+            try "Exact version\n.options bsim4stressiterations=8\n.model n nmos level=54 version=\(version)\nVD d 0 1\nVG g 0 1\nM1 d g 0 0 n l=1u w=2u\n.op\n.end\n"
                 .write(to: source, atomically: true, encoding: .utf8)
             let output = root.appendingPathComponent("case")
             let args = ["-b", source.path, "--mos-profile", profile.rawValue,
@@ -32,18 +32,15 @@ struct CaseExecutionTests {
             var session = try Session(policy: .developerV1(profile: profile))
             do {
                 _ = try await CLI(arguments: args).executeBatch(options: .init(arguments: args), session: &session)
-                Issue.record("Preparation-only release published numerical execution")
+                #expect(admitted)
+                #expect(session.completedBSIM45Models.count == 1)
+                #expect(session.completedBSIM45Models[0].implementationIdentity.contains("BSIM45-4.5.0"))
             } catch let failure as MOSResolutionFailure {
                 #expect(!admitted)
                 #expect(failure == .schema(.unsupportedRelease(level: 54, version: version)))
-            } catch let failure as SPICENativePreparationError {
-                #expect(admitted)
-                guard case .mosPreparation(.unsupportedRelease(.bsim4_4_5)) = failure else {
-                    Issue.record("Unexpected preparation failure: \(failure)"); continue
-                }
             }
-            #expect(!FileManager.default.fileExists(atPath: output.appendingPathComponent("execution.json").path))
-            #expect(!FileManager.default.fileExists(atPath: output.appendingPathComponent("model-receipt-0.json").path))
+            #expect(FileManager.default.fileExists(atPath: output.appendingPathComponent("execution.json").path) == admitted)
+            #expect(FileManager.default.fileExists(atPath: output.appendingPathComponent("model-receipt-0.json").path) == admitted)
         }
     }
 
@@ -116,6 +113,10 @@ struct CaseExecutionTests {
                 try ToolQualificationModelExecutionReceipt.decodeCanonical(from: Data(contentsOf: $0))
             }
         #expect(record.outputArtifacts.count == receipts.count + 1)
+        #expect(record.schemaVersion == .v2)
+        let persisted = try JSONDecoder().decode(CoreSpiceCLIBatchRunRecord.self, from: JSONEncoder().encode(record))
+        #expect(persisted.bsim45Models == record.bsim45Models)
+        #expect(persisted.bsim45Models.map(\.device) == session.completedBSIM45Models.map(\.device))
         let inventory = try JSONDecoder().decode(ToolQualificationCLIArtifactAvailabilityInventory.self,
             from: Data(contentsOf: output.appendingPathComponent("availability.json")))
         for availability in inventory.availabilities {
@@ -129,6 +130,55 @@ struct CaseExecutionTests {
         return (execution, receipts, session)
     }
 
+
+    @Test func exact45PreparationFailureKeepsOriginalDiagnosticAndSource() async throws {
+        let root = try directory(); defer { cleanup(root) }
+        do {
+            _ = try await batch("""
+            Invalid oxide
+            .options bsim4stressiterations=8
+            .model n nmos level=54 version=4.5.0 toxe=-1
+            VD d 0 1
+            VG g 0 1
+            M7 d g 0 0 n l=1u w=10u
+            .op
+            .end
+            """, in: root)
+            Issue.record("Failed physical preparation published execution")
+        } catch SPICENativePreparationError.mosPreparation(.kernelRejected(let diagnostic)) {
+            #expect(diagnostic.contains("m7") && diagnostic.contains("Toxe") && diagnostic.contains("deck.cir"))
+        }
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("case/execution.json").path))
+    }
+
+    @Test func exact45CLICompletesDCACTransientAndNoiseWithExecutionEvidence() async throws {
+        for (analysis, command) in [("dc", ".dc VG 1 1.2 .1"), ("ac", ".ac lin 3 1k 10k"),
+            ("tran", ".tran 10p 100p"), ("noise", ".noise V(d) VG lin 3 1k 10k")] {
+            let root = try directory(); defer { cleanup(root) }
+            let (execution, receipts, session) = try await batch("""
+            Exact 4.5 CLI phase
+            .options bsim4stressiterations=8
+            .model n nmos level=54 version=4.5 toxe=10n vth0=.7 u0=.05 tnoimod=1 fnoimod=0 kf=1e-25
+            VD supply 0 2
+            RL supply d 1k
+            VG g 0 \(analysis == "tran" ? "sin(1.2 .01 10Meg)" : "1.2") ac 1
+            M1 d g 0 0 n l=1u w=10u nf=2 m=3 trnqsmod=1
+            \(command)
+            .end
+            """, in: root)
+            let phases = try #require(session.phaseCollector).phases
+            #expect(!phases.isEmpty && phases.allSatisfy { $0.facts.analysis == analysis && $0.facts.completedPointCount > 0 })
+            #expect(Set(execution.phaseIDs) == Set(phases.map(\.id)))
+            #expect(receipts.allSatisfy { $0.modelVersion == "4.5.0" && $0.selectedModelIdentifier == "n" })
+            #expect(receipts.count == phases.count)
+            #expect(session.completedBSIM45Models.count == phases.count)
+            for phase in phases {
+                let receipt = try #require(phase.facts.mosPreparationReceipts.first)
+                #expect(receipt.identity.resolved.release == .bsim4_4_5 && receipt.coldSetupCount == 1)
+                #expect(receipt.identity.conditions.analysisCapabilities.contains(analysis == "noise" ? .noise : analysis == "ac" ? .ac : analysis == "tran" ? .transient : .dc))
+            }
+        }
+    }
 
     @Test func sourceWidthFlagChangesExecutedModelReceiptAndCurrent() async throws {
         var currents: [Double] = []

@@ -9,9 +9,9 @@ Parser, Lowering, Devices, Analysis, Foundation and Metal.
 
 ## Responsibilities and Boundaries
 
-The public `BSIM45Evaluating: Sendable` protocol will expose preparation metadata,
+The public `BSIM45Evaluating: Sendable` protocol exposes preparation metadata,
 DC/AC/transient evaluation, history initialization/commit and output-referred noise
-as witness requirements. `BSIM45Evaluator` will provide the implementation.
+as witness requirements. `BSIM45Evaluator` provides the implementation.
 No generic algorithm is overridable through this protocol. The original kernel
 owns physics; this layer owns borrowing, status conversion, synchronization and
 safe result publication. Devices owns the noncopyable preparation/binding lease.

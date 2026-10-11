@@ -163,11 +163,12 @@ struct Sky130OriginalSourceVerificationTests {
                 maximumDiagnosticBytes: 1_000_000, maximumWorkUnits: 1_000_000),
             mosPreparationConditions: try .init(ambientKelvin: operating.temperatureKelvin,
                 nominalKelvin: operating.nominalTemperatureKelvin, analysisCapabilities: .dc, maximumStressIterations: 1))
-        do {
-            _ = try NativeCircuitPreparer().prepare(ir: input.circuit, registry: .standard(),
-                operatingConditions: operating, limits: limits, numericalLimits: numerical, resources: resources)
-            Issue.record("Exact original BSIM4 4.5 source admitted numerical ownership"); return
-        } catch SPICENativePreparationError.mosPreparation(.unsupportedRelease(.bsim4_4_5)) { }
+        let prepared = try NativeCircuitPreparer().prepare(ir: input.circuit, registry: .standard(),
+            operatingConditions: operating, limits: limits, numericalLimits: numerical, resources: resources)
+        let receipt = try #require(prepared.record.mosPreparationReceipts.first)
+        #expect(receipt.identity.resolved == resolved)
+        #expect(receipt.coldSetupCount == 1)
+        #expect(prepared.record.bsim45Models.count == 1)
         if let output = ProcessInfo.processInfo.environment["MOS_ORIGINAL_SKY130_PROOF"] {
             let facts: [String: Any] = ["status": "observed", "selectedModel": selected,
                 "release": resolved.release.rawValue, "declarationID": declaration.id.rawValue,
@@ -182,7 +183,8 @@ struct Sky130OriginalSourceVerificationTests {
                 "resolutionWorkPolicy": "3 * longest UTF8 source key bytes * maximumPrograms + 16 * actual admitted source bytes; caller headroom, not exact work proof",
                 "declarationCount": snapshot.declarations.count, "candidateCount": resolved.candidates.count,
                 "ioElements": ioElements, "maximumIOElements": 8192,
-                "refusal": "mosPreparation.unsupportedRelease.bsim4_4_5",
+                "preparationImplementation": receipt.identity.implementationIdentity,
+                "preparedLocalNodeCount": receipt.topology.localNodeCount,
                 "sources": input.sources.map { ["path": $0.binding.key, "bytes": $0.binding.reference.byteCount,
                     "digest": String(describing: $0.binding.reference.digest)] as [String: Any] }]
             try JSONSerialization.data(withJSONObject: facts, options: [.prettyPrinted, .sortedKeys])

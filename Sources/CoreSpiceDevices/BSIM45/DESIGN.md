@@ -2,7 +2,7 @@
 
 ## Purpose and Scope
 
-Status: proposed component; current production still refuses 4.5 preparation.
+B45-6 implementation contract: activate only with the scoped runtime evidence below.
 Parent: [Devices](../DESIGN.md). No children. This component owns the exact 4.5
 prepared owner, topology mapping and bound stamping on the existing solver path.
 It owns no model search, expression evaluation or physical equations.
@@ -39,7 +39,7 @@ ResolvedMOSInstance(4.5.0) + explicit preparation conditions
 
 ## Contracts and Invariants
 
-The native provider, not portable `MOSModelRelease.isExecutable`, owns execution
+The native provider, not the portable release enum, owns execution
 capability. Canonical 4.5.0 selects only this implementation. Other release IDs,
 including 4.62, fail explicitly. Capability checks include requested analysis and
 supported supplied features, not merely a release-wide Boolean. During staged
@@ -63,7 +63,7 @@ can replace a model version, selector or coefficient with an instance value.
 
 The original full topology determines auxiliary-node admission, matrix capacity,
 compile sparsity and binding. Ports/roles/aliases, IC constraints and charge-node
-AC constraint must be checked against the exact prepared owner. A mismatch,
+DC/AC constraint must be checked against the exact prepared owner. A mismatch,
 resource overflow or cancellation publishes neither a partial circuit nor evidence.
 
 ## State, Ownership, and Lifecycle
@@ -92,7 +92,7 @@ value. Foundry accuracy and later-release maintainer warnings are not invented.
 
 ## Verification and Change Impact
 
-Proposed `CoreSpiceBSIM45IntegrationTests` must execute public parse -> resolve ->
+`CoreSpiceBSIM45IntegrationTests` must execute public parse -> resolve ->
 prepare -> compile -> consume -> bind -> Analysis, including n/p DC sweeps, AC,
 BE/TR transient, IC, RF gate/body/series nodes, output noise, M/NF separation,
 condition mismatch, resource rejection, cancel and partial-owner cleanup. Prove
@@ -113,3 +113,42 @@ After lower contracts pass, revalidate IO/CLI, PDKKit, Xcircuite and Studio actu
 consumers and migrate affected dependency pins in the same adoption change.
 Numerical evidence is Native CPU only. Changes here do not require solver
 algorithm replacement or imply physical process certification.
+
+## B45-6 Coordinate and Admission Contract
+
+| Coordinate | DC / AC | BE / trapezoidal | Noise gains |
+|---|---|---|---|
+| Physical voltage slots | Qualified physical G / G+jwC or NQS admittance | Original dynamic residual/J | Complex adjoint gains |
+| Reserved deficit slot | Unit diagonal, zero RHS (not multiplied by M) | Separate scaled deficit argument; included in J*x-residual | Exactly zero |
+
+The bound owner extracts the deficit from SolutionState separately and zeroes that
+slot in every physical bias. History initialization starts from equilibrium
+deficit zero. M scales electrical and dynamic equations once, while the reserved
+static constraint is a coordinate fix. A transient session keeps the same C owner
+and accepted 29-state bank until end. Stamps never accept history; accepted-bias
+evaluate/commit is one locked operation.
+
+Numeric-ID projection borrows resolved buffers and creates separate contiguous
+model/instance buffers once. Schema authority routes M and IC to Devices; native
+selectors go only to their own role. Projection capacity is temporary; the safe
+owner's C allocation, Swift payload and diagnostics are retained. Charge the
+activated stress ceiling exactly once inside safe preparation. Shared backing
+diagnostic arrays in bound metadata and preparation records are retained views,
+not another allocation. The run reservation covers fixed mapping and owner
+collection payload in its existing per-instance envelope.
+
+Failure diagnostics remain exact 4.5 structured values. A distinct immutable
+NativeBSIM45PreparationRecord keeps them after consuming binding; CLI persists
+the same record independently of 4.8.3 maintainer-warning metadata. Preparation
+identity includes the C adaptation identity. The source .options stress ceiling
+must match explicit execution conditions for both BSIM4 releases.
+
+Native release owner performance is measured by
+`tools/bsim45/verify_safe_owner.py --output <directory> --benchmark`. Darwin
+interposition counts allocation-entry calls (which can include nested libc
+entries), with a positive Swift allocation control. Assert zero such calls and
+zero owner-sized callocs across continuous DC/AC/BE-commit/noise loops, after
+explicit warmup. Preparation latency and allocations are separate. This does
+not claim a speedup over another release or a process-wide allocation census.
+Public parse/prepare/compile/bind/analysis tests separately prove actual setup
+count, same-binding evaluation work and root reservation lifetime.

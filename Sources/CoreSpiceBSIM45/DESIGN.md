@@ -4,7 +4,8 @@
 
 Status: B45-2 preparation and B45-3 static I/Q/Jacobians are implemented in
 independent SwiftPM C target `CoreSpiceBSIM45`. B45-4 AC/frequency NQS and BE/TR/transient NQS are implemented in the same target. B45-5 noise spectra and interval integration are
-implemented; safe-owner/public execution adoption remains proposed and unavailable.
+implemented. B45-6 supplies the synchronized safe owner and consuming public
+execution integration; numerical qualification is Native CPU only.
 Parent: [CoreSpice](../../DESIGN.md). Child: [Kernel](Kernel/DESIGN.md).
 It exposes an independently buildable exact-release preparation/static/AC/transient/noise C boundary. It owns no
 parser, model search, expression evaluation, circuit compiler or solver.
@@ -108,7 +109,7 @@ matrix, three 29-state banks, trial authorization/result staging and bounded
 diagnostics. Redirect original geometry
 allocation to that owner; all original pointers borrow owned storage. No retained
 caller pointers, mutable process-global state, filesystem logs or callbacks.
-The ABI is exclusive rather than internally locking. B45-6 must supply the
+The ABI is exclusive rather than internally locking. B45-6 supplies the
 same safe-owner Mutex contract on every target. Current C callers serialize
 all operations themselves; destroy cannot race any context operation.
 
@@ -160,7 +161,8 @@ caller checks cancellation around the bounded synchronous call.
 The preparation inspection receipt includes canonical release/adaptation identity,
 actual node aliases, original state count, physical dimensions, defaults and
 effective temperature values for independent proof. It is not numerical evidence.
-Native Devices continues rejecting 4.5 numerical requests until B45-6 adoption.
+The [Devices 4.5 owner](../CoreSpiceDevices/BSIM45/DESIGN.md) consumes the same
+prepared state for public DC, AC, BE/TR and noise execution.
 
 ## B45-3 Static Evaluation Contract
 
@@ -257,7 +259,8 @@ independently checked against 100-digit Decimal arithmetic over 36 cases.
 
 ## B45-4 Transient Contract
 
-Native C only; public Swift/Devices adoption remains B45-6. The owner retains
+Numerical qualification is Native CPU only; the public Swift/Devices path is
+owned by [B45-6 integration](../CoreSpiceDevices/BSIM45/DESIGN.md). The owner retains
 three complete 29-double banks: scratch trial, accepted, and older. Initialization
 qualifies exact equilibrium bias with the static service and zero integration
 coefficients, then atomically copies all 29 finite states to both history banks.
@@ -315,8 +318,9 @@ roundoff without changing solver policy or the 4.5 physical law.
 
 ## B45-5 Noise Contract
 
-Native C only; Swift safe-owner and public Devices/Analysis composition remain
-B45-6. `cs_bsim45_noise_spectrum` consumes the same thirteen physical bias slots,
+Numerical qualification is Native CPU only. The synchronized safe-owner and
+public Devices/Analysis composition are owned by
+[their B45-6 contracts](../CoreSpiceDevices/BSIM45/DESIGN.md). `cs_bsim45_noise_spectrum` consumes the same thirteen physical bias slots,
 finite gmin >= 0, frequency in Hz strictly positive, and thirteen complex
 output-voltage transfer gains (V/A). Ground, unused and deficit gain slots must
 be zero. Preparation must explicitly request noise topology. Changing that

@@ -238,7 +238,8 @@ struct CLI {
       waveform: waveformSummary,
       bsim4PreparationPolicy: session.analysisOptions.bsim4PreparationPolicy,
       bsim4NoisePreparationRequested: session.analysisOptions.bsim4NoisePreparationRequested,
-      bsim4Models: session.completedBSIM4Models
+      bsim4Models: session.completedBSIM4Models,
+      bsim45Models: session.completedBSIM45Models
     )
   }
 
@@ -485,6 +486,7 @@ struct Session {
   private(set) var lastParametric: ParametricWaveformData?
   private(set) var lastMeasurements: [SPICEMeasurementResult] = []
   private(set) var lastSource = ""
+  private(set) var completedBSIM45Models: [CoreSpiceCLIBSIM45Record] = []
   private(set) var completedBSIM4Models: [CoreSpiceCLIBSIM4Record] = []
   private var compiled: CompiledNetlist?
   private var loadedSeed: UInt64
@@ -510,7 +512,7 @@ struct Session {
     // Publish only a complete immutable source evaluation; failed replacement keeps the prior deck.
     compiled = candidate; resolved = values; loadedSeed = seed; lastSource = deck.source
     plan = nil; phaseCollector = nil; lastWaveform = nil; lastParametric = nil
-    lastMeasurements = []; completedBSIM4Models = []
+    lastMeasurements = []; completedBSIM4Models = []; completedBSIM45Models = []
   }
 
   mutating func run(_ command: AnalysisCommand, cancellation: CancellationToken = CancellationToken()) async throws -> WaveformData {
@@ -670,7 +672,7 @@ struct Session {
 
   private mutating func beginRun() throws {
     phaseCollector = try phaseCollector?.emptyCopy()
-    lastWaveform = nil; lastParametric = nil; lastMeasurements = []; completedBSIM4Models = []
+    lastWaveform = nil; lastParametric = nil; lastMeasurements = []; completedBSIM4Models = []; completedBSIM45Models = []
   }
 
   private mutating func finish(_ waveform: WaveformData, controls: [ParsedControlStatement]) throws -> WaveformData {
@@ -717,6 +719,10 @@ struct Session {
       if collectPhases {
         try phaseCollector?.record(id: phaseID, facts: facts,
           compiled: recordCompiled(), waveform: waveform)
+      }
+      completedBSIM45Models += record.bsim45Models.map {
+        .init(phase: phaseID, device: $0.device, implementationIdentity: $0.implementationIdentity,
+          diagnostics: $0.diagnostics)
       }
       completedBSIM4Models += record.bsim4Models.map {
         .init(phase: phaseID, device: $0.device, diagnostics: $0.diagnostics,

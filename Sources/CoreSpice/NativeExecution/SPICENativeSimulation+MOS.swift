@@ -19,7 +19,7 @@ extension SPICENativeSimulation {
         }
         for instance in input.circuit.instances {
             guard case .resolved(let resolved) = instance.mos else { continue }
-            if resolved.release == .bsim4_4_8_3 {
+            if resolved.release == .bsim4_4_8_3 || resolved.release == .bsim4_4_5 {
                 guard let policy = configuration.options.bsim4PreparationPolicy,
                       policy.maximumStressIterations == conditions.maximumStressIterations else {
                     throw SPICENativePreparationError.mosPreparation(.invalidConditions)

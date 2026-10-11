@@ -3,7 +3,7 @@
 ## Purpose and Scope
 
 This component owns checked native preparation and consuming binding for L1/L2/L3,
-BSIM3 3.3.0 and BSIM4 4.8.3. Parent: [Devices](../DESIGN.md). No children.
+BSIM3 3.3.0, BSIM4 4.5 and BSIM4 4.8.3. Parent: [Devices](../DESIGN.md). No children.
 This is the approved S3 implementation target, not completed runtime evidence.
 Workspace PROGRESS.md owns migration status.
 
@@ -17,7 +17,7 @@ select declarations, normalize geometry again, compile, solve or qualify a proce
 `PreparedMOSDevice` is a noncopyable Sendable protocol. Its receipt describes
 admitted inputs and topology; consuming `bind(instance:context:)` transfers the
 executable owner once into an existing BoundDevice. The concrete noncopyable enum
-has classic, BSIM3 and BSIM4 cases. Protocols returning BoundDevice belong here,
+has classic, BSIM3, BSIM45 and BSIM4 cases. Protocols returning BoundDevice belong here,
 rather than in the portable contracts target.
 
 The intended public signatures are:
@@ -47,8 +47,8 @@ public protocol PreparedMOSDevice: ~Copyable, Sendable {
 | [IR](../../CoreSpiceIR/DESIGN.md) | depends on | Typed resolved/prepared stage and private nodes | Retained receipt | Counts alone do not prove matching preparation |
 | [Classic devices](../Devices/DESIGN.md) | depends on | Parameter validation and existing stamps | L1/L2/L3 physics | Unsupported supplied semantics are refused |
 | [BSIM3](../BSIM3/DESIGN.md) | depends on | Exclusive 3.3.0 owner | Original topology/history | Evaluator cannot escape preparation |
-| [BSIM45](../BSIM45/DESIGN.md) | depends on, proposed | Separate exact 4.5 owner | Native provider extension | Current implementation still refuses 4.5 |
-| [BSIM4](../BSIM4/DESIGN.md) | depends on | Exclusive 4.8.3 owner | Explicit stress/noise intent | Inspectable 4.5 fails before allocation |
+| [BSIM45](../BSIM45/DESIGN.md) | depends on | Separate exact 4.5 owner | Native provider extension | Separate numeric IDs and deficit coordinate |
+| [BSIM4](../BSIM4/DESIGN.md) | depends on | Exclusive 4.8.3 owner | Explicit stress/noise intent | 4.8.3 owner cannot substitute for 4.5 |
 | [Native execution](../../CoreSpice/NativeExecution/DESIGN.md) | used by | Concrete noncopyable owner | Aggregate resources and run ordering | No cold setup per DC point |
 
 ## Architecture
@@ -80,7 +80,7 @@ suppliedness, exact release and normalized geometry remain separate.
 | L1/L2/L3 | Existing defaults/validators; M absent or exactly 1; OFF absent or 0; any supplied terminal IC is unsupported, including zero; NF rejected by schema |
 | BSIM3 3.3.0 | Positive finite outer M, existing DS/GS/BS IC, original selectors and private topology; NF rejected by schema |
 | BSIM4 4.8.3 | Positive finite outer M, existing IC, original fractional NF in [1, Int32.max], explicit positive stress ceiling and analysis capabilities |
-| BSIM4 4.5 | Inspectable resolution retained; exact unsupported release before evaluator allocation |
+| BSIM4 4.5 | Exact 4.5 schema, original-ID buffers, outer M / IC, explicit stress ceiling, separate deficit coordinate |
 
 Classic preparation builds and validates MOSFETModelParameters once. It does not
 alter W to approximate multiplicity, invent IC behavior or silently drop OFF.
@@ -168,4 +168,10 @@ repeating unchanged parser/resolver proof.
 
 The portable release no longer owns execution admission. Compiler validates
 prepared receipt level, identity and topology; NativeMOSDevicePreparer owns
-supported numerical releases and explicitly rejects BSIM4 4.5.0 until adoption.
+supported numerical releases including the separate BSIM4 4.5.0 owner.
+
+For 4.5 native preparation failures, preserve bounded original diagnostics and
+attach the resolved instance plus model/instance source occurrence at this
+boundary. The safe owner cannot infer caller source identity. Native stress
+ceiling exhaustion is `workLimitExceeded`; bounded diagnostic exhaustion is
+`capacityExceeded`. Neither failure publishes an owner or execution evidence.

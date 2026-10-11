@@ -247,3 +247,16 @@ ceiling, temporary ceiling and shared invocation quota. Dimension is counted
 using non-ground MNA rows; policy maxima do not allocate a maximum-size matrix.
 MOS private rows come from the single prepared receipt before compiler admission;
 the preparation byte envelope does not increase logical matrix dimension.
+
+## BSIM4 4.5 Run Diagnostics
+
+Completed phases retain a separate `CoreSpiceCLIBSIM45Record`: phase, instance,
+preparation implementation identity and original bounded diagnostics. Native
+records are projected to host Codable values only at the artifact boundary. No
+Codable dependency enters the portable evaluator. Unsupported original versions
+fail schema admission before execution artifacts can be published.
+
+The completed batch record uses schema v2: `bsim45Models` is required, including
+an empty array for a run without 4.5 devices. The v2 fixture and actual CLI
+round-trip tests consume this shape; missing release evidence is a decoding
+failure, not an inferred empty record. No v1 compatibility decoder is provided.

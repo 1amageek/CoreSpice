@@ -346,9 +346,9 @@ One public `SPICESimulationPreparer` invocation owns options, the shared evaluat
 session and lowering. The test verifies selected declaration identity, original
 source occurrence and statement coordinates, normalized/selection dimensions,
 release and candidate evidence before invoking `NativeCircuitPreparer`. Exact
-BSIM4 4.5 must fail with `mosPreparation(.unsupportedRelease(.bsim4_4_5))` before
-numerical ownership or execution. This verifies interpretation and refusal,
-not BSIM4 4.5 numerical physics. Absent the opt-in environment, the test is skipped.
+BSIM4 4.5 now uses its separate prepared owner and records the selected release,
+adaptation, topology and diagnostics. This source fixture verifies interpretation
+and numerical preparation; it does not certify original PDK process accuracy. Absent the opt-in environment, the test is skipped.
 
 The S5 external runner records the complete original PDK file inventory and SHA-256
 before and after execution; any content or inventory drift invalidates this proof.
@@ -407,3 +407,15 @@ opaque storage lease into the waveform header. Retained CLI waveforms, views and
 ensemble members therefore retain admission after local run/facts release. Only
 the lease is transported; discarded numerical payload arrays are not retained.
 The reserved scalar envelope covers simultaneous conversion/projection buffers.
+
+## BSIM4 4.5 Composition
+
+[Devices BSIM45](../../CoreSpiceDevices/BSIM45/DESIGN.md) supplies one consuming
+owner per resolved 4.5 MOS. This composition adds no model search or solver rule.
+The existing per-instance reservation covers immutable receipt/mapping metadata;
+MOS retained receipts count the exact C allocation/Swift payload and diagnostics.
+`NativeBSIM45PreparationRecord` shares retained diagnostic backing after binding,
+with exact implementation identity. It is separate from 4.8.3 metadata.
+The public source execution gate checks the same explicit stress policy against
+conditions for both releases. DC/AC/transient/noise evidence is issued only after
+the corresponding existing analysis actually completes.

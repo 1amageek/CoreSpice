@@ -7,7 +7,7 @@ import CoreSpiceMOSResolution
 import Testing
 
 extension PreparedNativeExecutionTests {
-    @Test(arguments: [MOSModelRelease.level1, .bsim3_3_3_0, .bsim4_4_8_3])
+    @Test(arguments: [MOSModelRelease.level1, .bsim3_3_3_0, .bsim4_4_8_3, .bsim4_4_5])
     func actualMOSRowsOwnMatrixAdmissionAndLeaseLifetime(release: MOSModelRelease) async throws {
         for privateNodes in release == .level1 ? [false] : [false, true] {
             let input = try await mosInput(release: release, sweep: false, privateNodes: privateNodes)
@@ -86,7 +86,7 @@ extension PreparedNativeExecutionTests {
     }
 
     @Test func mosPreparationRunsOnceAcrossSweepAndFreshRerun() async throws {
-        for release in [MOSModelRelease.level1, .bsim3_3_3_0, .bsim4_4_8_3] {
+        for release in [MOSModelRelease.level1, .bsim3_3_3_0, .bsim4_4_8_3, .bsim4_4_5] {
             let resources = SourceBoundaryTestResources()
             let input = try await mosInput(release: release, resources: resources)
             let prepared = try SPICENativeSimulation().prepare(input, limits: mosLimits())
@@ -123,9 +123,10 @@ extension PreparedNativeExecutionTests {
         }
     }
 
-    @Test func mosConditionsAndCapacityFailBeforePublicationAndReleaseReservations() async throws {
+    @Test(arguments: [MOSModelRelease.bsim4_4_5, .bsim4_4_8_3])
+    func mosConditionsAndCapacityFailBeforePublicationAndReleaseReservations(release: MOSModelRelease) async throws {
         let resources = SourceBoundaryTestResources()
-        let input = try await mosInput(release: .bsim4_4_8_3, resources: resources)
+        let input = try await mosInput(release: release, resources: resources)
         let baseline = resources.used(.liveOwnedBytes)
         for limits in [try mosLimits(ambient: 301.15), try mosLimits(nominal: 301.15),
                        try mosLimits(capabilities: [.dc, .noise]), try mosLimits(stress: 127)] {

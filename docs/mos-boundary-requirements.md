@@ -16,8 +16,10 @@ source identity / explicit profile
 Selection success proves input interpretation. Preparation success proves admission
 of an exact release and conditions. Execution evidence requires an actual completed
 analysis. None of those alone qualifies a process, corner, foundry model, GPU, or
-numerical WASM/Embedded backend. Independently inspectable BSIM4.5 remains a typed
-native preparation refusal; a supported release cannot substitute for it.
+numerical WASM/Embedded backend. Independently inspectable BSIM4.5 now has a
+separate Native CPU execution provider; no supported release substitutes for it.
+The E1–E5 historical rows retain their recorded revisions and earlier 4.5 refusals.
+Current safe-owner/public execution evidence is indexed in the B45-6 section below.
 
 ## Verified Evidence and Remaining Work
 
@@ -109,7 +111,7 @@ W=0.65/L=0.15/NF=1 and scale 1e-6, and selects
 `sky130_fd_pr__nfet_01v8__model.98` at TT source line 26597. Held bounds are
 W=[640,650] nm and L=[150,180] nm; normalized W/L are 650/150 nm. The same
 retained declaration has level 54/version 4.5; numerical preparation returns
-`mosPreparation.unsupportedRelease.bsim4_4_5`. The [actual test][tsky] checks
+`mosPreparation.unsupportedRelease.bsim4_4_5`. At that recorded revision, the [test owner][tsky] checked
 source occurrence coordinates, scope, profile and identity before recording the
 observation. Neither this refusal nor the independent strict-profile CLI process
 E5C substitutes an executable release or qualifies original 4.5 physics.
@@ -146,7 +148,7 @@ model-selection or evaluation authorities.
 | ID | Intent | Exact owner and implementation | Behavioral test / counterexample | Verified evidence | Scoped closure / limitations |
 |---|---|---|---|---|---|
 | R01 | Explicit input specification | [Contracts Values][values]: [MOSInputProfile][profile]; [Frontend][frontend]: [beginEvaluation][lowering] | [FrontendSessionTests][tfront]: `compileOnceSupportsDistinctRootActualsAndSeeds`; [MOSEvaluationTests][teval]: complete-request profile/condition mismatch | E1, E2, E4F, E5S, E5P, E5R | G1 verified by E5S (nfet TT only); G3 pure snapshot verified by E5P; G5 verified by E5R. |
-| R02 | Exact physical release, no substitution | [Schema][schema]: [MOSModelRelease][release]; [Preparation][prep]: [NativeMOSDevicePreparer][preparer] | [MOSNormalizationTests][tnorm]: explicit/default origins and exact non-executable 4.5; [MOSPreparationTests][tprep]: `inspected45AndLowStorageAndCancellationNeverPublishOwner` | E1–E3, E5S, E5R | G1 verified by E5S (nfet TT only); G2 only admitted exact releases. |
+| R02 | Exact physical release, no substitution | [Schema][schema]: [MOSModelRelease][release]; [Preparation][prep]: [NativeMOSDevicePreparer][preparer] | [MOSNormalizationTests][tnorm]: explicit/default origins and independently inspectable 4.5; [MOSPreparationTests][tprep]: `supportedReleasesPrepareOnceAndBindActualPhysicalStamps` and `lowStorageAndCancellationNeverPublishOwner` | E1–E3, E5S, E5R | G1 verified by E5S (nfet TT only); G2 only admitted exact releases. |
 | R03 | Process/corner/card/coefficient/range/source identity | [Declarations][decl]: [snapshot builder][builder]; [Frontend][frontend]: [modelOrigin][compiled]; [PDK inspection][pdk]: actual source projection | [MOSSnapshotTests][tsnapshot]: ordered source occurrences; [FrontendSessionTests][tfront]: `familySelectionBSIM45AndExactSourceRemainInspectable`; [PDK admission tests][tpdk]; [original nfet TT test][tsky] | E1, E2, E4F, E4H, E5S, E5R, E5H | G1 verified by E5S (nfet TT only); G5 verified by E5R. |
 | R04 | Parser/Lowering/Devices/Analysis responsibility split | [ParserSPICE][parser]: [SPICEParser][parserimpl]; [Frontend][frontend]: [session][session]; [Preparation][prep]; [Analysis][analysis] | [MOS declaration intake tests][tintake]; [MOSStageAdmissionTests][tstage]: resolved/legacy refusal; [Native composition tests][tnative] | E1–E4F, E4N, E4A, E5R | G5 verified by E5R; G2 actual analysis matrix. |
 | R05 | External comparator and discrepancy layers | CoreSpiceProcessBackend: [NgspiceExternalProcessBackend][ngspice] under the [package boundary][master]; [Native execution][native] owns actual Native evidence | [NgspiceExternalProcessBackendTests][texternal] owns external process behavior; captured BSIM comparator methods and provenance are indexed above | E3/E4B captured fixture comparison; no new live external invocation, E5R | G2 preserves stated reference transformations and discrepancy layers; E5R reconciles composition. Any new comparison is conditional. No physical accuracy escalation. |
@@ -164,11 +166,11 @@ model-selection or evaluation authorities.
 | R17 | Model bounds/coefficient/BINUNIT independent of deck scale | [Selection][selection]: [resolveMOS][resolve]; [Schema][schema] | [MOSNormalizationTests][tnorm]: model coefficients/bounds unscaled; [MOSSelectionTests][tselect]: selection under held bounds | E2, E5S, E5R | G1 verified by E5S (nfet TT only); G5 verified by E5R. |
 | R18 | Justified endpoints/overlap/gap/rounding/tolerance | [Selection][selection]: [policy][policy]; [inspection][inspect] | [boundary matrix][tboundary]: adjacent strict endpoints, gaps/interior overlaps, pinned exact tolerance and invalid visited bounds; [MOSSelectionTests][tselect]: closed bounds/missing bounds; [MOSInspectionTests][tinspect]: original subnormal scale | E2, E5P, E5S, E5R | G1 verified by E5S (nfet TT only); G2 separately justified numerical tolerances, indexed above. |
 | R19 | Invalid candidates fail typed | [Selection][selection]: [resolveMOS][resolve]; [Contracts Values][values]: [MOSResolutionFailure][failure] | [boundary matrix][tboundary]: reversed/missing/nonfinite visited bounds with terminal refusal or profile-defined exclusion; [MOSSelectionTests][tselect]: duplicate/no-match; [MOSNormalizationTests][tnorm]: overflow/positive-to-zero refusal | E2, E5P, E5S, E5R | G1 verified by E5S (nfet TT only); G5 verified by E5R. |
-| R20 | No undeclared near-bin/interpolation/corner fallback | [Selection][selection]: [policy][policy], [resolveMOS][resolve] | [MOSSelectionTests][tselect]: nearest-family refusal, exact priority and no-match; [MOSPreparationTests][tprep]: exact 4.5 refusal | E2, E3, E5S, E5R | G1 verified by E5S (nfet TT only); G2 comparator cannot authorize substitution. |
+| R20 | No undeclared near-bin/interpolation/corner fallback | [Selection][selection]: [policy][policy], [resolveMOS][resolve] | [MOSSelectionTests][tselect]: nearest-family refusal, exact priority and no-match; [MOSPreparationTests][tprep]: exact prepared release and actual stamps | E2, E3, E5S, E5R | G1 verified by E5S (nfet TT only); G2 comparator cannot authorize substitution. |
 | R21 | Immutable selected release/values/declaration/rules/reasons | [Contracts Values][values]: [ResolvedMOSInstance][resolved]; [Selection][selection]: [inspection][inspect] | [MOSValueTests][tvalues]: checked retained source/symbols/omissions; [MOSInspectionTests][tinspect]: held random bounds and identity-first refusal | E1, E2, E5S, E5R | G1 verified by E5S (nfet TT only); G5 verified by E5R. |
 | R22 | Downstream performs no model-name search | [IR MOS instances][irstage]: [MOSInstanceStage][stage]; [Preparation][prep]: [NativeMOSDevicePreparer][preparer] | [MOSStageAdmissionTests][tstage]: legacy dictionaries and unresolved stage refused; [MOSPreparationTests][tprep]: receipt-driven consuming bind | E3, E4N, E5R | G5 verified by E5R; G2 actual prepared execution. |
 | R23 | Model/instance roles; no selector overwrite | [Schema][schema]: [MOSParameterRole][role]; [Selection][selection]: [resolveMOS][resolve]; [IR MOS instances][irstage] | [MOSNormalizationTests][tnorm]: ordered aliases/winning raw symbol; [FrontendSessionTests][tfront]: MOS maps empty, IC canonical operands/role admission | E2, E4F, E5S, E5R | G1 verified by E5S (nfet TT only); G2 matching physical input roles. |
-| R24 | Distinguish selection/preparation/execution/accuracy | [CoreSpice master][master], [Selection][selection], [Preparation][prep], [Native execution][native] | [MOSNormalizationTests][tnorm]: inspectable 4.5; [MOSPreparationTests][tprep]: typed numerical refusal; [PreparedMOSNativeExecutionTests][tmosnative]: actual sweep | E2, E3, E4N, E5S, E5R | G1 verified by E5S (nfet TT only); foundry accuracy remains unqualified. |
+| R24 | Distinguish selection/preparation/execution/accuracy | [CoreSpice master][master], [Selection][selection], [Preparation][prep], [Native execution][native] | [MOSNormalizationTests][tnorm]: inspectable 4.5; [MOSPreparationTests][tprep]: typed admission/binding failures; [PreparedMOSNativeExecutionTests][tmosnative]: actual sweep | E2, E3, E4N, E5S, E5R | G1 verified by E5S (nfet TT only); foundry accuracy remains unqualified. |
 | R25 | Same release/temperature/capability/policy from prepare to bind | [Preparation contracts][prepcontracts]: [MOSPreparationIdentity][prepidentity]; [Preparation][prep]: [PreparedMOSDevice][prepared] | [MOSPreparationContractTests][tprepcontract]: exact identity; [MOSPreparationTests][tprep]: changed conditions/capabilities refuse consuming bind | E3, E4N, E5R | G2 exact conditions for each analysis; G5 verified by E5R. |
 | R26 | Typed failure categories | [Contracts Values][values]: [MOSResolutionFailure][failure]; [Preparation contracts][prepcontracts]; [IO preparation][ioprep] | [MOSEvaluationTests][teval]: typed cancellation/limits; [MOSPreparationTests][tprep]: unsupported/storage/condition failure; [SPICEFrontendControlTests][tiocontrol]: exact injected cause | E2, E3, E4F, E4N, E5S, E5R | G1 verified by E5S (nfet TT only); G5 verified by E5R. |
 | R27 | Diagnostic source/scope/instance/geometry/candidates/reasons | [Evaluation][eval]: [MOSResolutionDiagnostic][diagnostic]; [Selection][selection]: [resolveMOS][resolve] | [MOSEvaluationTests][teval]: rejected incoming request owns diagnostic, truncation/cancellation; [MOSInspectionTests][tinspect]: retained bounds/no reevaluation | E2, E5S, E5R | G1 verified by E5S (nfet TT only); G5 verified by E5R. |
@@ -350,14 +352,13 @@ receipts retained one cold setup through all five sweep points. Source review
 verifies direct candidate-range traversal without intermediate materialization;
 these assertions do not claim zero copies across the complete execution pipeline.
 
-## Proposed BSIM4 4.5 Extension Evidence
+## BSIM4 4.5 Extension Evidence
 
 Status: B45-1 input contracts, B45-2 C preparation, B45-3 static evaluation and
-B45-4 Native C AC/transient NQS and B45-5 noise are implemented. Public adoption
-remains proposed. The [package unit graph](../DESIGN.md#proposed-bsim4-45-implementation-units)
-and [primary-source research](bsim45-research/RESEARCH.md) define future adoption;
-they do not replace or expand the executed evidence above. Current public 4.5 numerical
-preparation remains an explicit refusal until B45-6. The table below separates each planned unit; the scoped implemented evidence
+B45-4 Native C AC/transient NQS, B45-5 noise and B45-6 public composition are
+implemented. The [package unit graph](../DESIGN.md#bsim4-45-implementation-units)
+and [primary-source research](bsim45-research/RESEARCH.md) define the staged scope;
+original PDK/downstream adoption remains B45-7. Current public 4.5 numerical preparation uses the separate B45-6 owner. The table below separates each planned unit; the scoped implemented evidence
 following it does not claim completion of later numerical units.
 
 | Requirements affected | Proposed unit / existing owner | Violation to detect | Required new evidence |
@@ -381,16 +382,16 @@ comparison for 648 preparation conditions; 96 topology combinations; bounded
 work/diagnostic/owner admission and sanitizer allocation/release proof. These
 close only the input and C preparation portions of the rows above. B45-3/B45-4
 add independently scoped Native C evidence below. B45-5 adds scoped noise evidence
-below. Safe-owner concurrency/public binding B45-6, and original PDK numerical adoption B45-7
-remain unqualified.
+below. B45-6 safe-owner concurrency and public binding have scoped evidence below.
+Original PDK numerical adoption B45-7 remains unqualified.
 
 | Implemented proof owner | Requirements / local invariant | Test or driver |
 |---|---|---|
 | Schema and checked values | R01/R02/R14/R17/R23: exact registered spellings, role/kind/ID, SC/SCA units and extension refusal | `MOSSchemaTests`; `MOSNormalizationTests.exact45SpellingsPreserveOriginAndScaleSCOnlyOnce` |
-| Public source intake | R01/R02/R06/R24: numeric-looking version spelling remains source text through ordinary/accounted parsing, selected binding and CLI profile admission | `MOSDeclarationIntakeTests.numericVersionPreservesSourceSpelling`; `MOSDeclarationOwnedIntakeTests.numericVersionPreservesAccountedSourceSpelling`; `FrontendMOSAdmissionTests.publicParseRetainsExactReleaseOriginInResolvedBinding`; `CaseExecutionTests.exactReleaseSpellingReachesProfileAdmissionBeforeNativeRefusal` |
+| Public source intake | R01/R02/R06/R24: numeric-looking version spelling remains source text through ordinary/accounted parsing, selected binding and CLI profile admission | `MOSDeclarationIntakeTests.numericVersionPreservesSourceSpelling`; `MOSDeclarationOwnedIntakeTests.numericVersionPreservesAccountedSourceSpelling`; `FrontendMOSAdmissionTests.publicParseRetainsExactReleaseOriginInResolvedBinding`; `CaseExecutionTests.exactReleaseSpellingReachesProfileAdmissionAndNativeExecution` |
 | C preparation | R21/R24/R25/R26/R28/R30: preparation-only identity, temperature/topology, terminal failure, exact bytes and bounded work/diagnostics | `Sources/CoreSpiceBSIM45/Proof/preparation.c`, `ownership.c` |
 | C source boundary | R02/R27/R31/R32/R33: original source sites, original defaults/preprocessing, compiled parameter table and independent prepared-value references | `Sources/CoreSpiceBSIM45/Proof/verify.py`, `tables.c`, `reference.c`, `coexistence.c` |
-| Existing native execution boundary | R04/R22/R24: Compiler receipt authority and explicit native 4.5 numerical refusal | `MOSStageAdmissionTests`; `MOSPreparationTests` |
+| Existing native execution boundary | R04/R22/R24: Compiler receipt authority and exact native 4.5 consuming binding | `MOSStageAdmissionTests`; `MOSPreparationTests` |
 
 C proof command: `python3 Sources/CoreSpiceBSIM45/Proof/verify.py --original
 <official-nested-450-code-directory> --output <local-evidence-directory>`.
@@ -460,3 +461,27 @@ owns arithmetic corrections and their independent proof.
 | R31/R32/R33: independent physical and numerical identities | `noise.c`: thermal/shot/flicker equations, theta/beta partition, body suppression, complex phase/scaling, exact source sum and analytic/100-digit interval checks | Thirteen independent sources plus total; no later-release correlated source or process-accuracy claim |
 | R21/R25/R26/R28/R29: frozen intent and exclusive history | `noise.c`: noise-only topology, invalid intent/bias/gains/frequency, atomic output, terminal failure, transient token invalidation and unchanged 29-state banks/nVar | Actual C owner operations; synchronized Swift and circuit composition remain B45-6 |
 | R30/R34/R35: bounded ownership and scoped evidence | Allocation/setup/temperature/release counters, queried owner bytes, ASan/UBSan and actual SwiftPM C ABI runtime | One retained owner allocation; no per-frequency setup/allocation; interval service retains no sweep state |
+
+## B45-6 Safe Owner and Public Execution Evidence
+
+The [safe-owner contract](../Sources/CoreSpiceCompactModels/BSIM45/DESIGN.md),
+[bound-owner contract](../Sources/CoreSpiceDevices/BSIM45/DESIGN.md) and
+[CLI contract](../Sources/CoreSpiceCLI/DESIGN.md) own the current implementation.
+[Source-bound verification](../../.verification/runs/bsim45-adoption-20261011/integration.json)
+records exact commits, commands, runtime outcomes and qualification limits.
+
+| Requirements | Actual counterexample detection | Owner / test |
+|---|---|---|
+| R02/R21/R22/R23/R25 | Wrong release, schema, condition, topology, M/NF or repeated setup | `MOSPreparationTests.supportedReleasesPrepareOnceAndBindActualPhysicalStamps`; `BSIM45IntegrationTests.publicDCAndACPreserveExactOwnerMAndFullTopology`; `PreparedMOSNativeExecutionTests` |
+| R24/R34 | Selection or preparation passed off as completed analysis; missing release evidence | `CaseExecutionTests.exact45CLICompletesDCACTransientAndNoiseWithExecutionEvidence`; `RunRecordTests.versionedBatchRunFixtureDecodesFoundationArtifactReferences` |
+| R26/R27/R28/R30 | Lost original failure/source, partial node claims, double stress charging, exhausted capacities or cancel | `CaseExecutionTests.exact45PreparationFailureKeepsOriginalDiagnosticAndSource`; `MOSPreparation45Tests`; `PreparedMOSNativeExecutionTests` |
+| R29 | Cross-owner/stale trial, session race, concurrent evaluation invalidates acceptance | `BSIM45KernelTests`; `BSIM45IntegrationTests.boundSessionAdmissionAndAcceptanceRemainAtomicUnderConcurrentCalls`; Native TSan |
+| R05/R31/R33 | Wrong dynamic history, NQS coordinate or projected/integrated noise | `BSIM45IntegrationTests.publicBEAndTRReplayAcceptedHistoryAndDeficit`; `publicNoiseSourcesAndIntegralMatchIndependentAdjoint` |
+| R30/R35 | Per-bias allocation/setup hidden by uncalibrated probe, target contract weakened | `tools/bsim45/verify_safe_owner.py --benchmark`; Native/WASM/Embedded component runtime and immutable/Mutex source matrix |
+
+Numerical evidence is Native CPU only. Portable evidence covers identical safe
+component source, compile/link and minimal runtime, not full Devices/Analysis or
+portable numerical qualification. Release probes count allocation-entry calls
+and owner setup, with a positive control and bounded ABI value copies; they do
+not measure arbitrary Swift copy events or claim a speedup. Original PDK,
+Host/Studio adoption, wrapper qualification and process accuracy remain B45-7.

@@ -8,11 +8,14 @@ public enum NativePreparedMOSDevice: ~Copyable, PreparedMOSDevice {
     case bsim3(receipt: MOSPreparationReceipt, device: BSIM3PreparedDevice, control: any MOSPreparationControlling)
     case bsim4(receipt: MOSPreparationReceipt, device: BSIM4PreparedDevice, control: any MOSPreparationControlling)
 
+    case bsim45(receipt: MOSPreparationReceipt, device: BSIM45PreparedDevice, control: any MOSPreparationControlling)
+
     public var receipt: MOSPreparationReceipt {
         switch self {
         case .classic(let receipt, _, _): return receipt
         case .bsim3(let receipt, _, _): return receipt
         case .bsim4(let receipt, _, _): return receipt
+        case .bsim45(let receipt, _, _): return receipt
         }
     }
 
@@ -32,6 +35,10 @@ public enum NativePreparedMOSDevice: ~Copyable, PreparedMOSDevice {
                 try Self.validate(receipt, identity: device.preparationIdentity, instance: instance, context: context, control: control)
                 guard receipt.topology == (try NativeMOSDevicePreparer.topology(device.topology)) else { throw MOSBindingFailure.topologyMismatch }
                 return try device.bind(instance: instance, context: &context, control: control)
+            case .bsim45(let receipt, let device, let control):
+                try Self.validate(receipt, identity: device.preparationIdentity, instance: instance, context: context, control: control)
+                guard receipt.topology == (try NativeMOSDevicePreparer.topology(device.topology)) else { throw MOSBindingFailure.topologyMismatch }
+                return try device.bind(instance: instance, context: &context, control: control)
             }
         } catch let failure as MOSBindingFailure { throw failure }
         catch let failure as MOSPreparationFailure {
@@ -42,6 +49,9 @@ public enum NativePreparedMOSDevice: ~Copyable, PreparedMOSDevice {
             throw .invalidMatrixMapping
         } catch let failure as BSIM4Error {
             if case .invalidConfiguration = failure { throw .terminalInitialConditionsConflict }
+            throw .invalidMatrixMapping
+        } catch let failure as BSIM45DeviceError {
+            if case .terminalInitialConditionsConflict = failure { throw .terminalInitialConditionsConflict }
             throw .invalidMatrixMapping
         } catch { throw .invalidMatrixMapping }
     }
