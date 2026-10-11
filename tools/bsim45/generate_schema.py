@@ -64,3 +64,20 @@ outputs = {root/'tools/bsim45/schema.json':json.dumps(manifest,indent=2)+'\n',
 for path, content in outputs.items():
     if a.check: assert path.read_text() == content, path
     else: path.write_text(content)
+
+# Numeric admission is emitted from the same source manifest without a runtime
+# string search. The C proof independently checks the compiled original table.
+admission = '/* Generated original numeric parameter admission. */\nstatic int parameter_kind(int role, int selector) {\n switch(role) {\n'
+for role, number in [('instance',0),('model',1)]:
+    selectors = {}
+    for row in rows:
+        if row['role'] != role: continue
+        if row['selector'] in selectors: assert selectors[row['selector']] == row['kind']
+        selectors[row['selector']] = row['kind']
+    admission += f' case {number}: switch(selector) {{\n'
+    for selector, kind in sorted(selectors.items()): admission += f' case {selector}: return CS_BSIM45_{kind.upper()};\n'
+    admission += ' default: return 0; }\n'
+admission += ' default: return 0;\n }\n}\n'
+path = root/'Sources/CoreSpiceBSIM45/Kernel/admission.inc'
+if a.check: assert path.read_text() == admission, path
+else: path.write_text(admission)

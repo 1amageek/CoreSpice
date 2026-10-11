@@ -352,11 +352,12 @@ these assertions do not claim zero copies across the complete execution pipeline
 
 ## Proposed BSIM4 4.5 Extension Evidence
 
-Status: design only. The [package unit graph](../DESIGN.md#proposed-bsim4-45-implementation-units)
+Status: B45-1 input contracts and B45-2 C preparation are implemented; numerical
+units remain proposed. The [package unit graph](../DESIGN.md#proposed-bsim4-45-implementation-units)
 and [primary-source research](bsim45-research/RESEARCH.md) define future adoption;
 they do not replace or expand the executed evidence above. Current 4.5 numerical
-preparation remains an explicit refusal. New tests below are proposed test owners,
-not existing passing methods or completed coverage.
+preparation remains an explicit refusal. The table below separates each planned unit; the scoped implemented evidence
+following it does not claim completion of later numerical units.
 
 | Requirements affected | Proposed unit / existing owner | Violation to detect | Required new evidence |
 |---|---|---|---|
@@ -367,7 +368,28 @@ not existing passing methods or completed coverage.
 | R05, R31, R32, R33 | B45-3 through B45-7 / independent proofs and Analysis | Differential oracle repeats original defect, derivatives disagree, native results stand in for portable targets, tolerance tuned to pass | Manual/analytic/conservation references, finite differences, Native CPU analyses, fixed pure-target runtime matrix |
 | R34, R35 | B45-7 / existing evidence publication and this index | Card count claims execution, 4.62 or unsupported wrapper counted as 4.5, missing performance metric marked complete | Exact executed source/corner/wrapper/analysis matrix and calibrated release allocation/copy/setup evidence |
 
-Each implementation sprint must replace its proposed evidence row with exact test
+Each implementation sprint must attach scoped implemented evidence with exact test
 method IDs, commands, input/build/source identities and actual outcomes. An
 unsupported or unexecuted row remains pending or explicitly refused; it cannot
 inherit numerical qualification from the existing 4.8.3 run.
+
+B45-1/B45-2 implementation evidence: generated exact-release schema and
+profile-bound release-origin validation; fixed Native/WASM/Embedded pure runtime;
+compiled C table equality for all 779 inputs; original setup/temp/check reference
+comparison for 648 preparation conditions; 96 topology combinations; bounded
+work/diagnostic/owner admission and sanitizer allocation/release proof. These
+close only the input and C preparation portions of the rows above. Numerical
+I/Q/derivative/AC/transient/noise, safe-owner concurrency, public 4.5 binding and
+original PDK numerical adoption remain B45-3 through B45-7, not claimed coverage.
+
+| Implemented proof owner | Requirements / local invariant | Test or driver |
+|---|---|---|
+| Schema and checked values | R01/R02/R14/R17/R23: exact registered spellings, role/kind/ID, SC/SCA units and extension refusal | `MOSSchemaTests`; `MOSNormalizationTests.exact45SpellingsPreserveOriginAndScaleSCOnlyOnce` |
+| C preparation | R21/R24/R25/R26/R28/R30: preparation-only identity, temperature/topology, terminal failure, exact bytes and bounded work/diagnostics | `Sources/CoreSpiceBSIM45/Proof/preparation.c`, `ownership.c` |
+| C source boundary | R02/R27/R31/R32/R33: original source sites, original defaults/preprocessing, compiled parameter table and independent prepared-value references | `Sources/CoreSpiceBSIM45/Proof/verify.py`, `tables.c`, `reference.c`, `coexistence.c` |
+| Existing native execution boundary | R04/R22/R24: Compiler receipt authority and explicit native 4.5 numerical refusal | `MOSStageAdmissionTests`; `MOSPreparationTests` |
+
+C proof command: `python3 Sources/CoreSpiceBSIM45/Proof/verify.py --original
+<official-nested-450-code-directory> --output <local-evidence-directory>`.
+The proof checks pinned original/adapted hashes before compiling and records
+commands, exact source hashes, durations, comparison limits and runtime output.

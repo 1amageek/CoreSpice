@@ -2,10 +2,10 @@
 
 ## Purpose and Scope
 
-Status: proposed implementation contract; this directory contains design only.
-The SwiftPM C target `CoreSpiceBSIM45` is not registered or executable yet.
+Status: B45-2 preparation is implemented as independent SwiftPM C target
+`CoreSpiceBSIM45`. Numerical evaluation remains proposed and unavailable.
 Parent: [CoreSpice](../../DESIGN.md). Child: [Kernel](Kernel/DESIGN.md).
-It will expose an independently buildable exact-release C boundary. It owns no
+It exposes an independently buildable exact-release preparation C boundary. It owns no
 parser, model search, expression evaluation, circuit compiler or solver.
 
 ## Responsibilities and Boundaries
@@ -43,7 +43,8 @@ No external SPICE engine is needed for build, link or runtime.
 
 ## Contracts and Invariants
 
-All API names below are proposed. Release and adaptation identities are immutable
+Preparation APIs are implemented; numerical APIs below are future design only
+and have no public declarations. Release and adaptation identities are immutable
 and queryable independently of a successful numerical run.
 
 | ABI operation | Guarantee / failure boundary |
@@ -96,8 +97,9 @@ allocated -> admitting -> preparing -> prepared -> trial -> accepted
                               failure: never reuse partial preparation
 ```
 
-One allocation contains model, instance, one geometry knot, topology, matrix,
-history, trial metadata and bounded diagnostics. Redirect original geometry
+One preparation allocation contains model, instance, one geometry knot, topology,
+matrix, reserved state arrays and bounded diagnostics. Trial metadata remains a
+future numerical-unit responsibility. Redirect original geometry
 allocation to that owner; all original pointers borrow owned storage. No retained
 caller pointers, mutable process-global state, filesystem logs or callbacks.
 The ABI is exclusive rather than internally locking; the safe owner supplies the
@@ -114,7 +116,10 @@ the Swift boundary; work limits bound the longest uninterruptible native call.
 
 ## Verification and Change Impact
 
-Proposed `Proof/` standalone C tests own original setup/defaults, topology modes,
+[Proof/verify.py](Proof/verify.py) owns current original setup/defaults, topology modes,
+779 compiled-table checks, 648 independent original-reference receipts, 96
+topology combinations, exact allocation/failure/release counts and ASan/UBSan.
+Simultaneous 4.5/4.8.3 linkage prepares and destroys independent owners. Future tests own
 full-node current/charge finite differences, AC/NQS, BE/TR history/token behavior,
 noise and ASan/UBSan lifecycle/failure paths. Each implementation unit builds and
 executes only this target's needed sources, with a subprocess timeout. They do
@@ -127,3 +132,23 @@ from being treated as correctness. The explicit SC correction uses manual-based
 tests and cannot use buggy table dispatch as its oracle.
 Changed ABI/defaults/topology/history require safe-owner and Devices revalidation.
 Native CPU qualification is separate from portable schema runtime evidence.
+
+## B45-2 Preparation-Only Implementation Contract
+
+Only create, typed numeric/vector admission, prepare, prepared inspection and
+destroy are implemented in this unit. Future numerical operations above remain
+design proposals and are not declared in the C header. A failed setter or prepare
+poisons the owner; inspection publishes prepared values only after success.
+Repeated preparation is a state error. The constructor admits owner byte budget,
+diagnostic record capacity, temperature, polarity, noise topology intent and
+LOD iteration budget before allocation. A single fixed allocation owns all
+storage. Diagnostics use bounded structured records (code, role, parameter ID,
+value and source-site ID), with optional bounded formatted kernel text; exhaustion
+fails preparation without disabling original fatal checks. Caller serialization
+covers every API call and destruction. No cancellation callback is retained; the
+caller checks cancellation around the bounded synchronous call.
+
+The preparation inspection receipt includes canonical release/adaptation identity,
+actual node aliases, original state count, physical dimensions, defaults and
+effective temperature values for independent proof. It is not numerical evidence.
+Native Devices continues rejecting 4.5 numerical requests until B45-6 adoption.

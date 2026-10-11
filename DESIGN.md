@@ -68,10 +68,10 @@ digests or provenance.
 
 ## Proposed BSIM4 4.5 Implementation Units
 
-Status: researched design, not implemented capability. Current production still
-refuses 4.5 preparation. The [research record](docs/bsim45-research/RESEARCH.md)
-owns original-source and Sky130 observations. Proposed child designs own their
-respective contracts; this package owns composition, ordering and completion.
+Status: B45-1 portable schema and B45-2 isolated C preparation are implemented.
+The public native execution provider still refuses 4.5 numerical preparation. The [research record](docs/bsim45-research/RESEARCH.md)
+owns original-source and Sky130 observations. Child designs own their
+respective implemented/proposed contracts; this package owns composition, ordering and completion.
 The solver's numerical algorithms remain unchanged.
 
 ```mermaid
@@ -323,3 +323,8 @@ and [native execution](Sources/CoreSpice/NativeExecution/DESIGN.md#incremental-r
 The reproducible [MOS boundary benchmark](Benchmarks/MOSBoundary/DESIGN.md) owns
 calibrated allocation/copy API measurements and their scope; it creates no new
 physical-model or portable numerical qualification.
+
+B45-1/B45-2 evidence is limited to portable interpretation and Native CPU C
+preparation. The C target owns no numerical execution evidence and is not yet
+composed into Devices. B45-3 through B45-7 remain unimplemented design units;
+public 4.5 numerical refusal and existing 4.8.3 execution remain intentional.

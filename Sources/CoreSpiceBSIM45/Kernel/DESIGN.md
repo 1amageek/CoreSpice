@@ -2,7 +2,8 @@
 
 ## Purpose and Scope
 
-Status: proposed, no production implementation. Parent:
+Status: original preparation sources implemented; numerical source intake is
+proposed and absent. Parent:
 [CoreSpiceBSIM45](../DESIGN.md). No children. This component owns exact physical
 source intake, original equations and the private simulator ABI adaptation.
 
@@ -116,3 +117,26 @@ explicit complex voltage gains, and integrated RMS voltage uses `1e-18 V + 2e-7
 relative`. These proposed comparison thresholds start from the existing 4.8.3
 proof policy, not a measured 4.5 accuracy claim; changes need a documented numerical
 conditioning/error study rather than a passing-test target.
+
+## B45-2 Source Intake
+
+Compile only original parameter tables/setters, setup, temperature/check and
+geometry in this unit. The adaptation generator records original/adapted hashes
+and rewrites symbol namespaces, simulator services, fixed geometry storage and
+context-local diagnostics. Remove file-opening as a guard around fatal checking;
+check execution is independent of diagnostic capacity. Preserve formulas and
+regularizations. Validate selectors before their original default-reset branches.
+The SC selector correction is the sole table-semantic change.
+
+Preparation proof tolerances are `2e-13 relative + 1e-20 absolute` for the
+receipt's named SI scalar values; node aliases/counts are exact. They were fixed
+before reference generation. The 648-case fixture explicitly supplies AT=0
+across temperature modes, avoiding the invalid use of mode-0 default AT with
+mode-1/2 temperature semantics. A separate fatal-path case preserves rejection
+of that invalid combination. The SC analytical geometry identity is checked
+independently of the original erroneous input table.
+
+The original host constants used by preparation and their pinned SPICE3f5
+authority are recorded in [NOTICE](../NOTICE.md). Checker diagnostics map to
+original file/line sites in upstream.json. All checker control flow executes
+when diagnostic capacity is zero; no filesystem state participates.
