@@ -9,7 +9,7 @@
 #define BSIM4acLoad cs_bsim45_acLoad
 #define BSIM4load cs_bsim45_load
 #define BSIM4polyDepletion cs_bsim45_polyDepletion
-#define NIintegrate cs_bsim45_static_integrate
+#define NIintegrate cs_bsim45_integrate
 #define DEVfetlim cs_exact_fet_bias
 #define DEVlimvds cs_exact_drain_bias
 #define DEVpnjlim cs_exact_junction_bias
@@ -36,6 +36,7 @@
 #define OK 0
 #define E_BADPARM 1
 #define E_NOMEM 2
+#define E_NONFINITE 3
 #define MAX(a,b) ((a)>(b)?(a):(b))
 #define MIN(a,b) ((a)<(b)?(a):(b))
 #define FABS fabs
@@ -80,7 +81,7 @@ typedef struct {double values[13][13][2];} SMPmatrix;
 typedef struct {
  double CKTtemp,CKTnomTemp,CKTomega;
  double CKTabstol,CKTreltol,CKTvoltTol,CKTgmin,CKTdelta,CKTag[7],CKTdeltaOld[7];
- int CKTmode,CKTbypass,CKTnoncon;
+ int CKTmode,CKTbypass,CKTnoncon,integrationMethod;
  double *CKTrhs,*CKTrhsOld,*CKTstate0,*CKTstate1,*CKTstate2;
  double *CKTstates[3];
  int nodeCount,noiseRequested;

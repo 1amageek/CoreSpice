@@ -328,7 +328,7 @@ physical-model or portable numerical qualification.
 B45-1/B45-2 evidence covers portable interpretation and Native CPU C
 preparation. B45-3 implements independently verified static I/Q and analytic
 Jacobians with explicit derivative correction identities. The C target is not
-yet composed into Devices. B45-4 through B45-7 remain unimplemented design units;
+yet composed into Devices. B45-4 Native C AC/transient is implemented; B45-5 through B45-7 remain unfinished;
 public 4.5 numerical refusal and existing 4.8.3 execution remain intentional.
 
 B45-4 AC/frequency NQS is implemented/qualified separately from its transient
@@ -336,3 +336,8 @@ history unit. Its ABI, exclusive ownership and verification authority are
 [CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md#b45-4-ac-and-frequency-nqs-contract).
 Native Devices remains unsupported for 4.5 until B45-6 composition; C capability
 does not imply public simulation capability.
+
+B45-4 transient BE/TR/NQS qualification uses the Native C history contract in
+[CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md#b45-4-transient-contract).
+The 29-state owner and augmented deficit equation do not change Analysis methods;
+public 4.5 preparation refusal remains until B45-6 adoption and B45-5 noise proof.

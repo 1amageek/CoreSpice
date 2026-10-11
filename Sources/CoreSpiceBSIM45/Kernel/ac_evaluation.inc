@@ -2,6 +2,7 @@
    The original transient deficit diagonal is an isolated algebraic placeholder,
    not terminal admittance; do not expose it as a physical voltage equation. */
 CSBSIM45Status cs_bsim45_evaluate_ac(CSBSIM45Owner *h,const double *bias,size_t count,double gmin,double omega,CSBSIM45ACResult *out) {
+ invalidate_trial(h);
  if(!out||!isfinite(omega)||omega<0)return CS_BSIM45_PARAMETER;
  CSBSIM45Status status=cs_bsim45_evaluate_static(h,bias,count,gmin,h?&h->result:NULL);
  if(status!=CS_BSIM45_OK)return status;

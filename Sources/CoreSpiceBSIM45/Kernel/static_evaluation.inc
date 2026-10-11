@@ -1,9 +1,12 @@
 /* The owner contains all scratch; no caller pointer survives a call. All matrix
    indices originate in checked preparation topology (0...12). Output copying is
    confined to the atomic publication boundary after full finite validation. */
-int NIintegrate(CKTcircuit *c,double *g,double *eq,double capacitance,int charge) {
- if((c->CKTmode!=MODEDCOP&&c->CKTmode!=MODEINITSMSIG)||c->CKTag[0]!=0||charge<0||charge>=28)return E_BADPARM;
- c->CKTstate0[charge+1]=0;*g=0;*eq=0;return OK;
+static void seed_exact_bias(CSBSIM45Owner *h) {
+ BSIM4instance *i=&h->instance;const double *bias=h->bias;
+ int positive[]={i->BSIM4bNodePrime,i->BSIM4bNodePrime,i->BSIM4gNodePrime,i->BSIM4dNodePrime,
+  i->BSIM4dbNode,i->BSIM4dbNode,i->BSIM4sbNode,i->BSIM4gNodeExt,i->BSIM4gNodeMid,i->BSIM4sNode,i->BSIM4dNode};
+ for(int n=0;n<11;n++)h->states[0][n]=h->model.BSIM4type*(bias[positive[n]]-bias[(n==0||n==5)?i->BSIM4dNodePrime:i->BSIM4sNodePrime]);
+ h->states[0][27]=i->BSIM4qNode?h->model.BSIM4type*bias[i->BSIM4qNode]:0;
 }
 static void static_pair(CSBSIM45StaticResult *out,int positive,int negative,double q,double capacitance) {
  out->charge[positive]+=q;out->charge[negative]-=q;
@@ -38,19 +41,21 @@ static void static_charge(CSBSIM45Owner *h) {
              sign*h->states[0][i->BSIM4qbs],i->BSIM4capbs);
 }
 CSBSIM45Status cs_bsim45_evaluate_static(CSBSIM45Owner *h,const double *bias,size_t count,double gmin,CSBSIM45StaticResult *out) {
+ invalidate_trial(h);
  if(!h||!bias||!out||count!=13||!isfinite(gmin)||gmin<0)return CS_BSIM45_PARAMETER;
  if(h->state!=2)return CS_BSIM45_STATE;
  BSIM4instance *i=&h->instance;CKTcircuit *c=&h->circuit;
  for(int n=0;n<13;n++)if(!isfinite(bias[n])||((n==0||n>c->nodeCount||n==i->BSIM4qNode)&&bias[n]!=0))return CS_BSIM45_PARAMETER;
  memcpy(h->bias,bias,sizeof(h->bias));memset(h->states[0],0,sizeof(h->states[0]));
  memset(&h->matrix,0,sizeof(h->matrix));memset(h->rhs,0,sizeof(h->rhs));memset(&h->result,0,sizeof(h->result));
+ c->CKTag[0]=0;c->CKTag[1]=0;c->integrationMethod=0;
  c->CKTgmin=gmin;c->CKTnoncon=0;c->CKTmode=MODEINITSMSIG;
- int positive[]={i->BSIM4bNodePrime,i->BSIM4bNodePrime,i->BSIM4gNodePrime,i->BSIM4dNodePrime,
-  i->BSIM4dbNode,i->BSIM4dbNode,i->BSIM4sbNode,i->BSIM4gNodeExt,i->BSIM4gNodeMid,i->BSIM4sNode,i->BSIM4dNode};
- for(int n=0;n<11;n++)h->states[0][n]=h->model.BSIM4type*(bias[positive[n]]-bias[(n==0||n==5)?i->BSIM4dNodePrime:i->BSIM4sNodePrime]);
- if(BSIM4load((GENmodel*)&h->model,c))return fail(h,CS_BSIM45_KERNEL,CS_BSIM45_KERNEL_ROLE,0,0);
+ seed_exact_bias(h);
+ int loadStatus=BSIM4load((GENmodel*)&h->model,c);
+ if(loadStatus)return fail(h,loadStatus==E_NONFINITE?CS_BSIM45_NONFINITE:CS_BSIM45_KERNEL,CS_BSIM45_KERNEL_ROLE,0,0);
  c->CKTmode=MODEDCOP;memset(&h->matrix,0,sizeof(h->matrix));memset(h->rhs,0,sizeof(h->rhs));
- if(BSIM4load((GENmodel*)&h->model,c))return fail(h,CS_BSIM45_KERNEL,CS_BSIM45_KERNEL_ROLE,0,0);
+ loadStatus=BSIM4load((GENmodel*)&h->model,c);
+ if(loadStatus)return fail(h,loadStatus==E_NONFINITE?CS_BSIM45_NONFINITE:CS_BSIM45_KERNEL,CS_BSIM45_KERNEL_ROLE,0,0);
  for(int r=0;r<13;r++) {
   if(i->BSIM4qNode&&r==i->BSIM4qNode)continue;
   h->result.current[r]=-h->rhs[r];

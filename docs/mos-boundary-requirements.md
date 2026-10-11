@@ -352,11 +352,12 @@ these assertions do not claim zero copies across the complete execution pipeline
 
 ## Proposed BSIM4 4.5 Extension Evidence
 
-Status: B45-1 input contracts and B45-2 C preparation are implemented; numerical
-units remain proposed. The [package unit graph](../DESIGN.md#proposed-bsim4-45-implementation-units)
+Status: B45-1 input contracts, B45-2 C preparation, B45-3 static evaluation and
+B45-4 Native C AC/transient NQS are implemented. Noise and public adoption remain
+proposed. The [package unit graph](../DESIGN.md#proposed-bsim4-45-implementation-units)
 and [primary-source research](bsim45-research/RESEARCH.md) define future adoption;
-they do not replace or expand the executed evidence above. Current 4.5 numerical
-preparation remains an explicit refusal. The table below separates each planned unit; the scoped implemented evidence
+they do not replace or expand the executed evidence above. Current public 4.5 numerical
+preparation remains an explicit refusal until B45-6. The table below separates each planned unit; the scoped implemented evidence
 following it does not claim completion of later numerical units.
 
 | Requirements affected | Proposed unit / existing owner | Violation to detect | Required new evidence |
@@ -378,10 +379,10 @@ profile-bound release-origin validation; fixed Native/WASM/Embedded pure runtime
 compiled C table equality for all 779 inputs; original setup/temp/check reference
 comparison for 648 preparation conditions; 96 topology combinations; bounded
 work/diagnostic/owner admission and sanitizer allocation/release proof. These
-close only the input and C preparation portions of the rows above. Numerical
-AC/transient/noise, safe-owner concurrency, public 4.5 binding and original
-PDK numerical adoption remain B45-4 through B45-7, not claimed coverage. B45-3
-now supplies only independent Native C static I/Q/Jacobian evidence below.
+close only the input and C preparation portions of the rows above. B45-3/B45-4
+add independently scoped Native C evidence below. Noise B45-5, safe-owner
+concurrency/public binding B45-6, and original PDK numerical adoption B45-7
+remain unqualified.
 
 | Implemented proof owner | Requirements / local invariant | Test or driver |
 |---|---|---|
@@ -421,7 +422,25 @@ B45-4 AC/NQS scoped proof: `python3 Sources/CoreSpiceBSIM45/Proof/verify_ac.py
 | Independent complex identities | R05/R31/R32/R33: QS Y=G+j*omega*C, channel/charge NQS transfer, complex KCL/gauge, zero/high frequency | `ac.c`; 100-digit Decimal transfer checks |
 | Exclusive bounded AC lifetime | R26/R28/R29/R30: no allocation/setup, accepted/older history unchanged, request atomicity, terminal overflow | `ac.c`, ASan/UBSan |
 
-These AC receipts close only Native C frequency analysis, not transient B45-4,
+These AC receipts close only Native C frequency analysis; separate transient
+B45-4 evidence follows. They do not qualify
 noise B45-5, synchronized Swift/public execution B45-6 or PDK adoption B45-7.
 The parent [C contract](../Sources/CoreSpiceBSIM45/DESIGN.md) is the correction
 and publication authority; this table does not grant public numerical capability.
+
+
+B45-4 transient scoped proof: `python3 Sources/CoreSpiceBSIM45/Proof/verify_transient.py
+--original <nested-450-code> --spice-archive <pinned-spice3f5.tar.gz> --output <receipts>`.
+The driver verifies both archive and NIintegrate hashes before compiling the
+unmodified oracle. The Native C ownership and tolerance authority is
+[the transient contract](../Sources/CoreSpiceBSIM45/DESIGN.md#b45-4-transient-contract);
+source corrections and compositional derivative proof are owned by
+[Kernel](../Sources/CoreSpiceBSIM45/Kernel/DESIGN.md#transient-integration-and-history-ownership).
+
+| Requirements / local invariant | Actual implementation and violation detector | Evidence scope |
+|---|---|---|
+| R02/R05/R33: exact release and separate numerical comparisons | `transient_reference.c`: 6,960 original BE/TR/NQS cases; documented derivative corrections require independent proof | Native C residual/Jacobian and all 29 states; no process-accuracy claim |
+| R28/R29: exclusive complete history, atomic failures | `transient.c`: repeated/rejected/stale/double/cross-owner trials, all-slot rotation, reinitialization, generation exhaustion and terminal nonfinite output preservation | Live owner tokens; caller serialization; future Swift owner concurrency is B45-6 |
+| R30: owned retained bytes and bounded work | Same driver counts exact allocations/releases/setup/temperature calls, uses queried owner size and ASan/UBSan | One allocation, no evaluation setup/allocation; allocator overhead is not owner payload |
+| R31/R32/R33: independent dynamics | `transient.c`: QS companions, NQS deficit/partition equations, conservation, 854,256 dynamic derivative cells, BE/TR RC and solved-NQS refinement | Static G separately qualified by `verify_static.py`; actual charge/deficit dynamics tested without a GPU or external production simulator |
+| R24/R34/R35: qualification is scoped | `verify_transient.py` records commands, timeouts, original/adapted/proof hashes and outcomes; actual SwiftPM C ABI runtime composes the C target | Noise, full-circuit Swift/Devices/Analysis adoption, portable numerical execution and Sky130 physics remain later units |

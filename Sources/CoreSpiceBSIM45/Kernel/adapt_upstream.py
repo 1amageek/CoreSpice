@@ -9,11 +9,11 @@ def publish(path, data):
  else: path.write_bytes(data)
 files = ['b4.c','b4mpar.c','b4par.c','b4set.c','b4temp.c','b4check.c','b4geo.c','b4ld.c','bsim4def.h','bsim4ext.h','b4acld.c']
 geometry = ['BSIM4NumFingerDiff','BSIM4PAeffGeo','BSIM4RdseffGeo','BSIM4RdsEndIso','BSIM4RdsEndSha']
-manifest = dict(release='4.5.0', adaptation='ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants',
+manifest = dict(release='4.5.0', adaptation='nqs-disabled-charge-derivative-v1.nqs-channel-charge-v1.transient-v1.ac-v1.ac-qs-authority-v1.ac-nqs-stable-v1.static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants',
  archiveURL='https://www.bsim.berkeley.edu/BSIM4/BSIM450.zip',
  archiveSHA256='2d0bc2496bf9b9c18dd2f790c679bfa76426fcac4a1691688fcb6a80a590f3e8',
  nestedSHA256='d94a1df9367d565787f555cc8ce6bd515a34f4d1752fb1da91df6ab54c56e39f',
- corrections=['sc-selector-v1','cap0-chain-rule-v1','cv-drain-body-v1','ud-chain-rule-v1','ac-nqs-stable-v1','ac-qs-authority-v1'],
+ corrections=['nqs-disabled-charge-derivative-v1','nqs-channel-charge-v1','sc-selector-v1','cap0-chain-rule-v1','cv-drain-body-v1','ud-chain-rule-v1','ac-nqs-stable-v1','ac-qs-authority-v1'],
  files={}, diagnosticSites={})
 fields = {}
 original_diagnostics = []
@@ -94,6 +94,30 @@ for name in files:
     s,count=re.subn(r'('+function+r'\(ckt, [^)]*\)\n)',r'\1CKTcircuit *ckt;\n',s)
     assert count == 1,(function,count)
  if name == 'b4ld.c':
+  # Retain channel-only expressions before accumulation/depletion cancellation.
+  declaration='double stableChannelCharge=0, stableChannelGate=0, stableChannelDrain=0, stableChannelBody=0, stableSourceGate=0, stableSourceDrain=0, stableSourceBody=0;'
+  s=s.replace('register BSIM4instance *here;', 'register BSIM4instance *here;\n'+declaration)
+  cap1='qgate += Qac0 + Qsub0;'
+  cap2='qgate += Qac0 + Qsub0 - qbulk;'
+  for tag,channel,cg,cd,cb in [(cap1,'qgate+qbulk','Cgg1+Cbg1','Cgd1+Cbd1','Cgb1+Cbb1'),(cap2,'qgate','Cgg1','Cgd1','Cgb1')]:
+   assert s.count(tag)==1
+   capture=f'stableChannelCharge={channel}; stableChannelGate={cg}; stableChannelDrain={cd}; stableChannelBody=({cb})*dVbseff_dVb; stableSourceGate=Csg; stableSourceDrain=Csd; stableSourceBody=Csb*dVbseff_dVb;\n                  '
+   s=s.replace(tag,capture+tag)
+  # These two drains are the CAPMOD=1/2 paths; CAPMOD=0 stays original.
+  tag='qdrn = -(qgate + qbulk + qsrc);'
+  assert s.count(tag)==3
+  s=s.replace(tag,'qdrn = -stableChannelCharge - qsrc;',2)
+  tag='here->BSIM4qsrc = -(qgate + qbulk + qdrn);'
+  s=s.replace(tag,tag+'\n          if(model->BSIM4capMod>=1) {\n              here->BSIM4qsrc=qsrc;\n              here->BSIM4cdgb=-stableChannelGate-stableSourceGate;\n              here->BSIM4cddb=-stableChannelDrain-stableSourceDrain;\n              here->BSIM4cdbb=-stableChannelBody-stableSourceBody;\n              here->BSIM4cdsb=-(here->BSIM4cdgb+here->BSIM4cddb+here->BSIM4cdbb);\n              here->BSIM4csgb=stableSourceGate;here->BSIM4csdb=stableSourceDrain;here->BSIM4csbb=stableSourceBody;\n              here->BSIM4cssb=-(stableSourceGate+stableSourceDrain+stableSourceBody);\n          }\n')
+  tag='CoxWL = model->BSIM4coxe * pParam->BSIM4weffCV * here->BSIM4nf'
+  nqs=s.index('/* NQS begins */');position=s.index(tag,nqs)
+  s=s[:position]+'if(model->BSIM4capMod>=1) {\n                  here->BSIM4qchqs=qcheq=-stableChannelCharge;\n                  here->BSIM4cqgb=-stableChannelGate;here->BSIM4cqdb=-stableChannelDrain;\n                  here->BSIM4cqbb=-stableChannelBody;here->BSIM4cqsb=stableChannelGate+stableChannelDrain+stableChannelBody;\n              }\n              '+s[position:]
+
+  tag='T0 = qdef * ScalingFactor / CoxWL;'
+  assert s.count(tag)==2
+  # XPART<0 sets gtau=0, so its voltage derivative must also be zero.
+  s=s.replace(tag,'T0 = model->BSIM4xpart<0 ? 0.0 : qdef * ScalingFactor / CoxWL;')
+
   start=s.index('else if (model->BSIM4capMod == 0)');end=s.index('} /* end of capMod=0 */',start)
   block=s[start:end]
   assert block.count('if (Vbseff < 0.0)') == 1

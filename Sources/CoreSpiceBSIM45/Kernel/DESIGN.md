@@ -3,7 +3,7 @@
 ## Purpose and Scope
 
 Status: original preparation and static numerical source intake implemented;
-AC/frequency NQS is implemented; transient/noise services remain future units. Parent:
+AC/frequency NQS is implemented; transient BE/TR/NQS services are implemented; noise remains a future unit. Parent:
 [CoreSpiceBSIM45](../DESIGN.md). No children. This component owns exact physical
 source intake, original equations and the private simulator ABI adaptation.
 
@@ -30,7 +30,7 @@ official zip -> nested BSIM450.tar.Z -> per-file hashes + original notices
  -> deterministic adaptation manifest
  -> b4set + b4temp + b4check + b4geo
  -> b4ld (static I, Q, derivatives implemented)
- -> b4acld (AC/NQS) / transient services / b4noi (future units)
+ -> b4acld (AC/NQS) / transient services (implemented) / b4noi (future)
  -> parent ABI's finite output checks and context-local diagnostics
 ```
 
@@ -41,7 +41,7 @@ official zip -> nested BSIM450.tar.Z -> per-file hashes + original notices
   Model bounds are resolver selection inputs; physical correction never selects
   a different bin or changes resolved coefficients.
 - Compile setup, temperature, geometry, checker and DC/charge from the same
-  source manifest; future AC/noise intake must use that same release. Pin the original constants, units and simulator-service
+  source manifest; AC and future noise intake must use that same release. Pin the original constants, units and simulator-service
   semantics; reusing current compatibility constants without comparison is invalid.
 - All changes are deterministic transformations with original/adapted hashes and
   a reason classified as symbol isolation, simulator ABI, bounded storage,
@@ -71,7 +71,8 @@ NF is a finite real value at least one, not an integer-only count. Omitted exact
 model dimensions receive the original 5um L/W defaults only here, never during
 family selection. M remains an independent positive frontend parallel multiplier.
 
-Future B45-4 native trial integration uses the existing Analysis method/time step. Preserve
+B45-4 native trial integration consumes an explicit caller-selected method/time
+step; connecting the existing Analysis caller belongs to B45-6. Preserve
 all original junction, gate-mid, intrinsic and q-deficit state contributions;
 prepare once, trial many times, advance history only on accepted steps.
 Noise preserves original source pairs/correlation and release constants; original
@@ -92,7 +93,7 @@ Original allocation/free/logging/global task-job queries are adapted explicitly.
 Noise intent comes from preparation conditions; immutable topology follows it.
 All input sizes, casts, iterations, indexing and diagnostic writes are checked.
 The context never holds a borrowed pointer across return. Its parent enforces
-exclusive access; future B45-4 adds generation-bound tokens; no new lock or platform branch
+exclusive access; B45-4 adds owner-scoped generation-bound tokens; no new lock or platform branch
 weakens the safe owner's common synchronization contract.
 
 ## Verification and Change Impact
@@ -111,8 +112,9 @@ tests use a central-difference step sweep and agreement plateau, with current
 Jacobian `1e-10 S + 2e-4 relative` and charge Jacobian
 `1e-20 F + 2e-4 relative`. Test all active rows/columns, conservation and aliases.
 Reference tolerances are numerical comparison criteria, not foundry accuracy.
-AC and transient/numerical analysis thresholds are owned by their integration
-tests and must record units, oracle and error norm before execution.
+The parent owns Native C AC/transient tolerances; circuit-analysis thresholds
+belong to their integration tests and must record units, oracle and error norm
+before execution.
 Original-spectrum references use `1e-32 V^2/Hz + 2e-7 relative` per channel for
 explicit complex voltage gains, and integrated RMS voltage uses `1e-18 V + 2e-7
 relative`. These proposed comparison thresholds start from the existing 4.8.3
@@ -146,8 +148,8 @@ when diagnostic capacity is zero; no filesystem state participates.
 
 Add the pinned original `b4ld.c`. Simulator voltage limiting/bypass is disabled
 at the exact-bias service boundary; the numerical solver owns those decisions.
-Static NIintegrate explicitly implements dQ/dt=0 and rejects nonstatic modes;
-no transient history implementation is implied. Seed original bias-state slots
+The static NIintegrate path explicitly implements dQ/dt=0; B45-4 separately
+owns nonstatic modes and history. Seed original bias-state slots
 for MODEINITSMSIG, then evaluate MODEDCOP with zero integration coefficient.
 Refresh bias-dependent NQS coefficients before the current stamp. Both loads
 share the same prepared model, bias and fixed owner storage.
@@ -271,7 +273,7 @@ corrections already owned above; those are not new AC physics.
 | Complex KCL/gauge | Proof/ac.c | Missing row/column or alias accumulation |
 | History/resource/failure | Proof/ac.c | Accepted history mutation, reallocation, partial output |
 
-Transient BE/TR and trial/commit lifecycle remain a separate unfinished B45-4
+Transient BE/TR and trial/commit lifecycle are qualified by the separate B45-4
 unit; no callable placeholder is introduced. Noise and public adoption remain
 B45-5/B45-6. Propagate ABI changes to the parent and package status without
 claiming these later contracts are implemented.
@@ -286,3 +288,59 @@ final verification is serialized, with 120-second compile and 60-second compact
 sanitizer-runtime limits for AC. The retained full eight-frequency sanitizer
 binary is additionally executed with a 120-second deadline, preserving its
 source and artifact hashes instead of recompiling unchanged production sources.
+
+## Transient Integration and History Ownership
+
+[Parent transient contract](../DESIGN.md#b45-4-transient-contract) owns the ABI,
+coordinates, lifecycle and tolerances. `transient_integration.inc` owns bounded BE/TR charge companions;
+`transient_evaluation.inc` owns atomic history publication, trial tokens and augmented stamps.
+It invokes original `b4ld` only in normal MODETRAN after explicit initialization;
+MODEINITTRAN and predictor branches cannot mutate accepted history. Integration
+admits only the original eight charge/current pairs (11,13,15,17,19,21,23,25).
+Slots 0...10 are bias, 27 is deficit coordinate, and 28 is dependent source charge;
+all 29 slots rotate on commit, including currently inactive slots.
+
+`Proof/verify_transient.py` compares separate original-source processes (including
+SPICE3f5 NIintegrate) and verifies independent charge companions, NQS relaxation,
+compositional static/dynamic finite differences, conservation, exact history/token behavior,
+allocation/setup counts and ASan/UBSan. This qualifies the C numerical boundary;
+no full circuit solver or public 4.5 numerical coverage is inferred.
+
+### Stable NQS Channel Charge
+
+At low inversion CAPMOD=1/2 first compute channel charge and its derivatives,
+then add/subtract the much larger accumulation/depletion charge to gate/bulk.
+Reconstructing channel charge as -(final gate+bulk), and drain charge by another
+subtraction, loses significant digits in the NQS partition quotient. Retain the
+channel and source expressions before those cancelling additions; derive drain
+and NQS derivatives from those retained values. Record `nqs-channel-charge-v1`.
+This is an algebraically equivalent evaluation of the 4.5 law, not a new model
+or threshold; raw reference differences remain subject to fixed I/Q tolerances.
+
+The exact VDS=0 CLM branch excludes diffVds > 1e-10. At that boundary the
+proof freezes only PCLM=0, the analytic extension of the selected CLM-disabled
+branch. Center residual/Jacobian/all 29 states must remain byte-identical; all
+perturbations retain forward orientation. PCLM is used only by the CLM branch
+and is restored afterward. This avoids sub-1e-10 V numerical subtraction.
+
+Derivative proof is compositional: static G is qualified by the independent
+static current finite differences; transient proof differentiates nodal charge
+companions and deficit relaxation separately and compares against augmented J-G.
+Constant accepted-history terms have zero derivative. This avoids using a 9 A
+junction or TR history offset to measure a 1e-7 S dynamic derivative. Public
+trial states supply the charges; independently checked deficit-column physical
+coefficients supply relaxation. All dynamic cells require two adjacent passing
+fourth-order steps at fixed tolerances. Actual-history residuals, all 29 states,
+and transitions are separately checked against raw original references and
+independent companion/relaxation equations. No accepted bank is altered by this
+conditioning and no production fallback or tolerance increase is introduced.
+
+### Charge-Disabled NQS Derivatives
+
+XPART<0 disables intrinsic charge computation and sets gtau=0 in the original
+release; overlap/junction companions and deficit storage remain active. Original
+forward/reverse NQS stamping nevertheless differentiates gcrg as if gtau were
+nonzero. Set those voltage derivatives to zero for XPART<0, matching the retained
+zero relaxation law, while preserving residuals and every state value. Record
+`nqs-disabled-charge-derivative-v1`; verify all augmented finite differences for
+this branch too. No QS fallback or new charge law is introduced.

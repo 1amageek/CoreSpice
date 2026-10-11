@@ -63,6 +63,7 @@ register CKTcircuit *ckt;
 {
 register BSIM4model *model = (BSIM4model*)inModel;
 register BSIM4instance *here;
+double stableChannelCharge=0, stableChannelGate=0, stableChannelDrain=0, stableChannelBody=0, stableSourceGate=0, stableSourceDrain=0, stableSourceBody=0;
 
 double ceqgstot, dgstot_dvd, dgstot_dvg, dgstot_dvs, dgstot_dvb;
 double ceqgdtot, dgdtot_dvd, dgdtot_dvg, dgdtot_dvs, dgdtot_dvb;
@@ -3150,9 +3151,10 @@ for (; model != NULL; model = model->BSIM4nextModel)
                       Csd = -0.5 * (Cgd1 + Cbd1);
                   }
 
+                  stableChannelCharge=qgate+qbulk; stableChannelGate=Cgg1+Cbg1; stableChannelDrain=Cgd1+Cbd1; stableChannelBody=(Cgb1+Cbb1)*dVbseff_dVb; stableSourceGate=Csg; stableSourceDrain=Csd; stableSourceBody=Csb*dVbseff_dVb;
                   qgate += Qac0 + Qsub0;
                   qbulk -= (Qac0 + Qsub0);
-                  qdrn = -(qgate + qbulk + qsrc);
+                  qdrn = -stableChannelCharge - qsrc;
 
                   Cgg = dQac0_dVg + dQsub0_dVg + Cgg1;
                   Cgd = dQsub0_dVd + Cgd1;
@@ -3421,9 +3423,10 @@ for (; model != NULL; model = model->BSIM4nextModel)
                       Csb = -0.5 * Cgb1;
                   }
 
+                  stableChannelCharge=qgate; stableChannelGate=Cgg1; stableChannelDrain=Cgd1; stableChannelBody=(Cgb1)*dVbseff_dVb; stableSourceGate=Csg; stableSourceDrain=Csd; stableSourceBody=Csb*dVbseff_dVb;
                   qgate += Qac0 + Qsub0 - qbulk;
                   qbulk -= (Qac0 + Qsub0);
-                  qdrn = -(qgate + qbulk + qsrc);
+                  qdrn = -stableChannelCharge - qsrc;
 
                   Cbg = Cbg1 - dQac0_dVg - dQsub0_dVg;
                   Cbd = Cbd1 - dQsub0_dVd;
@@ -3461,6 +3464,16 @@ for (; model != NULL; model = model->BSIM4nextModel)
           here->BSIM4qbulk = qbulk;
           here->BSIM4qdrn = qdrn;
           here->BSIM4qsrc = -(qgate + qbulk + qdrn);
+          if(model->BSIM4capMod>=1) {
+              here->BSIM4qsrc=qsrc;
+              here->BSIM4cdgb=-stableChannelGate-stableSourceGate;
+              here->BSIM4cddb=-stableChannelDrain-stableSourceDrain;
+              here->BSIM4cdbb=-stableChannelBody-stableSourceBody;
+              here->BSIM4cdsb=-(here->BSIM4cdgb+here->BSIM4cddb+here->BSIM4cdbb);
+              here->BSIM4csgb=stableSourceGate;here->BSIM4csdb=stableSourceDrain;here->BSIM4csbb=stableSourceBody;
+              here->BSIM4cssb=-(stableSourceGate+stableSourceDrain+stableSourceBody);
+          }
+
 
           /* NQS begins */
           if ((here->BSIM4trnqsMod) || (here->BSIM4acnqsMod))
@@ -3471,6 +3484,11 @@ for (; model != NULL; model = model->BSIM4nextModel)
               here->BSIM4cqbb = -(here->BSIM4cqgb + here->BSIM4cqdb
                               + here->BSIM4cqsb);
 
+              if(model->BSIM4capMod>=1) {
+                  here->BSIM4qchqs=qcheq=-stableChannelCharge;
+                  here->BSIM4cqgb=-stableChannelGate;here->BSIM4cqdb=-stableChannelDrain;
+                  here->BSIM4cqbb=-stableChannelBody;here->BSIM4cqsb=stableChannelGate+stableChannelDrain+stableChannelBody;
+              }
               CoxWL = model->BSIM4coxe * pParam->BSIM4weffCV * here->BSIM4nf
                     * pParam->BSIM4leffCV;
               T1 = here->BSIM4gcrg / CoxWL; /* 1 / tau */
@@ -3818,7 +3836,7 @@ line755:
               {   qcheq = here->BSIM4qchqs;
                   CoxWL = model->BSIM4coxe * pParam->BSIM4weffCV * here->BSIM4nf
                         * pParam->BSIM4leffCV;
-                  T0 = qdef * ScalingFactor / CoxWL;
+                  T0 = model->BSIM4xpart<0 ? 0.0 : qdef * ScalingFactor / CoxWL;
 
                   ggtg = here->BSIM4gtg = T0 * here->BSIM4gcrgg;
                   ggtd = here->BSIM4gtd = T0 * here->BSIM4gcrgd;
@@ -4009,7 +4027,7 @@ line755:
               {   qcheq = here->BSIM4qchqs;
                   CoxWL = model->BSIM4coxe * pParam->BSIM4weffCV * here->BSIM4nf
                         * pParam->BSIM4leffCV;
-                  T0 = qdef * ScalingFactor / CoxWL;
+                  T0 = model->BSIM4xpart<0 ? 0.0 : qdef * ScalingFactor / CoxWL;
                   ggtg = here->BSIM4gtg = T0 * here->BSIM4gcrgg;
                   ggts = here->BSIM4gts = T0 * here->BSIM4gcrgd;
                   ggtd = here->BSIM4gtd = T0 * here->BSIM4gcrgs;

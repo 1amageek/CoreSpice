@@ -3,10 +3,10 @@
 ## Purpose and Scope
 
 Status: B45-2 preparation and B45-3 static I/Q/Jacobians are implemented in
-independent SwiftPM C target `CoreSpiceBSIM45`. B45-4 AC/NQS is implemented in the same target; transient/noise and safe-owner
+independent SwiftPM C target `CoreSpiceBSIM45`. B45-4 AC/frequency NQS and BE/TR/transient NQS are implemented in the same target; noise and safe-owner
 public execution adoption remain proposed and unavailable.
 Parent: [CoreSpice](../../DESIGN.md). Child: [Kernel](Kernel/DESIGN.md).
-It exposes an independently buildable exact-release preparation/static C boundary. It owns no
+It exposes an independently buildable exact-release preparation/static/AC/transient C boundary. It owns no
 parser, model search, expression evaluation, circuit compiler or solver.
 
 ## Responsibilities and Boundaries
@@ -34,7 +34,7 @@ portable MOSContracts; neither C target imports Swift or Foundation.
 checked numeric parameter IDs + explicit temperature/capabilities/work limits
  -> cs_bsim45_create -> original setup/temperature/check -> frozen topology
  -> static I/Q/Jacobians (implemented)
- -> complex AC/NQS (implemented) | transient trial/accept | noise spectrum (future)
+ -> complex AC/NQS | transient trial/reject/commit (implemented) | noise spectrum (future)
  -> finite checked output publication
  -> cs_bsim45_destroy
 ```
@@ -45,8 +45,8 @@ No external SPICE engine is needed for build, link or runtime.
 
 ## Contracts and Invariants
 
-Preparation, static and AC/NQS APIs are implemented; general history/noise
-operations below are future design only and have no public declarations. Release and adaptation identities are immutable
+Preparation, static, AC/NQS and transient/history APIs are implemented. Noise
+remains future design with no public declaration. Release and adaptation identities are immutable
 and queryable independently of a successful numerical run.
 
 | ABI operation | Guarantee / failure boundary |
@@ -57,14 +57,15 @@ and queryable independently of a successful numerical run.
 | `cs_bsim45_prepare` | Single setup; caller-selected noise intent and work budget; publishes topology only on complete success |
 | `cs_bsim45_evaluate_static` | Physical static I/Q and full analytic Jacobians; selected-branch derivative at VDS=0; atomic finite output |
 | `cs_bsim45_evaluate_ac` | Atomic finite physical admittance with explicit angular frequency and frozen ACNQSMOD |
-| Future `cs_bsim45_evaluate` | Exact local bias, full residual/RHS/current/charge/Jacobians; explicit DC/AC/BE/TR method and conditions |
-| Future `cs_bsim45_initialize_history`, `cs_bsim45_commit` | Exclusive accepted/older history; generation-bound successful trial token commits once |
+| `cs_bsim45_evaluate_transient` | Exact local bias and separate deficit coordinate; full augmented residual/Jacobian and 29 trial states; explicit BE/TR and dt |
+| `cs_bsim45_initialize_history`, `cs_bsim45_commit`, `cs_bsim45_reject`, `cs_bsim45_history` | Explicit equilibrium initialization; exclusive accepted/older banks; owner/generation-bound token commits once or is rejected; inspection is nonmutating |
 | Future `cs_bsim45_noise_spectrum` | Full local complex transfer gains borrowed for call; release-specific PSD channels |
 | `cs_bsim45_destroy` | Exactly-once release, including any partial preparation state |
 
-ABI statuses distinguish invalid release/schema/parameter/conditions, unsupported
-analysis, allocation/work/diagnostic capacity, nonfinite evaluation, invalid
-history and cancellation admission. No partial output is authoritative on failure.
+ABI statuses distinguish release/schema/parameter/state errors, allocation/resource/
+diagnostic capacity, kernel/nonfinite evaluation, and invalid history. Cancellation
+admission belongs to the caller; reject discards a pending trial. No partial output
+is authoritative on failure.
 Version and polarity are constructor-owned selectors, not writable numeric
 coefficients. Store the canonical original version using owned/static storage;
 never retain a temporary caller C string. Admission rejects attempts to overwrite
@@ -85,9 +86,9 @@ Preparation consumes already evaluated SI inputs. It copies parameter values int
 private original model/instance storage, applies release defaults and temperature
 preprocessing, then freezes topology. It never modifies resolved input buffers.
 Repeated bias evaluations never call setup, reinterpret names or reapply input scale.
-Unsupported requested capabilities fail before owner publication.
+Unsupported requested capabilities fail before prepared topology publication.
 
-Future transient trials preserve accepted and older state. Rejection/any subsequent
+Transient trials preserve accepted and older state. Rejection/any subsequent
 evaluation invalidates the old trial token. Acceptance verifies owner generation
 and commits once. DC/AC/noise cannot mutate accepted history. The upper bound owner
 keeps accepted-bias evaluation and commit within one lock sequence.
@@ -96,19 +97,20 @@ keeps accepted-bias evaluation and commit within one lock sequence.
 
 ```text
 allocated -> admitting -> preparing -> prepared
-                              future: prepared -> trial -> accepted
+                              prepared -> initialized -> trial -> commit/reject
     |            |           |           |         |
     +------------+-----------+-----------+---------+-> destroyed
                               failure: never reuse partial preparation
 ```
 
 One preparation allocation contains model, instance, one geometry knot, topology,
-matrix, reserved state arrays and bounded diagnostics. Trial metadata remains a
-future numerical-unit responsibility. Redirect original geometry
+matrix, three 29-state banks, trial authorization/result staging and bounded
+diagnostics. Redirect original geometry
 allocation to that owner; all original pointers borrow owned storage. No retained
 caller pointers, mutable process-global state, filesystem logs or callbacks.
-The ABI is exclusive rather than internally locking; the safe owner supplies the
-same Mutex contract on every target. Destroy cannot race any context operation.
+The ABI is exclusive rather than internally locking. B45-6 must supply the
+same safe-owner Mutex contract on every target. Current C callers serialize
+all operations themselves; destroy cannot race any context operation.
 
 ## Failure, Concurrency, and Constraints
 
@@ -126,8 +128,9 @@ the Swift boundary; work limits bound the longest uninterruptible native call.
 topology combinations, exact allocation/failure/release counts and ASan/UBSan.
 Simultaneous 4.5/4.8.3 linkage prepares and destroys independent owners. [Proof/verify_static.py](Proof/verify_static.py) owns current full-node I/Q,
 original references, finite differences, conservation and static ownership.
-[Proof/verify_ac.py](Proof/verify_ac.py) owns AC/NQS. Future tests own BE/TR history/token behavior,
-noise and ASan/UBSan lifecycle/failure paths. Each implementation unit builds and
+[Proof/verify_ac.py](Proof/verify_ac.py) owns AC/NQS. [Proof/verify_transient.py](Proof/verify_transient.py) owns BE/TR/transient NQS,
+history/token behavior and ASan/UBSan lifecycle/failure paths. Noise evidence is
+reserved for B45-5. Each implementation unit builds and
 executes only this target's needed sources, with a subprocess timeout. They do
 not require GPU, parser, PDK or a whole package test build.
 
@@ -142,8 +145,8 @@ Native CPU qualification is separate from portable schema runtime evidence.
 ## B45-2 Preparation-Only Implementation Contract
 
 B45-2 implements create, typed numeric/vector admission, prepare, prepared
-inspection and destroy; B45-3 adds the static operation specified below. Future numerical operations above remain
-design proposals and are not declared in the C header. A failed setter or prepare
+inspection and destroy; B45-3 adds static evaluation and B45-4 adds AC/transient operations specified below.
+Only future noise operations remain undeclared design proposals. A failed setter or prepare
 poisons the owner; inspection publishes prepared values only after success.
 Repeated preparation is a state error. The constructor admits owner byte budget,
 diagnostic record capacity, temperature, polarity, noise topology intent and
@@ -228,13 +231,13 @@ overlap and junction contributions. At zero frequency it reduces to static G.
 The kernel owns stable relaxation factors without squaring a large omega*tau;
 negative/nonfinite relaxation time is a terminal nonfinite physics failure.
 Large finite frequencies whose final admittance overflows also fail atomically.
-There is no transient integration/history-commit API in this unit.
+AC does not integrate or commit transient history.
 
 Proof/verify_ac.py owns raw original and coefficient-isolated AC comparisons,
 QS identity, independent complex relaxation, row/column conservation, frequency
 and bias order independence, arbitrary history sentinels, exact allocation,
 invalid requests and terminal failure under ASan/UBSan. Raw original derivative
-differences remain restricted to B45-3's documented correction footprint; the
+differences remain restricted to the child-owned documented correction footprint; the
 coefficient-isolated oracle uses the unmodified original AC source and the
 already independently qualified static coefficients, with no difference waiver.
 Native CPU only. AC tolerance is 1e-12 S + 2e-6 relative per cell, fixed by the
@@ -251,3 +254,61 @@ exact floating-point Y=G+j*omega*C for every representable result. Original AC
 remains the NQS stamp authority. The coefficient-isolated original comparison
 covers omega 0 through 1e16 without waivers; extreme relaxation factors are
 independently checked against 100-digit Decimal arithmetic over 36 cases.
+
+## B45-4 Transient Contract
+
+Native C only; public Swift/Devices adoption remains B45-6. The owner retains
+three complete 29-double banks: scratch trial, accepted, and older. Initialization
+qualifies exact equilibrium bias with the static service and zero integration
+coefficients, then atomically copies all 29 finite states to both history banks.
+Initialization has zero deficit and zero charge currents. It does not use the
+original MODEINITTRAN branch, which writes accepted state during evaluation.
+Normal MODETRAN and the bounded integration service write only scratch state.
+
+```text
+prepared -> initialize -> history ready -> evaluate -> trial authorized
+                              ^            |             |
+                              |         reject/new call  commit
+                              +--------------------------+
+```
+
+Physical bias contains 13 voltages with ground/unused/charge slots zero. A separate
+finite deficit coordinate supplies the charge node: physical deficit is
+polarity * coordinate * 1e-9 C. QS requires coordinate zero. The result is the
+full augmented residual (A) and its Jacobian, including the deficit equation;
+physical columns differentiate volts, deficit column differentiates the scaled
+coordinate. This is not the DC/AC physical-only projection.
+
+BE uses a0=1/dt and dq=a0*(q-trusted_q); trapezoidal uses a0=2/dt and
+ dq=a0*(q-trusted_q)-trusted_dq. Method and finite positive dt are explicit;
+nonfinite reciprocal coefficients are refused. Each successful commit shifts
+all 29 accepted states into older and all 29 trial states into accepted exactly
+once. Time-step selection, startup method, convergence, and cancellation are
+caller policy. Reject provides cancellation cleanup before commit; callers hold
+exclusive access across their final accepted-bias evaluation and commit.
+
+Every initialization/static/AC/transient attempt invalidates pending authorization,
+even on invalid input. Invalid caller input changes no history or output. Internal
+kernel/nonfinite failure is terminal and also preserves history/output. Inspection
+copies accepted/older history and never invalidates a trial. Tokens pair a live
+owner address with a checked nonwrapping generation; cross-owner, stale, rejected,
+and double commits fail with HISTORY and do not change either bank. Native tokens
+must not outlive their owner. B45-6's retained immutable identity marker separately
+prevents address-reuse aliasing across destroyed owners. No mutable global ID exists.
+
+One owner allocation includes all retained and scratch bytes, queried before
+admission; no evaluate/commit allocation, setup, or temperature preparation.
+Proof tolerances fixed before fixtures: residual/reference 1e-12 A + 2e-6 relative,
+Jacobian/reference 1e-10 (physical column S; scaled deficit column A/coordinate)
++ 2e-6 relative; independent finite differences 1e-10 + 2e-4 relative;
+state charge 1e-23 C + 2e-7 relative, state current 1e-12 A + 2e-6 relative,
+bias/deficit coordinate 1e-13 + 2e-7 relative. Conservation uses sum-of-magnitudes
+roundoff bounds. Original comparisons retain only the child-owned documented static/NQS derivative
+corrections, each independently differentiated. Lifecycle checks are byte exact.
+
+Each exact-bias evaluation seeds scratch bias slots 0...10 and deficit slot 27
+from the current request. Accepted bias slots remain historical evidence, not
+Newton-policy input. Otherwise original limiter scaffolding can choose a
+roundtrip subtraction according to the previous orientation even when the
+limiter function itself returns its input. This removes that history-dependent
+roundoff without changing solver policy or the 4.5 physical law.

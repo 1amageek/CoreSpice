@@ -26,8 +26,19 @@ AC/NQS adds the original b4acld.c. `ac-nqs-stable-v1` replaces only relaxation
 factor arithmetic with equivalent reciprocal forms; `ac-qs-authority-v1` uses
 qualified static G+j*omega*C for QS to avoid frequency-amplified cancellation
 from the original per-term AC stamp. The original isolated transient charge-node
-diagonal is excluded from physical admittance. Transient/noise and public
-Devices adoption remain unavailable; this is an exclusive Native C capability.
+diagonal is excluded from physical admittance. Native BE/TR and transient NQS
+use exclusive 29-state trial/reject/commit history. `nqs-channel-charge-v1` retains
+channel/source charge before cancelling accumulation/depletion additions;
+`nqs-disabled-charge-derivative-v1` differentiates zero relaxation as zero when
+XPART disables intrinsic charge. Both preserve the original physical charge law.
+Noise and public Devices adoption remain unavailable.
+
+The bounded BE/TR integration service implements the pinned SPICE3f5 companion
+semantics; the proof compiles unmodified
+[src/lib/ni/niinteg.c](https://github.com/pickleburger/spice3f5/blob/73335519d0d7046c754c652569258c5ff1107cf4/src/lib/ni/niinteg.c)
+with SHA-256 `f606207e30eb818bc86ac4ec911d427910e15f5adf1b4af026f1c0ab05f3de0b`.
+Original MODEINITTRAN history writes are replaced by explicit atomic
+initialization; normal MODETRAN writes only trial state.
 
 The original preparation files reference only `CONSTvt0`, `CONSTroot2` and
 `CONSTCtoK` from the host simulator. Their definitions are pinned to Berkeley
