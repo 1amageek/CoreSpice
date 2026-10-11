@@ -127,6 +127,47 @@ invocation owning that model declaration; a function body uses callsite numeric
 invocation while nested function names use the function declaration's lexical
 scope. No same-named parent/sibling model can repair a failed nearer owner.
 
+### Pinned ordinary hierarchical multiplicity
+
+The pinned normal profile uses the source-level `inp_fix_subckt_multiplier` rule in
+[fixed inpcom.c](https://github.com/imr/ngspice/blob/ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6/src/frontend/inpcom.c#L4129-L4278).
+A reachable lexical X occurrence supplying `m` activates its target declaration unless
+that declaration explicitly owns a header or body `m` parameter. The fixed
+reference promotes body defaults before multiplier activation. Activation applies
+to every reachable invocation of that declaration, including siblings without a
+supplied multiplier. Missing `m` defaults to one; explicit X actuals retain priority.
+An explicit header/body `m` delegates all device scaling to the author's expressions.
+Strict profile supplies no implicit multiplicity.
+
+Compilation retains one interned `m` reference program if source X actuals require
+it, without changing parsed source or adding fictitious declaration occurrences.
+Evaluation-free planning owns a bounded reachability/activation worklist and
+records effective component bindings. Ordinary mode's appended `m={m}` replaces an existing device
+`m`, rather than multiplying it as HSPICE mode would; discarded expressions are
+not evaluated. The reference excludes V/E/H/A/K/N/O/P/S/T/U/W/Y devices and voltage
+behavioral sources. Eligible resistors receive the same effective scalar through
+their existing parallel-multiplicity contract. Other eligible non-MOS families are refused before
+scalar evaluation: their existing flattened `m` may be ignored or denote a model
+grading coefficient, so propagating it would silently change or lose meaning.
+Their physical multiplicity implementation is outside this MOS boundary change.
+Nested inherited X arguments require the child to declare `m` or already be activated
+by a reachable explicit X actual. Otherwise planning refuses the path: the fixed
+source's one-pass rewrite has order-dependent nested success/refusal, which the
+unordered ParsedIR body collections cannot reproduce. It does not invent recursive
+implicit activation. Unreachable declarations cannot activate a used sibling.
+The graph owns concrete multiplier bindings; normal evaluation memoizes them once.
+MOS resolution, schema validation and normalization consume the effective program
+before publishing ResolvedMOSInstance. Devices only consume its immutable `m`.
+No execution-stage multiplier injection, geometry alteration or re-preparation is
+permitted. Synthetic binding/program identities do not fabricate source positions.
+
+Activation storage, visits, default actuals and effective binding arrays are charged
+to FrontendStorage under existing caller limits. Reachability/activation scratch
+is released before publishing the graph/session; it is not retained-value capacity. A failed expansion publishes no
+partial circuit. `HierarchicalMultiplierTests` owns nested/default/header/strict,
+body-default and discarded-random counterexamples; original RF execution and
+independent DC comparison own the upper-path evidence.
+
 ### Model coefficients are evaluation slots
 
 Non-MOS coefficient assignments, like MOS coefficients, are scalar evaluation

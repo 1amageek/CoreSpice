@@ -7,6 +7,7 @@ public final class CompiledNetlist: Sendable {
     public let source: ParsedNetlist
     public let snapshot: MOSDeclarationSnapshot
     public let retainedBytes: UInt64
+    let hierarchicalMultiplier: MOSExpressionBinding?
     let identity: MOSIdentitySpace
     let scopes: [FrontendScopeTemplate]
     let models: [FrontendModelTemplate]
@@ -15,8 +16,10 @@ public final class CompiledNetlist: Sendable {
 
     init(source: ParsedNetlist, snapshot: MOSDeclarationSnapshot, retainedBytes: UInt64,
          identity: MOSIdentitySpace, scopes: [FrontendScopeTemplate], models: [FrontendModelTemplate],
-         slots: [NetlistScalarAddress: NetlistScalarSlot], modelOrigins: [ParsedModelOrigin?]) {
+         slots: [NetlistScalarAddress: NetlistScalarSlot], modelOrigins: [ParsedModelOrigin?],
+         hierarchicalMultiplier: MOSExpressionBinding?) {
         self.source = source; self.snapshot = snapshot; self.retainedBytes = retainedBytes
+        self.hierarchicalMultiplier = hierarchicalMultiplier
         self.identity = identity; self.scopes = scopes; self.models = models
         self.slots = slots; self.modelOrigins = modelOrigins
     }

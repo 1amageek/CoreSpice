@@ -16,7 +16,7 @@ public struct NetlistLowering: Sendable {
         limits: MOSResolutionLimits, seed: UInt64, parameterOverrides: [String: Double] = [:],
         control: (any MOSResolutionControlling)? = nil) throws -> NetlistLoweringSession {
         var planner = try NetlistInvocationPlanner(compiled: compiled, limits: limits, control: control)
-        let plan = try planner.plan(overrides: parameterOverrides)
+        let plan = try planner.plan(overrides: parameterOverrides, profile: profile)
         let evaluator = try MOSEvaluationSession(snapshot: compiled.snapshot, graph: plan.graph,
             seed: seed, limits: limits, control: control)
         var session = NetlistLoweringSession(compiled: compiled, plan: plan, profile: profile,

@@ -150,9 +150,15 @@ public struct NetlistLoweringSession: ~Copyable {
         if let reason = job.template.mosAssignmentFailure {
             throw LoweringError.invalidComponent(name: fullName(job), reason: reason)
         }
+        var bindings = job.template.assignments
+        if let inherited = job.inheritedMultiplier {
+            try storage.retain(bindings)
+            bindings.removeAll { $0.symbol == inherited.symbol }
+            try storage.reserve(&bindings, bindings.count + 1); bindings.append(inherited)
+        }
         let request = try MOSResolutionRequest(source: frontendSource(component.origin, location: component.location),
             instance: fullName(job), scope: job.template.scope, scopeInstantiation: job.invocation,
-            modelReference: reference, profile: profile, bindings: job.template.assignments,
+            modelReference: reference, profile: profile, bindings: bindings,
             geometryScale: scale, seed: seed, globalWidthPerFinger: widthPerFinger, limits: limits)
         let resolved = try resolveMOS(request, from: compiled.snapshot,
             schemas: StandardMOSModelSchemas(), session: &evaluator)
@@ -172,6 +178,12 @@ public struct NetlistLoweringSession: ~Copyable {
         into builder: inout BoundedFrontendNetlist) throws -> FrontendResolvedComponent {
         let component = job.template.component, name = fullName(job)
         let emitter = NonMOSComponentEmitter()
+        // FIXME(INCOMPLETE_IMPLEMENTATION): Other non-MOS devices lack an admitted parallel multiplier contract.
+        // Pinned hierarchical X expansion reaches this before scalar evaluation or circuit publication.
+        // Admit each family only after model/instance roles and DC/AC/transient/noise scaling are verified.
+        if job.inheritedMultiplier != nil, component.type != .resistor {
+            throw LoweringError.unsupportedFeature(feature: "Hierarchical multiplicity for \(component.type.rawValue) is not implemented")
+        }
         if component.type == .capacitor, component.parameters["q"] != nil {
             // FIXME(INCOMPLETE_IMPLEMENTATION): Native charge-capacitor physics is absent.
             // Selected frontend components reach this before numerical slot evaluation.
@@ -229,6 +241,7 @@ public struct NetlistLoweringSession: ~Copyable {
         var readNodes: [String] = [], readBranches: [String] = []
         for (key, value) in try storage.entries(component.parameters) {
             try storage.spend()
+            if key.lowercased() == "m", job.inheritedMultiplier != nil { continue }
             if passiveUsesModel && key == (component.type == .resistor ? "r" : "c") { continue }
             try storage.reserve(&parameters, parameters.count + 1)
             if key == "control_source" {
@@ -257,6 +270,11 @@ public struct NetlistLoweringSession: ~Copyable {
                 parameters[key] = .real(try evaluateMOSProgram(program, invocation: job.invocation,
                     lexicalScope: job.template.scope, from: compiled.snapshot, session: &evaluator))
             }
+        }
+        if let inherited = job.inheritedMultiplier {
+            try storage.reserve(&parameters, parameters.count + 1)
+            parameters["m"] = .real(try evaluateMOSProgram(inherited.program, invocation: job.invocation,
+                lexicalScope: job.template.scope, from: compiled.snapshot, session: &evaluator))
         }
         if component.type == .resistor {
             for dimension in ["l", "w"] {

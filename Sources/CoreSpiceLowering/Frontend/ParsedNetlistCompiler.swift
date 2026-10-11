@@ -41,10 +41,22 @@ struct ParsedNetlistCompiler: ~Copyable {
         try storage.retain(source.globalNodes)
         for name in source.globalNodes { try storage.text(name) }
         try storage.sourceEvidence(source)
+        var hierarchicalMultiplier: MOSExpressionBinding?
+        for scope in scopes {
+            for template in scope.components {
+                try storage.spend()
+                if template.component.type == .subcircuitInstance, template.programs["m"] != nil,
+                   hierarchicalMultiplier == nil {
+                    let symbol = try builder.intern("m")
+                    hierarchicalMultiplier = .init(symbol: symbol,
+                        program: try compileValue(.expression(.identifier("m"))))
+                }
+            }
+        }
         let snapshot = try builder.finish()
         try storage.budget.add(snapshot.retainedBytes)
         return CompiledNetlist(source: source, snapshot: snapshot, retainedBytes: storage.budget.bytes,
-            identity: identity, scopes: scopes, models: models, slots: slots, modelOrigins: origins)
+            identity: identity, scopes: scopes, models: models, slots: slots, modelOrigins: origins, hierarchicalMultiplier: hierarchicalMultiplier)
     }
     private mutating func compileBody(_ body: ParsedNetlistBody, parent: MOSScopeID?,
         subcircuit: ParsedSubcircuit?) throws -> MOSScopeID {
