@@ -24,6 +24,8 @@ def main():
     parser.add_argument('--scratch-path', type=Path, default=HERE / '.build')
     parser.add_argument('--config-path', type=Path)
     parser.add_argument('--samples', type=int, default=5)
+    parser.add_argument('--releases', nargs='+', choices=['level1', 'bsim3', 'bsim4', 'bsim45'],
+                        default=['level1', 'bsim3', 'bsim4', 'bsim45'])
     args = parser.parse_args()
     if not 1 <= args.samples <= 20:
         parser.error('samples must be in 1...20')
@@ -93,7 +95,7 @@ def main():
             '-fno-builtin', HERE / 'interposer/AllocationInterposer.c', '-o', library], 30)
         report['executableSHA256'] = digest(executable)
         report['interposerSHA256'] = digest(library)
-        for release in ['level1', 'bsim3', 'bsim4']:
+        for release in dict.fromkeys(args.releases):
             cold = [json.loads(run(f'cold-{release}-{i}', [executable, 'cold', release, '1']))
                     for i in range(args.samples)]
             reuse = json.loads(run('reuse-' + release, [executable, 'reuse', release, str(args.samples)]))

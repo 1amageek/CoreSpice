@@ -5,7 +5,8 @@
 Reproducible Native CPU release measurements of original-string parsing through
 resolution, one native preparation/binding and a five-point DC sweep. Parent:
 [CoreSpice](../../DESIGN.md). Children: [probe](Sources/MOSPerformanceProbe/DESIGN.md),
-[heap metrics](Sources/NativeHeapMetrics/DESIGN.md), [interposer](interposer/DESIGN.md).
+[heap metrics](Sources/NativeHeapMetrics/DESIGN.md), [interposer](interposer/DESIGN.md),
+[original-source process observer](OriginalSourceProcess/DESIGN.md).
 
 ## Responsibilities and Boundaries
 
@@ -68,3 +69,24 @@ runs cold/reuse for Level 1, BSIM3 3.3.0 and BSIM4 4.8.3, and checks all signatu
 phase counters and source hashes. Each subprocess is bounded and logged. Re-run on
 production source or harness changes. Native preparation tests own quota/cleanup;
 this package measures their composed runtime, rather than replacing those proofs.
+
+The exact BSIM4 4.5 release participates in the same cold/reuse benchmark, with
+fresh sessions, candidate work and preparation receipts. `run.py --releases
+bsim45` restricts execution to this changed release. `run_original.py --root
+<unchanged-sky130A> --output <new-directory>` measures the committed six-row
+public exact-source tests in fresh uninstrumented/instrumented release processes.
+It requires numerical signatures and source digests to match, all analyses to
+complete, and allocation/copy calibration to pass. Its counters cover the whole
+test child (including audit/test runtime), not individual asynchronous phases;
+per-phase wall times and logical resource capacities come from the row artifacts.
+
+The first 4.5 measurement (three cold and three reuse samples, Swift 6.4.0,
+Native CPU release) observed 3.75 ms cold and 1.81 ms reused median for eight
+MOS / five DC points. Resolution reported 24 candidate work units, zero downstream
+resolution charges, and one setup per MOS. Whole original six-row execution
+observed 24.3 seconds without instrumentation, 24.8 seconds with instrumentation,
+and 472,612,864 bytes process peak RSS. Logical row reservation peaks exceed 1 GB
+because they reserve admitted envelopes; these are not heap allocations. Observed
+allocation/copy API totals include test/audit overhead and nested entries. These
+are baseline observations, not an old-versus-new speedup or a hardware guarantee.
+The exact caller policies and executable/source hashes remain in the run artifacts.

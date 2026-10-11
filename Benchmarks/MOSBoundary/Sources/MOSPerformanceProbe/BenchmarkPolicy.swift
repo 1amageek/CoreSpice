@@ -30,6 +30,7 @@ struct BenchmarkPolicy {
         switch release {
         case "level1": selector = "level=1"; parameters = "vto={0.4+delta} kp=1e-4"
         case "bsim3": selector = "level=49 version=3.3.0"; parameters = "tox=1e-8 vth0={0.4+delta} u0=0.05"
+        case "bsim45": selector = "level=54 version=4.5"; parameters = "toxe=1e-8 vth0={0.4+delta} u0=0.05"
         case "bsim4": selector = "level=54 version=4.8.3"; parameters = "toxe=1e-8 vth0={0.4+delta} u0=0.05"
         default: throw BenchmarkFailure.invalidArguments
         }
