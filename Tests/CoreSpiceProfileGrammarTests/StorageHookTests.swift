@@ -104,7 +104,9 @@ struct StorageHookTests {
         let live = resources.used(.liveOwnedBytes)
         var copy = storage
         storage = nil
-        #expect(resources.used(.liveOwnedBytes) == live)
+        withExtendedLifetime(copy) {
+            #expect(resources.used(.liveOwnedBytes) == live)
+        }
         copy = nil
         #expect(resources.used(.liveOwnedBytes) == 0)
     }
@@ -123,7 +125,9 @@ struct StorageHookTests {
         var copy: SPICEParseStorage? = storage
         storage = SPICEParseStorage(resources: resources)
         dictionary = nil
-        #expect(resources.used(.liveOwnedBytes) > 0)
+        withExtendedLifetime(copy) {
+            #expect(resources.used(.liveOwnedBytes) > 0)
+        }
         copy = nil
         #expect(resources.used(.liveOwnedBytes) == 0)
     }

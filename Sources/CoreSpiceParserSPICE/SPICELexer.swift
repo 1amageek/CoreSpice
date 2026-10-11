@@ -499,9 +499,10 @@ public struct SPICELexer: Sendable {
 
     private mutating func scanString(startLocation: SourceLocation) -> SPICEToken.Located {
         let quote = current
+        // Fix the grammar boundary before cursor mutation; Swift 6.4 -O hoists a later index load.
+        let start = source.index(after: index)
         advance() // skip opening quote
 
-        let start = index
         while !isAtEnd && current != quote && !isAtNewline {
             if current == "\\", peek() == quote || peek() == "\\" { advance() }
             advance()

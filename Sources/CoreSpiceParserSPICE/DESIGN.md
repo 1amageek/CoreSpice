@@ -27,6 +27,26 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### Quoted token spans
+
+The shared lexer owns the interior span of both quote delimiters. Its immutable
+lower bound is the source successor of the opening delimiter, computed before
+mutating the scanning cursor. The upper bound is the closing delimiter; neither
+delimiter is part of the token payload. Single quotes retain raw expression text
+for role-specific decoding; double quotes decode only delimiter/backslash escapes.
+Missing closing quotes remain located failures. Include/library resolution must
+consume this exact payload rather than repairing a malformed path downstream.
+
+On the fixed Swift 6.4.0 release toolchain, optimized SIL for the previous
+`advance(); let start = index` loop used the pre-advance index as the lower bound.
+Computing the immutable grammar boundary directly avoids that stale cursor load
+without changing token storage, reservation lifetime, cancellation or diagnostics.
+`LexerExpressionOwnedTests.quotedSourceRoutesExcludeBothDelimiters` checks actual
+ordinary/accounted payloads and release of reservations. `SPICEQuotedValueTests`
+checks expressions, escaped paths, round trips and physical diagnostics;
+`PreparedCLIExecutionTests` checks retained exact library execution after original
+files change. These tests must run in both debug and release configurations.
+
 ### Monte Carlo optional seed progress
 
 The `.mc` optional tail accepts a named `seed`, its existing optional `=`, and a

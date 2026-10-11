@@ -6,6 +6,28 @@ import Testing
 
 @Suite("Bounded lexer and expression grammar", .timeLimit(.minutes(1)))
 struct LexerExpressionOwnedTests {
+    @Test(arguments: ["'", "\""], ["metal.lib", "Models/Exact Name.lib"])
+    func quotedSourceRoutesExcludeBothDelimiters(delimiter: String, path: String) throws {
+        let source = "cli owned\n.lib \(delimiter)\(path)\(delimiter) tt\n.end\n"
+        let expected: SPICEToken = delimiter == "'" ? .quotedExpression(path) : .string(path)
+        var ordinary = SPICELexer(source: source, fileName: "root.cir")
+        let ordinaryQuoted = ordinary.tokenize().filter {
+            switch $0.token { case .string, .quotedExpression: true; default: false }
+        }.map(\.token)
+        #expect(ordinaryQuoted == [expected])
+        let resources = GrammarTestResources()
+        var bounded = SPICELexer(source: source, fileName: "root.cir")
+        do {
+            let owned = try bounded.tokenizeOwned(resources: resources)
+            let boundedQuoted = owned.tokens.filter {
+                switch $0.token { case .string, .quotedExpression: true; default: false }
+            }.map(\.token)
+            #expect(boundedQuoted == [expected])
+            #expect(resources.used(.temporaryBytes) == 0)
+        }
+        #expect(resources.used(.liveOwnedBytes) == 0)
+    }
+
     @Test func conditionalScopeTokensLocationsAndASTMatchWithReleasedScratch() throws {
         for newline in ["\n", "\r\n"] {
             let source = [".param value={q?v(x:y)", "* ignored ? :", "", "+ :i(vbranch:r)}", "R1 a:b 0 1k"].joined(separator: newline)
