@@ -15,7 +15,7 @@ package enum MOSSelectionPolicy {
             origin = .defaulted(profile)
         } else if let explicit = model.level { origin = .explicitLevel(explicit) }
         else { origin = .defaulted(profile) }
-        do { return (try MOSModelRelease.resolve(level: level, version: version), origin) }
+        do { return (try MOSModelRelease.resolve(level: level, version: version, profile: profile), origin) }
         catch { throw .schema(error) }
     }
 

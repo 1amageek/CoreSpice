@@ -4,21 +4,22 @@ import Testing
 @Suite("Exact MOS schema contracts")
 struct MOSSchemaTests {
     @Test func exactReleaseIdentityAndInspectionAreIndependentOfExecution() throws {
-        #expect(try MOSModelRelease.resolve(level: 49, version: "3.3.0") == .bsim3_3_3_0)
-        #expect(try MOSModelRelease.resolve(level: 54, version: "4.5") == .bsim4_4_5)
+        #expect(try MOSModelRelease.resolve(level: 49, version: "3.3.0", profile: .coreStrictV1) == .bsim3_3_3_0)
+        #expect(try MOSModelRelease.resolve(level: 54, version: "4.5", profile: .coreStrictV1) == .bsim4_4_5)
         #expect(throws: MOSSchemaFailure.unsupportedRelease(level: 54, version: nil)) {
-            try MOSModelRelease.resolve(level: 54, version: nil)
+            try MOSModelRelease.resolve(level: 54, version: nil, profile: .coreStrictV1)
         }
-        for version in ["4.50", "4.5.0", "4.8", "4.8.30"] {
+        for version in ["4.50", "4.500000e+0", "4.8", "4.8.30", "4.62"] {
             #expect(throws: MOSSchemaFailure.unsupportedRelease(level: 54, version: version)) {
-                try MOSModelRelease.resolve(level: 54, version: version)
+                try MOSModelRelease.resolve(level: 54, version: version, profile: .coreStrictV1)
             }
         }
         let provider: any MOSModelSchemaProviding = StandardMOSModelSchemas()
         let inspect = try provider.schema(for: .bsim4_4_5)
         #expect(try inspect.parameter(named: "vth0", role: .model).kind == .real)
-        #expect(throws: MOSSchemaFailure.nonExecutableRelease(.bsim4_4_5)) { try inspect.requireExecutable() }
-        try provider.schema(for: .bsim4_4_8_3).requireExecutable()
+        #expect(MOSModelRelease.bsim4_4_5.exactVersion == "4.5.0")
+        #expect(try MOSModelRelease.resolve(level: 54, version: "4.5.0", profile: .coreStrictV1) == .bsim4_4_5)
+        #expect(try MOSModelRelease.resolve(level: 54, version: "4.500000e+0", profile: .pinnedNgspiceNormalV1) == .bsim4_4_5)
         #expect(MOSInputProfile.allCases.count == 2)
         #expect(MOSInputProfile.pinnedNgspiceCommit == "ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6")
     }
@@ -42,13 +43,34 @@ struct MOSSchemaTests {
             #expect(try schema.parameter(named: "off", role: .instance).kind == .flag)
             try schema.parameter(named: "nf", role: .instance).validate(1.5)
         }
-        #expect(try MOSModelSchema(release: .bsim4_4_5).parameter(named: "mulu0", role: .instance).kind == .real)
+        for name in ["mulu0", "dtemp", "gidlmod"] {
+            let role: MOSParameterRole = name == "gidlmod" ? .model : .instance
+            #expect(throws: MOSSchemaFailure.unknownParameter(name: name, role: role, release: .bsim4_4_5)) {
+                try MOSModelSchema(release: .bsim4_4_5).parameter(named: name, role: role)
+            }
+        }
         #expect(throws: MOSSchemaFailure.unknownParameter(name: "mulu0", role: .instance, release: .bsim4_4_8_3)) {
             try MOSModelSchema(release: .bsim4_4_8_3).parameter(named: "mulu0", role: .instance)
         }
         #expect(throws: MOSSchemaFailure.unknownParameter(name: "nf", role: .instance, release: .bsim3_3_3_0)) {
             try MOSModelSchema(release: .bsim3_3_3_0).parameter(named: "nf", role: .instance)
         }
+    }
+
+    @Test func originalSelectorsKeepRoleAndFrontendOwnershipSeparate() throws {
+        let schema = MOSModelSchema(release: .bsim4_4_5)
+        let sc = try schema.parameter(named: "sc", role: .instance)
+        let sca = try schema.parameter(named: "sca", role: .instance)
+        guard case .native(let scID) = sc.authority,
+              case .native(let scaID) = sca.authority else { Issue.record("Missing original selector identity"); return }
+        #expect(scID != scaID && scID.schema.revision == 2 && scID.role == .instance)
+        #expect(sc.scale == .length && sca.scale == .none)
+        #expect(try schema.parameter(named: "m", role: .instance).authority == .parallelMultiplicity)
+        for (index, name) in ["ic_vds", "ic_vgs", "ic_vbs"].enumerated() {
+            #expect(try schema.parameter(named: name, role: .instance).authority == .initialConditionComponent(index))
+        }
+        #expect(try schema.parameter(named: "delvt0", role: .instance).authority == schema.parameter(named: "delvto", role: .instance).authority)
+        #expect(try schema.parameter(named: "vtho", role: .model).authority == schema.parameter(named: "vth0", role: .model).authority)
     }
 
     @Test func scalingPreservesRepresentableAreaAndRefusesUnderflowOverflowAndNonfinite() throws {

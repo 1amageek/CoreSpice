@@ -1,0 +1,6242 @@
+{
+  "release": "4.5.0",
+  "adaptation": "sc-selector-v1",
+  "originals": {
+    "b4.c": "521d73140143fa32f2bd93a090a99b81dbe18cc621a2bd84f711e18dfb5713ec",
+    "bsim4def.h": "9a73d6f1eb41ea9a5741b33f8aafd38068f1fbdda569a3ce119e1ff436d4c544"
+  },
+  "parameters": [
+    {
+      "role": "instance",
+      "name": "l",
+      "selector": 2,
+      "symbol": "BSIM4_L",
+      "kind": "real",
+      "canonicalName": "l"
+    },
+    {
+      "role": "instance",
+      "name": "w",
+      "selector": 1,
+      "symbol": "BSIM4_W",
+      "kind": "real",
+      "canonicalName": "w"
+    },
+    {
+      "role": "instance",
+      "name": "nf",
+      "selector": 19,
+      "symbol": "BSIM4_NF",
+      "kind": "real",
+      "canonicalName": "nf"
+    },
+    {
+      "role": "instance",
+      "name": "sa",
+      "selector": 28,
+      "symbol": "BSIM4_SA",
+      "kind": "real",
+      "canonicalName": "sa"
+    },
+    {
+      "role": "instance",
+      "name": "sb",
+      "selector": 29,
+      "symbol": "BSIM4_SB",
+      "kind": "real",
+      "canonicalName": "sb"
+    },
+    {
+      "role": "instance",
+      "name": "sd",
+      "selector": 30,
+      "symbol": "BSIM4_SD",
+      "kind": "real",
+      "canonicalName": "sd"
+    },
+    {
+      "role": "instance",
+      "name": "sca",
+      "selector": 34,
+      "symbol": "BSIM4_SCA",
+      "kind": "real",
+      "canonicalName": "sca"
+    },
+    {
+      "role": "instance",
+      "name": "scb",
+      "selector": 35,
+      "symbol": "BSIM4_SCB",
+      "kind": "real",
+      "canonicalName": "scb"
+    },
+    {
+      "role": "instance",
+      "name": "scc",
+      "selector": 36,
+      "symbol": "BSIM4_SCC",
+      "kind": "real",
+      "canonicalName": "scc"
+    },
+    {
+      "role": "instance",
+      "name": "sc",
+      "selector": 37,
+      "symbol": "BSIM4_SC",
+      "kind": "real",
+      "canonicalName": "sc"
+    },
+    {
+      "role": "instance",
+      "name": "min",
+      "selector": 20,
+      "symbol": "BSIM4_MIN",
+      "kind": "integer",
+      "canonicalName": "min"
+    },
+    {
+      "role": "instance",
+      "name": "ad",
+      "selector": 4,
+      "symbol": "BSIM4_AD",
+      "kind": "real",
+      "canonicalName": "ad"
+    },
+    {
+      "role": "instance",
+      "name": "as",
+      "selector": 3,
+      "symbol": "BSIM4_AS",
+      "kind": "real",
+      "canonicalName": "as"
+    },
+    {
+      "role": "instance",
+      "name": "pd",
+      "selector": 6,
+      "symbol": "BSIM4_PD",
+      "kind": "real",
+      "canonicalName": "pd"
+    },
+    {
+      "role": "instance",
+      "name": "ps",
+      "selector": 5,
+      "symbol": "BSIM4_PS",
+      "kind": "real",
+      "canonicalName": "ps"
+    },
+    {
+      "role": "instance",
+      "name": "nrd",
+      "selector": 8,
+      "symbol": "BSIM4_NRD",
+      "kind": "real",
+      "canonicalName": "nrd"
+    },
+    {
+      "role": "instance",
+      "name": "nrs",
+      "selector": 7,
+      "symbol": "BSIM4_NRS",
+      "kind": "real",
+      "canonicalName": "nrs"
+    },
+    {
+      "role": "instance",
+      "name": "off",
+      "selector": 9,
+      "symbol": "BSIM4_OFF",
+      "kind": "flag",
+      "canonicalName": "off"
+    },
+    {
+      "role": "instance",
+      "name": "rbdb",
+      "selector": 23,
+      "symbol": "BSIM4_RBDB",
+      "kind": "real",
+      "canonicalName": "rbdb"
+    },
+    {
+      "role": "instance",
+      "name": "rbsb",
+      "selector": 24,
+      "symbol": "BSIM4_RBSB",
+      "kind": "real",
+      "canonicalName": "rbsb"
+    },
+    {
+      "role": "instance",
+      "name": "rbpb",
+      "selector": 25,
+      "symbol": "BSIM4_RBPB",
+      "kind": "real",
+      "canonicalName": "rbpb"
+    },
+    {
+      "role": "instance",
+      "name": "rbps",
+      "selector": 26,
+      "symbol": "BSIM4_RBPS",
+      "kind": "real",
+      "canonicalName": "rbps"
+    },
+    {
+      "role": "instance",
+      "name": "rbpd",
+      "selector": 27,
+      "symbol": "BSIM4_RBPD",
+      "kind": "real",
+      "canonicalName": "rbpd"
+    },
+    {
+      "role": "instance",
+      "name": "delvto",
+      "selector": 31,
+      "symbol": "BSIM4_DELVTO",
+      "kind": "real",
+      "canonicalName": "delvto"
+    },
+    {
+      "role": "instance",
+      "name": "xgw",
+      "selector": 32,
+      "symbol": "BSIM4_XGW",
+      "kind": "real",
+      "canonicalName": "xgw"
+    },
+    {
+      "role": "instance",
+      "name": "ngcon",
+      "selector": 33,
+      "symbol": "BSIM4_NGCON",
+      "kind": "real",
+      "canonicalName": "ngcon"
+    },
+    {
+      "role": "instance",
+      "name": "trnqsmod",
+      "selector": 14,
+      "symbol": "BSIM4_TRNQSMOD",
+      "kind": "integer",
+      "canonicalName": "trnqsmod"
+    },
+    {
+      "role": "instance",
+      "name": "acnqsmod",
+      "selector": 22,
+      "symbol": "BSIM4_ACNQSMOD",
+      "kind": "integer",
+      "canonicalName": "acnqsmod"
+    },
+    {
+      "role": "instance",
+      "name": "rbodymod",
+      "selector": 15,
+      "symbol": "BSIM4_RBODYMOD",
+      "kind": "integer",
+      "canonicalName": "rbodymod"
+    },
+    {
+      "role": "instance",
+      "name": "rgatemod",
+      "selector": 16,
+      "symbol": "BSIM4_RGATEMOD",
+      "kind": "integer",
+      "canonicalName": "rgatemod"
+    },
+    {
+      "role": "instance",
+      "name": "geomod",
+      "selector": 17,
+      "symbol": "BSIM4_GEOMOD",
+      "kind": "integer",
+      "canonicalName": "geomod"
+    },
+    {
+      "role": "instance",
+      "name": "rgeomod",
+      "selector": 18,
+      "symbol": "BSIM4_RGEOMOD",
+      "kind": "integer",
+      "canonicalName": "rgeomod"
+    },
+    {
+      "role": "instance",
+      "name": "ic",
+      "selector": 10,
+      "symbol": "BSIM4_IC",
+      "kind": "vector",
+      "canonicalName": "ic"
+    },
+    {
+      "role": "model",
+      "name": "capmod",
+      "selector": 101,
+      "symbol": "BSIM4_MOD_CAPMOD",
+      "kind": "integer",
+      "canonicalName": "capmod"
+    },
+    {
+      "role": "model",
+      "name": "diomod",
+      "selector": 96,
+      "symbol": "BSIM4_MOD_DIOMOD",
+      "kind": "integer",
+      "canonicalName": "diomod"
+    },
+    {
+      "role": "model",
+      "name": "rdsmod",
+      "selector": 94,
+      "symbol": "BSIM4_MOD_RDSMOD",
+      "kind": "integer",
+      "canonicalName": "rdsmod"
+    },
+    {
+      "role": "model",
+      "name": "trnqsmod",
+      "selector": 102,
+      "symbol": "BSIM4_MOD_TRNQSMOD",
+      "kind": "integer",
+      "canonicalName": "trnqsmod"
+    },
+    {
+      "role": "model",
+      "name": "acnqsmod",
+      "selector": 92,
+      "symbol": "BSIM4_MOD_ACNQSMOD",
+      "kind": "integer",
+      "canonicalName": "acnqsmod"
+    },
+    {
+      "role": "model",
+      "name": "mobmod",
+      "selector": 103,
+      "symbol": "BSIM4_MOD_MOBMOD",
+      "kind": "integer",
+      "canonicalName": "mobmod"
+    },
+    {
+      "role": "model",
+      "name": "rbodymod",
+      "selector": 100,
+      "symbol": "BSIM4_MOD_RBODYMOD",
+      "kind": "integer",
+      "canonicalName": "rbodymod"
+    },
+    {
+      "role": "model",
+      "name": "rgatemod",
+      "selector": 99,
+      "symbol": "BSIM4_MOD_RGATEMOD",
+      "kind": "integer",
+      "canonicalName": "rgatemod"
+    },
+    {
+      "role": "model",
+      "name": "permod",
+      "selector": 97,
+      "symbol": "BSIM4_MOD_PERMOD",
+      "kind": "integer",
+      "canonicalName": "permod"
+    },
+    {
+      "role": "model",
+      "name": "geomod",
+      "selector": 98,
+      "symbol": "BSIM4_MOD_GEOMOD",
+      "kind": "integer",
+      "canonicalName": "geomod"
+    },
+    {
+      "role": "model",
+      "name": "fnoimod",
+      "selector": 93,
+      "symbol": "BSIM4_MOD_FNOIMOD",
+      "kind": "integer",
+      "canonicalName": "fnoimod"
+    },
+    {
+      "role": "model",
+      "name": "tnoimod",
+      "selector": 104,
+      "symbol": "BSIM4_MOD_TNOIMOD",
+      "kind": "integer",
+      "canonicalName": "tnoimod"
+    },
+    {
+      "role": "model",
+      "name": "igcmod",
+      "selector": 90,
+      "symbol": "BSIM4_MOD_IGCMOD",
+      "kind": "integer",
+      "canonicalName": "igcmod"
+    },
+    {
+      "role": "model",
+      "name": "igbmod",
+      "selector": 91,
+      "symbol": "BSIM4_MOD_IGBMOD",
+      "kind": "integer",
+      "canonicalName": "igbmod"
+    },
+    {
+      "role": "model",
+      "name": "tempmod",
+      "selector": 89,
+      "symbol": "BSIM4_MOD_TEMPMOD",
+      "kind": "integer",
+      "canonicalName": "tempmod"
+    },
+    {
+      "role": "model",
+      "name": "paramchk",
+      "selector": 192,
+      "symbol": "BSIM4_MOD_PARAMCHK",
+      "kind": "integer",
+      "canonicalName": "paramchk"
+    },
+    {
+      "role": "model",
+      "name": "binunit",
+      "selector": 124,
+      "symbol": "BSIM4_MOD_BINUNIT",
+      "kind": "integer",
+      "canonicalName": "binunit"
+    },
+    {
+      "role": "model",
+      "name": "version",
+      "selector": 193,
+      "symbol": "BSIM4_MOD_VERSION",
+      "kind": "text",
+      "canonicalName": "version"
+    },
+    {
+      "role": "model",
+      "name": "toxe",
+      "selector": 105,
+      "symbol": "BSIM4_MOD_TOXE",
+      "kind": "real",
+      "canonicalName": "toxe"
+    },
+    {
+      "role": "model",
+      "name": "toxp",
+      "selector": 230,
+      "symbol": "BSIM4_MOD_TOXP",
+      "kind": "real",
+      "canonicalName": "toxp"
+    },
+    {
+      "role": "model",
+      "name": "toxm",
+      "selector": 201,
+      "symbol": "BSIM4_MOD_TOXM",
+      "kind": "real",
+      "canonicalName": "toxm"
+    },
+    {
+      "role": "model",
+      "name": "toxref",
+      "selector": 272,
+      "symbol": "BSIM4_MOD_TOXREF",
+      "kind": "real",
+      "canonicalName": "toxref"
+    },
+    {
+      "role": "model",
+      "name": "dtox",
+      "selector": 231,
+      "symbol": "BSIM4_MOD_DTOX",
+      "kind": "real",
+      "canonicalName": "dtox"
+    },
+    {
+      "role": "model",
+      "name": "epsrox",
+      "selector": 276,
+      "symbol": "BSIM4_MOD_EPSROX",
+      "kind": "real",
+      "canonicalName": "epsrox"
+    },
+    {
+      "role": "model",
+      "name": "cdsc",
+      "selector": 106,
+      "symbol": "BSIM4_MOD_CDSC",
+      "kind": "real",
+      "canonicalName": "cdsc"
+    },
+    {
+      "role": "model",
+      "name": "cdscb",
+      "selector": 107,
+      "symbol": "BSIM4_MOD_CDSCB",
+      "kind": "real",
+      "canonicalName": "cdscb"
+    },
+    {
+      "role": "model",
+      "name": "cdscd",
+      "selector": 181,
+      "symbol": "BSIM4_MOD_CDSCD",
+      "kind": "real",
+      "canonicalName": "cdscd"
+    },
+    {
+      "role": "model",
+      "name": "cit",
+      "selector": 108,
+      "symbol": "BSIM4_MOD_CIT",
+      "kind": "real",
+      "canonicalName": "cit"
+    },
+    {
+      "role": "model",
+      "name": "nfactor",
+      "selector": 109,
+      "symbol": "BSIM4_MOD_NFACTOR",
+      "kind": "real",
+      "canonicalName": "nfactor"
+    },
+    {
+      "role": "model",
+      "name": "xj",
+      "selector": 110,
+      "symbol": "BSIM4_MOD_XJ",
+      "kind": "real",
+      "canonicalName": "xj"
+    },
+    {
+      "role": "model",
+      "name": "vsat",
+      "selector": 111,
+      "symbol": "BSIM4_MOD_VSAT",
+      "kind": "real",
+      "canonicalName": "vsat"
+    },
+    {
+      "role": "model",
+      "name": "at",
+      "selector": 112,
+      "symbol": "BSIM4_MOD_AT",
+      "kind": "real",
+      "canonicalName": "at"
+    },
+    {
+      "role": "model",
+      "name": "a0",
+      "selector": 113,
+      "symbol": "BSIM4_MOD_A0",
+      "kind": "real",
+      "canonicalName": "a0"
+    },
+    {
+      "role": "model",
+      "name": "ags",
+      "selector": 182,
+      "symbol": "BSIM4_MOD_AGS",
+      "kind": "real",
+      "canonicalName": "ags"
+    },
+    {
+      "role": "model",
+      "name": "a1",
+      "selector": 114,
+      "symbol": "BSIM4_MOD_A1",
+      "kind": "real",
+      "canonicalName": "a1"
+    },
+    {
+      "role": "model",
+      "name": "a2",
+      "selector": 115,
+      "symbol": "BSIM4_MOD_A2",
+      "kind": "real",
+      "canonicalName": "a2"
+    },
+    {
+      "role": "model",
+      "name": "keta",
+      "selector": 116,
+      "symbol": "BSIM4_MOD_KETA",
+      "kind": "real",
+      "canonicalName": "keta"
+    },
+    {
+      "role": "model",
+      "name": "nsub",
+      "selector": 117,
+      "symbol": "BSIM4_MOD_NSUB",
+      "kind": "real",
+      "canonicalName": "nsub"
+    },
+    {
+      "role": "model",
+      "name": "ndep",
+      "selector": 118,
+      "symbol": "BSIM4_MOD_NDEP",
+      "kind": "real",
+      "canonicalName": "ndep"
+    },
+    {
+      "role": "model",
+      "name": "nsd",
+      "selector": 256,
+      "symbol": "BSIM4_MOD_NSD",
+      "kind": "real",
+      "canonicalName": "nsd"
+    },
+    {
+      "role": "model",
+      "name": "phin",
+      "selector": 250,
+      "symbol": "BSIM4_MOD_PHIN",
+      "kind": "real",
+      "canonicalName": "phin"
+    },
+    {
+      "role": "model",
+      "name": "ngate",
+      "selector": 120,
+      "symbol": "BSIM4_MOD_NGATE",
+      "kind": "real",
+      "canonicalName": "ngate"
+    },
+    {
+      "role": "model",
+      "name": "gamma1",
+      "selector": 121,
+      "symbol": "BSIM4_MOD_GAMMA1",
+      "kind": "real",
+      "canonicalName": "gamma1"
+    },
+    {
+      "role": "model",
+      "name": "gamma2",
+      "selector": 122,
+      "symbol": "BSIM4_MOD_GAMMA2",
+      "kind": "real",
+      "canonicalName": "gamma2"
+    },
+    {
+      "role": "model",
+      "name": "vbx",
+      "selector": 123,
+      "symbol": "BSIM4_MOD_VBX",
+      "kind": "real",
+      "canonicalName": "vbx"
+    },
+    {
+      "role": "model",
+      "name": "vbm",
+      "selector": 125,
+      "symbol": "BSIM4_MOD_VBM",
+      "kind": "real",
+      "canonicalName": "vbm"
+    },
+    {
+      "role": "model",
+      "name": "xt",
+      "selector": 126,
+      "symbol": "BSIM4_MOD_XT",
+      "kind": "real",
+      "canonicalName": "xt"
+    },
+    {
+      "role": "model",
+      "name": "k1",
+      "selector": 129,
+      "symbol": "BSIM4_MOD_K1",
+      "kind": "real",
+      "canonicalName": "k1"
+    },
+    {
+      "role": "model",
+      "name": "kt1",
+      "selector": 130,
+      "symbol": "BSIM4_MOD_KT1",
+      "kind": "real",
+      "canonicalName": "kt1"
+    },
+    {
+      "role": "model",
+      "name": "kt1l",
+      "selector": 131,
+      "symbol": "BSIM4_MOD_KT1L",
+      "kind": "real",
+      "canonicalName": "kt1l"
+    },
+    {
+      "role": "model",
+      "name": "kt2",
+      "selector": 133,
+      "symbol": "BSIM4_MOD_KT2",
+      "kind": "real",
+      "canonicalName": "kt2"
+    },
+    {
+      "role": "model",
+      "name": "k2",
+      "selector": 132,
+      "symbol": "BSIM4_MOD_K2",
+      "kind": "real",
+      "canonicalName": "k2"
+    },
+    {
+      "role": "model",
+      "name": "k3",
+      "selector": 134,
+      "symbol": "BSIM4_MOD_K3",
+      "kind": "real",
+      "canonicalName": "k3"
+    },
+    {
+      "role": "model",
+      "name": "k3b",
+      "selector": 135,
+      "symbol": "BSIM4_MOD_K3B",
+      "kind": "real",
+      "canonicalName": "k3b"
+    },
+    {
+      "role": "model",
+      "name": "w0",
+      "selector": 136,
+      "symbol": "BSIM4_MOD_W0",
+      "kind": "real",
+      "canonicalName": "w0"
+    },
+    {
+      "role": "model",
+      "name": "dvtp0",
+      "selector": 247,
+      "symbol": "BSIM4_MOD_DVTP0",
+      "kind": "real",
+      "canonicalName": "dvtp0"
+    },
+    {
+      "role": "model",
+      "name": "dvtp1",
+      "selector": 248,
+      "symbol": "BSIM4_MOD_DVTP1",
+      "kind": "real",
+      "canonicalName": "dvtp1"
+    },
+    {
+      "role": "model",
+      "name": "lpe0",
+      "selector": 137,
+      "symbol": "BSIM4_MOD_LPE0",
+      "kind": "real",
+      "canonicalName": "lpe0"
+    },
+    {
+      "role": "model",
+      "name": "lpeb",
+      "selector": 246,
+      "symbol": "BSIM4_MOD_LPEB",
+      "kind": "real",
+      "canonicalName": "lpeb"
+    },
+    {
+      "role": "model",
+      "name": "dvt0",
+      "selector": 138,
+      "symbol": "BSIM4_MOD_DVT0",
+      "kind": "real",
+      "canonicalName": "dvt0"
+    },
+    {
+      "role": "model",
+      "name": "dvt1",
+      "selector": 139,
+      "symbol": "BSIM4_MOD_DVT1",
+      "kind": "real",
+      "canonicalName": "dvt1"
+    },
+    {
+      "role": "model",
+      "name": "dvt2",
+      "selector": 140,
+      "symbol": "BSIM4_MOD_DVT2",
+      "kind": "real",
+      "canonicalName": "dvt2"
+    },
+    {
+      "role": "model",
+      "name": "dvt0w",
+      "selector": 141,
+      "symbol": "BSIM4_MOD_DVT0W",
+      "kind": "real",
+      "canonicalName": "dvt0w"
+    },
+    {
+      "role": "model",
+      "name": "dvt1w",
+      "selector": 142,
+      "symbol": "BSIM4_MOD_DVT1W",
+      "kind": "real",
+      "canonicalName": "dvt1w"
+    },
+    {
+      "role": "model",
+      "name": "dvt2w",
+      "selector": 143,
+      "symbol": "BSIM4_MOD_DVT2W",
+      "kind": "real",
+      "canonicalName": "dvt2w"
+    },
+    {
+      "role": "model",
+      "name": "drout",
+      "selector": 144,
+      "symbol": "BSIM4_MOD_DROUT",
+      "kind": "real",
+      "canonicalName": "drout"
+    },
+    {
+      "role": "model",
+      "name": "dsub",
+      "selector": 145,
+      "symbol": "BSIM4_MOD_DSUB",
+      "kind": "real",
+      "canonicalName": "dsub"
+    },
+    {
+      "role": "model",
+      "name": "vth0",
+      "selector": 146,
+      "symbol": "BSIM4_MOD_VTH0",
+      "kind": "real",
+      "canonicalName": "vth0"
+    },
+    {
+      "role": "model",
+      "name": "vtho",
+      "selector": 146,
+      "symbol": "BSIM4_MOD_VTH0",
+      "kind": "real",
+      "canonicalName": "vth0"
+    },
+    {
+      "role": "model",
+      "name": "ua",
+      "selector": 147,
+      "symbol": "BSIM4_MOD_UA",
+      "kind": "real",
+      "canonicalName": "ua"
+    },
+    {
+      "role": "model",
+      "name": "ua1",
+      "selector": 148,
+      "symbol": "BSIM4_MOD_UA1",
+      "kind": "real",
+      "canonicalName": "ua1"
+    },
+    {
+      "role": "model",
+      "name": "ub",
+      "selector": 149,
+      "symbol": "BSIM4_MOD_UB",
+      "kind": "real",
+      "canonicalName": "ub"
+    },
+    {
+      "role": "model",
+      "name": "ub1",
+      "selector": 150,
+      "symbol": "BSIM4_MOD_UB1",
+      "kind": "real",
+      "canonicalName": "ub1"
+    },
+    {
+      "role": "model",
+      "name": "uc",
+      "selector": 151,
+      "symbol": "BSIM4_MOD_UC",
+      "kind": "real",
+      "canonicalName": "uc"
+    },
+    {
+      "role": "model",
+      "name": "uc1",
+      "selector": 152,
+      "symbol": "BSIM4_MOD_UC1",
+      "kind": "real",
+      "canonicalName": "uc1"
+    },
+    {
+      "role": "model",
+      "name": "ud",
+      "selector": 290,
+      "symbol": "BSIM4_MOD_UD",
+      "kind": "real",
+      "canonicalName": "ud"
+    },
+    {
+      "role": "model",
+      "name": "ud1",
+      "selector": 291,
+      "symbol": "BSIM4_MOD_UD1",
+      "kind": "real",
+      "canonicalName": "ud1"
+    },
+    {
+      "role": "model",
+      "name": "up",
+      "selector": 292,
+      "symbol": "BSIM4_MOD_UP",
+      "kind": "real",
+      "canonicalName": "up"
+    },
+    {
+      "role": "model",
+      "name": "lp",
+      "selector": 293,
+      "symbol": "BSIM4_MOD_LP",
+      "kind": "real",
+      "canonicalName": "lp"
+    },
+    {
+      "role": "model",
+      "name": "u0",
+      "selector": 153,
+      "symbol": "BSIM4_MOD_U0",
+      "kind": "real",
+      "canonicalName": "u0"
+    },
+    {
+      "role": "model",
+      "name": "eu",
+      "selector": 234,
+      "symbol": "BSIM4_MOD_EU",
+      "kind": "real",
+      "canonicalName": "eu"
+    },
+    {
+      "role": "model",
+      "name": "ute",
+      "selector": 154,
+      "symbol": "BSIM4_MOD_UTE",
+      "kind": "real",
+      "canonicalName": "ute"
+    },
+    {
+      "role": "model",
+      "name": "voff",
+      "selector": 155,
+      "symbol": "BSIM4_MOD_VOFF",
+      "kind": "real",
+      "canonicalName": "voff"
+    },
+    {
+      "role": "model",
+      "name": "minv",
+      "selector": 237,
+      "symbol": "BSIM4_MOD_MINV",
+      "kind": "real",
+      "canonicalName": "minv"
+    },
+    {
+      "role": "model",
+      "name": "voffl",
+      "selector": 238,
+      "symbol": "BSIM4_MOD_VOFFL",
+      "kind": "real",
+      "canonicalName": "voffl"
+    },
+    {
+      "role": "model",
+      "name": "tnom",
+      "selector": 831,
+      "symbol": "BSIM4_MOD_TNOM",
+      "kind": "real",
+      "canonicalName": "tnom"
+    },
+    {
+      "role": "model",
+      "name": "cgso",
+      "selector": 832,
+      "symbol": "BSIM4_MOD_CGSO",
+      "kind": "real",
+      "canonicalName": "cgso"
+    },
+    {
+      "role": "model",
+      "name": "cgdo",
+      "selector": 833,
+      "symbol": "BSIM4_MOD_CGDO",
+      "kind": "real",
+      "canonicalName": "cgdo"
+    },
+    {
+      "role": "model",
+      "name": "cgbo",
+      "selector": 834,
+      "symbol": "BSIM4_MOD_CGBO",
+      "kind": "real",
+      "canonicalName": "cgbo"
+    },
+    {
+      "role": "model",
+      "name": "xpart",
+      "selector": 835,
+      "symbol": "BSIM4_MOD_XPART",
+      "kind": "real",
+      "canonicalName": "xpart"
+    },
+    {
+      "role": "model",
+      "name": "delta",
+      "selector": 156,
+      "symbol": "BSIM4_MOD_DELTA",
+      "kind": "real",
+      "canonicalName": "delta"
+    },
+    {
+      "role": "model",
+      "name": "rsh",
+      "selector": 836,
+      "symbol": "BSIM4_MOD_RSH",
+      "kind": "real",
+      "canonicalName": "rsh"
+    },
+    {
+      "role": "model",
+      "name": "rdsw",
+      "selector": 157,
+      "symbol": "BSIM4_MOD_RDSW",
+      "kind": "real",
+      "canonicalName": "rdsw"
+    },
+    {
+      "role": "model",
+      "name": "rdswmin",
+      "selector": 251,
+      "symbol": "BSIM4_MOD_RDSWMIN",
+      "kind": "real",
+      "canonicalName": "rdswmin"
+    },
+    {
+      "role": "model",
+      "name": "rsw",
+      "selector": 252,
+      "symbol": "BSIM4_MOD_RSW",
+      "kind": "real",
+      "canonicalName": "rsw"
+    },
+    {
+      "role": "model",
+      "name": "rdw",
+      "selector": 253,
+      "symbol": "BSIM4_MOD_RDW",
+      "kind": "real",
+      "canonicalName": "rdw"
+    },
+    {
+      "role": "model",
+      "name": "rdwmin",
+      "selector": 254,
+      "symbol": "BSIM4_MOD_RDWMIN",
+      "kind": "real",
+      "canonicalName": "rdwmin"
+    },
+    {
+      "role": "model",
+      "name": "rswmin",
+      "selector": 255,
+      "symbol": "BSIM4_MOD_RSWMIN",
+      "kind": "real",
+      "canonicalName": "rswmin"
+    },
+    {
+      "role": "model",
+      "name": "prwg",
+      "selector": 179,
+      "symbol": "BSIM4_MOD_PRWG",
+      "kind": "real",
+      "canonicalName": "prwg"
+    },
+    {
+      "role": "model",
+      "name": "prwb",
+      "selector": 180,
+      "symbol": "BSIM4_MOD_PRWB",
+      "kind": "real",
+      "canonicalName": "prwb"
+    },
+    {
+      "role": "model",
+      "name": "prt",
+      "selector": 158,
+      "symbol": "BSIM4_MOD_PRT",
+      "kind": "real",
+      "canonicalName": "prt"
+    },
+    {
+      "role": "model",
+      "name": "eta0",
+      "selector": 161,
+      "symbol": "BSIM4_MOD_ETA0",
+      "kind": "real",
+      "canonicalName": "eta0"
+    },
+    {
+      "role": "model",
+      "name": "etab",
+      "selector": 162,
+      "symbol": "BSIM4_MOD_ETAB",
+      "kind": "real",
+      "canonicalName": "etab"
+    },
+    {
+      "role": "model",
+      "name": "pclm",
+      "selector": 163,
+      "symbol": "BSIM4_MOD_PCLM",
+      "kind": "real",
+      "canonicalName": "pclm"
+    },
+    {
+      "role": "model",
+      "name": "pdiblc1",
+      "selector": 164,
+      "symbol": "BSIM4_MOD_PDIBL1",
+      "kind": "real",
+      "canonicalName": "pdiblc1"
+    },
+    {
+      "role": "model",
+      "name": "pdiblc2",
+      "selector": 165,
+      "symbol": "BSIM4_MOD_PDIBL2",
+      "kind": "real",
+      "canonicalName": "pdiblc2"
+    },
+    {
+      "role": "model",
+      "name": "pdiblcb",
+      "selector": 178,
+      "symbol": "BSIM4_MOD_PDIBLB",
+      "kind": "real",
+      "canonicalName": "pdiblcb"
+    },
+    {
+      "role": "model",
+      "name": "fprout",
+      "selector": 245,
+      "symbol": "BSIM4_MOD_FPROUT",
+      "kind": "real",
+      "canonicalName": "fprout"
+    },
+    {
+      "role": "model",
+      "name": "pdits",
+      "selector": 239,
+      "symbol": "BSIM4_MOD_PDITS",
+      "kind": "real",
+      "canonicalName": "pdits"
+    },
+    {
+      "role": "model",
+      "name": "pditsl",
+      "selector": 241,
+      "symbol": "BSIM4_MOD_PDITSL",
+      "kind": "real",
+      "canonicalName": "pditsl"
+    },
+    {
+      "role": "model",
+      "name": "pditsd",
+      "selector": 240,
+      "symbol": "BSIM4_MOD_PDITSD",
+      "kind": "real",
+      "canonicalName": "pditsd"
+    },
+    {
+      "role": "model",
+      "name": "pscbe1",
+      "selector": 166,
+      "symbol": "BSIM4_MOD_PSCBE1",
+      "kind": "real",
+      "canonicalName": "pscbe1"
+    },
+    {
+      "role": "model",
+      "name": "pscbe2",
+      "selector": 167,
+      "symbol": "BSIM4_MOD_PSCBE2",
+      "kind": "real",
+      "canonicalName": "pscbe2"
+    },
+    {
+      "role": "model",
+      "name": "pvag",
+      "selector": 168,
+      "symbol": "BSIM4_MOD_PVAG",
+      "kind": "real",
+      "canonicalName": "pvag"
+    },
+    {
+      "role": "model",
+      "name": "jss",
+      "selector": 837,
+      "symbol": "BSIM4_MOD_JSS",
+      "kind": "real",
+      "canonicalName": "jss"
+    },
+    {
+      "role": "model",
+      "name": "jsws",
+      "selector": 878,
+      "symbol": "BSIM4_MOD_JSWS",
+      "kind": "real",
+      "canonicalName": "jsws"
+    },
+    {
+      "role": "model",
+      "name": "jswgs",
+      "selector": 280,
+      "symbol": "BSIM4_MOD_JSWGS",
+      "kind": "real",
+      "canonicalName": "jswgs"
+    },
+    {
+      "role": "model",
+      "name": "pbs",
+      "selector": 838,
+      "symbol": "BSIM4_MOD_PBS",
+      "kind": "real",
+      "canonicalName": "pbs"
+    },
+    {
+      "role": "model",
+      "name": "njs",
+      "selector": 873,
+      "symbol": "BSIM4_MOD_NJS",
+      "kind": "real",
+      "canonicalName": "njs"
+    },
+    {
+      "role": "model",
+      "name": "xtis",
+      "selector": 874,
+      "symbol": "BSIM4_MOD_XTIS",
+      "kind": "real",
+      "canonicalName": "xtis"
+    },
+    {
+      "role": "model",
+      "name": "mjs",
+      "selector": 839,
+      "symbol": "BSIM4_MOD_MJS",
+      "kind": "real",
+      "canonicalName": "mjs"
+    },
+    {
+      "role": "model",
+      "name": "pbsws",
+      "selector": 840,
+      "symbol": "BSIM4_MOD_PBSWS",
+      "kind": "real",
+      "canonicalName": "pbsws"
+    },
+    {
+      "role": "model",
+      "name": "mjsws",
+      "selector": 841,
+      "symbol": "BSIM4_MOD_MJSWS",
+      "kind": "real",
+      "canonicalName": "mjsws"
+    },
+    {
+      "role": "model",
+      "name": "pbswgs",
+      "selector": 875,
+      "symbol": "BSIM4_MOD_PBSWGS",
+      "kind": "real",
+      "canonicalName": "pbswgs"
+    },
+    {
+      "role": "model",
+      "name": "mjswgs",
+      "selector": 876,
+      "symbol": "BSIM4_MOD_MJSWGS",
+      "kind": "real",
+      "canonicalName": "mjswgs"
+    },
+    {
+      "role": "model",
+      "name": "cjs",
+      "selector": 842,
+      "symbol": "BSIM4_MOD_CJS",
+      "kind": "real",
+      "canonicalName": "cjs"
+    },
+    {
+      "role": "model",
+      "name": "cjsws",
+      "selector": 843,
+      "symbol": "BSIM4_MOD_CJSWS",
+      "kind": "real",
+      "canonicalName": "cjsws"
+    },
+    {
+      "role": "model",
+      "name": "cjswgs",
+      "selector": 877,
+      "symbol": "BSIM4_MOD_CJSWGS",
+      "kind": "real",
+      "canonicalName": "cjswgs"
+    },
+    {
+      "role": "model",
+      "name": "jsd",
+      "selector": 886,
+      "symbol": "BSIM4_MOD_JSD",
+      "kind": "real",
+      "canonicalName": "jsd"
+    },
+    {
+      "role": "model",
+      "name": "jswd",
+      "selector": 898,
+      "symbol": "BSIM4_MOD_JSWD",
+      "kind": "real",
+      "canonicalName": "jswd"
+    },
+    {
+      "role": "model",
+      "name": "jswgd",
+      "selector": 281,
+      "symbol": "BSIM4_MOD_JSWGD",
+      "kind": "real",
+      "canonicalName": "jswgd"
+    },
+    {
+      "role": "model",
+      "name": "pbd",
+      "selector": 887,
+      "symbol": "BSIM4_MOD_PBD",
+      "kind": "real",
+      "canonicalName": "pbd"
+    },
+    {
+      "role": "model",
+      "name": "njd",
+      "selector": 893,
+      "symbol": "BSIM4_MOD_NJD",
+      "kind": "real",
+      "canonicalName": "njd"
+    },
+    {
+      "role": "model",
+      "name": "xtid",
+      "selector": 894,
+      "symbol": "BSIM4_MOD_XTID",
+      "kind": "real",
+      "canonicalName": "xtid"
+    },
+    {
+      "role": "model",
+      "name": "mjd",
+      "selector": 888,
+      "symbol": "BSIM4_MOD_MJD",
+      "kind": "real",
+      "canonicalName": "mjd"
+    },
+    {
+      "role": "model",
+      "name": "pbswd",
+      "selector": 889,
+      "symbol": "BSIM4_MOD_PBSWD",
+      "kind": "real",
+      "canonicalName": "pbswd"
+    },
+    {
+      "role": "model",
+      "name": "mjswd",
+      "selector": 890,
+      "symbol": "BSIM4_MOD_MJSWD",
+      "kind": "real",
+      "canonicalName": "mjswd"
+    },
+    {
+      "role": "model",
+      "name": "pbswgd",
+      "selector": 895,
+      "symbol": "BSIM4_MOD_PBSWGD",
+      "kind": "real",
+      "canonicalName": "pbswgd"
+    },
+    {
+      "role": "model",
+      "name": "mjswgd",
+      "selector": 896,
+      "symbol": "BSIM4_MOD_MJSWGD",
+      "kind": "real",
+      "canonicalName": "mjswgd"
+    },
+    {
+      "role": "model",
+      "name": "cjd",
+      "selector": 891,
+      "symbol": "BSIM4_MOD_CJD",
+      "kind": "real",
+      "canonicalName": "cjd"
+    },
+    {
+      "role": "model",
+      "name": "cjswd",
+      "selector": 892,
+      "symbol": "BSIM4_MOD_CJSWD",
+      "kind": "real",
+      "canonicalName": "cjswd"
+    },
+    {
+      "role": "model",
+      "name": "cjswgd",
+      "selector": 897,
+      "symbol": "BSIM4_MOD_CJSWGD",
+      "kind": "real",
+      "canonicalName": "cjswgd"
+    },
+    {
+      "role": "model",
+      "name": "vfbcv",
+      "selector": 194,
+      "symbol": "BSIM4_MOD_VFBCV",
+      "kind": "real",
+      "canonicalName": "vfbcv"
+    },
+    {
+      "role": "model",
+      "name": "vfb",
+      "selector": 200,
+      "symbol": "BSIM4_MOD_VFB",
+      "kind": "real",
+      "canonicalName": "vfb"
+    },
+    {
+      "role": "model",
+      "name": "tpb",
+      "selector": 205,
+      "symbol": "BSIM4_MOD_TPB",
+      "kind": "real",
+      "canonicalName": "tpb"
+    },
+    {
+      "role": "model",
+      "name": "tcj",
+      "selector": 202,
+      "symbol": "BSIM4_MOD_TCJ",
+      "kind": "real",
+      "canonicalName": "tcj"
+    },
+    {
+      "role": "model",
+      "name": "tpbsw",
+      "selector": 206,
+      "symbol": "BSIM4_MOD_TPBSW",
+      "kind": "real",
+      "canonicalName": "tpbsw"
+    },
+    {
+      "role": "model",
+      "name": "tcjsw",
+      "selector": 203,
+      "symbol": "BSIM4_MOD_TCJSW",
+      "kind": "real",
+      "canonicalName": "tcjsw"
+    },
+    {
+      "role": "model",
+      "name": "tpbswg",
+      "selector": 207,
+      "symbol": "BSIM4_MOD_TPBSWG",
+      "kind": "real",
+      "canonicalName": "tpbswg"
+    },
+    {
+      "role": "model",
+      "name": "tcjswg",
+      "selector": 204,
+      "symbol": "BSIM4_MOD_TCJSWG",
+      "kind": "real",
+      "canonicalName": "tcjswg"
+    },
+    {
+      "role": "model",
+      "name": "acde",
+      "selector": 195,
+      "symbol": "BSIM4_MOD_ACDE",
+      "kind": "real",
+      "canonicalName": "acde"
+    },
+    {
+      "role": "model",
+      "name": "moin",
+      "selector": 196,
+      "symbol": "BSIM4_MOD_MOIN",
+      "kind": "real",
+      "canonicalName": "moin"
+    },
+    {
+      "role": "model",
+      "name": "noff",
+      "selector": 197,
+      "symbol": "BSIM4_MOD_NOFF",
+      "kind": "real",
+      "canonicalName": "noff"
+    },
+    {
+      "role": "model",
+      "name": "voffcv",
+      "selector": 208,
+      "symbol": "BSIM4_MOD_VOFFCV",
+      "kind": "real",
+      "canonicalName": "voffcv"
+    },
+    {
+      "role": "model",
+      "name": "dmcg",
+      "selector": 215,
+      "symbol": "BSIM4_MOD_DMCG",
+      "kind": "real",
+      "canonicalName": "dmcg"
+    },
+    {
+      "role": "model",
+      "name": "dmci",
+      "selector": 216,
+      "symbol": "BSIM4_MOD_DMCI",
+      "kind": "real",
+      "canonicalName": "dmci"
+    },
+    {
+      "role": "model",
+      "name": "dmdg",
+      "selector": 217,
+      "symbol": "BSIM4_MOD_DMDG",
+      "kind": "real",
+      "canonicalName": "dmdg"
+    },
+    {
+      "role": "model",
+      "name": "dmcgt",
+      "selector": 258,
+      "symbol": "BSIM4_MOD_DMCGT",
+      "kind": "real",
+      "canonicalName": "dmcgt"
+    },
+    {
+      "role": "model",
+      "name": "xgw",
+      "selector": 218,
+      "symbol": "BSIM4_MOD_XGW",
+      "kind": "real",
+      "canonicalName": "xgw"
+    },
+    {
+      "role": "model",
+      "name": "xgl",
+      "selector": 219,
+      "symbol": "BSIM4_MOD_XGL",
+      "kind": "real",
+      "canonicalName": "xgl"
+    },
+    {
+      "role": "model",
+      "name": "rshg",
+      "selector": 220,
+      "symbol": "BSIM4_MOD_RSHG",
+      "kind": "real",
+      "canonicalName": "rshg"
+    },
+    {
+      "role": "model",
+      "name": "ngcon",
+      "selector": 221,
+      "symbol": "BSIM4_MOD_NGCON",
+      "kind": "real",
+      "canonicalName": "ngcon"
+    },
+    {
+      "role": "model",
+      "name": "xrcrg1",
+      "selector": 232,
+      "symbol": "BSIM4_MOD_XRCRG1",
+      "kind": "real",
+      "canonicalName": "xrcrg1"
+    },
+    {
+      "role": "model",
+      "name": "xrcrg2",
+      "selector": 233,
+      "symbol": "BSIM4_MOD_XRCRG2",
+      "kind": "real",
+      "canonicalName": "xrcrg2"
+    },
+    {
+      "role": "model",
+      "name": "lambda",
+      "selector": 282,
+      "symbol": "BSIM4_MOD_LAMBDA",
+      "kind": "real",
+      "canonicalName": "lambda"
+    },
+    {
+      "role": "model",
+      "name": "vtl",
+      "selector": 283,
+      "symbol": "BSIM4_MOD_VTL",
+      "kind": "real",
+      "canonicalName": "vtl"
+    },
+    {
+      "role": "model",
+      "name": "lc",
+      "selector": 284,
+      "symbol": "BSIM4_MOD_LC",
+      "kind": "real",
+      "canonicalName": "lc"
+    },
+    {
+      "role": "model",
+      "name": "xn",
+      "selector": 285,
+      "symbol": "BSIM4_MOD_XN",
+      "kind": "real",
+      "canonicalName": "xn"
+    },
+    {
+      "role": "model",
+      "name": "vfbsdoff",
+      "selector": 288,
+      "symbol": "BSIM4_MOD_VFBSDOFF",
+      "kind": "real",
+      "canonicalName": "vfbsdoff"
+    },
+    {
+      "role": "model",
+      "name": "tvfbsdoff",
+      "selector": 295,
+      "symbol": "BSIM4_MOD_TVFBSDOFF",
+      "kind": "real",
+      "canonicalName": "tvfbsdoff"
+    },
+    {
+      "role": "model",
+      "name": "tvoff",
+      "selector": 294,
+      "symbol": "BSIM4_MOD_TVOFF",
+      "kind": "real",
+      "canonicalName": "tvoff"
+    },
+    {
+      "role": "model",
+      "name": "lintnoi",
+      "selector": 289,
+      "symbol": "BSIM4_MOD_LINTNOI",
+      "kind": "real",
+      "canonicalName": "lintnoi"
+    },
+    {
+      "role": "model",
+      "name": "lint",
+      "selector": 849,
+      "symbol": "BSIM4_MOD_LINT",
+      "kind": "real",
+      "canonicalName": "lint"
+    },
+    {
+      "role": "model",
+      "name": "ll",
+      "selector": 850,
+      "symbol": "BSIM4_MOD_LL",
+      "kind": "real",
+      "canonicalName": "ll"
+    },
+    {
+      "role": "model",
+      "name": "llc",
+      "selector": 879,
+      "symbol": "BSIM4_MOD_LLC",
+      "kind": "real",
+      "canonicalName": "llc"
+    },
+    {
+      "role": "model",
+      "name": "lln",
+      "selector": 851,
+      "symbol": "BSIM4_MOD_LLN",
+      "kind": "real",
+      "canonicalName": "lln"
+    },
+    {
+      "role": "model",
+      "name": "lw",
+      "selector": 852,
+      "symbol": "BSIM4_MOD_LW",
+      "kind": "real",
+      "canonicalName": "lw"
+    },
+    {
+      "role": "model",
+      "name": "lwc",
+      "selector": 880,
+      "symbol": "BSIM4_MOD_LWC",
+      "kind": "real",
+      "canonicalName": "lwc"
+    },
+    {
+      "role": "model",
+      "name": "lwn",
+      "selector": 853,
+      "symbol": "BSIM4_MOD_LWN",
+      "kind": "real",
+      "canonicalName": "lwn"
+    },
+    {
+      "role": "model",
+      "name": "lwl",
+      "selector": 854,
+      "symbol": "BSIM4_MOD_LWL",
+      "kind": "real",
+      "canonicalName": "lwl"
+    },
+    {
+      "role": "model",
+      "name": "lwlc",
+      "selector": 881,
+      "symbol": "BSIM4_MOD_LWLC",
+      "kind": "real",
+      "canonicalName": "lwlc"
+    },
+    {
+      "role": "model",
+      "name": "lmin",
+      "selector": 855,
+      "symbol": "BSIM4_MOD_LMIN",
+      "kind": "real",
+      "canonicalName": "lmin"
+    },
+    {
+      "role": "model",
+      "name": "lmax",
+      "selector": 856,
+      "symbol": "BSIM4_MOD_LMAX",
+      "kind": "real",
+      "canonicalName": "lmax"
+    },
+    {
+      "role": "model",
+      "name": "wr",
+      "selector": 169,
+      "symbol": "BSIM4_MOD_WR",
+      "kind": "real",
+      "canonicalName": "wr"
+    },
+    {
+      "role": "model",
+      "name": "wint",
+      "selector": 857,
+      "symbol": "BSIM4_MOD_WINT",
+      "kind": "real",
+      "canonicalName": "wint"
+    },
+    {
+      "role": "model",
+      "name": "dwg",
+      "selector": 170,
+      "symbol": "BSIM4_MOD_DWG",
+      "kind": "real",
+      "canonicalName": "dwg"
+    },
+    {
+      "role": "model",
+      "name": "dwb",
+      "selector": 171,
+      "symbol": "BSIM4_MOD_DWB",
+      "kind": "real",
+      "canonicalName": "dwb"
+    },
+    {
+      "role": "model",
+      "name": "wl",
+      "selector": 858,
+      "symbol": "BSIM4_MOD_WL",
+      "kind": "real",
+      "canonicalName": "wl"
+    },
+    {
+      "role": "model",
+      "name": "wlc",
+      "selector": 882,
+      "symbol": "BSIM4_MOD_WLC",
+      "kind": "real",
+      "canonicalName": "wlc"
+    },
+    {
+      "role": "model",
+      "name": "wln",
+      "selector": 859,
+      "symbol": "BSIM4_MOD_WLN",
+      "kind": "real",
+      "canonicalName": "wln"
+    },
+    {
+      "role": "model",
+      "name": "ww",
+      "selector": 860,
+      "symbol": "BSIM4_MOD_WW",
+      "kind": "real",
+      "canonicalName": "ww"
+    },
+    {
+      "role": "model",
+      "name": "wwc",
+      "selector": 883,
+      "symbol": "BSIM4_MOD_WWC",
+      "kind": "real",
+      "canonicalName": "wwc"
+    },
+    {
+      "role": "model",
+      "name": "wwn",
+      "selector": 861,
+      "symbol": "BSIM4_MOD_WWN",
+      "kind": "real",
+      "canonicalName": "wwn"
+    },
+    {
+      "role": "model",
+      "name": "wwl",
+      "selector": 862,
+      "symbol": "BSIM4_MOD_WWL",
+      "kind": "real",
+      "canonicalName": "wwl"
+    },
+    {
+      "role": "model",
+      "name": "wwlc",
+      "selector": 884,
+      "symbol": "BSIM4_MOD_WWLC",
+      "kind": "real",
+      "canonicalName": "wwlc"
+    },
+    {
+      "role": "model",
+      "name": "wmin",
+      "selector": 863,
+      "symbol": "BSIM4_MOD_WMIN",
+      "kind": "real",
+      "canonicalName": "wmin"
+    },
+    {
+      "role": "model",
+      "name": "wmax",
+      "selector": 864,
+      "symbol": "BSIM4_MOD_WMAX",
+      "kind": "real",
+      "canonicalName": "wmax"
+    },
+    {
+      "role": "model",
+      "name": "b0",
+      "selector": 172,
+      "symbol": "BSIM4_MOD_B0",
+      "kind": "real",
+      "canonicalName": "b0"
+    },
+    {
+      "role": "model",
+      "name": "b1",
+      "selector": 173,
+      "symbol": "BSIM4_MOD_B1",
+      "kind": "real",
+      "canonicalName": "b1"
+    },
+    {
+      "role": "model",
+      "name": "cgsl",
+      "selector": 186,
+      "symbol": "BSIM4_MOD_CGSL",
+      "kind": "real",
+      "canonicalName": "cgsl"
+    },
+    {
+      "role": "model",
+      "name": "cgdl",
+      "selector": 187,
+      "symbol": "BSIM4_MOD_CGDL",
+      "kind": "real",
+      "canonicalName": "cgdl"
+    },
+    {
+      "role": "model",
+      "name": "ckappas",
+      "selector": 188,
+      "symbol": "BSIM4_MOD_CKAPPAS",
+      "kind": "real",
+      "canonicalName": "ckappas"
+    },
+    {
+      "role": "model",
+      "name": "ckappad",
+      "selector": 257,
+      "symbol": "BSIM4_MOD_CKAPPAD",
+      "kind": "real",
+      "canonicalName": "ckappad"
+    },
+    {
+      "role": "model",
+      "name": "cf",
+      "selector": 189,
+      "symbol": "BSIM4_MOD_CF",
+      "kind": "real",
+      "canonicalName": "cf"
+    },
+    {
+      "role": "model",
+      "name": "clc",
+      "selector": 190,
+      "symbol": "BSIM4_MOD_CLC",
+      "kind": "real",
+      "canonicalName": "clc"
+    },
+    {
+      "role": "model",
+      "name": "cle",
+      "selector": 191,
+      "symbol": "BSIM4_MOD_CLE",
+      "kind": "real",
+      "canonicalName": "cle"
+    },
+    {
+      "role": "model",
+      "name": "dwc",
+      "selector": 865,
+      "symbol": "BSIM4_MOD_DWC",
+      "kind": "real",
+      "canonicalName": "dwc"
+    },
+    {
+      "role": "model",
+      "name": "dlc",
+      "selector": 866,
+      "symbol": "BSIM4_MOD_DLC",
+      "kind": "real",
+      "canonicalName": "dlc"
+    },
+    {
+      "role": "model",
+      "name": "xw",
+      "selector": 868,
+      "symbol": "BSIM4_MOD_XW",
+      "kind": "real",
+      "canonicalName": "xw"
+    },
+    {
+      "role": "model",
+      "name": "xl",
+      "selector": 867,
+      "symbol": "BSIM4_MOD_XL",
+      "kind": "real",
+      "canonicalName": "xl"
+    },
+    {
+      "role": "model",
+      "name": "dlcig",
+      "selector": 899,
+      "symbol": "BSIM4_MOD_DLCIG",
+      "kind": "real",
+      "canonicalName": "dlcig"
+    },
+    {
+      "role": "model",
+      "name": "dwj",
+      "selector": 885,
+      "symbol": "BSIM4_MOD_DWJ",
+      "kind": "real",
+      "canonicalName": "dwj"
+    },
+    {
+      "role": "model",
+      "name": "alpha0",
+      "selector": 174,
+      "symbol": "BSIM4_MOD_ALPHA0",
+      "kind": "real",
+      "canonicalName": "alpha0"
+    },
+    {
+      "role": "model",
+      "name": "alpha1",
+      "selector": 199,
+      "symbol": "BSIM4_MOD_ALPHA1",
+      "kind": "real",
+      "canonicalName": "alpha1"
+    },
+    {
+      "role": "model",
+      "name": "beta0",
+      "selector": 175,
+      "symbol": "BSIM4_MOD_BETA0",
+      "kind": "real",
+      "canonicalName": "beta0"
+    },
+    {
+      "role": "model",
+      "name": "agidl",
+      "selector": 222,
+      "symbol": "BSIM4_MOD_AGIDL",
+      "kind": "real",
+      "canonicalName": "agidl"
+    },
+    {
+      "role": "model",
+      "name": "bgidl",
+      "selector": 223,
+      "symbol": "BSIM4_MOD_BGIDL",
+      "kind": "real",
+      "canonicalName": "bgidl"
+    },
+    {
+      "role": "model",
+      "name": "cgidl",
+      "selector": 249,
+      "symbol": "BSIM4_MOD_CGIDL",
+      "kind": "real",
+      "canonicalName": "cgidl"
+    },
+    {
+      "role": "model",
+      "name": "egidl",
+      "selector": 224,
+      "symbol": "BSIM4_MOD_EGIDL",
+      "kind": "real",
+      "canonicalName": "egidl"
+    },
+    {
+      "role": "model",
+      "name": "aigc",
+      "selector": 259,
+      "symbol": "BSIM4_MOD_AIGC",
+      "kind": "real",
+      "canonicalName": "aigc"
+    },
+    {
+      "role": "model",
+      "name": "bigc",
+      "selector": 260,
+      "symbol": "BSIM4_MOD_BIGC",
+      "kind": "real",
+      "canonicalName": "bigc"
+    },
+    {
+      "role": "model",
+      "name": "cigc",
+      "selector": 261,
+      "symbol": "BSIM4_MOD_CIGC",
+      "kind": "real",
+      "canonicalName": "cigc"
+    },
+    {
+      "role": "model",
+      "name": "aigsd",
+      "selector": 277,
+      "symbol": "BSIM4_MOD_AIGSD",
+      "kind": "real",
+      "canonicalName": "aigsd"
+    },
+    {
+      "role": "model",
+      "name": "bigsd",
+      "selector": 278,
+      "symbol": "BSIM4_MOD_BIGSD",
+      "kind": "real",
+      "canonicalName": "bigsd"
+    },
+    {
+      "role": "model",
+      "name": "cigsd",
+      "selector": 279,
+      "symbol": "BSIM4_MOD_CIGSD",
+      "kind": "real",
+      "canonicalName": "cigsd"
+    },
+    {
+      "role": "model",
+      "name": "aigbacc",
+      "selector": 262,
+      "symbol": "BSIM4_MOD_AIGBACC",
+      "kind": "real",
+      "canonicalName": "aigbacc"
+    },
+    {
+      "role": "model",
+      "name": "bigbacc",
+      "selector": 263,
+      "symbol": "BSIM4_MOD_BIGBACC",
+      "kind": "real",
+      "canonicalName": "bigbacc"
+    },
+    {
+      "role": "model",
+      "name": "cigbacc",
+      "selector": 264,
+      "symbol": "BSIM4_MOD_CIGBACC",
+      "kind": "real",
+      "canonicalName": "cigbacc"
+    },
+    {
+      "role": "model",
+      "name": "aigbinv",
+      "selector": 265,
+      "symbol": "BSIM4_MOD_AIGBINV",
+      "kind": "real",
+      "canonicalName": "aigbinv"
+    },
+    {
+      "role": "model",
+      "name": "bigbinv",
+      "selector": 266,
+      "symbol": "BSIM4_MOD_BIGBINV",
+      "kind": "real",
+      "canonicalName": "bigbinv"
+    },
+    {
+      "role": "model",
+      "name": "cigbinv",
+      "selector": 267,
+      "symbol": "BSIM4_MOD_CIGBINV",
+      "kind": "real",
+      "canonicalName": "cigbinv"
+    },
+    {
+      "role": "model",
+      "name": "nigc",
+      "selector": 268,
+      "symbol": "BSIM4_MOD_NIGC",
+      "kind": "real",
+      "canonicalName": "nigc"
+    },
+    {
+      "role": "model",
+      "name": "nigbinv",
+      "selector": 270,
+      "symbol": "BSIM4_MOD_NIGBINV",
+      "kind": "real",
+      "canonicalName": "nigbinv"
+    },
+    {
+      "role": "model",
+      "name": "nigbacc",
+      "selector": 269,
+      "symbol": "BSIM4_MOD_NIGBACC",
+      "kind": "real",
+      "canonicalName": "nigbacc"
+    },
+    {
+      "role": "model",
+      "name": "ntox",
+      "selector": 271,
+      "symbol": "BSIM4_MOD_NTOX",
+      "kind": "real",
+      "canonicalName": "ntox"
+    },
+    {
+      "role": "model",
+      "name": "eigbinv",
+      "selector": 273,
+      "symbol": "BSIM4_MOD_EIGBINV",
+      "kind": "real",
+      "canonicalName": "eigbinv"
+    },
+    {
+      "role": "model",
+      "name": "pigcd",
+      "selector": 274,
+      "symbol": "BSIM4_MOD_PIGCD",
+      "kind": "real",
+      "canonicalName": "pigcd"
+    },
+    {
+      "role": "model",
+      "name": "poxedge",
+      "selector": 275,
+      "symbol": "BSIM4_MOD_POXEDGE",
+      "kind": "real",
+      "canonicalName": "poxedge"
+    },
+    {
+      "role": "model",
+      "name": "ijthdfwd",
+      "selector": 198,
+      "symbol": "BSIM4_MOD_IJTHDFWD",
+      "kind": "real",
+      "canonicalName": "ijthdfwd"
+    },
+    {
+      "role": "model",
+      "name": "ijthsfwd",
+      "selector": 225,
+      "symbol": "BSIM4_MOD_IJTHSFWD",
+      "kind": "real",
+      "canonicalName": "ijthsfwd"
+    },
+    {
+      "role": "model",
+      "name": "ijthdrev",
+      "selector": 236,
+      "symbol": "BSIM4_MOD_IJTHDREV",
+      "kind": "real",
+      "canonicalName": "ijthdrev"
+    },
+    {
+      "role": "model",
+      "name": "ijthsrev",
+      "selector": 235,
+      "symbol": "BSIM4_MOD_IJTHSREV",
+      "kind": "real",
+      "canonicalName": "ijthsrev"
+    },
+    {
+      "role": "model",
+      "name": "xjbvd",
+      "selector": 226,
+      "symbol": "BSIM4_MOD_XJBVD",
+      "kind": "real",
+      "canonicalName": "xjbvd"
+    },
+    {
+      "role": "model",
+      "name": "xjbvs",
+      "selector": 227,
+      "symbol": "BSIM4_MOD_XJBVS",
+      "kind": "real",
+      "canonicalName": "xjbvs"
+    },
+    {
+      "role": "model",
+      "name": "bvd",
+      "selector": 228,
+      "symbol": "BSIM4_MOD_BVD",
+      "kind": "real",
+      "canonicalName": "bvd"
+    },
+    {
+      "role": "model",
+      "name": "bvs",
+      "selector": 229,
+      "symbol": "BSIM4_MOD_BVS",
+      "kind": "real",
+      "canonicalName": "bvs"
+    },
+    {
+      "role": "model",
+      "name": "jtss",
+      "selector": 900,
+      "symbol": "BSIM4_MOD_JTSS",
+      "kind": "real",
+      "canonicalName": "jtss"
+    },
+    {
+      "role": "model",
+      "name": "jtsd",
+      "selector": 901,
+      "symbol": "BSIM4_MOD_JTSD",
+      "kind": "real",
+      "canonicalName": "jtsd"
+    },
+    {
+      "role": "model",
+      "name": "jtssws",
+      "selector": 902,
+      "symbol": "BSIM4_MOD_JTSSWS",
+      "kind": "real",
+      "canonicalName": "jtssws"
+    },
+    {
+      "role": "model",
+      "name": "jtsswd",
+      "selector": 903,
+      "symbol": "BSIM4_MOD_JTSSWD",
+      "kind": "real",
+      "canonicalName": "jtsswd"
+    },
+    {
+      "role": "model",
+      "name": "jtsswgs",
+      "selector": 904,
+      "symbol": "BSIM4_MOD_JTSSWGS",
+      "kind": "real",
+      "canonicalName": "jtsswgs"
+    },
+    {
+      "role": "model",
+      "name": "jtsswgd",
+      "selector": 905,
+      "symbol": "BSIM4_MOD_JTSSWGD",
+      "kind": "real",
+      "canonicalName": "jtsswgd"
+    },
+    {
+      "role": "model",
+      "name": "njts",
+      "selector": 906,
+      "symbol": "BSIM4_MOD_NJTS",
+      "kind": "real",
+      "canonicalName": "njts"
+    },
+    {
+      "role": "model",
+      "name": "njtssw",
+      "selector": 907,
+      "symbol": "BSIM4_MOD_NJTSSW",
+      "kind": "real",
+      "canonicalName": "njtssw"
+    },
+    {
+      "role": "model",
+      "name": "njtsswg",
+      "selector": 908,
+      "symbol": "BSIM4_MOD_NJTSSWG",
+      "kind": "real",
+      "canonicalName": "njtsswg"
+    },
+    {
+      "role": "model",
+      "name": "xtss",
+      "selector": 909,
+      "symbol": "BSIM4_MOD_XTSS",
+      "kind": "real",
+      "canonicalName": "xtss"
+    },
+    {
+      "role": "model",
+      "name": "xtsd",
+      "selector": 910,
+      "symbol": "BSIM4_MOD_XTSD",
+      "kind": "real",
+      "canonicalName": "xtsd"
+    },
+    {
+      "role": "model",
+      "name": "xtssws",
+      "selector": 911,
+      "symbol": "BSIM4_MOD_XTSSWS",
+      "kind": "real",
+      "canonicalName": "xtssws"
+    },
+    {
+      "role": "model",
+      "name": "xtsswd",
+      "selector": 912,
+      "symbol": "BSIM4_MOD_XTSSWD",
+      "kind": "real",
+      "canonicalName": "xtsswd"
+    },
+    {
+      "role": "model",
+      "name": "xtsswgs",
+      "selector": 913,
+      "symbol": "BSIM4_MOD_XTSSWGS",
+      "kind": "real",
+      "canonicalName": "xtsswgs"
+    },
+    {
+      "role": "model",
+      "name": "xtsswgd",
+      "selector": 914,
+      "symbol": "BSIM4_MOD_XTSSWGD",
+      "kind": "real",
+      "canonicalName": "xtsswgd"
+    },
+    {
+      "role": "model",
+      "name": "tnjts",
+      "selector": 915,
+      "symbol": "BSIM4_MOD_TNJTS",
+      "kind": "real",
+      "canonicalName": "tnjts"
+    },
+    {
+      "role": "model",
+      "name": "tnjtssw",
+      "selector": 916,
+      "symbol": "BSIM4_MOD_TNJTSSW",
+      "kind": "real",
+      "canonicalName": "tnjtssw"
+    },
+    {
+      "role": "model",
+      "name": "tnjtsswg",
+      "selector": 917,
+      "symbol": "BSIM4_MOD_TNJTSSWG",
+      "kind": "real",
+      "canonicalName": "tnjtsswg"
+    },
+    {
+      "role": "model",
+      "name": "vtss",
+      "selector": 918,
+      "symbol": "BSIM4_MOD_VTSS",
+      "kind": "real",
+      "canonicalName": "vtss"
+    },
+    {
+      "role": "model",
+      "name": "vtsd",
+      "selector": 919,
+      "symbol": "BSIM4_MOD_VTSD",
+      "kind": "real",
+      "canonicalName": "vtsd"
+    },
+    {
+      "role": "model",
+      "name": "vtssws",
+      "selector": 920,
+      "symbol": "BSIM4_MOD_VTSSWS",
+      "kind": "real",
+      "canonicalName": "vtssws"
+    },
+    {
+      "role": "model",
+      "name": "vtsswd",
+      "selector": 921,
+      "symbol": "BSIM4_MOD_VTSSWD",
+      "kind": "real",
+      "canonicalName": "vtsswd"
+    },
+    {
+      "role": "model",
+      "name": "vtsswgs",
+      "selector": 922,
+      "symbol": "BSIM4_MOD_VTSSWGS",
+      "kind": "real",
+      "canonicalName": "vtsswgs"
+    },
+    {
+      "role": "model",
+      "name": "vtsswgd",
+      "selector": 923,
+      "symbol": "BSIM4_MOD_VTSSWGD",
+      "kind": "real",
+      "canonicalName": "vtsswgd"
+    },
+    {
+      "role": "model",
+      "name": "gbmin",
+      "selector": 209,
+      "symbol": "BSIM4_MOD_GBMIN",
+      "kind": "real",
+      "canonicalName": "gbmin"
+    },
+    {
+      "role": "model",
+      "name": "rbdb",
+      "selector": 210,
+      "symbol": "BSIM4_MOD_RBDB",
+      "kind": "real",
+      "canonicalName": "rbdb"
+    },
+    {
+      "role": "model",
+      "name": "rbpb",
+      "selector": 212,
+      "symbol": "BSIM4_MOD_RBPB",
+      "kind": "real",
+      "canonicalName": "rbpb"
+    },
+    {
+      "role": "model",
+      "name": "rbsb",
+      "selector": 211,
+      "symbol": "BSIM4_MOD_RBSB",
+      "kind": "real",
+      "canonicalName": "rbsb"
+    },
+    {
+      "role": "model",
+      "name": "rbps",
+      "selector": 213,
+      "symbol": "BSIM4_MOD_RBPS",
+      "kind": "real",
+      "canonicalName": "rbps"
+    },
+    {
+      "role": "model",
+      "name": "rbpd",
+      "selector": 214,
+      "symbol": "BSIM4_MOD_RBPD",
+      "kind": "real",
+      "canonicalName": "rbpd"
+    },
+    {
+      "role": "model",
+      "name": "rbps0",
+      "selector": 1101,
+      "symbol": "BSIM4_MOD_RBPS0",
+      "kind": "real",
+      "canonicalName": "rbps0"
+    },
+    {
+      "role": "model",
+      "name": "rbpsl",
+      "selector": 1102,
+      "symbol": "BSIM4_MOD_RBPSL",
+      "kind": "real",
+      "canonicalName": "rbpsl"
+    },
+    {
+      "role": "model",
+      "name": "rbpsw",
+      "selector": 1103,
+      "symbol": "BSIM4_MOD_RBPSW",
+      "kind": "real",
+      "canonicalName": "rbpsw"
+    },
+    {
+      "role": "model",
+      "name": "rbpsnf",
+      "selector": 1104,
+      "symbol": "BSIM4_MOD_RBPSNF",
+      "kind": "real",
+      "canonicalName": "rbpsnf"
+    },
+    {
+      "role": "model",
+      "name": "rbpd0",
+      "selector": 1105,
+      "symbol": "BSIM4_MOD_RBPD0",
+      "kind": "real",
+      "canonicalName": "rbpd0"
+    },
+    {
+      "role": "model",
+      "name": "rbpdl",
+      "selector": 1106,
+      "symbol": "BSIM4_MOD_RBPDL",
+      "kind": "real",
+      "canonicalName": "rbpdl"
+    },
+    {
+      "role": "model",
+      "name": "rbpdw",
+      "selector": 1107,
+      "symbol": "BSIM4_MOD_RBPDW",
+      "kind": "real",
+      "canonicalName": "rbpdw"
+    },
+    {
+      "role": "model",
+      "name": "rbpdnf",
+      "selector": 1108,
+      "symbol": "BSIM4_MOD_RBPDNF",
+      "kind": "real",
+      "canonicalName": "rbpdnf"
+    },
+    {
+      "role": "model",
+      "name": "rbpbx0",
+      "selector": 1109,
+      "symbol": "BSIM4_MOD_RBPBX0",
+      "kind": "real",
+      "canonicalName": "rbpbx0"
+    },
+    {
+      "role": "model",
+      "name": "rbpbxl",
+      "selector": 1110,
+      "symbol": "BSIM4_MOD_RBPBXL",
+      "kind": "real",
+      "canonicalName": "rbpbxl"
+    },
+    {
+      "role": "model",
+      "name": "rbpbxw",
+      "selector": 1111,
+      "symbol": "BSIM4_MOD_RBPBXW",
+      "kind": "real",
+      "canonicalName": "rbpbxw"
+    },
+    {
+      "role": "model",
+      "name": "rbpbxnf",
+      "selector": 1112,
+      "symbol": "BSIM4_MOD_RBPBXNF",
+      "kind": "real",
+      "canonicalName": "rbpbxnf"
+    },
+    {
+      "role": "model",
+      "name": "rbpby0",
+      "selector": 1113,
+      "symbol": "BSIM4_MOD_RBPBY0",
+      "kind": "real",
+      "canonicalName": "rbpby0"
+    },
+    {
+      "role": "model",
+      "name": "rbpbyl",
+      "selector": 1114,
+      "symbol": "BSIM4_MOD_RBPBYL",
+      "kind": "real",
+      "canonicalName": "rbpbyl"
+    },
+    {
+      "role": "model",
+      "name": "rbpbyw",
+      "selector": 1115,
+      "symbol": "BSIM4_MOD_RBPBYW",
+      "kind": "real",
+      "canonicalName": "rbpbyw"
+    },
+    {
+      "role": "model",
+      "name": "rbpbynf",
+      "selector": 1116,
+      "symbol": "BSIM4_MOD_RBPBYNF",
+      "kind": "real",
+      "canonicalName": "rbpbynf"
+    },
+    {
+      "role": "model",
+      "name": "rbsbx0",
+      "selector": 1117,
+      "symbol": "BSIM4_MOD_RBSBX0",
+      "kind": "real",
+      "canonicalName": "rbsbx0"
+    },
+    {
+      "role": "model",
+      "name": "rbsby0",
+      "selector": 1118,
+      "symbol": "BSIM4_MOD_RBSBY0",
+      "kind": "real",
+      "canonicalName": "rbsby0"
+    },
+    {
+      "role": "model",
+      "name": "rbdbx0",
+      "selector": 1119,
+      "symbol": "BSIM4_MOD_RBDBX0",
+      "kind": "real",
+      "canonicalName": "rbdbx0"
+    },
+    {
+      "role": "model",
+      "name": "rbdby0",
+      "selector": 1120,
+      "symbol": "BSIM4_MOD_RBDBY0",
+      "kind": "real",
+      "canonicalName": "rbdby0"
+    },
+    {
+      "role": "model",
+      "name": "rbsdbxl",
+      "selector": 1121,
+      "symbol": "BSIM4_MOD_RBSDBXL",
+      "kind": "real",
+      "canonicalName": "rbsdbxl"
+    },
+    {
+      "role": "model",
+      "name": "rbsdbxw",
+      "selector": 1122,
+      "symbol": "BSIM4_MOD_RBSDBXW",
+      "kind": "real",
+      "canonicalName": "rbsdbxw"
+    },
+    {
+      "role": "model",
+      "name": "rbsdbxnf",
+      "selector": 1123,
+      "symbol": "BSIM4_MOD_RBSDBXNF",
+      "kind": "real",
+      "canonicalName": "rbsdbxnf"
+    },
+    {
+      "role": "model",
+      "name": "rbsdbyl",
+      "selector": 1124,
+      "symbol": "BSIM4_MOD_RBSDBYL",
+      "kind": "real",
+      "canonicalName": "rbsdbyl"
+    },
+    {
+      "role": "model",
+      "name": "rbsdbyw",
+      "selector": 1125,
+      "symbol": "BSIM4_MOD_RBSDBYW",
+      "kind": "real",
+      "canonicalName": "rbsdbyw"
+    },
+    {
+      "role": "model",
+      "name": "rbsdbynf",
+      "selector": 1126,
+      "symbol": "BSIM4_MOD_RBSDBYNF",
+      "kind": "real",
+      "canonicalName": "rbsdbynf"
+    },
+    {
+      "role": "model",
+      "name": "lcdsc",
+      "selector": 301,
+      "symbol": "BSIM4_MOD_LCDSC",
+      "kind": "real",
+      "canonicalName": "lcdsc"
+    },
+    {
+      "role": "model",
+      "name": "lcdscb",
+      "selector": 302,
+      "symbol": "BSIM4_MOD_LCDSCB",
+      "kind": "real",
+      "canonicalName": "lcdscb"
+    },
+    {
+      "role": "model",
+      "name": "lcdscd",
+      "selector": 377,
+      "symbol": "BSIM4_MOD_LCDSCD",
+      "kind": "real",
+      "canonicalName": "lcdscd"
+    },
+    {
+      "role": "model",
+      "name": "lcit",
+      "selector": 303,
+      "symbol": "BSIM4_MOD_LCIT",
+      "kind": "real",
+      "canonicalName": "lcit"
+    },
+    {
+      "role": "model",
+      "name": "lnfactor",
+      "selector": 304,
+      "symbol": "BSIM4_MOD_LNFACTOR",
+      "kind": "real",
+      "canonicalName": "lnfactor"
+    },
+    {
+      "role": "model",
+      "name": "lxj",
+      "selector": 305,
+      "symbol": "BSIM4_MOD_LXJ",
+      "kind": "real",
+      "canonicalName": "lxj"
+    },
+    {
+      "role": "model",
+      "name": "lvsat",
+      "selector": 306,
+      "symbol": "BSIM4_MOD_LVSAT",
+      "kind": "real",
+      "canonicalName": "lvsat"
+    },
+    {
+      "role": "model",
+      "name": "lat",
+      "selector": 307,
+      "symbol": "BSIM4_MOD_LAT",
+      "kind": "real",
+      "canonicalName": "lat"
+    },
+    {
+      "role": "model",
+      "name": "la0",
+      "selector": 308,
+      "symbol": "BSIM4_MOD_LA0",
+      "kind": "real",
+      "canonicalName": "la0"
+    },
+    {
+      "role": "model",
+      "name": "lags",
+      "selector": 378,
+      "symbol": "BSIM4_MOD_LAGS",
+      "kind": "real",
+      "canonicalName": "lags"
+    },
+    {
+      "role": "model",
+      "name": "la1",
+      "selector": 309,
+      "symbol": "BSIM4_MOD_LA1",
+      "kind": "real",
+      "canonicalName": "la1"
+    },
+    {
+      "role": "model",
+      "name": "la2",
+      "selector": 310,
+      "symbol": "BSIM4_MOD_LA2",
+      "kind": "real",
+      "canonicalName": "la2"
+    },
+    {
+      "role": "model",
+      "name": "lketa",
+      "selector": 311,
+      "symbol": "BSIM4_MOD_LKETA",
+      "kind": "real",
+      "canonicalName": "lketa"
+    },
+    {
+      "role": "model",
+      "name": "lnsub",
+      "selector": 312,
+      "symbol": "BSIM4_MOD_LNSUB",
+      "kind": "real",
+      "canonicalName": "lnsub"
+    },
+    {
+      "role": "model",
+      "name": "lndep",
+      "selector": 313,
+      "symbol": "BSIM4_MOD_LNDEP",
+      "kind": "real",
+      "canonicalName": "lndep"
+    },
+    {
+      "role": "model",
+      "name": "lnsd",
+      "selector": 414,
+      "symbol": "BSIM4_MOD_LNSD",
+      "kind": "real",
+      "canonicalName": "lnsd"
+    },
+    {
+      "role": "model",
+      "name": "lphin",
+      "selector": 411,
+      "symbol": "BSIM4_MOD_LPHIN",
+      "kind": "real",
+      "canonicalName": "lphin"
+    },
+    {
+      "role": "model",
+      "name": "lngate",
+      "selector": 315,
+      "symbol": "BSIM4_MOD_LNGATE",
+      "kind": "real",
+      "canonicalName": "lngate"
+    },
+    {
+      "role": "model",
+      "name": "lgamma1",
+      "selector": 316,
+      "symbol": "BSIM4_MOD_LGAMMA1",
+      "kind": "real",
+      "canonicalName": "lgamma1"
+    },
+    {
+      "role": "model",
+      "name": "lgamma2",
+      "selector": 317,
+      "symbol": "BSIM4_MOD_LGAMMA2",
+      "kind": "real",
+      "canonicalName": "lgamma2"
+    },
+    {
+      "role": "model",
+      "name": "lvbx",
+      "selector": 318,
+      "symbol": "BSIM4_MOD_LVBX",
+      "kind": "real",
+      "canonicalName": "lvbx"
+    },
+    {
+      "role": "model",
+      "name": "lvbm",
+      "selector": 320,
+      "symbol": "BSIM4_MOD_LVBM",
+      "kind": "real",
+      "canonicalName": "lvbm"
+    },
+    {
+      "role": "model",
+      "name": "lxt",
+      "selector": 322,
+      "symbol": "BSIM4_MOD_LXT",
+      "kind": "real",
+      "canonicalName": "lxt"
+    },
+    {
+      "role": "model",
+      "name": "lk1",
+      "selector": 325,
+      "symbol": "BSIM4_MOD_LK1",
+      "kind": "real",
+      "canonicalName": "lk1"
+    },
+    {
+      "role": "model",
+      "name": "lkt1",
+      "selector": 326,
+      "symbol": "BSIM4_MOD_LKT1",
+      "kind": "real",
+      "canonicalName": "lkt1"
+    },
+    {
+      "role": "model",
+      "name": "lkt1l",
+      "selector": 327,
+      "symbol": "BSIM4_MOD_LKT1L",
+      "kind": "real",
+      "canonicalName": "lkt1l"
+    },
+    {
+      "role": "model",
+      "name": "lkt2",
+      "selector": 329,
+      "symbol": "BSIM4_MOD_LKT2",
+      "kind": "real",
+      "canonicalName": "lkt2"
+    },
+    {
+      "role": "model",
+      "name": "lk2",
+      "selector": 328,
+      "symbol": "BSIM4_MOD_LK2",
+      "kind": "real",
+      "canonicalName": "lk2"
+    },
+    {
+      "role": "model",
+      "name": "lk3",
+      "selector": 330,
+      "symbol": "BSIM4_MOD_LK3",
+      "kind": "real",
+      "canonicalName": "lk3"
+    },
+    {
+      "role": "model",
+      "name": "lk3b",
+      "selector": 331,
+      "symbol": "BSIM4_MOD_LK3B",
+      "kind": "real",
+      "canonicalName": "lk3b"
+    },
+    {
+      "role": "model",
+      "name": "lw0",
+      "selector": 332,
+      "symbol": "BSIM4_MOD_LW0",
+      "kind": "real",
+      "canonicalName": "lw0"
+    },
+    {
+      "role": "model",
+      "name": "ldvtp0",
+      "selector": 408,
+      "symbol": "BSIM4_MOD_LDVTP0",
+      "kind": "real",
+      "canonicalName": "ldvtp0"
+    },
+    {
+      "role": "model",
+      "name": "ldvtp1",
+      "selector": 409,
+      "symbol": "BSIM4_MOD_LDVTP1",
+      "kind": "real",
+      "canonicalName": "ldvtp1"
+    },
+    {
+      "role": "model",
+      "name": "llpe0",
+      "selector": 333,
+      "symbol": "BSIM4_MOD_LLPE0",
+      "kind": "real",
+      "canonicalName": "llpe0"
+    },
+    {
+      "role": "model",
+      "name": "llpeb",
+      "selector": 407,
+      "symbol": "BSIM4_MOD_LLPEB",
+      "kind": "real",
+      "canonicalName": "llpeb"
+    },
+    {
+      "role": "model",
+      "name": "ldvt0",
+      "selector": 334,
+      "symbol": "BSIM4_MOD_LDVT0",
+      "kind": "real",
+      "canonicalName": "ldvt0"
+    },
+    {
+      "role": "model",
+      "name": "ldvt1",
+      "selector": 335,
+      "symbol": "BSIM4_MOD_LDVT1",
+      "kind": "real",
+      "canonicalName": "ldvt1"
+    },
+    {
+      "role": "model",
+      "name": "ldvt2",
+      "selector": 336,
+      "symbol": "BSIM4_MOD_LDVT2",
+      "kind": "real",
+      "canonicalName": "ldvt2"
+    },
+    {
+      "role": "model",
+      "name": "ldvt0w",
+      "selector": 337,
+      "symbol": "BSIM4_MOD_LDVT0W",
+      "kind": "real",
+      "canonicalName": "ldvt0w"
+    },
+    {
+      "role": "model",
+      "name": "ldvt1w",
+      "selector": 338,
+      "symbol": "BSIM4_MOD_LDVT1W",
+      "kind": "real",
+      "canonicalName": "ldvt1w"
+    },
+    {
+      "role": "model",
+      "name": "ldvt2w",
+      "selector": 339,
+      "symbol": "BSIM4_MOD_LDVT2W",
+      "kind": "real",
+      "canonicalName": "ldvt2w"
+    },
+    {
+      "role": "model",
+      "name": "ldrout",
+      "selector": 340,
+      "symbol": "BSIM4_MOD_LDROUT",
+      "kind": "real",
+      "canonicalName": "ldrout"
+    },
+    {
+      "role": "model",
+      "name": "ldsub",
+      "selector": 341,
+      "symbol": "BSIM4_MOD_LDSUB",
+      "kind": "real",
+      "canonicalName": "ldsub"
+    },
+    {
+      "role": "model",
+      "name": "lvth0",
+      "selector": 342,
+      "symbol": "BSIM4_MOD_LVTH0",
+      "kind": "real",
+      "canonicalName": "lvth0"
+    },
+    {
+      "role": "model",
+      "name": "lvtho",
+      "selector": 342,
+      "symbol": "BSIM4_MOD_LVTH0",
+      "kind": "real",
+      "canonicalName": "lvth0"
+    },
+    {
+      "role": "model",
+      "name": "lua",
+      "selector": 343,
+      "symbol": "BSIM4_MOD_LUA",
+      "kind": "real",
+      "canonicalName": "lua"
+    },
+    {
+      "role": "model",
+      "name": "lua1",
+      "selector": 344,
+      "symbol": "BSIM4_MOD_LUA1",
+      "kind": "real",
+      "canonicalName": "lua1"
+    },
+    {
+      "role": "model",
+      "name": "lub",
+      "selector": 345,
+      "symbol": "BSIM4_MOD_LUB",
+      "kind": "real",
+      "canonicalName": "lub"
+    },
+    {
+      "role": "model",
+      "name": "lub1",
+      "selector": 346,
+      "symbol": "BSIM4_MOD_LUB1",
+      "kind": "real",
+      "canonicalName": "lub1"
+    },
+    {
+      "role": "model",
+      "name": "luc",
+      "selector": 347,
+      "symbol": "BSIM4_MOD_LUC",
+      "kind": "real",
+      "canonicalName": "luc"
+    },
+    {
+      "role": "model",
+      "name": "luc1",
+      "selector": 348,
+      "symbol": "BSIM4_MOD_LUC1",
+      "kind": "real",
+      "canonicalName": "luc1"
+    },
+    {
+      "role": "model",
+      "name": "lud",
+      "selector": 439,
+      "symbol": "BSIM4_MOD_LUD",
+      "kind": "real",
+      "canonicalName": "lud"
+    },
+    {
+      "role": "model",
+      "name": "lud1",
+      "selector": 440,
+      "symbol": "BSIM4_MOD_LUD1",
+      "kind": "real",
+      "canonicalName": "lud1"
+    },
+    {
+      "role": "model",
+      "name": "lup",
+      "selector": 441,
+      "symbol": "BSIM4_MOD_LUP",
+      "kind": "real",
+      "canonicalName": "lup"
+    },
+    {
+      "role": "model",
+      "name": "llp",
+      "selector": 442,
+      "symbol": "BSIM4_MOD_LLP",
+      "kind": "real",
+      "canonicalName": "llp"
+    },
+    {
+      "role": "model",
+      "name": "lu0",
+      "selector": 349,
+      "symbol": "BSIM4_MOD_LU0",
+      "kind": "real",
+      "canonicalName": "lu0"
+    },
+    {
+      "role": "model",
+      "name": "lute",
+      "selector": 350,
+      "symbol": "BSIM4_MOD_LUTE",
+      "kind": "real",
+      "canonicalName": "lute"
+    },
+    {
+      "role": "model",
+      "name": "lvoff",
+      "selector": 351,
+      "symbol": "BSIM4_MOD_LVOFF",
+      "kind": "real",
+      "canonicalName": "lvoff"
+    },
+    {
+      "role": "model",
+      "name": "lminv",
+      "selector": 403,
+      "symbol": "BSIM4_MOD_LMINV",
+      "kind": "real",
+      "canonicalName": "lminv"
+    },
+    {
+      "role": "model",
+      "name": "ldelta",
+      "selector": 352,
+      "symbol": "BSIM4_MOD_LDELTA",
+      "kind": "real",
+      "canonicalName": "ldelta"
+    },
+    {
+      "role": "model",
+      "name": "lrdsw",
+      "selector": 353,
+      "symbol": "BSIM4_MOD_LRDSW",
+      "kind": "real",
+      "canonicalName": "lrdsw"
+    },
+    {
+      "role": "model",
+      "name": "lrsw",
+      "selector": 412,
+      "symbol": "BSIM4_MOD_LRSW",
+      "kind": "real",
+      "canonicalName": "lrsw"
+    },
+    {
+      "role": "model",
+      "name": "lrdw",
+      "selector": 413,
+      "symbol": "BSIM4_MOD_LRDW",
+      "kind": "real",
+      "canonicalName": "lrdw"
+    },
+    {
+      "role": "model",
+      "name": "lprwg",
+      "selector": 375,
+      "symbol": "BSIM4_MOD_LPRWG",
+      "kind": "real",
+      "canonicalName": "lprwg"
+    },
+    {
+      "role": "model",
+      "name": "lprwb",
+      "selector": 376,
+      "symbol": "BSIM4_MOD_LPRWB",
+      "kind": "real",
+      "canonicalName": "lprwb"
+    },
+    {
+      "role": "model",
+      "name": "lprt",
+      "selector": 354,
+      "symbol": "BSIM4_MOD_LPRT",
+      "kind": "real",
+      "canonicalName": "lprt"
+    },
+    {
+      "role": "model",
+      "name": "leta0",
+      "selector": 357,
+      "symbol": "BSIM4_MOD_LETA0",
+      "kind": "real",
+      "canonicalName": "leta0"
+    },
+    {
+      "role": "model",
+      "name": "letab",
+      "selector": 358,
+      "symbol": "BSIM4_MOD_LETAB",
+      "kind": "real",
+      "canonicalName": "letab"
+    },
+    {
+      "role": "model",
+      "name": "lpclm",
+      "selector": 359,
+      "symbol": "BSIM4_MOD_LPCLM",
+      "kind": "real",
+      "canonicalName": "lpclm"
+    },
+    {
+      "role": "model",
+      "name": "lpdiblc1",
+      "selector": 360,
+      "symbol": "BSIM4_MOD_LPDIBL1",
+      "kind": "real",
+      "canonicalName": "lpdiblc1"
+    },
+    {
+      "role": "model",
+      "name": "lpdiblc2",
+      "selector": 361,
+      "symbol": "BSIM4_MOD_LPDIBL2",
+      "kind": "real",
+      "canonicalName": "lpdiblc2"
+    },
+    {
+      "role": "model",
+      "name": "lpdiblcb",
+      "selector": 374,
+      "symbol": "BSIM4_MOD_LPDIBLB",
+      "kind": "real",
+      "canonicalName": "lpdiblcb"
+    },
+    {
+      "role": "model",
+      "name": "lfprout",
+      "selector": 406,
+      "symbol": "BSIM4_MOD_LFPROUT",
+      "kind": "real",
+      "canonicalName": "lfprout"
+    },
+    {
+      "role": "model",
+      "name": "lpdits",
+      "selector": 404,
+      "symbol": "BSIM4_MOD_LPDITS",
+      "kind": "real",
+      "canonicalName": "lpdits"
+    },
+    {
+      "role": "model",
+      "name": "lpditsd",
+      "selector": 405,
+      "symbol": "BSIM4_MOD_LPDITSD",
+      "kind": "real",
+      "canonicalName": "lpditsd"
+    },
+    {
+      "role": "model",
+      "name": "lpscbe1",
+      "selector": 362,
+      "symbol": "BSIM4_MOD_LPSCBE1",
+      "kind": "real",
+      "canonicalName": "lpscbe1"
+    },
+    {
+      "role": "model",
+      "name": "lpscbe2",
+      "selector": 363,
+      "symbol": "BSIM4_MOD_LPSCBE2",
+      "kind": "real",
+      "canonicalName": "lpscbe2"
+    },
+    {
+      "role": "model",
+      "name": "lpvag",
+      "selector": 364,
+      "symbol": "BSIM4_MOD_LPVAG",
+      "kind": "real",
+      "canonicalName": "lpvag"
+    },
+    {
+      "role": "model",
+      "name": "lwr",
+      "selector": 365,
+      "symbol": "BSIM4_MOD_LWR",
+      "kind": "real",
+      "canonicalName": "lwr"
+    },
+    {
+      "role": "model",
+      "name": "ldwg",
+      "selector": 366,
+      "symbol": "BSIM4_MOD_LDWG",
+      "kind": "real",
+      "canonicalName": "ldwg"
+    },
+    {
+      "role": "model",
+      "name": "ldwb",
+      "selector": 367,
+      "symbol": "BSIM4_MOD_LDWB",
+      "kind": "real",
+      "canonicalName": "ldwb"
+    },
+    {
+      "role": "model",
+      "name": "lb0",
+      "selector": 368,
+      "symbol": "BSIM4_MOD_LB0",
+      "kind": "real",
+      "canonicalName": "lb0"
+    },
+    {
+      "role": "model",
+      "name": "lb1",
+      "selector": 369,
+      "symbol": "BSIM4_MOD_LB1",
+      "kind": "real",
+      "canonicalName": "lb1"
+    },
+    {
+      "role": "model",
+      "name": "lcgsl",
+      "selector": 383,
+      "symbol": "BSIM4_MOD_LCGSL",
+      "kind": "real",
+      "canonicalName": "lcgsl"
+    },
+    {
+      "role": "model",
+      "name": "lcgdl",
+      "selector": 384,
+      "symbol": "BSIM4_MOD_LCGDL",
+      "kind": "real",
+      "canonicalName": "lcgdl"
+    },
+    {
+      "role": "model",
+      "name": "lckappas",
+      "selector": 385,
+      "symbol": "BSIM4_MOD_LCKAPPAS",
+      "kind": "real",
+      "canonicalName": "lckappas"
+    },
+    {
+      "role": "model",
+      "name": "lckappad",
+      "selector": 415,
+      "symbol": "BSIM4_MOD_LCKAPPAD",
+      "kind": "real",
+      "canonicalName": "lckappad"
+    },
+    {
+      "role": "model",
+      "name": "lcf",
+      "selector": 386,
+      "symbol": "BSIM4_MOD_LCF",
+      "kind": "real",
+      "canonicalName": "lcf"
+    },
+    {
+      "role": "model",
+      "name": "lclc",
+      "selector": 387,
+      "symbol": "BSIM4_MOD_LCLC",
+      "kind": "real",
+      "canonicalName": "lclc"
+    },
+    {
+      "role": "model",
+      "name": "lcle",
+      "selector": 388,
+      "symbol": "BSIM4_MOD_LCLE",
+      "kind": "real",
+      "canonicalName": "lcle"
+    },
+    {
+      "role": "model",
+      "name": "lalpha0",
+      "selector": 370,
+      "symbol": "BSIM4_MOD_LALPHA0",
+      "kind": "real",
+      "canonicalName": "lalpha0"
+    },
+    {
+      "role": "model",
+      "name": "lalpha1",
+      "selector": 394,
+      "symbol": "BSIM4_MOD_LALPHA1",
+      "kind": "real",
+      "canonicalName": "lalpha1"
+    },
+    {
+      "role": "model",
+      "name": "lbeta0",
+      "selector": 371,
+      "symbol": "BSIM4_MOD_LBETA0",
+      "kind": "real",
+      "canonicalName": "lbeta0"
+    },
+    {
+      "role": "model",
+      "name": "lagidl",
+      "selector": 397,
+      "symbol": "BSIM4_MOD_LAGIDL",
+      "kind": "real",
+      "canonicalName": "lagidl"
+    },
+    {
+      "role": "model",
+      "name": "lbgidl",
+      "selector": 398,
+      "symbol": "BSIM4_MOD_LBGIDL",
+      "kind": "real",
+      "canonicalName": "lbgidl"
+    },
+    {
+      "role": "model",
+      "name": "lcgidl",
+      "selector": 410,
+      "symbol": "BSIM4_MOD_LCGIDL",
+      "kind": "real",
+      "canonicalName": "lcgidl"
+    },
+    {
+      "role": "model",
+      "name": "legidl",
+      "selector": 399,
+      "symbol": "BSIM4_MOD_LEGIDL",
+      "kind": "real",
+      "canonicalName": "legidl"
+    },
+    {
+      "role": "model",
+      "name": "laigc",
+      "selector": 416,
+      "symbol": "BSIM4_MOD_LAIGC",
+      "kind": "real",
+      "canonicalName": "laigc"
+    },
+    {
+      "role": "model",
+      "name": "lbigc",
+      "selector": 417,
+      "symbol": "BSIM4_MOD_LBIGC",
+      "kind": "real",
+      "canonicalName": "lbigc"
+    },
+    {
+      "role": "model",
+      "name": "lcigc",
+      "selector": 418,
+      "symbol": "BSIM4_MOD_LCIGC",
+      "kind": "real",
+      "canonicalName": "lcigc"
+    },
+    {
+      "role": "model",
+      "name": "laigsd",
+      "selector": 432,
+      "symbol": "BSIM4_MOD_LAIGSD",
+      "kind": "real",
+      "canonicalName": "laigsd"
+    },
+    {
+      "role": "model",
+      "name": "lbigsd",
+      "selector": 433,
+      "symbol": "BSIM4_MOD_LBIGSD",
+      "kind": "real",
+      "canonicalName": "lbigsd"
+    },
+    {
+      "role": "model",
+      "name": "lcigsd",
+      "selector": 434,
+      "symbol": "BSIM4_MOD_LCIGSD",
+      "kind": "real",
+      "canonicalName": "lcigsd"
+    },
+    {
+      "role": "model",
+      "name": "laigbacc",
+      "selector": 419,
+      "symbol": "BSIM4_MOD_LAIGBACC",
+      "kind": "real",
+      "canonicalName": "laigbacc"
+    },
+    {
+      "role": "model",
+      "name": "lbigbacc",
+      "selector": 420,
+      "symbol": "BSIM4_MOD_LBIGBACC",
+      "kind": "real",
+      "canonicalName": "lbigbacc"
+    },
+    {
+      "role": "model",
+      "name": "lcigbacc",
+      "selector": 421,
+      "symbol": "BSIM4_MOD_LCIGBACC",
+      "kind": "real",
+      "canonicalName": "lcigbacc"
+    },
+    {
+      "role": "model",
+      "name": "laigbinv",
+      "selector": 422,
+      "symbol": "BSIM4_MOD_LAIGBINV",
+      "kind": "real",
+      "canonicalName": "laigbinv"
+    },
+    {
+      "role": "model",
+      "name": "lbigbinv",
+      "selector": 423,
+      "symbol": "BSIM4_MOD_LBIGBINV",
+      "kind": "real",
+      "canonicalName": "lbigbinv"
+    },
+    {
+      "role": "model",
+      "name": "lcigbinv",
+      "selector": 424,
+      "symbol": "BSIM4_MOD_LCIGBINV",
+      "kind": "real",
+      "canonicalName": "lcigbinv"
+    },
+    {
+      "role": "model",
+      "name": "lnigc",
+      "selector": 425,
+      "symbol": "BSIM4_MOD_LNIGC",
+      "kind": "real",
+      "canonicalName": "lnigc"
+    },
+    {
+      "role": "model",
+      "name": "lnigbinv",
+      "selector": 427,
+      "symbol": "BSIM4_MOD_LNIGBINV",
+      "kind": "real",
+      "canonicalName": "lnigbinv"
+    },
+    {
+      "role": "model",
+      "name": "lnigbacc",
+      "selector": 426,
+      "symbol": "BSIM4_MOD_LNIGBACC",
+      "kind": "real",
+      "canonicalName": "lnigbacc"
+    },
+    {
+      "role": "model",
+      "name": "lntox",
+      "selector": 428,
+      "symbol": "BSIM4_MOD_LNTOX",
+      "kind": "real",
+      "canonicalName": "lntox"
+    },
+    {
+      "role": "model",
+      "name": "leigbinv",
+      "selector": 429,
+      "symbol": "BSIM4_MOD_LEIGBINV",
+      "kind": "real",
+      "canonicalName": "leigbinv"
+    },
+    {
+      "role": "model",
+      "name": "lpigcd",
+      "selector": 430,
+      "symbol": "BSIM4_MOD_LPIGCD",
+      "kind": "real",
+      "canonicalName": "lpigcd"
+    },
+    {
+      "role": "model",
+      "name": "lpoxedge",
+      "selector": 431,
+      "symbol": "BSIM4_MOD_LPOXEDGE",
+      "kind": "real",
+      "canonicalName": "lpoxedge"
+    },
+    {
+      "role": "model",
+      "name": "lvfbcv",
+      "selector": 389,
+      "symbol": "BSIM4_MOD_LVFBCV",
+      "kind": "real",
+      "canonicalName": "lvfbcv"
+    },
+    {
+      "role": "model",
+      "name": "lvfb",
+      "selector": 395,
+      "symbol": "BSIM4_MOD_LVFB",
+      "kind": "real",
+      "canonicalName": "lvfb"
+    },
+    {
+      "role": "model",
+      "name": "lacde",
+      "selector": 390,
+      "symbol": "BSIM4_MOD_LACDE",
+      "kind": "real",
+      "canonicalName": "lacde"
+    },
+    {
+      "role": "model",
+      "name": "lmoin",
+      "selector": 391,
+      "symbol": "BSIM4_MOD_LMOIN",
+      "kind": "real",
+      "canonicalName": "lmoin"
+    },
+    {
+      "role": "model",
+      "name": "lnoff",
+      "selector": 392,
+      "symbol": "BSIM4_MOD_LNOFF",
+      "kind": "real",
+      "canonicalName": "lnoff"
+    },
+    {
+      "role": "model",
+      "name": "lvoffcv",
+      "selector": 396,
+      "symbol": "BSIM4_MOD_LVOFFCV",
+      "kind": "real",
+      "canonicalName": "lvoffcv"
+    },
+    {
+      "role": "model",
+      "name": "lxrcrg1",
+      "selector": 400,
+      "symbol": "BSIM4_MOD_LXRCRG1",
+      "kind": "real",
+      "canonicalName": "lxrcrg1"
+    },
+    {
+      "role": "model",
+      "name": "lxrcrg2",
+      "selector": 401,
+      "symbol": "BSIM4_MOD_LXRCRG2",
+      "kind": "real",
+      "canonicalName": "lxrcrg2"
+    },
+    {
+      "role": "model",
+      "name": "llambda",
+      "selector": 435,
+      "symbol": "BSIM4_MOD_LLAMBDA",
+      "kind": "real",
+      "canonicalName": "llambda"
+    },
+    {
+      "role": "model",
+      "name": "lvtl",
+      "selector": 436,
+      "symbol": "BSIM4_MOD_LVTL",
+      "kind": "real",
+      "canonicalName": "lvtl"
+    },
+    {
+      "role": "model",
+      "name": "lxn",
+      "selector": 437,
+      "symbol": "BSIM4_MOD_LXN",
+      "kind": "real",
+      "canonicalName": "lxn"
+    },
+    {
+      "role": "model",
+      "name": "leu",
+      "selector": 402,
+      "symbol": "BSIM4_MOD_LEU",
+      "kind": "real",
+      "canonicalName": "leu"
+    },
+    {
+      "role": "model",
+      "name": "lvfbsdoff",
+      "selector": 438,
+      "symbol": "BSIM4_MOD_LVFBSDOFF",
+      "kind": "real",
+      "canonicalName": "lvfbsdoff"
+    },
+    {
+      "role": "model",
+      "name": "ltvfbsdoff",
+      "selector": 1052,
+      "symbol": "BSIM4_MOD_LTVFBSDOFF",
+      "kind": "real",
+      "canonicalName": "ltvfbsdoff"
+    },
+    {
+      "role": "model",
+      "name": "ltvoff",
+      "selector": 1051,
+      "symbol": "BSIM4_MOD_LTVOFF",
+      "kind": "real",
+      "canonicalName": "ltvoff"
+    },
+    {
+      "role": "model",
+      "name": "wcdsc",
+      "selector": 481,
+      "symbol": "BSIM4_MOD_WCDSC",
+      "kind": "real",
+      "canonicalName": "wcdsc"
+    },
+    {
+      "role": "model",
+      "name": "wcdscb",
+      "selector": 482,
+      "symbol": "BSIM4_MOD_WCDSCB",
+      "kind": "real",
+      "canonicalName": "wcdscb"
+    },
+    {
+      "role": "model",
+      "name": "wcdscd",
+      "selector": 557,
+      "symbol": "BSIM4_MOD_WCDSCD",
+      "kind": "real",
+      "canonicalName": "wcdscd"
+    },
+    {
+      "role": "model",
+      "name": "wcit",
+      "selector": 483,
+      "symbol": "BSIM4_MOD_WCIT",
+      "kind": "real",
+      "canonicalName": "wcit"
+    },
+    {
+      "role": "model",
+      "name": "wnfactor",
+      "selector": 484,
+      "symbol": "BSIM4_MOD_WNFACTOR",
+      "kind": "real",
+      "canonicalName": "wnfactor"
+    },
+    {
+      "role": "model",
+      "name": "wxj",
+      "selector": 485,
+      "symbol": "BSIM4_MOD_WXJ",
+      "kind": "real",
+      "canonicalName": "wxj"
+    },
+    {
+      "role": "model",
+      "name": "wvsat",
+      "selector": 486,
+      "symbol": "BSIM4_MOD_WVSAT",
+      "kind": "real",
+      "canonicalName": "wvsat"
+    },
+    {
+      "role": "model",
+      "name": "wat",
+      "selector": 487,
+      "symbol": "BSIM4_MOD_WAT",
+      "kind": "real",
+      "canonicalName": "wat"
+    },
+    {
+      "role": "model",
+      "name": "wa0",
+      "selector": 488,
+      "symbol": "BSIM4_MOD_WA0",
+      "kind": "real",
+      "canonicalName": "wa0"
+    },
+    {
+      "role": "model",
+      "name": "wags",
+      "selector": 558,
+      "symbol": "BSIM4_MOD_WAGS",
+      "kind": "real",
+      "canonicalName": "wags"
+    },
+    {
+      "role": "model",
+      "name": "wa1",
+      "selector": 489,
+      "symbol": "BSIM4_MOD_WA1",
+      "kind": "real",
+      "canonicalName": "wa1"
+    },
+    {
+      "role": "model",
+      "name": "wa2",
+      "selector": 490,
+      "symbol": "BSIM4_MOD_WA2",
+      "kind": "real",
+      "canonicalName": "wa2"
+    },
+    {
+      "role": "model",
+      "name": "wketa",
+      "selector": 491,
+      "symbol": "BSIM4_MOD_WKETA",
+      "kind": "real",
+      "canonicalName": "wketa"
+    },
+    {
+      "role": "model",
+      "name": "wnsub",
+      "selector": 492,
+      "symbol": "BSIM4_MOD_WNSUB",
+      "kind": "real",
+      "canonicalName": "wnsub"
+    },
+    {
+      "role": "model",
+      "name": "wndep",
+      "selector": 493,
+      "symbol": "BSIM4_MOD_WNDEP",
+      "kind": "real",
+      "canonicalName": "wndep"
+    },
+    {
+      "role": "model",
+      "name": "wnsd",
+      "selector": 594,
+      "symbol": "BSIM4_MOD_WNSD",
+      "kind": "real",
+      "canonicalName": "wnsd"
+    },
+    {
+      "role": "model",
+      "name": "wphin",
+      "selector": 591,
+      "symbol": "BSIM4_MOD_WPHIN",
+      "kind": "real",
+      "canonicalName": "wphin"
+    },
+    {
+      "role": "model",
+      "name": "wngate",
+      "selector": 495,
+      "symbol": "BSIM4_MOD_WNGATE",
+      "kind": "real",
+      "canonicalName": "wngate"
+    },
+    {
+      "role": "model",
+      "name": "wgamma1",
+      "selector": 496,
+      "symbol": "BSIM4_MOD_WGAMMA1",
+      "kind": "real",
+      "canonicalName": "wgamma1"
+    },
+    {
+      "role": "model",
+      "name": "wgamma2",
+      "selector": 497,
+      "symbol": "BSIM4_MOD_WGAMMA2",
+      "kind": "real",
+      "canonicalName": "wgamma2"
+    },
+    {
+      "role": "model",
+      "name": "wvbx",
+      "selector": 498,
+      "symbol": "BSIM4_MOD_WVBX",
+      "kind": "real",
+      "canonicalName": "wvbx"
+    },
+    {
+      "role": "model",
+      "name": "wvbm",
+      "selector": 500,
+      "symbol": "BSIM4_MOD_WVBM",
+      "kind": "real",
+      "canonicalName": "wvbm"
+    },
+    {
+      "role": "model",
+      "name": "wxt",
+      "selector": 502,
+      "symbol": "BSIM4_MOD_WXT",
+      "kind": "real",
+      "canonicalName": "wxt"
+    },
+    {
+      "role": "model",
+      "name": "wk1",
+      "selector": 505,
+      "symbol": "BSIM4_MOD_WK1",
+      "kind": "real",
+      "canonicalName": "wk1"
+    },
+    {
+      "role": "model",
+      "name": "wkt1",
+      "selector": 506,
+      "symbol": "BSIM4_MOD_WKT1",
+      "kind": "real",
+      "canonicalName": "wkt1"
+    },
+    {
+      "role": "model",
+      "name": "wkt1l",
+      "selector": 507,
+      "symbol": "BSIM4_MOD_WKT1L",
+      "kind": "real",
+      "canonicalName": "wkt1l"
+    },
+    {
+      "role": "model",
+      "name": "wkt2",
+      "selector": 509,
+      "symbol": "BSIM4_MOD_WKT2",
+      "kind": "real",
+      "canonicalName": "wkt2"
+    },
+    {
+      "role": "model",
+      "name": "wk2",
+      "selector": 508,
+      "symbol": "BSIM4_MOD_WK2",
+      "kind": "real",
+      "canonicalName": "wk2"
+    },
+    {
+      "role": "model",
+      "name": "wk3",
+      "selector": 510,
+      "symbol": "BSIM4_MOD_WK3",
+      "kind": "real",
+      "canonicalName": "wk3"
+    },
+    {
+      "role": "model",
+      "name": "wk3b",
+      "selector": 511,
+      "symbol": "BSIM4_MOD_WK3B",
+      "kind": "real",
+      "canonicalName": "wk3b"
+    },
+    {
+      "role": "model",
+      "name": "ww0",
+      "selector": 512,
+      "symbol": "BSIM4_MOD_WW0",
+      "kind": "real",
+      "canonicalName": "ww0"
+    },
+    {
+      "role": "model",
+      "name": "wdvtp0",
+      "selector": 588,
+      "symbol": "BSIM4_MOD_WDVTP0",
+      "kind": "real",
+      "canonicalName": "wdvtp0"
+    },
+    {
+      "role": "model",
+      "name": "wdvtp1",
+      "selector": 589,
+      "symbol": "BSIM4_MOD_WDVTP1",
+      "kind": "real",
+      "canonicalName": "wdvtp1"
+    },
+    {
+      "role": "model",
+      "name": "wlpe0",
+      "selector": 513,
+      "symbol": "BSIM4_MOD_WLPE0",
+      "kind": "real",
+      "canonicalName": "wlpe0"
+    },
+    {
+      "role": "model",
+      "name": "wlpeb",
+      "selector": 587,
+      "symbol": "BSIM4_MOD_WLPEB",
+      "kind": "real",
+      "canonicalName": "wlpeb"
+    },
+    {
+      "role": "model",
+      "name": "wdvt0",
+      "selector": 514,
+      "symbol": "BSIM4_MOD_WDVT0",
+      "kind": "real",
+      "canonicalName": "wdvt0"
+    },
+    {
+      "role": "model",
+      "name": "wdvt1",
+      "selector": 515,
+      "symbol": "BSIM4_MOD_WDVT1",
+      "kind": "real",
+      "canonicalName": "wdvt1"
+    },
+    {
+      "role": "model",
+      "name": "wdvt2",
+      "selector": 516,
+      "symbol": "BSIM4_MOD_WDVT2",
+      "kind": "real",
+      "canonicalName": "wdvt2"
+    },
+    {
+      "role": "model",
+      "name": "wdvt0w",
+      "selector": 517,
+      "symbol": "BSIM4_MOD_WDVT0W",
+      "kind": "real",
+      "canonicalName": "wdvt0w"
+    },
+    {
+      "role": "model",
+      "name": "wdvt1w",
+      "selector": 518,
+      "symbol": "BSIM4_MOD_WDVT1W",
+      "kind": "real",
+      "canonicalName": "wdvt1w"
+    },
+    {
+      "role": "model",
+      "name": "wdvt2w",
+      "selector": 519,
+      "symbol": "BSIM4_MOD_WDVT2W",
+      "kind": "real",
+      "canonicalName": "wdvt2w"
+    },
+    {
+      "role": "model",
+      "name": "wdrout",
+      "selector": 520,
+      "symbol": "BSIM4_MOD_WDROUT",
+      "kind": "real",
+      "canonicalName": "wdrout"
+    },
+    {
+      "role": "model",
+      "name": "wdsub",
+      "selector": 521,
+      "symbol": "BSIM4_MOD_WDSUB",
+      "kind": "real",
+      "canonicalName": "wdsub"
+    },
+    {
+      "role": "model",
+      "name": "wvth0",
+      "selector": 522,
+      "symbol": "BSIM4_MOD_WVTH0",
+      "kind": "real",
+      "canonicalName": "wvth0"
+    },
+    {
+      "role": "model",
+      "name": "wvtho",
+      "selector": 522,
+      "symbol": "BSIM4_MOD_WVTH0",
+      "kind": "real",
+      "canonicalName": "wvth0"
+    },
+    {
+      "role": "model",
+      "name": "wua",
+      "selector": 523,
+      "symbol": "BSIM4_MOD_WUA",
+      "kind": "real",
+      "canonicalName": "wua"
+    },
+    {
+      "role": "model",
+      "name": "wua1",
+      "selector": 524,
+      "symbol": "BSIM4_MOD_WUA1",
+      "kind": "real",
+      "canonicalName": "wua1"
+    },
+    {
+      "role": "model",
+      "name": "wub",
+      "selector": 525,
+      "symbol": "BSIM4_MOD_WUB",
+      "kind": "real",
+      "canonicalName": "wub"
+    },
+    {
+      "role": "model",
+      "name": "wub1",
+      "selector": 526,
+      "symbol": "BSIM4_MOD_WUB1",
+      "kind": "real",
+      "canonicalName": "wub1"
+    },
+    {
+      "role": "model",
+      "name": "wuc",
+      "selector": 527,
+      "symbol": "BSIM4_MOD_WUC",
+      "kind": "real",
+      "canonicalName": "wuc"
+    },
+    {
+      "role": "model",
+      "name": "wuc1",
+      "selector": 528,
+      "symbol": "BSIM4_MOD_WUC1",
+      "kind": "real",
+      "canonicalName": "wuc1"
+    },
+    {
+      "role": "model",
+      "name": "wud",
+      "selector": 619,
+      "symbol": "BSIM4_MOD_WUD",
+      "kind": "real",
+      "canonicalName": "wud"
+    },
+    {
+      "role": "model",
+      "name": "wud1",
+      "selector": 620,
+      "symbol": "BSIM4_MOD_WUD1",
+      "kind": "real",
+      "canonicalName": "wud1"
+    },
+    {
+      "role": "model",
+      "name": "wup",
+      "selector": 621,
+      "symbol": "BSIM4_MOD_WUP",
+      "kind": "real",
+      "canonicalName": "wup"
+    },
+    {
+      "role": "model",
+      "name": "wlp",
+      "selector": 622,
+      "symbol": "BSIM4_MOD_WLP",
+      "kind": "real",
+      "canonicalName": "wlp"
+    },
+    {
+      "role": "model",
+      "name": "wu0",
+      "selector": 529,
+      "symbol": "BSIM4_MOD_WU0",
+      "kind": "real",
+      "canonicalName": "wu0"
+    },
+    {
+      "role": "model",
+      "name": "wute",
+      "selector": 530,
+      "symbol": "BSIM4_MOD_WUTE",
+      "kind": "real",
+      "canonicalName": "wute"
+    },
+    {
+      "role": "model",
+      "name": "wvoff",
+      "selector": 531,
+      "symbol": "BSIM4_MOD_WVOFF",
+      "kind": "real",
+      "canonicalName": "wvoff"
+    },
+    {
+      "role": "model",
+      "name": "wminv",
+      "selector": 583,
+      "symbol": "BSIM4_MOD_WMINV",
+      "kind": "real",
+      "canonicalName": "wminv"
+    },
+    {
+      "role": "model",
+      "name": "wdelta",
+      "selector": 532,
+      "symbol": "BSIM4_MOD_WDELTA",
+      "kind": "real",
+      "canonicalName": "wdelta"
+    },
+    {
+      "role": "model",
+      "name": "wrdsw",
+      "selector": 533,
+      "symbol": "BSIM4_MOD_WRDSW",
+      "kind": "real",
+      "canonicalName": "wrdsw"
+    },
+    {
+      "role": "model",
+      "name": "wrsw",
+      "selector": 592,
+      "symbol": "BSIM4_MOD_WRSW",
+      "kind": "real",
+      "canonicalName": "wrsw"
+    },
+    {
+      "role": "model",
+      "name": "wrdw",
+      "selector": 593,
+      "symbol": "BSIM4_MOD_WRDW",
+      "kind": "real",
+      "canonicalName": "wrdw"
+    },
+    {
+      "role": "model",
+      "name": "wprwg",
+      "selector": 555,
+      "symbol": "BSIM4_MOD_WPRWG",
+      "kind": "real",
+      "canonicalName": "wprwg"
+    },
+    {
+      "role": "model",
+      "name": "wprwb",
+      "selector": 556,
+      "symbol": "BSIM4_MOD_WPRWB",
+      "kind": "real",
+      "canonicalName": "wprwb"
+    },
+    {
+      "role": "model",
+      "name": "wprt",
+      "selector": 534,
+      "symbol": "BSIM4_MOD_WPRT",
+      "kind": "real",
+      "canonicalName": "wprt"
+    },
+    {
+      "role": "model",
+      "name": "weta0",
+      "selector": 537,
+      "symbol": "BSIM4_MOD_WETA0",
+      "kind": "real",
+      "canonicalName": "weta0"
+    },
+    {
+      "role": "model",
+      "name": "wetab",
+      "selector": 538,
+      "symbol": "BSIM4_MOD_WETAB",
+      "kind": "real",
+      "canonicalName": "wetab"
+    },
+    {
+      "role": "model",
+      "name": "wpclm",
+      "selector": 539,
+      "symbol": "BSIM4_MOD_WPCLM",
+      "kind": "real",
+      "canonicalName": "wpclm"
+    },
+    {
+      "role": "model",
+      "name": "wpdiblc1",
+      "selector": 540,
+      "symbol": "BSIM4_MOD_WPDIBL1",
+      "kind": "real",
+      "canonicalName": "wpdiblc1"
+    },
+    {
+      "role": "model",
+      "name": "wpdiblc2",
+      "selector": 541,
+      "symbol": "BSIM4_MOD_WPDIBL2",
+      "kind": "real",
+      "canonicalName": "wpdiblc2"
+    },
+    {
+      "role": "model",
+      "name": "wpdiblcb",
+      "selector": 554,
+      "symbol": "BSIM4_MOD_WPDIBLB",
+      "kind": "real",
+      "canonicalName": "wpdiblcb"
+    },
+    {
+      "role": "model",
+      "name": "wfprout",
+      "selector": 586,
+      "symbol": "BSIM4_MOD_WFPROUT",
+      "kind": "real",
+      "canonicalName": "wfprout"
+    },
+    {
+      "role": "model",
+      "name": "wpdits",
+      "selector": 584,
+      "symbol": "BSIM4_MOD_WPDITS",
+      "kind": "real",
+      "canonicalName": "wpdits"
+    },
+    {
+      "role": "model",
+      "name": "wpditsd",
+      "selector": 585,
+      "symbol": "BSIM4_MOD_WPDITSD",
+      "kind": "real",
+      "canonicalName": "wpditsd"
+    },
+    {
+      "role": "model",
+      "name": "wpscbe1",
+      "selector": 542,
+      "symbol": "BSIM4_MOD_WPSCBE1",
+      "kind": "real",
+      "canonicalName": "wpscbe1"
+    },
+    {
+      "role": "model",
+      "name": "wpscbe2",
+      "selector": 543,
+      "symbol": "BSIM4_MOD_WPSCBE2",
+      "kind": "real",
+      "canonicalName": "wpscbe2"
+    },
+    {
+      "role": "model",
+      "name": "wpvag",
+      "selector": 544,
+      "symbol": "BSIM4_MOD_WPVAG",
+      "kind": "real",
+      "canonicalName": "wpvag"
+    },
+    {
+      "role": "model",
+      "name": "wwr",
+      "selector": 545,
+      "symbol": "BSIM4_MOD_WWR",
+      "kind": "real",
+      "canonicalName": "wwr"
+    },
+    {
+      "role": "model",
+      "name": "wdwg",
+      "selector": 546,
+      "symbol": "BSIM4_MOD_WDWG",
+      "kind": "real",
+      "canonicalName": "wdwg"
+    },
+    {
+      "role": "model",
+      "name": "wdwb",
+      "selector": 547,
+      "symbol": "BSIM4_MOD_WDWB",
+      "kind": "real",
+      "canonicalName": "wdwb"
+    },
+    {
+      "role": "model",
+      "name": "wb0",
+      "selector": 548,
+      "symbol": "BSIM4_MOD_WB0",
+      "kind": "real",
+      "canonicalName": "wb0"
+    },
+    {
+      "role": "model",
+      "name": "wb1",
+      "selector": 549,
+      "symbol": "BSIM4_MOD_WB1",
+      "kind": "real",
+      "canonicalName": "wb1"
+    },
+    {
+      "role": "model",
+      "name": "wcgsl",
+      "selector": 563,
+      "symbol": "BSIM4_MOD_WCGSL",
+      "kind": "real",
+      "canonicalName": "wcgsl"
+    },
+    {
+      "role": "model",
+      "name": "wcgdl",
+      "selector": 564,
+      "symbol": "BSIM4_MOD_WCGDL",
+      "kind": "real",
+      "canonicalName": "wcgdl"
+    },
+    {
+      "role": "model",
+      "name": "wckappas",
+      "selector": 565,
+      "symbol": "BSIM4_MOD_WCKAPPAS",
+      "kind": "real",
+      "canonicalName": "wckappas"
+    },
+    {
+      "role": "model",
+      "name": "wckappad",
+      "selector": 595,
+      "symbol": "BSIM4_MOD_WCKAPPAD",
+      "kind": "real",
+      "canonicalName": "wckappad"
+    },
+    {
+      "role": "model",
+      "name": "wcf",
+      "selector": 566,
+      "symbol": "BSIM4_MOD_WCF",
+      "kind": "real",
+      "canonicalName": "wcf"
+    },
+    {
+      "role": "model",
+      "name": "wclc",
+      "selector": 567,
+      "symbol": "BSIM4_MOD_WCLC",
+      "kind": "real",
+      "canonicalName": "wclc"
+    },
+    {
+      "role": "model",
+      "name": "wcle",
+      "selector": 568,
+      "symbol": "BSIM4_MOD_WCLE",
+      "kind": "real",
+      "canonicalName": "wcle"
+    },
+    {
+      "role": "model",
+      "name": "walpha0",
+      "selector": 550,
+      "symbol": "BSIM4_MOD_WALPHA0",
+      "kind": "real",
+      "canonicalName": "walpha0"
+    },
+    {
+      "role": "model",
+      "name": "walpha1",
+      "selector": 574,
+      "symbol": "BSIM4_MOD_WALPHA1",
+      "kind": "real",
+      "canonicalName": "walpha1"
+    },
+    {
+      "role": "model",
+      "name": "wbeta0",
+      "selector": 551,
+      "symbol": "BSIM4_MOD_WBETA0",
+      "kind": "real",
+      "canonicalName": "wbeta0"
+    },
+    {
+      "role": "model",
+      "name": "wagidl",
+      "selector": 577,
+      "symbol": "BSIM4_MOD_WAGIDL",
+      "kind": "real",
+      "canonicalName": "wagidl"
+    },
+    {
+      "role": "model",
+      "name": "wbgidl",
+      "selector": 578,
+      "symbol": "BSIM4_MOD_WBGIDL",
+      "kind": "real",
+      "canonicalName": "wbgidl"
+    },
+    {
+      "role": "model",
+      "name": "wcgidl",
+      "selector": 590,
+      "symbol": "BSIM4_MOD_WCGIDL",
+      "kind": "real",
+      "canonicalName": "wcgidl"
+    },
+    {
+      "role": "model",
+      "name": "wegidl",
+      "selector": 579,
+      "symbol": "BSIM4_MOD_WEGIDL",
+      "kind": "real",
+      "canonicalName": "wegidl"
+    },
+    {
+      "role": "model",
+      "name": "waigc",
+      "selector": 596,
+      "symbol": "BSIM4_MOD_WAIGC",
+      "kind": "real",
+      "canonicalName": "waigc"
+    },
+    {
+      "role": "model",
+      "name": "wbigc",
+      "selector": 597,
+      "symbol": "BSIM4_MOD_WBIGC",
+      "kind": "real",
+      "canonicalName": "wbigc"
+    },
+    {
+      "role": "model",
+      "name": "wcigc",
+      "selector": 598,
+      "symbol": "BSIM4_MOD_WCIGC",
+      "kind": "real",
+      "canonicalName": "wcigc"
+    },
+    {
+      "role": "model",
+      "name": "waigsd",
+      "selector": 612,
+      "symbol": "BSIM4_MOD_WAIGSD",
+      "kind": "real",
+      "canonicalName": "waigsd"
+    },
+    {
+      "role": "model",
+      "name": "wbigsd",
+      "selector": 613,
+      "symbol": "BSIM4_MOD_WBIGSD",
+      "kind": "real",
+      "canonicalName": "wbigsd"
+    },
+    {
+      "role": "model",
+      "name": "wcigsd",
+      "selector": 614,
+      "symbol": "BSIM4_MOD_WCIGSD",
+      "kind": "real",
+      "canonicalName": "wcigsd"
+    },
+    {
+      "role": "model",
+      "name": "waigbacc",
+      "selector": 599,
+      "symbol": "BSIM4_MOD_WAIGBACC",
+      "kind": "real",
+      "canonicalName": "waigbacc"
+    },
+    {
+      "role": "model",
+      "name": "wbigbacc",
+      "selector": 600,
+      "symbol": "BSIM4_MOD_WBIGBACC",
+      "kind": "real",
+      "canonicalName": "wbigbacc"
+    },
+    {
+      "role": "model",
+      "name": "wcigbacc",
+      "selector": 601,
+      "symbol": "BSIM4_MOD_WCIGBACC",
+      "kind": "real",
+      "canonicalName": "wcigbacc"
+    },
+    {
+      "role": "model",
+      "name": "waigbinv",
+      "selector": 602,
+      "symbol": "BSIM4_MOD_WAIGBINV",
+      "kind": "real",
+      "canonicalName": "waigbinv"
+    },
+    {
+      "role": "model",
+      "name": "wbigbinv",
+      "selector": 603,
+      "symbol": "BSIM4_MOD_WBIGBINV",
+      "kind": "real",
+      "canonicalName": "wbigbinv"
+    },
+    {
+      "role": "model",
+      "name": "wcigbinv",
+      "selector": 604,
+      "symbol": "BSIM4_MOD_WCIGBINV",
+      "kind": "real",
+      "canonicalName": "wcigbinv"
+    },
+    {
+      "role": "model",
+      "name": "wnigc",
+      "selector": 605,
+      "symbol": "BSIM4_MOD_WNIGC",
+      "kind": "real",
+      "canonicalName": "wnigc"
+    },
+    {
+      "role": "model",
+      "name": "wnigbinv",
+      "selector": 607,
+      "symbol": "BSIM4_MOD_WNIGBINV",
+      "kind": "real",
+      "canonicalName": "wnigbinv"
+    },
+    {
+      "role": "model",
+      "name": "wnigbacc",
+      "selector": 606,
+      "symbol": "BSIM4_MOD_WNIGBACC",
+      "kind": "real",
+      "canonicalName": "wnigbacc"
+    },
+    {
+      "role": "model",
+      "name": "wntox",
+      "selector": 608,
+      "symbol": "BSIM4_MOD_WNTOX",
+      "kind": "real",
+      "canonicalName": "wntox"
+    },
+    {
+      "role": "model",
+      "name": "weigbinv",
+      "selector": 609,
+      "symbol": "BSIM4_MOD_WEIGBINV",
+      "kind": "real",
+      "canonicalName": "weigbinv"
+    },
+    {
+      "role": "model",
+      "name": "wpigcd",
+      "selector": 610,
+      "symbol": "BSIM4_MOD_WPIGCD",
+      "kind": "real",
+      "canonicalName": "wpigcd"
+    },
+    {
+      "role": "model",
+      "name": "wpoxedge",
+      "selector": 611,
+      "symbol": "BSIM4_MOD_WPOXEDGE",
+      "kind": "real",
+      "canonicalName": "wpoxedge"
+    },
+    {
+      "role": "model",
+      "name": "wvfbcv",
+      "selector": 569,
+      "symbol": "BSIM4_MOD_WVFBCV",
+      "kind": "real",
+      "canonicalName": "wvfbcv"
+    },
+    {
+      "role": "model",
+      "name": "wvfb",
+      "selector": 575,
+      "symbol": "BSIM4_MOD_WVFB",
+      "kind": "real",
+      "canonicalName": "wvfb"
+    },
+    {
+      "role": "model",
+      "name": "wacde",
+      "selector": 570,
+      "symbol": "BSIM4_MOD_WACDE",
+      "kind": "real",
+      "canonicalName": "wacde"
+    },
+    {
+      "role": "model",
+      "name": "wmoin",
+      "selector": 571,
+      "symbol": "BSIM4_MOD_WMOIN",
+      "kind": "real",
+      "canonicalName": "wmoin"
+    },
+    {
+      "role": "model",
+      "name": "wnoff",
+      "selector": 572,
+      "symbol": "BSIM4_MOD_WNOFF",
+      "kind": "real",
+      "canonicalName": "wnoff"
+    },
+    {
+      "role": "model",
+      "name": "wvoffcv",
+      "selector": 576,
+      "symbol": "BSIM4_MOD_WVOFFCV",
+      "kind": "real",
+      "canonicalName": "wvoffcv"
+    },
+    {
+      "role": "model",
+      "name": "wxrcrg1",
+      "selector": 580,
+      "symbol": "BSIM4_MOD_WXRCRG1",
+      "kind": "real",
+      "canonicalName": "wxrcrg1"
+    },
+    {
+      "role": "model",
+      "name": "wxrcrg2",
+      "selector": 581,
+      "symbol": "BSIM4_MOD_WXRCRG2",
+      "kind": "real",
+      "canonicalName": "wxrcrg2"
+    },
+    {
+      "role": "model",
+      "name": "wlambda",
+      "selector": 615,
+      "symbol": "BSIM4_MOD_WLAMBDA",
+      "kind": "real",
+      "canonicalName": "wlambda"
+    },
+    {
+      "role": "model",
+      "name": "wvtl",
+      "selector": 616,
+      "symbol": "BSIM4_MOD_WVTL",
+      "kind": "real",
+      "canonicalName": "wvtl"
+    },
+    {
+      "role": "model",
+      "name": "wxn",
+      "selector": 617,
+      "symbol": "BSIM4_MOD_WXN",
+      "kind": "real",
+      "canonicalName": "wxn"
+    },
+    {
+      "role": "model",
+      "name": "weu",
+      "selector": 582,
+      "symbol": "BSIM4_MOD_WEU",
+      "kind": "real",
+      "canonicalName": "weu"
+    },
+    {
+      "role": "model",
+      "name": "wvfbsdoff",
+      "selector": 618,
+      "symbol": "BSIM4_MOD_WVFBSDOFF",
+      "kind": "real",
+      "canonicalName": "wvfbsdoff"
+    },
+    {
+      "role": "model",
+      "name": "wtvfbsdoff",
+      "selector": 1054,
+      "symbol": "BSIM4_MOD_WTVFBSDOFF",
+      "kind": "real",
+      "canonicalName": "wtvfbsdoff"
+    },
+    {
+      "role": "model",
+      "name": "wtvoff",
+      "selector": 1053,
+      "symbol": "BSIM4_MOD_WTVOFF",
+      "kind": "real",
+      "canonicalName": "wtvoff"
+    },
+    {
+      "role": "model",
+      "name": "pcdsc",
+      "selector": 661,
+      "symbol": "BSIM4_MOD_PCDSC",
+      "kind": "real",
+      "canonicalName": "pcdsc"
+    },
+    {
+      "role": "model",
+      "name": "pcdscb",
+      "selector": 662,
+      "symbol": "BSIM4_MOD_PCDSCB",
+      "kind": "real",
+      "canonicalName": "pcdscb"
+    },
+    {
+      "role": "model",
+      "name": "pcdscd",
+      "selector": 737,
+      "symbol": "BSIM4_MOD_PCDSCD",
+      "kind": "real",
+      "canonicalName": "pcdscd"
+    },
+    {
+      "role": "model",
+      "name": "pcit",
+      "selector": 663,
+      "symbol": "BSIM4_MOD_PCIT",
+      "kind": "real",
+      "canonicalName": "pcit"
+    },
+    {
+      "role": "model",
+      "name": "pnfactor",
+      "selector": 664,
+      "symbol": "BSIM4_MOD_PNFACTOR",
+      "kind": "real",
+      "canonicalName": "pnfactor"
+    },
+    {
+      "role": "model",
+      "name": "pxj",
+      "selector": 665,
+      "symbol": "BSIM4_MOD_PXJ",
+      "kind": "real",
+      "canonicalName": "pxj"
+    },
+    {
+      "role": "model",
+      "name": "pvsat",
+      "selector": 666,
+      "symbol": "BSIM4_MOD_PVSAT",
+      "kind": "real",
+      "canonicalName": "pvsat"
+    },
+    {
+      "role": "model",
+      "name": "pat",
+      "selector": 667,
+      "symbol": "BSIM4_MOD_PAT",
+      "kind": "real",
+      "canonicalName": "pat"
+    },
+    {
+      "role": "model",
+      "name": "pa0",
+      "selector": 668,
+      "symbol": "BSIM4_MOD_PA0",
+      "kind": "real",
+      "canonicalName": "pa0"
+    },
+    {
+      "role": "model",
+      "name": "pags",
+      "selector": 738,
+      "symbol": "BSIM4_MOD_PAGS",
+      "kind": "real",
+      "canonicalName": "pags"
+    },
+    {
+      "role": "model",
+      "name": "pa1",
+      "selector": 669,
+      "symbol": "BSIM4_MOD_PA1",
+      "kind": "real",
+      "canonicalName": "pa1"
+    },
+    {
+      "role": "model",
+      "name": "pa2",
+      "selector": 670,
+      "symbol": "BSIM4_MOD_PA2",
+      "kind": "real",
+      "canonicalName": "pa2"
+    },
+    {
+      "role": "model",
+      "name": "pketa",
+      "selector": 671,
+      "symbol": "BSIM4_MOD_PKETA",
+      "kind": "real",
+      "canonicalName": "pketa"
+    },
+    {
+      "role": "model",
+      "name": "pnsub",
+      "selector": 672,
+      "symbol": "BSIM4_MOD_PNSUB",
+      "kind": "real",
+      "canonicalName": "pnsub"
+    },
+    {
+      "role": "model",
+      "name": "pndep",
+      "selector": 673,
+      "symbol": "BSIM4_MOD_PNDEP",
+      "kind": "real",
+      "canonicalName": "pndep"
+    },
+    {
+      "role": "model",
+      "name": "pnsd",
+      "selector": 774,
+      "symbol": "BSIM4_MOD_PNSD",
+      "kind": "real",
+      "canonicalName": "pnsd"
+    },
+    {
+      "role": "model",
+      "name": "pphin",
+      "selector": 771,
+      "symbol": "BSIM4_MOD_PPHIN",
+      "kind": "real",
+      "canonicalName": "pphin"
+    },
+    {
+      "role": "model",
+      "name": "pngate",
+      "selector": 675,
+      "symbol": "BSIM4_MOD_PNGATE",
+      "kind": "real",
+      "canonicalName": "pngate"
+    },
+    {
+      "role": "model",
+      "name": "pgamma1",
+      "selector": 676,
+      "symbol": "BSIM4_MOD_PGAMMA1",
+      "kind": "real",
+      "canonicalName": "pgamma1"
+    },
+    {
+      "role": "model",
+      "name": "pgamma2",
+      "selector": 677,
+      "symbol": "BSIM4_MOD_PGAMMA2",
+      "kind": "real",
+      "canonicalName": "pgamma2"
+    },
+    {
+      "role": "model",
+      "name": "pvbx",
+      "selector": 678,
+      "symbol": "BSIM4_MOD_PVBX",
+      "kind": "real",
+      "canonicalName": "pvbx"
+    },
+    {
+      "role": "model",
+      "name": "pvbm",
+      "selector": 680,
+      "symbol": "BSIM4_MOD_PVBM",
+      "kind": "real",
+      "canonicalName": "pvbm"
+    },
+    {
+      "role": "model",
+      "name": "pxt",
+      "selector": 682,
+      "symbol": "BSIM4_MOD_PXT",
+      "kind": "real",
+      "canonicalName": "pxt"
+    },
+    {
+      "role": "model",
+      "name": "pk1",
+      "selector": 685,
+      "symbol": "BSIM4_MOD_PK1",
+      "kind": "real",
+      "canonicalName": "pk1"
+    },
+    {
+      "role": "model",
+      "name": "pkt1",
+      "selector": 686,
+      "symbol": "BSIM4_MOD_PKT1",
+      "kind": "real",
+      "canonicalName": "pkt1"
+    },
+    {
+      "role": "model",
+      "name": "pkt1l",
+      "selector": 687,
+      "symbol": "BSIM4_MOD_PKT1L",
+      "kind": "real",
+      "canonicalName": "pkt1l"
+    },
+    {
+      "role": "model",
+      "name": "pkt2",
+      "selector": 689,
+      "symbol": "BSIM4_MOD_PKT2",
+      "kind": "real",
+      "canonicalName": "pkt2"
+    },
+    {
+      "role": "model",
+      "name": "pk2",
+      "selector": 688,
+      "symbol": "BSIM4_MOD_PK2",
+      "kind": "real",
+      "canonicalName": "pk2"
+    },
+    {
+      "role": "model",
+      "name": "pk3",
+      "selector": 690,
+      "symbol": "BSIM4_MOD_PK3",
+      "kind": "real",
+      "canonicalName": "pk3"
+    },
+    {
+      "role": "model",
+      "name": "pk3b",
+      "selector": 691,
+      "symbol": "BSIM4_MOD_PK3B",
+      "kind": "real",
+      "canonicalName": "pk3b"
+    },
+    {
+      "role": "model",
+      "name": "pw0",
+      "selector": 692,
+      "symbol": "BSIM4_MOD_PW0",
+      "kind": "real",
+      "canonicalName": "pw0"
+    },
+    {
+      "role": "model",
+      "name": "pdvtp0",
+      "selector": 768,
+      "symbol": "BSIM4_MOD_PDVTP0",
+      "kind": "real",
+      "canonicalName": "pdvtp0"
+    },
+    {
+      "role": "model",
+      "name": "pdvtp1",
+      "selector": 769,
+      "symbol": "BSIM4_MOD_PDVTP1",
+      "kind": "real",
+      "canonicalName": "pdvtp1"
+    },
+    {
+      "role": "model",
+      "name": "plpe0",
+      "selector": 693,
+      "symbol": "BSIM4_MOD_PLPE0",
+      "kind": "real",
+      "canonicalName": "plpe0"
+    },
+    {
+      "role": "model",
+      "name": "plpeb",
+      "selector": 767,
+      "symbol": "BSIM4_MOD_PLPEB",
+      "kind": "real",
+      "canonicalName": "plpeb"
+    },
+    {
+      "role": "model",
+      "name": "pdvt0",
+      "selector": 694,
+      "symbol": "BSIM4_MOD_PDVT0",
+      "kind": "real",
+      "canonicalName": "pdvt0"
+    },
+    {
+      "role": "model",
+      "name": "pdvt1",
+      "selector": 695,
+      "symbol": "BSIM4_MOD_PDVT1",
+      "kind": "real",
+      "canonicalName": "pdvt1"
+    },
+    {
+      "role": "model",
+      "name": "pdvt2",
+      "selector": 696,
+      "symbol": "BSIM4_MOD_PDVT2",
+      "kind": "real",
+      "canonicalName": "pdvt2"
+    },
+    {
+      "role": "model",
+      "name": "pdvt0w",
+      "selector": 697,
+      "symbol": "BSIM4_MOD_PDVT0W",
+      "kind": "real",
+      "canonicalName": "pdvt0w"
+    },
+    {
+      "role": "model",
+      "name": "pdvt1w",
+      "selector": 698,
+      "symbol": "BSIM4_MOD_PDVT1W",
+      "kind": "real",
+      "canonicalName": "pdvt1w"
+    },
+    {
+      "role": "model",
+      "name": "pdvt2w",
+      "selector": 699,
+      "symbol": "BSIM4_MOD_PDVT2W",
+      "kind": "real",
+      "canonicalName": "pdvt2w"
+    },
+    {
+      "role": "model",
+      "name": "pdrout",
+      "selector": 700,
+      "symbol": "BSIM4_MOD_PDROUT",
+      "kind": "real",
+      "canonicalName": "pdrout"
+    },
+    {
+      "role": "model",
+      "name": "pdsub",
+      "selector": 701,
+      "symbol": "BSIM4_MOD_PDSUB",
+      "kind": "real",
+      "canonicalName": "pdsub"
+    },
+    {
+      "role": "model",
+      "name": "pvth0",
+      "selector": 702,
+      "symbol": "BSIM4_MOD_PVTH0",
+      "kind": "real",
+      "canonicalName": "pvth0"
+    },
+    {
+      "role": "model",
+      "name": "pvtho",
+      "selector": 702,
+      "symbol": "BSIM4_MOD_PVTH0",
+      "kind": "real",
+      "canonicalName": "pvth0"
+    },
+    {
+      "role": "model",
+      "name": "pua",
+      "selector": 703,
+      "symbol": "BSIM4_MOD_PUA",
+      "kind": "real",
+      "canonicalName": "pua"
+    },
+    {
+      "role": "model",
+      "name": "pua1",
+      "selector": 704,
+      "symbol": "BSIM4_MOD_PUA1",
+      "kind": "real",
+      "canonicalName": "pua1"
+    },
+    {
+      "role": "model",
+      "name": "pub",
+      "selector": 705,
+      "symbol": "BSIM4_MOD_PUB",
+      "kind": "real",
+      "canonicalName": "pub"
+    },
+    {
+      "role": "model",
+      "name": "pub1",
+      "selector": 706,
+      "symbol": "BSIM4_MOD_PUB1",
+      "kind": "real",
+      "canonicalName": "pub1"
+    },
+    {
+      "role": "model",
+      "name": "puc",
+      "selector": 707,
+      "symbol": "BSIM4_MOD_PUC",
+      "kind": "real",
+      "canonicalName": "puc"
+    },
+    {
+      "role": "model",
+      "name": "puc1",
+      "selector": 708,
+      "symbol": "BSIM4_MOD_PUC1",
+      "kind": "real",
+      "canonicalName": "puc1"
+    },
+    {
+      "role": "model",
+      "name": "pud",
+      "selector": 924,
+      "symbol": "BSIM4_MOD_PUD",
+      "kind": "real",
+      "canonicalName": "pud"
+    },
+    {
+      "role": "model",
+      "name": "pud1",
+      "selector": 925,
+      "symbol": "BSIM4_MOD_PUD1",
+      "kind": "real",
+      "canonicalName": "pud1"
+    },
+    {
+      "role": "model",
+      "name": "pup",
+      "selector": 926,
+      "symbol": "BSIM4_MOD_PUP",
+      "kind": "real",
+      "canonicalName": "pup"
+    },
+    {
+      "role": "model",
+      "name": "plp",
+      "selector": 927,
+      "symbol": "BSIM4_MOD_PLP",
+      "kind": "real",
+      "canonicalName": "plp"
+    },
+    {
+      "role": "model",
+      "name": "pu0",
+      "selector": 709,
+      "symbol": "BSIM4_MOD_PU0",
+      "kind": "real",
+      "canonicalName": "pu0"
+    },
+    {
+      "role": "model",
+      "name": "pute",
+      "selector": 710,
+      "symbol": "BSIM4_MOD_PUTE",
+      "kind": "real",
+      "canonicalName": "pute"
+    },
+    {
+      "role": "model",
+      "name": "pvoff",
+      "selector": 711,
+      "symbol": "BSIM4_MOD_PVOFF",
+      "kind": "real",
+      "canonicalName": "pvoff"
+    },
+    {
+      "role": "model",
+      "name": "pminv",
+      "selector": 763,
+      "symbol": "BSIM4_MOD_PMINV",
+      "kind": "real",
+      "canonicalName": "pminv"
+    },
+    {
+      "role": "model",
+      "name": "pdelta",
+      "selector": 712,
+      "symbol": "BSIM4_MOD_PDELTA",
+      "kind": "real",
+      "canonicalName": "pdelta"
+    },
+    {
+      "role": "model",
+      "name": "prdsw",
+      "selector": 713,
+      "symbol": "BSIM4_MOD_PRDSW",
+      "kind": "real",
+      "canonicalName": "prdsw"
+    },
+    {
+      "role": "model",
+      "name": "prsw",
+      "selector": 772,
+      "symbol": "BSIM4_MOD_PRSW",
+      "kind": "real",
+      "canonicalName": "prsw"
+    },
+    {
+      "role": "model",
+      "name": "prdw",
+      "selector": 773,
+      "symbol": "BSIM4_MOD_PRDW",
+      "kind": "real",
+      "canonicalName": "prdw"
+    },
+    {
+      "role": "model",
+      "name": "pprwg",
+      "selector": 735,
+      "symbol": "BSIM4_MOD_PPRWG",
+      "kind": "real",
+      "canonicalName": "pprwg"
+    },
+    {
+      "role": "model",
+      "name": "pprwb",
+      "selector": 736,
+      "symbol": "BSIM4_MOD_PPRWB",
+      "kind": "real",
+      "canonicalName": "pprwb"
+    },
+    {
+      "role": "model",
+      "name": "pprt",
+      "selector": 714,
+      "symbol": "BSIM4_MOD_PPRT",
+      "kind": "real",
+      "canonicalName": "pprt"
+    },
+    {
+      "role": "model",
+      "name": "peta0",
+      "selector": 717,
+      "symbol": "BSIM4_MOD_PETA0",
+      "kind": "real",
+      "canonicalName": "peta0"
+    },
+    {
+      "role": "model",
+      "name": "petab",
+      "selector": 718,
+      "symbol": "BSIM4_MOD_PETAB",
+      "kind": "real",
+      "canonicalName": "petab"
+    },
+    {
+      "role": "model",
+      "name": "ppclm",
+      "selector": 719,
+      "symbol": "BSIM4_MOD_PPCLM",
+      "kind": "real",
+      "canonicalName": "ppclm"
+    },
+    {
+      "role": "model",
+      "name": "ppdiblc1",
+      "selector": 720,
+      "symbol": "BSIM4_MOD_PPDIBL1",
+      "kind": "real",
+      "canonicalName": "ppdiblc1"
+    },
+    {
+      "role": "model",
+      "name": "ppdiblc2",
+      "selector": 721,
+      "symbol": "BSIM4_MOD_PPDIBL2",
+      "kind": "real",
+      "canonicalName": "ppdiblc2"
+    },
+    {
+      "role": "model",
+      "name": "ppdiblcb",
+      "selector": 734,
+      "symbol": "BSIM4_MOD_PPDIBLB",
+      "kind": "real",
+      "canonicalName": "ppdiblcb"
+    },
+    {
+      "role": "model",
+      "name": "pfprout",
+      "selector": 766,
+      "symbol": "BSIM4_MOD_PFPROUT",
+      "kind": "real",
+      "canonicalName": "pfprout"
+    },
+    {
+      "role": "model",
+      "name": "ppdits",
+      "selector": 764,
+      "symbol": "BSIM4_MOD_PPDITS",
+      "kind": "real",
+      "canonicalName": "ppdits"
+    },
+    {
+      "role": "model",
+      "name": "ppditsd",
+      "selector": 765,
+      "symbol": "BSIM4_MOD_PPDITSD",
+      "kind": "real",
+      "canonicalName": "ppditsd"
+    },
+    {
+      "role": "model",
+      "name": "ppscbe1",
+      "selector": 722,
+      "symbol": "BSIM4_MOD_PPSCBE1",
+      "kind": "real",
+      "canonicalName": "ppscbe1"
+    },
+    {
+      "role": "model",
+      "name": "ppscbe2",
+      "selector": 723,
+      "symbol": "BSIM4_MOD_PPSCBE2",
+      "kind": "real",
+      "canonicalName": "ppscbe2"
+    },
+    {
+      "role": "model",
+      "name": "ppvag",
+      "selector": 724,
+      "symbol": "BSIM4_MOD_PPVAG",
+      "kind": "real",
+      "canonicalName": "ppvag"
+    },
+    {
+      "role": "model",
+      "name": "pwr",
+      "selector": 725,
+      "symbol": "BSIM4_MOD_PWR",
+      "kind": "real",
+      "canonicalName": "pwr"
+    },
+    {
+      "role": "model",
+      "name": "pdwg",
+      "selector": 726,
+      "symbol": "BSIM4_MOD_PDWG",
+      "kind": "real",
+      "canonicalName": "pdwg"
+    },
+    {
+      "role": "model",
+      "name": "pdwb",
+      "selector": 727,
+      "symbol": "BSIM4_MOD_PDWB",
+      "kind": "real",
+      "canonicalName": "pdwb"
+    },
+    {
+      "role": "model",
+      "name": "pb0",
+      "selector": 728,
+      "symbol": "BSIM4_MOD_PB0",
+      "kind": "real",
+      "canonicalName": "pb0"
+    },
+    {
+      "role": "model",
+      "name": "pb1",
+      "selector": 729,
+      "symbol": "BSIM4_MOD_PB1",
+      "kind": "real",
+      "canonicalName": "pb1"
+    },
+    {
+      "role": "model",
+      "name": "pcgsl",
+      "selector": 743,
+      "symbol": "BSIM4_MOD_PCGSL",
+      "kind": "real",
+      "canonicalName": "pcgsl"
+    },
+    {
+      "role": "model",
+      "name": "pcgdl",
+      "selector": 744,
+      "symbol": "BSIM4_MOD_PCGDL",
+      "kind": "real",
+      "canonicalName": "pcgdl"
+    },
+    {
+      "role": "model",
+      "name": "pckappas",
+      "selector": 745,
+      "symbol": "BSIM4_MOD_PCKAPPAS",
+      "kind": "real",
+      "canonicalName": "pckappas"
+    },
+    {
+      "role": "model",
+      "name": "pckappad",
+      "selector": 775,
+      "symbol": "BSIM4_MOD_PCKAPPAD",
+      "kind": "real",
+      "canonicalName": "pckappad"
+    },
+    {
+      "role": "model",
+      "name": "pcf",
+      "selector": 746,
+      "symbol": "BSIM4_MOD_PCF",
+      "kind": "real",
+      "canonicalName": "pcf"
+    },
+    {
+      "role": "model",
+      "name": "pclc",
+      "selector": 747,
+      "symbol": "BSIM4_MOD_PCLC",
+      "kind": "real",
+      "canonicalName": "pclc"
+    },
+    {
+      "role": "model",
+      "name": "pcle",
+      "selector": 748,
+      "symbol": "BSIM4_MOD_PCLE",
+      "kind": "real",
+      "canonicalName": "pcle"
+    },
+    {
+      "role": "model",
+      "name": "palpha0",
+      "selector": 730,
+      "symbol": "BSIM4_MOD_PALPHA0",
+      "kind": "real",
+      "canonicalName": "palpha0"
+    },
+    {
+      "role": "model",
+      "name": "palpha1",
+      "selector": 754,
+      "symbol": "BSIM4_MOD_PALPHA1",
+      "kind": "real",
+      "canonicalName": "palpha1"
+    },
+    {
+      "role": "model",
+      "name": "pbeta0",
+      "selector": 731,
+      "symbol": "BSIM4_MOD_PBETA0",
+      "kind": "real",
+      "canonicalName": "pbeta0"
+    },
+    {
+      "role": "model",
+      "name": "pagidl",
+      "selector": 757,
+      "symbol": "BSIM4_MOD_PAGIDL",
+      "kind": "real",
+      "canonicalName": "pagidl"
+    },
+    {
+      "role": "model",
+      "name": "pbgidl",
+      "selector": 758,
+      "symbol": "BSIM4_MOD_PBGIDL",
+      "kind": "real",
+      "canonicalName": "pbgidl"
+    },
+    {
+      "role": "model",
+      "name": "pcgidl",
+      "selector": 770,
+      "symbol": "BSIM4_MOD_PCGIDL",
+      "kind": "real",
+      "canonicalName": "pcgidl"
+    },
+    {
+      "role": "model",
+      "name": "pegidl",
+      "selector": 759,
+      "symbol": "BSIM4_MOD_PEGIDL",
+      "kind": "real",
+      "canonicalName": "pegidl"
+    },
+    {
+      "role": "model",
+      "name": "paigc",
+      "selector": 776,
+      "symbol": "BSIM4_MOD_PAIGC",
+      "kind": "real",
+      "canonicalName": "paigc"
+    },
+    {
+      "role": "model",
+      "name": "pbigc",
+      "selector": 777,
+      "symbol": "BSIM4_MOD_PBIGC",
+      "kind": "real",
+      "canonicalName": "pbigc"
+    },
+    {
+      "role": "model",
+      "name": "pcigc",
+      "selector": 778,
+      "symbol": "BSIM4_MOD_PCIGC",
+      "kind": "real",
+      "canonicalName": "pcigc"
+    },
+    {
+      "role": "model",
+      "name": "paigsd",
+      "selector": 792,
+      "symbol": "BSIM4_MOD_PAIGSD",
+      "kind": "real",
+      "canonicalName": "paigsd"
+    },
+    {
+      "role": "model",
+      "name": "pbigsd",
+      "selector": 793,
+      "symbol": "BSIM4_MOD_PBIGSD",
+      "kind": "real",
+      "canonicalName": "pbigsd"
+    },
+    {
+      "role": "model",
+      "name": "pcigsd",
+      "selector": 794,
+      "symbol": "BSIM4_MOD_PCIGSD",
+      "kind": "real",
+      "canonicalName": "pcigsd"
+    },
+    {
+      "role": "model",
+      "name": "paigbacc",
+      "selector": 779,
+      "symbol": "BSIM4_MOD_PAIGBACC",
+      "kind": "real",
+      "canonicalName": "paigbacc"
+    },
+    {
+      "role": "model",
+      "name": "pbigbacc",
+      "selector": 780,
+      "symbol": "BSIM4_MOD_PBIGBACC",
+      "kind": "real",
+      "canonicalName": "pbigbacc"
+    },
+    {
+      "role": "model",
+      "name": "pcigbacc",
+      "selector": 781,
+      "symbol": "BSIM4_MOD_PCIGBACC",
+      "kind": "real",
+      "canonicalName": "pcigbacc"
+    },
+    {
+      "role": "model",
+      "name": "paigbinv",
+      "selector": 782,
+      "symbol": "BSIM4_MOD_PAIGBINV",
+      "kind": "real",
+      "canonicalName": "paigbinv"
+    },
+    {
+      "role": "model",
+      "name": "pbigbinv",
+      "selector": 783,
+      "symbol": "BSIM4_MOD_PBIGBINV",
+      "kind": "real",
+      "canonicalName": "pbigbinv"
+    },
+    {
+      "role": "model",
+      "name": "pcigbinv",
+      "selector": 784,
+      "symbol": "BSIM4_MOD_PCIGBINV",
+      "kind": "real",
+      "canonicalName": "pcigbinv"
+    },
+    {
+      "role": "model",
+      "name": "pnigc",
+      "selector": 785,
+      "symbol": "BSIM4_MOD_PNIGC",
+      "kind": "real",
+      "canonicalName": "pnigc"
+    },
+    {
+      "role": "model",
+      "name": "pnigbinv",
+      "selector": 787,
+      "symbol": "BSIM4_MOD_PNIGBINV",
+      "kind": "real",
+      "canonicalName": "pnigbinv"
+    },
+    {
+      "role": "model",
+      "name": "pnigbacc",
+      "selector": 786,
+      "symbol": "BSIM4_MOD_PNIGBACC",
+      "kind": "real",
+      "canonicalName": "pnigbacc"
+    },
+    {
+      "role": "model",
+      "name": "pntox",
+      "selector": 788,
+      "symbol": "BSIM4_MOD_PNTOX",
+      "kind": "real",
+      "canonicalName": "pntox"
+    },
+    {
+      "role": "model",
+      "name": "peigbinv",
+      "selector": 789,
+      "symbol": "BSIM4_MOD_PEIGBINV",
+      "kind": "real",
+      "canonicalName": "peigbinv"
+    },
+    {
+      "role": "model",
+      "name": "ppigcd",
+      "selector": 790,
+      "symbol": "BSIM4_MOD_PPIGCD",
+      "kind": "real",
+      "canonicalName": "ppigcd"
+    },
+    {
+      "role": "model",
+      "name": "ppoxedge",
+      "selector": 791,
+      "symbol": "BSIM4_MOD_PPOXEDGE",
+      "kind": "real",
+      "canonicalName": "ppoxedge"
+    },
+    {
+      "role": "model",
+      "name": "pvfbcv",
+      "selector": 749,
+      "symbol": "BSIM4_MOD_PVFBCV",
+      "kind": "real",
+      "canonicalName": "pvfbcv"
+    },
+    {
+      "role": "model",
+      "name": "pvfb",
+      "selector": 755,
+      "symbol": "BSIM4_MOD_PVFB",
+      "kind": "real",
+      "canonicalName": "pvfb"
+    },
+    {
+      "role": "model",
+      "name": "pacde",
+      "selector": 750,
+      "symbol": "BSIM4_MOD_PACDE",
+      "kind": "real",
+      "canonicalName": "pacde"
+    },
+    {
+      "role": "model",
+      "name": "pmoin",
+      "selector": 751,
+      "symbol": "BSIM4_MOD_PMOIN",
+      "kind": "real",
+      "canonicalName": "pmoin"
+    },
+    {
+      "role": "model",
+      "name": "pnoff",
+      "selector": 752,
+      "symbol": "BSIM4_MOD_PNOFF",
+      "kind": "real",
+      "canonicalName": "pnoff"
+    },
+    {
+      "role": "model",
+      "name": "pvoffcv",
+      "selector": 756,
+      "symbol": "BSIM4_MOD_PVOFFCV",
+      "kind": "real",
+      "canonicalName": "pvoffcv"
+    },
+    {
+      "role": "model",
+      "name": "pxrcrg1",
+      "selector": 760,
+      "symbol": "BSIM4_MOD_PXRCRG1",
+      "kind": "real",
+      "canonicalName": "pxrcrg1"
+    },
+    {
+      "role": "model",
+      "name": "pxrcrg2",
+      "selector": 761,
+      "symbol": "BSIM4_MOD_PXRCRG2",
+      "kind": "real",
+      "canonicalName": "pxrcrg2"
+    },
+    {
+      "role": "model",
+      "name": "plambda",
+      "selector": 825,
+      "symbol": "BSIM4_MOD_PLAMBDA",
+      "kind": "real",
+      "canonicalName": "plambda"
+    },
+    {
+      "role": "model",
+      "name": "pvtl",
+      "selector": 826,
+      "symbol": "BSIM4_MOD_PVTL",
+      "kind": "real",
+      "canonicalName": "pvtl"
+    },
+    {
+      "role": "model",
+      "name": "pxn",
+      "selector": 827,
+      "symbol": "BSIM4_MOD_PXN",
+      "kind": "real",
+      "canonicalName": "pxn"
+    },
+    {
+      "role": "model",
+      "name": "peu",
+      "selector": 762,
+      "symbol": "BSIM4_MOD_PEU",
+      "kind": "real",
+      "canonicalName": "peu"
+    },
+    {
+      "role": "model",
+      "name": "pvfbsdoff",
+      "selector": 828,
+      "symbol": "BSIM4_MOD_PVFBSDOFF",
+      "kind": "real",
+      "canonicalName": "pvfbsdoff"
+    },
+    {
+      "role": "model",
+      "name": "ptvfbsdoff",
+      "selector": 1056,
+      "symbol": "BSIM4_MOD_PTVFBSDOFF",
+      "kind": "real",
+      "canonicalName": "ptvfbsdoff"
+    },
+    {
+      "role": "model",
+      "name": "ptvoff",
+      "selector": 1055,
+      "symbol": "BSIM4_MOD_PTVOFF",
+      "kind": "real",
+      "canonicalName": "ptvoff"
+    },
+    {
+      "role": "model",
+      "name": "saref",
+      "selector": 795,
+      "symbol": "BSIM4_MOD_SAREF",
+      "kind": "real",
+      "canonicalName": "saref"
+    },
+    {
+      "role": "model",
+      "name": "sbref",
+      "selector": 796,
+      "symbol": "BSIM4_MOD_SBREF",
+      "kind": "real",
+      "canonicalName": "sbref"
+    },
+    {
+      "role": "model",
+      "name": "wlod",
+      "selector": 811,
+      "symbol": "BSIM4_MOD_WLOD",
+      "kind": "real",
+      "canonicalName": "wlod"
+    },
+    {
+      "role": "model",
+      "name": "ku0",
+      "selector": 797,
+      "symbol": "BSIM4_MOD_KU0",
+      "kind": "real",
+      "canonicalName": "ku0"
+    },
+    {
+      "role": "model",
+      "name": "kvsat",
+      "selector": 798,
+      "symbol": "BSIM4_MOD_KVSAT",
+      "kind": "real",
+      "canonicalName": "kvsat"
+    },
+    {
+      "role": "model",
+      "name": "kvth0",
+      "selector": 807,
+      "symbol": "BSIM4_MOD_KVTH0",
+      "kind": "real",
+      "canonicalName": "kvth0"
+    },
+    {
+      "role": "model",
+      "name": "tku0",
+      "selector": 799,
+      "symbol": "BSIM4_MOD_TKU0",
+      "kind": "real",
+      "canonicalName": "tku0"
+    },
+    {
+      "role": "model",
+      "name": "llodku0",
+      "selector": 800,
+      "symbol": "BSIM4_MOD_LLODKU0",
+      "kind": "real",
+      "canonicalName": "llodku0"
+    },
+    {
+      "role": "model",
+      "name": "wlodku0",
+      "selector": 801,
+      "symbol": "BSIM4_MOD_WLODKU0",
+      "kind": "real",
+      "canonicalName": "wlodku0"
+    },
+    {
+      "role": "model",
+      "name": "llodvth",
+      "selector": 802,
+      "symbol": "BSIM4_MOD_LLODVTH",
+      "kind": "real",
+      "canonicalName": "llodvth"
+    },
+    {
+      "role": "model",
+      "name": "wlodvth",
+      "selector": 803,
+      "symbol": "BSIM4_MOD_WLODVTH",
+      "kind": "real",
+      "canonicalName": "wlodvth"
+    },
+    {
+      "role": "model",
+      "name": "lku0",
+      "selector": 804,
+      "symbol": "BSIM4_MOD_LKU0",
+      "kind": "real",
+      "canonicalName": "lku0"
+    },
+    {
+      "role": "model",
+      "name": "wku0",
+      "selector": 805,
+      "symbol": "BSIM4_MOD_WKU0",
+      "kind": "real",
+      "canonicalName": "wku0"
+    },
+    {
+      "role": "model",
+      "name": "pku0",
+      "selector": 806,
+      "symbol": "BSIM4_MOD_PKU0",
+      "kind": "real",
+      "canonicalName": "pku0"
+    },
+    {
+      "role": "model",
+      "name": "lkvth0",
+      "selector": 808,
+      "symbol": "BSIM4_MOD_LKVTH0",
+      "kind": "real",
+      "canonicalName": "lkvth0"
+    },
+    {
+      "role": "model",
+      "name": "wkvth0",
+      "selector": 809,
+      "symbol": "BSIM4_MOD_WKVTH0",
+      "kind": "real",
+      "canonicalName": "wkvth0"
+    },
+    {
+      "role": "model",
+      "name": "pkvth0",
+      "selector": 810,
+      "symbol": "BSIM4_MOD_PKVTH0",
+      "kind": "real",
+      "canonicalName": "pkvth0"
+    },
+    {
+      "role": "model",
+      "name": "stk2",
+      "selector": 812,
+      "symbol": "BSIM4_MOD_STK2",
+      "kind": "real",
+      "canonicalName": "stk2"
+    },
+    {
+      "role": "model",
+      "name": "lodk2",
+      "selector": 813,
+      "symbol": "BSIM4_MOD_LODK2",
+      "kind": "real",
+      "canonicalName": "lodk2"
+    },
+    {
+      "role": "model",
+      "name": "steta0",
+      "selector": 814,
+      "symbol": "BSIM4_MOD_STETA0",
+      "kind": "real",
+      "canonicalName": "steta0"
+    },
+    {
+      "role": "model",
+      "name": "lodeta0",
+      "selector": 815,
+      "symbol": "BSIM4_MOD_LODETA0",
+      "kind": "real",
+      "canonicalName": "lodeta0"
+    },
+    {
+      "role": "model",
+      "name": "web",
+      "selector": 816,
+      "symbol": "BSIM4_MOD_WEB",
+      "kind": "real",
+      "canonicalName": "web"
+    },
+    {
+      "role": "model",
+      "name": "wec",
+      "selector": 817,
+      "symbol": "BSIM4_MOD_WEC",
+      "kind": "real",
+      "canonicalName": "wec"
+    },
+    {
+      "role": "model",
+      "name": "kvth0we",
+      "selector": 818,
+      "symbol": "BSIM4_MOD_KVTH0WE",
+      "kind": "real",
+      "canonicalName": "kvth0we"
+    },
+    {
+      "role": "model",
+      "name": "k2we",
+      "selector": 819,
+      "symbol": "BSIM4_MOD_K2WE",
+      "kind": "real",
+      "canonicalName": "k2we"
+    },
+    {
+      "role": "model",
+      "name": "ku0we",
+      "selector": 820,
+      "symbol": "BSIM4_MOD_KU0WE",
+      "kind": "real",
+      "canonicalName": "ku0we"
+    },
+    {
+      "role": "model",
+      "name": "scref",
+      "selector": 821,
+      "symbol": "BSIM4_MOD_SCREF",
+      "kind": "real",
+      "canonicalName": "scref"
+    },
+    {
+      "role": "model",
+      "name": "wpemod",
+      "selector": 822,
+      "symbol": "BSIM4_MOD_WPEMOD",
+      "kind": "real",
+      "canonicalName": "wpemod"
+    },
+    {
+      "role": "model",
+      "name": "lkvth0we",
+      "selector": 1061,
+      "symbol": "BSIM4_MOD_LKVTH0WE",
+      "kind": "real",
+      "canonicalName": "lkvth0we"
+    },
+    {
+      "role": "model",
+      "name": "lk2we",
+      "selector": 1062,
+      "symbol": "BSIM4_MOD_LK2WE",
+      "kind": "real",
+      "canonicalName": "lk2we"
+    },
+    {
+      "role": "model",
+      "name": "lku0we",
+      "selector": 1063,
+      "symbol": "BSIM4_MOD_LKU0WE",
+      "kind": "real",
+      "canonicalName": "lku0we"
+    },
+    {
+      "role": "model",
+      "name": "wkvth0we",
+      "selector": 1064,
+      "symbol": "BSIM4_MOD_WKVTH0WE",
+      "kind": "real",
+      "canonicalName": "wkvth0we"
+    },
+    {
+      "role": "model",
+      "name": "wk2we",
+      "selector": 1065,
+      "symbol": "BSIM4_MOD_WK2WE",
+      "kind": "real",
+      "canonicalName": "wk2we"
+    },
+    {
+      "role": "model",
+      "name": "wku0we",
+      "selector": 1066,
+      "symbol": "BSIM4_MOD_WKU0WE",
+      "kind": "real",
+      "canonicalName": "wku0we"
+    },
+    {
+      "role": "model",
+      "name": "pkvth0we",
+      "selector": 1067,
+      "symbol": "BSIM4_MOD_PKVTH0WE",
+      "kind": "real",
+      "canonicalName": "pkvth0we"
+    },
+    {
+      "role": "model",
+      "name": "pk2we",
+      "selector": 1068,
+      "symbol": "BSIM4_MOD_PK2WE",
+      "kind": "real",
+      "canonicalName": "pk2we"
+    },
+    {
+      "role": "model",
+      "name": "pku0we",
+      "selector": 1069,
+      "symbol": "BSIM4_MOD_PKU0WE",
+      "kind": "real",
+      "canonicalName": "pku0we"
+    },
+    {
+      "role": "model",
+      "name": "noia",
+      "selector": 846,
+      "symbol": "BSIM4_MOD_NOIA",
+      "kind": "real",
+      "canonicalName": "noia"
+    },
+    {
+      "role": "model",
+      "name": "noib",
+      "selector": 847,
+      "symbol": "BSIM4_MOD_NOIB",
+      "kind": "real",
+      "canonicalName": "noib"
+    },
+    {
+      "role": "model",
+      "name": "noic",
+      "selector": 848,
+      "symbol": "BSIM4_MOD_NOIC",
+      "kind": "real",
+      "canonicalName": "noic"
+    },
+    {
+      "role": "model",
+      "name": "tnoia",
+      "selector": 242,
+      "symbol": "BSIM4_MOD_TNOIA",
+      "kind": "real",
+      "canonicalName": "tnoia"
+    },
+    {
+      "role": "model",
+      "name": "tnoib",
+      "selector": 243,
+      "symbol": "BSIM4_MOD_TNOIB",
+      "kind": "real",
+      "canonicalName": "tnoib"
+    },
+    {
+      "role": "model",
+      "name": "rnoia",
+      "selector": 286,
+      "symbol": "BSIM4_MOD_RNOIA",
+      "kind": "real",
+      "canonicalName": "rnoia"
+    },
+    {
+      "role": "model",
+      "name": "rnoib",
+      "selector": 287,
+      "symbol": "BSIM4_MOD_RNOIB",
+      "kind": "real",
+      "canonicalName": "rnoib"
+    },
+    {
+      "role": "model",
+      "name": "ntnoi",
+      "selector": 244,
+      "symbol": "BSIM4_MOD_NTNOI",
+      "kind": "real",
+      "canonicalName": "ntnoi"
+    },
+    {
+      "role": "model",
+      "name": "em",
+      "selector": 869,
+      "symbol": "BSIM4_MOD_EM",
+      "kind": "real",
+      "canonicalName": "em"
+    },
+    {
+      "role": "model",
+      "name": "ef",
+      "selector": 870,
+      "symbol": "BSIM4_MOD_EF",
+      "kind": "real",
+      "canonicalName": "ef"
+    },
+    {
+      "role": "model",
+      "name": "af",
+      "selector": 871,
+      "symbol": "BSIM4_MOD_AF",
+      "kind": "real",
+      "canonicalName": "af"
+    },
+    {
+      "role": "model",
+      "name": "kf",
+      "selector": 872,
+      "symbol": "BSIM4_MOD_KF",
+      "kind": "real",
+      "canonicalName": "kf"
+    },
+    {
+      "role": "model",
+      "name": "nmos",
+      "selector": 844,
+      "symbol": "BSIM4_MOD_NMOS",
+      "kind": "flag",
+      "canonicalName": "nmos"
+    },
+    {
+      "role": "model",
+      "name": "pmos",
+      "selector": 845,
+      "symbol": "BSIM4_MOD_PMOS",
+      "kind": "flag",
+      "canonicalName": "pmos"
+    }
+  ]
+}

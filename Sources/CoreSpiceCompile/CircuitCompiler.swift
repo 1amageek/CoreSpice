@@ -53,7 +53,7 @@ public struct StandardCompiler: CircuitCompiler {
             guard case .prepared(let receipt) = stage else { throw .mosNotPrepared(instance: instance.name) }
             let resolved = receipt.identity.resolved
             guard resolved.instance == instance.name else { throw .mosInstanceMismatch(instance: instance.name, receipt: resolved.instance) }
-            guard resolved.release.level == expected.level, resolved.release.isExecutable else {
+            guard resolved.release.level == expected.level else {
                 throw .mosReleaseMismatch(instance: instance.name, expectedLevel: expected.level, actual: resolved.release)
             }
             guard resolved.polarity == expected.polarity else {

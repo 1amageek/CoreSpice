@@ -64,6 +64,23 @@ struct MOSNormalizationTests {
         }
     }
 
+    @Test func exact45SpellingsPreserveOriginAndScaleSCOnlyOnce() throws {
+        for (version, profile) in [("4.5", MOSInputProfile.coreStrictV1), ("4.5.0", .coreStrictV1), ("4.500000e+0", .pinnedNgspiceNormalV1)] {
+            var f = try MOSSelectionFixture()
+            _ = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos, level: 54,
+                version: version, coefficients: [], source: MOSSelectionFixture.source("n"))
+            let values = try [f.binding("sc", 2), f.binding("sca", 3), f.binding("nf", 1.5)]
+            let snapshot = try f.finish(), graph = try f.graph(snapshot)
+            var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
+            let result = try resolveMOS(f.request(values, profile: profile, scale: 1e-6), from: snapshot,
+                schemas: StandardMOSModelSchemas(), session: &session)
+            #expect(result.release == .bsim4_4_5 && result.releaseOrigin == .explicit(version))
+            #expect(result.instanceParameters.first { $0.symbol == snapshot.symbol(named: "sc") }?.value == 2e-6)
+            #expect(result.instanceParameters.first { $0.symbol == snapshot.symbol(named: "sca") }?.value == 3)
+            #expect(result.normalizedGeometry.length == nil && result.normalizedGeometry.width == nil)
+        }
+    }
+
     @Test func overflowAndPositiveToZeroScalingNeverPublishSuccess() throws {
         for (dimension, scale) in [(Double.greatestFiniteMagnitude, 2.0), (Double.leastNonzeroMagnitude, 0.5)] {
             var f = try MOSSelectionFixture()

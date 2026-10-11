@@ -39,17 +39,17 @@ integer/flag kinds. Unknown names fail schema lookup explicitly.
 
 ## Verification and Change Impact
 
-CoreSpiceMOSContractsTests owns release exactness, executable capability and scale
+CoreSpiceMOSContractsTests owns release exactness, input authority and scale
 rules. Parameter tables are checked against current original native C kernels;
 the pinned normal-profile scale evidence is retained in the parent verification
 run. Device preparation remains the final numerical admission owner.
 
-## Proposed Exact 4.5 Executable Schema
+## Exact 4.5 Input Schema
 
-Status: design for the [4.5 adoption](../../../DESIGN.md); current source is still
-inspect-only. [Research](../../../docs/bsim45-research/RESEARCH.md) pins the original
+Status: B45-1 input contracts implemented for the [4.5 adoption](../../../DESIGN.md);
+numerical execution remains unavailable. [Research](../../../docs/bsim45-research/RESEARCH.md) pins the original
 33 instance / 746 model input table and the SC dispatch defect. This component
-owns the executable schema changes; kernel physics remains separate.
+owns the input schema changes; kernel physics remains separate.
 
 Canonical physical release identity becomes `4.5.0`. Preserve the declaration's
 original version spelling and explicit/default origin. Register exact spellings
@@ -85,3 +85,15 @@ for normalized SC/SCA, NF/M, missing dimensions and preserved release origin.
 Test a later-only parameter against 4.5 and a 4.62 declaration explicitly. Native,
 ordinary WASM and Embedded WASM must compile, link and execute these pure contracts
 on exact Swift 6.4.0 and matching SDKs, independent of any numerical kernel.
+
+## B45-1 Implementation Contract
+
+The generated portable catalog records original numeric selectors as
+`MOSParameterID` (schema identity + role + selector), distinct from frontend
+multiplicity and initial-condition projections. `MOSParameterDefinition.authority`
+exposes that ownership. Other releases retain schema-owned admission. A checked-in
+manifest and deterministic generator own the 4.5 table; no build-time generator
+or C import is required. Schema revision 2 identifies the narrowed 4.5 admission.
+`resolve(level:version:profile:)` admits registered spellings under an explicit
+profile. The compiler checks receipt structure and level; only the native provider
+admits execution capabilities. This unit does not enable 4.5 numerical execution.

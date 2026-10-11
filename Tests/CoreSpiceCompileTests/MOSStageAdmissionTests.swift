@@ -56,10 +56,10 @@ struct MOSStageAdmissionTests {
                 parameters: [:], mos: .prepared(classic))))
         }
         let unsupported = try receipt(resolution(release: .bsim4_4_5))
-        #expect(throws: CompileError.mosReleaseMismatch(instance: "M1", expectedLevel: 54, actual: .bsim4_4_5)) {
-            try StandardCompiler().compile(ir: circuit(Instance(name: "M1", typeName: "nmos_l54", nodes: ports,
-                parameters: [:], mos: .prepared(unsupported))))
-        }
+        // A custom prepared receipt is topology authority; native numerical
+        // capability is tested at NativeMOSDevicePreparer, not in the compiler.
+        _ = try StandardCompiler().compile(ir: circuit(Instance(name: "M1", typeName: "nmos_l54", nodes: ports,
+            parameters: [:], mos: .prepared(unsupported))))
     }
 
     @Test func privateTopologyIsRetainedAndEveryRequiredSparsePairExists() throws {

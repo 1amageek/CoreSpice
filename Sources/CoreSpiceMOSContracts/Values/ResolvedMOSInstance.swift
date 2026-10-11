@@ -58,8 +58,12 @@ public struct ResolvedMOSInstance: Sendable, Hashable {
               selectionGeometry.fingerDivisor.isFinite, selectionGeometry.fingerDivisor > 0 else {
             throw .invalidResolvedInstance
         }
-        if case .explicit(let exact) = releaseOrigin, release.exactVersion != exact {
-            throw .invalidResolvedInstance
+        if case .explicit(let exact) = releaseOrigin {
+            do {
+                guard try MOSModelRelease.resolve(level: release.level, version: exact, profile: profile) == release else {
+                    throw MOSResolutionFailure.invalidResolvedInstance
+                }
+            } catch { throw .invalidResolvedInstance }
         }
         if case .explicitLevel(let level) = releaseOrigin,
            release.exactVersion != nil || release.level != level { throw .invalidResolvedInstance }

@@ -119,3 +119,7 @@ provide their own explicit validation ledger; resolution never resets it.
 Selected candidate bounds and missing masks are owned by
 [Selection](../../CoreSpiceMOSResolution/Selection/DESIGN.md). Classic explicit
 level selectors retain explicitLevel origin independently of BSIM version origin.
+
+Explicit release origin retains source spelling. Checked construction resolves
+that spelling using the recorded input profile and requires the same exact
+release, rather than comparing it to the canonical display spelling.

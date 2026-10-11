@@ -51,3 +51,7 @@ Compilation returns typed CompileError for missing or resolved MOS stage, mismat
 ## Verification and Change Impact
 
 MOS stage admission tests exercise actual compile success and refusal for legacy/resolved stages, identity/type mismatch, and malformed topology. Existing integration tests inspect required BSIM3 local sparse entries and execute CPU SparseLU on series/NQS circuits. Revalidate device binding and analyses when topology changes.
+
+The portable release no longer owns execution admission. Compiler validates
+prepared receipt level, identity and topology; NativeMOSDevicePreparer owns
+supported numerical releases and explicitly rejects BSIM4 4.5.0 until adoption.

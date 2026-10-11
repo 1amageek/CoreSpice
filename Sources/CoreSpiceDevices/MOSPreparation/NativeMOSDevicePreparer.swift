@@ -18,7 +18,6 @@ public struct NativeMOSDevicePreparer: MOSDevicePreparing {
     private func checkedPrepare(_ input: borrowing MOSPreparationInput, limits: MOSPreparationLimits,
                                 control: any MOSPreparationControlling) throws -> NativePreparedMOSDevice {
         let resolved = input.resolved, conditions = input.conditions
-        guard resolved.release.isExecutable else { throw MOSPreparationFailure.unsupportedRelease(resolved.release) }
         var budget = MOSPreparationBudget(limits: limits, control: control)
         try budget.charge()
         let identity = try MOSPreparationIdentity(resolved: resolved, conditions: conditions,
@@ -84,6 +83,9 @@ public struct NativeMOSDevicePreparer: MOSDevicePreparing {
                 retainedBytes: budget.retained, peakTemporaryBytes: budget.temporary, coldSetupCount: 1, limits: limits)
             try control.checkCancellation()
             return .bsim4(receipt: receipt, device: consume device, control: control)
+        // FIXME(INCOMPLETE_IMPLEMENTATION): Exact 4.5 numerical physics is not implemented.
+        // Native API/CLI preparation reaches this branch after resolution; admit
+        // it only after current/charge/AC/transient/noise and owner adoption proofs.
         case .bsim4_4_5: throw MOSPreparationFailure.unsupportedRelease(resolved.release)
         }
     }

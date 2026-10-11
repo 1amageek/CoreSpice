@@ -165,3 +165,7 @@ locks. S4 owns public parser/lowering/CLI/host adoption; task integration owns a
 MOS DC/AC/transient composition. Changes to identity, topology, conditions or limits
 require rechecking this component, IR/Compiler and native composition, without
 repeating unchanged parser/resolver proof.
+
+The portable release no longer owns execution admission. Compiler validates
+prepared receipt level, identity and topology; NativeMOSDevicePreparer owns
+supported numerical releases and explicitly rejects BSIM4 4.5.0 until adoption.

@@ -3,9 +3,10 @@ public struct MOSParameterDefinition: Sendable, Hashable {
     public let role: MOSParameterRole
     public let canonicalName: String
     public let kind: MOSParameterKind
+    public let authority: MOSParameterAuthority
     public let scale: MOSParameterScale
-    public init(name: String, canonicalName: String, role: MOSParameterRole, kind: MOSParameterKind, scale: MOSParameterScale) {
-        self.name = name; self.canonicalName = canonicalName; self.role = role; self.kind = kind; self.scale = scale
+    public init(name: String, canonicalName: String, role: MOSParameterRole, kind: MOSParameterKind, scale: MOSParameterScale, authority: MOSParameterAuthority = .schema) {
+        self.name = name; self.canonicalName = canonicalName; self.role = role; self.kind = kind; self.scale = scale; self.authority = authority
     }
     public func validate(_ value: Double) throws(MOSSchemaFailure) {
         guard value.isFinite else { throw .invalidValue(name: name) }
