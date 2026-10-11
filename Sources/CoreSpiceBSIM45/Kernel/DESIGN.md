@@ -2,8 +2,8 @@
 
 ## Purpose and Scope
 
-Status: original preparation sources implemented; numerical source intake is
-proposed and absent. Parent:
+Status: original preparation and static numerical source intake implemented;
+AC/transient/noise services remain future units. Parent:
 [CoreSpiceBSIM45](../DESIGN.md). No children. This component owns exact physical
 source intake, original equations and the private simulator ABI adaptation.
 
@@ -29,7 +29,8 @@ Source provenance and permitted corrections are part of implementation identity.
 official zip -> nested BSIM450.tar.Z -> per-file hashes + original notices
  -> deterministic adaptation manifest
  -> b4set + b4temp + b4check + b4geo
- -> b4ld (I, Q, derivatives, transient) / b4acld / b4noi
+ -> b4ld (static I, Q, derivatives implemented)
+ -> b4acld / transient services / b4noi (future units)
  -> parent ABI's finite output checks and context-local diagnostics
 ```
 
@@ -39,8 +40,8 @@ official zip -> nested BSIM450.tar.Z -> per-file hashes + original notices
   per-finger geometry, LOD, WPE and supported selectors remain version-specific.
   Model bounds are resolver selection inputs; physical correction never selects
   a different bin or changes resolved coefficients.
-- Compile setup, temperature, geometry, checker, DC/charge, AC and noise from the
-  same source manifest. Pin the original constants, units and simulator-service
+- Compile setup, temperature, geometry, checker and DC/charge from the same
+  source manifest; future AC/noise intake must use that same release. Pin the original constants, units and simulator-service
   semantics; reusing current compatibility constants without comparison is invalid.
 - All changes are deterministic transformations with original/adapted hashes and
   a reason classified as symbol isolation, simulator ABI, bounded storage,
@@ -70,7 +71,7 @@ NF is a finite real value at least one, not an integer-only count. Omitted exact
 model dimensions receive the original 5um L/W defaults only here, never during
 family selection. M remains an independent positive frontend parallel multiplier.
 
-Native trial integration uses the existing Analysis method/time step. Preserve
+Future B45-4 native trial integration uses the existing Analysis method/time step. Preserve
 all original junction, gate-mid, intrinsic and q-deficit state contributions;
 prepare once, trial many times, advance history only on accepted steps.
 Noise preserves original source pairs/correlation and release constants; original
@@ -91,7 +92,7 @@ Original allocation/free/logging/global task-job queries are adapted explicitly.
 Noise intent comes from preparation conditions; immutable topology follows it.
 All input sizes, casts, iterations, indexing and diagnostic writes are checked.
 The context never holds a borrowed pointer across return. Its parent enforces
-exclusive access and generation-bound tokens; no new lock or platform branch
+exclusive access; future B45-4 adds generation-bound tokens; no new lock or platform branch
 weakens the safe owner's common synchronization contract.
 
 ## Verification and Change Impact
@@ -140,3 +141,109 @@ The original host constants used by preparation and their pinned SPICE3f5
 authority are recorded in [NOTICE](../NOTICE.md). Checker diagnostics map to
 original file/line sites in upstream.json. All checker control flow executes
 when diagnostic capacity is zero; no filesystem state participates.
+
+## B45-3 Static Source Intake
+
+Add the pinned original `b4ld.c`. Simulator voltage limiting/bypass is disabled
+at the exact-bias service boundary; the numerical solver owns those decisions.
+Static NIintegrate explicitly implements dQ/dt=0 and rejects nonstatic modes;
+no transient history implementation is implied. Seed original bias-state slots
+for MODEINITSMSIG, then evaluate MODEDCOP with zero integration coefficient.
+Refresh bias-dependent NQS coefficients before the current stamp. Both loads
+share the same prepared model, bias and fixed owner storage.
+
+Project intrinsic G/D/S/B charges and analytic capacitances with the original
+forward/reverse permutation. Add original gate-drain/source overlap, gate-bulk
+overlap and junction charges as signed terminal pairs, including gate-mid and
+separate drain/source body nodes. Original polarity changes charge signs and
+voltage signs together, leaving capacitance sign unchanged. NQS deficit is not a
+physical voltage or equilibrium charge; omit its relaxation row/column only at
+the explicitly static ABI. Preserve original NQS coefficients for later units.
+Use pinned SPICE3f5 CHARGE=1.6021918e-19 for original poly depletion, alongside
+the existing preparation constants. Do not transplant 4.8.3 derivative repairs.
+
+`Proof/verify_static.py` owns independently compiled unmodified-original static
+references, full-node finite-difference step sweeps, physical row/column sums,
+gauge shifts, n/p symmetry, bias-order independence and atomic input/kernel
+failure. Current and charge tolerances above remain fixed before fixtures.
+Every admitted selector is exercised, with explicit NQS equilibrium semantics;
+AC/NQS dynamics, transient state and noise remain outside this proof.
+
+### CAPMOD=0 Analytic Chain Rule Correction
+
+The initial unmodified-source comparison agrees for all I/Q/G/C entries, yet
+independent charge finite differences fail with NGATE=1e20 and nonzero body bias.
+CAPMOD=0's dVdsat/dVg already includes poly-depletion's dVgs_eff/dVg; later
+formulas apply that factor again. Its bulk/threshold derivatives also omit the
+original smoothed body-voltage chain factor after overwriting Vbseff for the CV
+argument. Correct derivatives only, preserving the original charge/current laws:
+differentiate Vdsat with respect to Vgs_eff, apply poly depletion once at final
+gate derivatives, and retain the original body factor for Phis and Abulk0 while
+the CV argument has its own raw-body derivative. Record `cap0-chain-rule-v1` in
+adaptation identity. Original-reference I/Q/G remain required; differing intrinsic
+C entries require this explicit condition plus independent full-node finite
+differences. Other modes/entries retain original-reference equality.
+
+### Smoothed CV Drain-Voltage Body Derivative
+
+Independent tests also expose CAPMOD=1/2 negative-T0 branch errors. For
+VdseffCV = VdsatCV * T4 and T4 = 1 - 2*DELTA_4/(T1-T0), its partial body
+derivative is dT0_dVb*T4 + T5*(dT1_dVb-dT0_dVb). The original uses 1-T5
+instead of T4-T5. Correct this derivative without changing VdseffCV or charge;
+record `cv-drain-body-v1` separately and require finite-difference proof.
+
+### Coulomb Mobility Derivatives
+
+The original mobility term UD*Vth^2/T3^2 has a bias-dependent numerator.
+Its partial drain/body derivatives omit 2*UD*Vth/T3^2*dVth; MOBMOD=2 also
+omits the TOXE conversion from its gate derivative. This is visible in the
+bias-dependent gate resistor at low inversion. Add the numerator derivatives
+for all three mobility modes and the MOBMOD=2 gate conversion, leaving mobility
+and all current values unchanged. Record `ud-chain-rule-v1`; verify both the
+channel and gate-resistor physical Jacobians by full-node finite differences.
+
+Finite differences use seven central steps from 1e-2 to 1e-6 V and require two
+adjacent passing steps at the fixed tolerances. At the forward-junction fixture
+16/point4, a ~9 A body current has a ~5e-7 S gate derivative. The 1e-4 V and
+smaller differences lose precision (FD 5.016e-7 down to 4.832e-7); the 1e-3 V
+step gives 5.02325e-7 versus analytic 5.02353e-7. Wider steps establish the
+plateau without increasing the absolute or relative tolerance. All smaller
+steps are still computed and recorded by the same algorithm.
+
+At exact signed VDS=0, the original law chooses forward orientation; its charge
+law can have unequal one-sided slopes because threshold/body/drain dependencies
+are recomputed after reversal. A unique two-sided derivative does not exist for
+those entries. The ABI reports the analytic Jacobian of the selected forward
+branch, preserving release physics. The zero-VDS fixture tests a three-point,
+second-order one-sided difference for D/S columns within that branch, and central
+differences for the remaining columns; all use the same plateau/tolerances.
+Both nonzero directions are tested separately. This is not a smoothing change.
+
+
+### B45-3 Verification Ownership
+
+| Invariant | Proof owner | Counterexample detected |
+|---|---|---|
+| Exact static I/Q law and unaffected derivatives | `Proof/static_reference.c`, `verify_static.py` | Wrong polarity, overlap/body mapping, NQS substitution, later constants |
+| Complete physical Jacobians | `Proof/static.c` | CAP0 gate/body chain, CV body smoothing, UD mobility numerator errors |
+| Conservation and voltage gauge invariance | `Proof/static.c` | Missing row/column, wrong sign, charge duplication at aliases |
+| Symmetry and zero-current equilibrium | `Proof/static.c` | Polarity projection; symmetry fixture explicitly disables polarity-dependent WPE and tunneling effects |
+| No allocation/cold setup/history mutation | `Proof/static_ownership.c` | Repeated preparation, retained caller state, writes to accepted/older arrays |
+| Atomic failure and terminal invalidation | `Proof/static_ownership.c` | Nonfinite result published, poisoned owner reused, partial release |
+
+Fixtures combine 580 parameter/topology conditions and seven bias points,
+including exact VDS=0, both polarities, reverse bias, accumulation/depletion/
+inversion, temperatures, fractional NF, all admitted current/charge mode values,
+BINUNIT 1/2, WPE on/off, source geometry modes and XPART-disabled intrinsic charge.
+Geometry/noise selectors whose only behavior is preprocessing remain qualified
+by B45-2; noise spectra and NQS dynamics are not qualified here. Static tests
+execute the real public C entrypoint. The white-box ownership test additionally
+uses arbitrary accepted/older history sentinels and fatal nonfinite biases.
+
+
+Sanitizer verification executes all topology/bias fixtures, conservation, gauge
+shifts, bias-order independence and ownership/atomic-failure paths. Full-node
+finite differences execute separately in the release proof; repeating its
+half-million perturbations under -O0 sanitizers adds no topology or ownership
+coverage. The initial combined sanitizer run exceeded 60 seconds; the separated
+memory proof retains all 4,060 operating points with a 30-second deadline.

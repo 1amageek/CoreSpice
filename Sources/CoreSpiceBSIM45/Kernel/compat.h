@@ -6,6 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#define BSIM4load cs_bsim45_load
+#define BSIM4polyDepletion cs_bsim45_polyDepletion
+#define NIintegrate cs_bsim45_static_integrate
+#define DEVfetlim cs_exact_fet_bias
+#define DEVlimvds cs_exact_drain_bias
+#define DEVpnjlim cs_exact_junction_bias
 #define BSIM4setup cs_bsim45_setup
 #define BSIM4temp cs_bsim45_temp
 #define BSIM4mParam cs_bsim45_mParam
@@ -35,6 +41,18 @@
 #define Sqrt sqrt
 /* SPICE3f5 src/include/const.h and src/bin/main.c (pinned in NOTICE.md).
    Do not substitute SI2019 constants or the rounded 4.8.3 host VT constant. */
+#define CHARGE 1.6021918e-19
+#define MODEDCOP (1<<0)
+#define MODEAC (1<<1)
+#define MODETRAN (1<<2)
+#define MODEINITSMSIG (1<<3)
+#define MODEINITTRAN (1<<4)
+#define MODEINITJCT (1<<5)
+#define MODEINITFIX (1<<6)
+#define MODEINITPRED (1<<7)
+#define MODEUIC (1<<8)
+#define MODETRANOP (1<<9)
+#define MODEDCTRANCURVE (1<<10)
 #define CONSTCtoK 273.15
 #define CONSTroot2 (sqrt(2.0))
 #define CONSTvt0 (1.3806226e-23 * (27.0 + CONSTCtoK) / 1.6021918e-19)
@@ -60,6 +78,9 @@ typedef struct {int number;} CKTnode;
 typedef struct {double values[13][13][2];} SMPmatrix;
 typedef struct {
  double CKTtemp,CKTnomTemp;
+ double CKTabstol,CKTreltol,CKTvoltTol,CKTgmin,CKTdelta,CKTag[7],CKTdeltaOld[7];
+ int CKTmode,CKTbypass,CKTnoncon;
+ double *CKTrhs,*CKTrhsOld,*CKTstate0,*CKTstate1,*CKTstate2;
  int nodeCount,noiseRequested;
  CKTnode nodes[13];
  void *sizeStorage; size_t sizeCapacity; int sizeAllocated,allocationFailed;
@@ -81,4 +102,10 @@ int BSIM4RdsEndSha(CKTcircuit *,double,double,double,double,double,double,int,in
 void cs_diagnostic(CKTcircuit *,uint32_t,CSBSIM45DiagnosticCode,int,int,double,const char *,...);
 void cs_fatal(CKTcircuit *,uint32_t,const char *,IFuid *);
 void *cs_allocate_size(CKTcircuit *,size_t);
+/* Exact-bias physics never owns Newton limiting or convergence policy. */
+static inline double cs_exact_fet_bias(double v,double old,double threshold){return v;}
+static inline double cs_exact_drain_bias(double v,double old){return v;}
+static inline double cs_exact_junction_bias(double v,double old,double vt,double crit,int *check){*check=0;return v;}
+int NIintegrate(CKTcircuit *,double *,double *,double,int);
+int BSIM4load(GENmodel *,CKTcircuit *);
 #endif

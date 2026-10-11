@@ -68,7 +68,8 @@ digests or provenance.
 
 ## Proposed BSIM4 4.5 Implementation Units
 
-Status: B45-1 portable schema and B45-2 isolated C preparation are implemented.
+Status: B45-1 portable schema, B45-2 isolated C preparation and B45-3 static
+I/Q/Jacobians are implemented.
 The public native execution provider still refuses 4.5 numerical preparation. The [research record](docs/bsim45-research/RESEARCH.md)
 owns original-source and Sky130 observations. Child designs own their
 respective implemented/proposed contracts; this package owns composition, ordering and completion.
@@ -154,7 +155,7 @@ requirement-to-test evidence remains valid where its premises are unchanged.
 | [CoreSpiceMOSContracts](Sources/CoreSpiceMOSContracts/DESIGN.md) | child | Explicit MOS input profiles, exact release/schema and staged values | Portable semantic dependency floor | Selection is distinct from preparation and physical qualification |
 | [CoreSpiceMOSResolution](Sources/CoreSpiceMOSResolution/DESIGN.md) | child | Immutable declaration snapshot and checked one-evaluation resolution | Independent scoped MOS interpretation | No numerical device/kernel dependency |
 | [CoreSpiceBSIM4](Sources/CoreSpiceBSIM4/DESIGN.md) | child | Exact existing 4.8.3 opaque kernel | Current native release | Release-specific physics and qualification |
-| [CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md) | child, proposed | Exact 4.5.0 opaque kernel and bounded outputs | Independent native implementation unit | Design only; not registered or executable |
+| [CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md) | child | Exact 4.5.0 opaque preparation/static kernel and bounded outputs | Independent native C implementation | Public Devices adoption and dynamic analysis remain future units |
 | [CoreSpiceLowering](Sources/CoreSpiceLowering/DESIGN.md) | child | Parsed declaration/program projection and circuit lowering | Source-preserving adapter to MOS resolution | Device preparation belongs to execution composition |
 | [CoreSpiceCompile](Sources/CoreSpiceCompile/DESIGN.md) | child | Auxiliary sparse topology | CPU solver structure | Revalidate direct consumers |
 | [CoreSpiceWaveform](Sources/CoreSpiceWaveform/DESIGN.md) | child | Opaque result-storage retention and waveform views | Export value lifetime | Numerical conversion and IO projection retain the admitted owner |
@@ -324,7 +325,8 @@ The reproducible [MOS boundary benchmark](Benchmarks/MOSBoundary/DESIGN.md) owns
 calibrated allocation/copy API measurements and their scope; it creates no new
 physical-model or portable numerical qualification.
 
-B45-1/B45-2 evidence is limited to portable interpretation and Native CPU C
-preparation. The C target owns no numerical execution evidence and is not yet
-composed into Devices. B45-3 through B45-7 remain unimplemented design units;
+B45-1/B45-2 evidence covers portable interpretation and Native CPU C
+preparation. B45-3 implements independently verified static I/Q and analytic
+Jacobians with explicit derivative correction identities. The C target is not
+yet composed into Devices. B45-4 through B45-7 remain unimplemented design units;
 public 4.5 numerical refusal and existing 4.8.3 execution remain intentional.

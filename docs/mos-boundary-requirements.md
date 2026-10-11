@@ -379,8 +379,9 @@ compiled C table equality for all 779 inputs; original setup/temp/check referenc
 comparison for 648 preparation conditions; 96 topology combinations; bounded
 work/diagnostic/owner admission and sanitizer allocation/release proof. These
 close only the input and C preparation portions of the rows above. Numerical
-I/Q/derivative/AC/transient/noise, safe-owner concurrency, public 4.5 binding and
-original PDK numerical adoption remain B45-3 through B45-7, not claimed coverage.
+AC/transient/noise, safe-owner concurrency, public 4.5 binding and original
+PDK numerical adoption remain B45-4 through B45-7, not claimed coverage. B45-3
+now supplies only independent Native C static I/Q/Jacobian evidence below.
 
 | Implemented proof owner | Requirements / local invariant | Test or driver |
 |---|---|---|
@@ -394,3 +395,19 @@ C proof command: `python3 Sources/CoreSpiceBSIM45/Proof/verify.py --original
 <official-nested-450-code-directory> --output <local-evidence-directory>`.
 The proof checks pinned original/adapted hashes before compiling and records
 commands, exact source hashes, durations, comparison limits and runtime output.
+
+
+B45-3 scoped proof command: `python3 Sources/CoreSpiceBSIM45/Proof/verify_static.py
+--original <official-nested-450-code-directory> --output <local-evidence-directory>`.
+Its source-hashed report distinguishes original I/Q and unaffected Jacobian
+agreement from explicitly corrected derivatives. See the single correction
+contract in [Kernel design](../Sources/CoreSpiceBSIM45/Kernel/DESIGN.md).
+
+| Implemented proof owner | Requirements / local invariant | Test or driver |
+|---|---|---|
+| Native static C owner | R02/R21/R24/R25/R33: exact release/conditions, unchanged I/Q laws, explicit correction identity, selected-branch Jacobians | `static_reference.c`, `verify_static.py` |
+| Independent physical identities | R05/R31/R32/R33: conservation, gauge invariance, matched n/p symmetry, all-node finite differences and zero-VDS branch | `static.c` |
+| Exclusive bounded C lifetime | R26/R28/R29/R30: no evaluation allocation/setup, accepted/older history untouched, atomic nonfinite failure and terminal owner | `static_ownership.c`, ASan/UBSan |
+
+These proofs execute C directly and through Native SwiftPM linkage; they qualify
+neither public Analysis/CLI BSIM4.5 execution nor WASM/Embedded numerical physics.

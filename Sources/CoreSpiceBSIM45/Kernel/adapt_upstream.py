@@ -1,4 +1,4 @@
-"""Reproduce the preparation-only isolation of the official nested BSIM4 4.5.0."""
+"""Reproduce the exclusive static isolation of the official nested BSIM4 4.5.0."""
 from pathlib import Path
 import hashlib, json, re, sys
 source = Path(sys.argv[1]); target = Path(__file__).resolve().parent
@@ -7,12 +7,13 @@ def publish(path, data):
  if isinstance(data,str): data=data.encode()
  if check: assert path.read_bytes()==data,path
  else: path.write_bytes(data)
-files = ['b4.c','b4mpar.c','b4par.c','b4set.c','b4temp.c','b4check.c','b4geo.c','bsim4def.h','bsim4ext.h']
+files = ['b4.c','b4mpar.c','b4par.c','b4set.c','b4temp.c','b4check.c','b4geo.c','b4ld.c','bsim4def.h','bsim4ext.h']
 geometry = ['BSIM4NumFingerDiff','BSIM4PAeffGeo','BSIM4RdseffGeo','BSIM4RdsEndIso','BSIM4RdsEndSha']
-manifest = dict(release='4.5.0', adaptation='prepare-v1.sc-selector-v1.spice3f5-constants',
+manifest = dict(release='4.5.0', adaptation='static-v1.sc-selector-v1.cap0-chain-rule-v1.cv-drain-body-v1.ud-chain-rule-v1.spice3f5-constants',
  archiveURL='https://www.bsim.berkeley.edu/BSIM4/BSIM450.zip',
  archiveSHA256='2d0bc2496bf9b9c18dd2f790c679bfa76426fcac4a1691688fcb6a80a590f3e8',
  nestedSHA256='d94a1df9367d565787f555cc8ce6bd515a34f4d1752fb1da91df6ab54c56e39f',
+ corrections=['sc-selector-v1','cap0-chain-rule-v1','cv-drain-body-v1','ud-chain-rule-v1'],
  files={}, diagnosticSites={})
 fields = {}
 original_diagnostics = []
@@ -92,6 +93,38 @@ for name in files:
    for function in geometry:
     s,count=re.subn(r'('+function+r'\(ckt, [^)]*\)\n)',r'\1CKTcircuit *ckt;\n',s)
     assert count == 1,(function,count)
+ if name == 'b4ld.c':
+  start=s.index('else if (model->BSIM4capMod == 0)');end=s.index('} /* end of capMod=0 */',start)
+  block=s[start:end]
+  assert block.count('if (Vbseff < 0.0)') == 1
+  block=block.replace('if (Vbseff < 0.0)', 'double cvBodyChain = dVbseff_dVb;\n              if (Vbseff < 0.0)',1)
+  block=block.replace('dVbseff_dVb = -dPhis_dVb;', 'dVbseff_dVb = -dPhis_dVb * cvBodyChain;')
+  block=block.replace('dVth_dVb = pParam->BSIM4k1ox * dsqrtPhis_dVb;', 'dVth_dVb = pParam->BSIM4k1ox * dsqrtPhis_dVb * cvBodyChain;')
+  block=block.replace('dAbulkCV_dVb = pParam->BSIM4abulkCVfactor * dAbulk0_dVb;', 'dAbulkCV_dVb = pParam->BSIM4abulkCVfactor * dAbulk0_dVb * cvBodyChain;')
+  assert block.count('dVdsat_dVg = dVgs_eff_dVg / AbulkCV;') == 1
+  block=block.replace('dVdsat_dVg = dVgs_eff_dVg / AbulkCV;', 'dVdsat_dVg = 1.0 / AbulkCV;')
+  # This drain derivative is already with respect to raw Vg, unlike T7 and T0.
+  assert block.count('T12 = (-T7 * dAlphaz_dVg - here->BSIM4cdgb\n') == 1
+  block,count=re.subn(r'T12 = \(-T7 \* dAlphaz_dVg - here->BSIM4cdgb\s*- T0 \* dVdsat_dVg\) \* dVgs_eff_dVg;', 'T12 = (-T7 * dAlphaz_dVg - T0 * dVdsat_dVg)\\n                              * dVgs_eff_dVg - here->BSIM4cdgb;',block)
+  assert count == 1
+  s=s[:start]+block+s[end:]
+  old='dVdseffCV_dVb = dT0_dVb * (1.0 - T5) + T5 * dT1_dVb;'
+  assert s.count(old) == 2
+  s=s.replace(old,'dVdseffCV_dVb = dT0_dVb * (T4 - T5) + T5 * dT1_dVb;')
+
+  start=s.index('/* Mobility calculation */');end=s.index('/* Saturation Drain Voltage',start)
+  block=s[start:end]
+  old='dDenomi_dVd = dDenomi_dVg * 2.0 * dVth_dVd;'
+  assert block.count(old) == 2
+  block=block.replace(old,'dDenomi_dVd = (dDenomi_dVg * 2.0 + 2.0 * pParam->BSIM4ud * Vth / (T3 * T3)) * dVth_dVd;')
+  old='dDenomi_dVb = dDenomi_dVg * 2.0 * dVth_dVb'
+  assert block.count(old) == 2
+  block=block.replace(old,'dDenomi_dVb = (dDenomi_dVg * 2.0 + 2.0 * pParam->BSIM4ud * Vth / (T3 * T3)) * dVth_dVb')
+  block,count=re.subn(r'T7 = - 2.0 \* T6 / T0;\s*dDenomi_dVg = T2 \* dT1_dVg \+ T7;', 'T7 = -2.0 * T6 / (T0 * model->BSIM4toxe);\\n              dDenomi_dVg = T2 * dT1_dVg + T7;',block)
+  assert count == 1
+  block=block.replace('dDenomi_dVd = 0.0;', 'dDenomi_dVd = 2.0 * pParam->BSIM4ud * Vth / (T3 * T3) * dVth_dVd;')
+  block=block.replace('dDenomi_dVb = T1 * pParam->BSIM4uc;', 'dDenomi_dVb = T1 * pParam->BSIM4uc + 2.0 * pParam->BSIM4ud * Vth / (T3 * T3) * dVth_dVb;')
+  s=s[:start]+block+s[end:]
  s='/* Modified for CoreSpice: exclusive bounded preparation; see adapt_upstream.py and DESIGN.md. */\n'+s
  s='\n'.join(line.expandtabs(8).rstrip() for line in s.splitlines()).rstrip()+'\n'
  publish(target/name,s)

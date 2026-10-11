@@ -5,7 +5,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* Preparation only: this ABI does not provide numerical evaluation capability. */
+/* Exact-release preparation and static physical I/Q/Jacobians; no dynamic history. */
 typedef struct CSBSIM45Owner CSBSIM45Owner;
 typedef enum {
  CS_BSIM45_OK, CS_BSIM45_VERSION, CS_BSIM45_SCHEMA, CS_BSIM45_PARAMETER,
@@ -41,6 +41,11 @@ typedef struct {
  double effectiveCVLength, effectiveCVWidth, threshold, mobility, saturationVelocity;
  double nominalKelvin, ambientKelvin, ud, sc, sca, bulkPotential, criticalVoltage;
 } CSBSIM45PreparedInfo;
+typedef struct {
+ double current[CS_BSIM45_LOCAL_SLOTS], charge[CS_BSIM45_LOCAL_SLOTS];
+ double conductance[CS_BSIM45_LOCAL_SLOTS * CS_BSIM45_LOCAL_SLOTS];
+ double capacitance[CS_BSIM45_LOCAL_SLOTS * CS_BSIM45_LOCAL_SLOTS];
+} CSBSIM45StaticResult;
 /* All calls, including destroy, require exclusive access to the owner.
    create borrows its arguments only for the call and clears *out on failure.
    The allocation contains every mutable byte; owner_size excludes malloc metadata.
@@ -57,6 +62,14 @@ CSBSIM45Status cs_bsim45_set_instance(CSBSIM45Owner *, int32_t selector, CSBSIM4
 CSBSIM45Status cs_bsim45_set_initial_conditions(CSBSIM45Owner *, const double *values, size_t count);
 CSBSIM45Status cs_bsim45_prepare(CSBSIM45Owner *);
 CSBSIM45Status cs_bsim45_prepared_info(const CSBSIM45Owner *, CSBSIM45PreparedInfo *out);
+/* Static equilibrium at exact physical node voltages; ground/unused/NQS slots
+   must be zero. Borrows bias and out for this exclusive call, retaining neither.
+   At signed VDS=0, Jacobians differentiate the selected forward branch.
+   No allocation/setup/history commit. Outputs are A, C, S and F, row-major.
+   Invalid input leaves owner/output unchanged; kernel failure is terminal.
+   out is written only after every result element passes finite validation. */
+CSBSIM45Status cs_bsim45_evaluate_static(CSBSIM45Owner *, const double *bias,
+ size_t count, double gmin, CSBSIM45StaticResult *out);
 size_t cs_bsim45_diagnostic_count(const CSBSIM45Owner *);
 CSBSIM45Status cs_bsim45_diagnostic_at(const CSBSIM45Owner *, size_t index, CSBSIM45Diagnostic *out);
 size_t cs_bsim45_parameter_count(CSBSIM45Role);
