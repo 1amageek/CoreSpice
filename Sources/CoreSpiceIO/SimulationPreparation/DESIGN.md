@@ -22,6 +22,7 @@ This is an intake component, not a second parser or a general flow executor.
 | [ParserSPICE](../../CoreSpiceParserSPICE/DESIGN.md) | depends on | SPICEProfileSourceParsing.parseProfile | Actual AST/context/edges | Includes enabled and owned documents required |
 | [InitialConditions](../InitialConditions/DESIGN.md) | depends on | SPICENodeVoltageResolving.resolveBounded | Actual circuit node binding | Unicode remains typed unsupported; expressions share the frontend session |
 | [Lowering](../../CoreSpiceLowering/DESIGN.md) | depends on | CompiledNetlist, resourceEnvelope and LoweredCircuit | Same AST and one scalar session | Reserve explicit frontend capacities before compile/begin |
+| [CLI](../../CoreSpiceCLI/DESIGN.md) | used by | Typed capacity and wrapped refusal causes | Finite exact-source developer intake | Refusal is not numerical evidence |
 | [Native execution](../../CoreSpice/NativeExecution/DESIGN.md) | used by | PreparedSPICESimulation | Compile/bind/run exact intent | No source reread or reparse |
 | [Host](../../../../Xcircuite/Sources/Xcircuite/ProfileExecution/DESIGN.md) | used by | Full prepared graph and actual settings | PDK composition | Domain values carry no PDK admission authority |
 
@@ -136,6 +137,14 @@ retained through that owner. Inspection borrows immutable values
 while retaining this owner. A deserialized request/claim or externally constructed
 CircuitIR cannot create it. Protocol implementations obtain it through the concrete
 checked preparation algorithm, not a public unchecked constructor.
+
+Capacity refusal belongs to this component. `SPICESimulationCapacityError`
+records the exact catalog/route, parsed-transform, lowered-instance/node element
+boundary or transform-byte ceiling, its configured limit and required count.
+These errors travel through `.resource`, rather than `invalidPolicy` or
+`unsupportedCapability`; neither counts nor limits change. Arithmetic overflow
+remains a storage failure. No partial prepared owner is published. Actual caller
+configuration errors remain `invalidPolicy`.
 
 ## Runtime Flows
 

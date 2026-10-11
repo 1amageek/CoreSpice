@@ -1,5 +1,6 @@
 import CoreSpice
 import CoreSpiceIO
+import CoreSpiceMOSContracts
 @testable import CoreSpiceCLICore
 import Foundation
 import Testing
@@ -48,5 +49,32 @@ struct PreparedCLIExecutionTests {
         let voltage = try #require(repeated.waveform.variables.firstIndex { $0.name.lowercased() == "v(out)" })
         #expect(abs(try #require(repeated.waveform.realValue(variable:voltage,point:0))-2) < 1e-8)
         #expect(repeated.executedModels.contains { $0.model?.name.lowercased() == "metal" })
+    }
+
+    @Test func preparationFailureKeepsOwningTypedCause() {
+        let cases: [(SPICESimulationPreparationError, String, String)] = [
+            (.resolution(.invalidRequest, resourceCause: SPICESimulationResources.ResourceError.workLimit), "invocation.work-limit", "admission"),
+            (.resource(SPICESimulationCapacityError.elements(boundary: .parsedTransform, limit: 1, requested: 2)), "preparation.element-limit", "preparation"),
+            (.resource(SPICESimulationCapacityError.transformBytes(limit: 1, requested: 2)), "preparation.transform-byte-limit", "preparation"),
+            (.source(SPICEExactSourceError.sourceDrift("model")), "io.exact-source", "load"),
+            (.parser(SPICESimulationResources.ResourceError.workLimit), "invocation.work-limit", "admission"),
+            (.resolution(.invalidRequest, resourceCause: nil), "mos.resolution", "lower"),
+            (.unsupportedCapability("analysis"), "preparation.unsupported-capability", "preparation")
+        ]
+        for (error, code, stage) in cases {
+            let failure = CoreSpiceCLIFailure(error: error)
+            #expect(failure.code == code && failure.stage == stage, "\(failure)")
+            #expect(!failure.message.isEmpty)
+        }
+    }
+
+    @Test func preparedJSONExecutesInsteadOfRejectingOutputFlag() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("prepared-json-\(UUID().uuidString).cir")
+        defer {
+            do { try FileManager.default.removeItem(at: root) }
+            catch { Issue.record("Temporary fixture cleanup failed: \(error)") }
+        }
+        try "json execution\nV1 out 0 1\nR1 out 0 1k\n.op\n.end\n".write(to: root, atomically: true, encoding: .utf8)
+        #expect(await CoreSpiceCLI.run(arguments: ["prepared", root.path, "--json"]) == 0)
     }
 }

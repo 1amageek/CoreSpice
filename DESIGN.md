@@ -168,6 +168,11 @@ bytes and digest. Resource observations
 separate admitted logical capacity from actual allocation, and record parsing
 and reused-resolution wall times with identical observer settings.
 
+The prepared CLI uses [typed admission diagnostics](Sources/CoreSpiceCLI/DESIGN.md)
+from the owning [IO capacity boundary](Sources/CoreSpiceIO/SimulationPreparation/DESIGN.md).
+Its finite developer policy may refuse an original row that an explicitly
+admitted API policy executes; refusal is not numerical coverage.
+
 R01-R20 remain owned by Parser/Lowering/MOSResolution and the release schema;
 B45-1 revalidates their changed release/scale assumptions. R21-R30 are owned by
 MOSPreparation, the new native/safe/bound owners and existing NativeExecution;

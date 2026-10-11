@@ -162,4 +162,53 @@ struct SPICESimulationFrontendTests {
             }
         }
     }
+
+    @Test func capacityRefusalPreservesQuantityAndReleasesOwners() async throws {
+        let text = "capacity refusal\nR1 out 0 1k\n.op\n.end\n"
+        for elements in [1, 128] {
+            let owner = try resources()
+            do {
+                _ = try await prepare(text, resources: owner, maximumElements: elements,
+                    maximumTransformBytes: elements == 1 ? 1_000_000 : 1)
+                Issue.record("Insufficient caller capacity published a prepared input")
+            } catch let error as SPICESimulationPreparationError {
+                guard case .resource(let cause) = error,
+                      let capacity = cause as? SPICESimulationCapacityError else {
+                    Issue.record("Capacity was misclassified: \(error)"); continue
+                }
+                switch capacity {
+                case .elements(let boundary, let limit, let requested):
+                    #expect(elements == 1 && boundary == .parsedTransform && limit == 1 && requested > limit)
+                case .transformBytes(let limit, let requested):
+                    #expect(elements == 128 && limit == 1 && requested > limit)
+                }
+            }
+            let live = try owner.reserveStorage(kind: .liveOwnedBytes, byteCount: 64 * 1024 * 1024)
+            let temporary = try owner.reserveStorage(kind: .temporaryBytes, byteCount: 64 * 1024 * 1024)
+            withExtendedLifetime((live, temporary)) {}
+        }
+    }
+
+    @Test func expandedHierarchyCapacityRefusesAtTheLoweredOwnerBoundary() async throws {
+        for expected in [SPICESimulationCapacityError.Boundary.loweredInstances, .loweredNodes] {
+            let body = expected == .loweredInstances ? "R1 p x 1k\nR2 x y 1k\nR3 y 0 1k\n" : "R1 x y 1k\n"
+            let text = "expanded capacity\n.subckt cell p\n" + body + ".ends\n"
+                + (0..<26).map { "X\($0) n\($0) cell\n" }.joined() + ".op\n.end\n"
+            let owner = try resources()
+            do {
+                _ = try await prepare(text, resources: owner, maximumElements: 50)
+                Issue.record("Expanded hierarchy escaped the caller element limit")
+            } catch let error as SPICESimulationPreparationError {
+                guard case .resource(let cause) = error,
+                      let capacity = cause as? SPICESimulationCapacityError,
+                      case .elements(let boundary, let limit, let requested) = capacity else {
+                    Issue.record("Expanded capacity was misclassified: \(error)"); continue
+                }
+                #expect(boundary == expected && limit == 50 && requested > limit)
+            }
+            let live = try owner.reserveStorage(kind: .liveOwnedBytes, byteCount: 64 * 1024 * 1024)
+            let temporary = try owner.reserveStorage(kind: .temporaryBytes, byteCount: 64 * 1024 * 1024)
+            withExtendedLifetime((live, temporary)) {}
+        }
+    }
 }

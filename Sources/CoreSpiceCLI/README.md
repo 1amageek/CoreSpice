@@ -585,3 +585,17 @@ acceptance policies and qualification issuance. Missing source origin, unrecorde
 model consumption, failed or cancelled execution, phase/output budget exhaustion,
 and sensitivity without complete internal perturbation evidence refuse case
 publication. Ordinary numerical execution remains available without case output.
+
+## Prepared Exact-Source Execution
+
+`corespice prepared <root.cir> --json` uses an explicitly supplied exact source
+catalog (`--source`, `--include`, `--library`) and the finite `developerV1` policy.
+It emits a completed source/configuration identity and point/iteration summary
+only after numerical execution. Failures use the standard structured failure
+record and exit code 2; text failures retain the same code and cause.
+
+Original PDK graphs can exceed this developer policy. Element and IO transform
+capacity refusals report the owning boundary, configured limit and requested
+count; shared invocation work/storage/hash failures remain distinct. Inspect the
+[policy and ownership contract](DESIGN.md) before choosing an explicit API caller
+policy. CLI admission refusal does not establish model execution or process accuracy.

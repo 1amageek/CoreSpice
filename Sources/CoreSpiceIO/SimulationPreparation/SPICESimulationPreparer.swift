@@ -31,7 +31,10 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
         try limits.numerical.validate()
         // Catalog/route arrays belong to the caller. Admit the retained COW references and resolver table capacity.
         let count = try checkedAdd(request.catalog.count, request.routes.count)
-        guard count <= limits.maximumElements else { throw SPICESimulationPreparationError.invalidPolicy }
+        guard count <= limits.maximumElements else {
+            throw SPICESimulationCapacityError.elements(boundary: .catalogAndRoutes,
+                limit: limits.maximumElements, requested: count)
+        }
         let catalogBytes = try checkedMultiply(UInt64(count + 1), 256)
         let catalogReservation = try resources.reserveStorage(kind: .temporaryBytes, byteCount: catalogBytes)
         defer { withExtendedLifetime(catalogReservation) {} }
@@ -86,8 +89,14 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
             try resources.checkCancellation()
             try session.lower(geometryScale: effectiveOptions.geometryScale)
             guard let circuit = session.circuit else { throw MOSResolutionFailure.invalidRequest }
-            guard circuit.instances.count <= limits.maximumElements,
-                  circuit.nodes.count <= limits.maximumElements else { throw SPICESimulationPreparationError.invalidPolicy }
+            guard circuit.instances.count <= limits.maximumElements else {
+                throw SPICESimulationCapacityError.elements(boundary: .loweredInstances,
+                    limit: limits.maximumElements, requested: circuit.instances.count)
+            }
+            guard circuit.nodes.count <= limits.maximumElements else {
+                throw SPICESimulationCapacityError.elements(boundary: .loweredNodes,
+                    limit: limits.maximumElements, requested: circuit.nodes.count)
+            }
             let index: Int
             if let selected = request.analysisIndex {
                 guard netlist.analyses.indices.contains(selected) else { throw SPICESimulationPreparationError.missingAnalysis }
@@ -326,7 +335,10 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
                       netlist.analyses.count, netlist.dependencyEvents.count, sources.count, limits.maximumSweepPoints] {
             elements = try checkedAdd(elements, count)
         }
-        guard elements <= limits.maximumElements else { throw SPICESimulationPreparationError.invalidPolicy }
+        guard elements <= limits.maximumElements else {
+            throw SPICESimulationCapacityError.elements(boundary: .parsedTransform,
+                limit: limits.maximumElements, requested: elements)
+        }
         var byteCount: UInt64 = 0
         for source in sources {
             let (next, overflow) = byteCount.addingReportingOverflow(source.binding.reference.byteCount)
@@ -337,8 +349,9 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
         let text = try checkedMultiply(byteCount, 64)
         let entries = try checkedMultiply(UInt64(limits.maximumElements), 4096)
         let (capacity, overflow) = text.addingReportingOverflow(entries)
-        guard !overflow, capacity <= limits.maximumTransformBytes else {
-            throw SPICESimulationPreparationError.unsupportedCapability("IO transform capacity ceiling")
+        guard !overflow else { throw SPICESourceStorageError.arithmeticOverflow }
+        guard capacity <= limits.maximumTransformBytes else {
+            throw SPICESimulationCapacityError.transformBytes(limit: limits.maximumTransformBytes, requested: capacity)
         }
         try resources.charge(.retainedElements, units: try checkedMultiply(UInt64(elements), UInt64(elements)))
         try resources.charge(.projectedBytes, units: capacity)

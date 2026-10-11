@@ -22,6 +22,15 @@ and immutable qualification provenance throughout initial and repeated binding.
 | [NativeExecution](../CoreSpice/NativeExecution/DESIGN.md) | depends on | Consuming concrete analysis APIs and completed facts | Executable ownership and preparation | No BoundDevice exposure |
 | [Devices BSIM4](../CoreSpiceDevices/BSIM4/DESIGN.md) | depends on | Native registry and diagnostics | Original Level54 | Successful execution does not assert qualification |
 
+Prepared CLI diagnostic adaptation unwraps `SPICESimulationPreparationError`
+and preserves its first resource cause, exact-source failure, parser diagnostic
+or resolver failure. Finite invocation and IO capacity errors have distinct stable
+codes; messages retain configured/required quantities when supplied by their
+owner. Text and JSON output use the same classification. `prepared --json`
+accepts the ordinary exact catalog and emits only a completed identity/count
+summary after numerical execution; failures use the existing failure record and
+exit code 2. No resource policy is increased, no partial result is serialized.
+
 ## Architecture
 
 `deck explicit option -> resolved options -> lowering + configured registry -> analysis -> run record`

@@ -52,6 +52,70 @@ extension CoreSpiceCLIFailure {
       }
       self.init(code: code, message: caseError.localizedDescription, stage: "case-publication")
 
+    case let preparation as SPICESimulationPreparationError:
+      switch preparation {
+      case .resolution(let cause, let resourceCause):
+        if let resourceCause {
+          let failure = Self(error: resourceCause)
+          self.init(code: failure.code, message: "\(Self.describe(cause)); \(failure.message)",
+            stage: failure.stage, suggestedActions: failure.suggestedActions)
+        } else { self.init(error: cause) }
+      case .resource(let cause), .source(let cause), .parser(let cause), .lowering(let cause), .options(let cause):
+        self.init(error: cause)
+      case .nodeVoltage(let cause): self.init(error: cause)
+      case .invalidPolicy:
+        self.init(code: "preparation.invalid-policy", message: "Invalid source preparation policy", stage: "preparation")
+      case .missingAnalysis:
+        self.init(code: "preparation.missing-analysis", message: "No source analysis is selected", stage: "preparation")
+      case .unsupportedCapability(let detail):
+        self.init(code: "preparation.unsupported-capability", message: detail, stage: "preparation")
+      case .invalidSupplyBinding(let name):
+        self.init(code: "preparation.invalid-supply-binding", message: "Invalid supply binding: \(name)", stage: "preparation")
+      case .missingConditionCoverage:
+        self.init(code: "preparation.missing-condition-coverage", message: "Required operating condition coverage is unavailable", stage: "preparation")
+      case .conditionMismatch:
+        self.init(code: "preparation.condition-mismatch", message: "Source operating conditions differ from the required reference", stage: "preparation")
+      }
+
+    case let capacity as SPICESimulationCapacityError:
+      switch capacity {
+      case .elements(let boundary, let limit, let requested):
+        self.init(code: "preparation.element-limit",
+          message: "\(boundary.rawValue) element limit \(limit) exceeded by request \(requested)", stage: "preparation",
+          suggestedActions: ["inspect the source graph and explicitly admitted caller policy"])
+      case .transformBytes(let limit, let requested):
+        self.init(code: "preparation.transform-byte-limit",
+          message: "IO transform capacity limit \(limit) bytes exceeded by request \(requested) bytes", stage: "preparation",
+          suggestedActions: ["inspect the IO transform envelope and explicitly admitted caller policy"])
+      }
+
+    case let resource as SPICESimulationResources.ResourceError:
+      let suffix: String
+      switch resource {
+      case .invalidPolicy: suffix = "invalid-policy"
+      case .workLimit: suffix = "work-limit"
+      case .hashLimit: suffix = "hash-limit"
+      case .storageLimit: suffix = "storage-limit"
+      case .cancelled:
+        self.init(code: "analysis.cancelled", message: "Source preparation was cancelled", stage: "admission")
+        return
+      }
+      self.init(code: "invocation.\(suffix)", message: Self.describe(resource), stage: "admission",
+        suggestedActions: ["inspect the shared invocation resource policy and retained owners"])
+
+    case let source as SPICEExactSourceError:
+      self.init(code: "io.exact-source", message: Self.describe(source), stage: "load",
+        suggestedActions: ["inspect the exact source catalog, routes and captured identities"])
+
+    case let storage as SPICESourceStorageError:
+      self.init(code: "invocation.storage-integrity", message: Self.describe(storage), stage: "admission")
+
+    case let parse as SPICEProfileParseFailure:
+      self.init(error: parse.diagnostic)
+
+    case let source as SPICEBoundedSourceError:
+      self.init(code: "deck.source-policy", message: Self.describe(source), stage: "parse")
+
     case let preparation as SPICENativePreparationError:
       switch preparation {
       case .compile(let cause), .binding(let cause), .resource(let cause): self.init(error: cause)

@@ -19,9 +19,14 @@ struct CoreSpicePreparedCommand {
         var seed: UInt64 = 1
         var hasProfile = false
         var hasSeed = false
+        var hasJSON = false
         var index = 1
         while index < arguments.count {
             let flag = arguments[index]; index += 1
+            if flag == "--json" {
+                guard !hasJSON else { throw CLIError.invalidArguments("duplicate --json") }
+                hasJSON = true; continue
+            }
             if flag == "--mos-profile" {
                 guard !hasProfile else { throw CLIError.invalidArguments("duplicate --mos-profile") }
                 hasProfile = true
