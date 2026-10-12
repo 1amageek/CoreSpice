@@ -1,3 +1,4 @@
+import CoreSpiceLowering
 import CoreSpiceMOSResolution
 import CoreSpice
 import CoreSpiceCompile
@@ -53,9 +54,16 @@ extension CoreSpiceCLIFailure {
       }
       self.init(code: code, message: caseError.localizedDescription, stage: "case-publication")
 
+    case let diode as DiodeResolutionFailure:
+      self.init(code: "diode.resolution", message: "\(diode.instance ?? "diode"): \(diode.cause); source \(diode.assignment?.location?.description ?? "unavailable")", stage: "resolution",
+        suggestedActions: ["inspect the explicit diode profile and selected source assignments"])
+
     case let preparation as SPICESimulationPreparationError:
       switch preparation {
       case .condition(let cause, let resourceCause):
+        if let resourceCause { self.init(error: resourceCause) }
+        else { self.init(error: cause) }
+      case .diodeResolution(let cause, let resourceCause, _):
         if let resourceCause { self.init(error: resourceCause) }
         else { self.init(error: cause) }
       case .resolution(let cause, let resourceCause):

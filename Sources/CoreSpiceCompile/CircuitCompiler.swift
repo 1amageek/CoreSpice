@@ -23,6 +23,11 @@ public struct StandardCompiler: CircuitCompiler {
             throw CompileError.emptyCircuit
         }
 
+        // FIXME(INCOMPLETE_IMPLEMENTATION): D3 publishes resolved diode input, not a numerical owner.
+        // Public compile refuses this stage until D4 supplies checked consuming preparation and binding.
+        if let diode = ir.instances.first(where: { $0.diode != nil }) {
+            throw CompileError.diodePreparationRequired(instance: diode.name)
+        }
         try admitMOSInstances(in: ir)
         let topology = MatrixTopology(ir: ir)
 

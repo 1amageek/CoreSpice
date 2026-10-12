@@ -686,3 +686,10 @@ the MOS profile into a general SPICE/diode compatibility promise.
 D2 parses one scalar .temp value and refuses trailing temperature sweep values
 instead of discarding them. Expression bootstrap semantics belong to Lowering;
 Parser preserves expressions without evaluating them.
+
+## D3 Change Impact
+
+The [D3 resolution owner](../CoreSpiceLowering/DiodeResolution/DESIGN.md) defines occurrence admission, frozen
+evaluation, immutable result transport and explicit numerical refusal. This layer
+consumes that contract; D4 numerical preparation and D5 downstream adoption remain
+separate. Its affected production path and behavioral tests are verified in D3.

@@ -2,8 +2,8 @@
 
 ## Purpose and Scope
 
-Status: D1 numeric contracts/schema implemented; source resolution and executable
-stages described below remain D3/D4 work. Parent: [DiodeContracts](../DESIGN.md). No children.
+Status: D1 numeric contracts/schema and D3 immutable resolved values implemented;
+executable stages remain D4 work. Parent: [DiodeContracts](../DESIGN.md). No children.
 Own the exact diode input profile, role/unit schema and immutable stage contracts.
 This boundary does not implement Sky130 Level-3 diode physics or claim ngspice
 compatibility. The initial profile is explicitly `coreDiodeV1`, with law identity
@@ -162,8 +162,9 @@ admission, not permission to erase coefficients or change the source card.
 
 ## D1 Concrete Contract Implementation
 
-D1 implements checked numeric input values, not ResolvedDiodeInstance or executable
-receipts (owned by D3/D4). DiodeModelInput contains an InlineArray of 12 optional
+D1 implements checked numeric input values. D3 adds ResolvedDiodeModel and
+ResolvedDiodeInstance with package-scoped checked construction; executable receipts
+remain D4. DiodeModelInput contains an InlineArray of 12 optional
 canonical coefficient values and a supplied-bit mask; disabled BV remains nil.
 DiodeInstanceInput contains distinct geometry, multiplicity and thermal values.
 Borrow model storage with a synchronous withCoefficients(Span) closure. No unsafe
@@ -200,3 +201,10 @@ executes these public factories without parser, Devices, C, Metal or external
 simulator dependencies. D1 has no preparation owner, source diagnostic arena or
 mutable shared state to cancel/release. D2-D5 must supply their own source, lifecycle
 and numerical evidence before changing public diode admission.
+
+## D3 Change Impact
+
+The [D3 resolution owner](../../CoreSpiceLowering/DiodeResolution/DESIGN.md) defines occurrence admission, frozen
+evaluation, immutable result transport and explicit numerical refusal. This layer
+consumes that contract; D4 numerical preparation and D5 downstream adoption remain
+separate. Its affected production path and behavioral tests are verified in D3.

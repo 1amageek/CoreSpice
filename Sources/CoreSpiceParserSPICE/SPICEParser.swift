@@ -678,6 +678,11 @@ private struct SPICEParserImpl {
                 default: break
                 }
             }
+            if type == .diode {
+                guard case .identifier = currentToken else {
+                    throw ParserDiagnostic.error("Diode inputs require named scalar assignments; positional and flag syntax is unsupported", at: currentLocation)
+                }
+            }
             if case .dottedLiteral(let text) = currentToken {
                 throw ParserDiagnostic.error((profileResources == nil ? "Version literal '\(text)' is not a numerical component value" : "Version literal '' is not a numerical component value"), at: currentLocation)
             }
@@ -720,6 +725,8 @@ private struct SPICEParserImpl {
                         try parameterAssignments.append(.init(name: paramName, value: value,
                             location: assignmentLocation, origin: origin))
                     }
+                } else if type == .diode {
+                    throw ParserDiagnostic.error("Diode flags and positional inputs are unsupported", at: assignmentLocation)
                 } else if type == .mosfet && lower == "off" {
                     try params.set(.boolean(true), for: lower)
                     try parameterAssignments.append(.init(name: paramName, value: .boolean(true),

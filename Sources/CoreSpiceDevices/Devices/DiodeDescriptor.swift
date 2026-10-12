@@ -28,6 +28,11 @@ public struct DiodeDescriptor: DeviceDescriptor, Sendable {
     public init() {}
 
     public func bind(instance: Instance, context: inout BindingContext) throws -> any BoundDevice {
+        // FIXME(INCOMPLETE_IMPLEMENTATION): D3 resolved input cannot use the legacy flat-parameter kernel.
+        // Direct binding refuses it until D4 implements checked preparation, feature admission and owner transfer.
+        guard instance.diode == nil else {
+            throw DeviceBindingError.diodePreparationRequired(device: instance.name)
+        }
         guard instance.nodes.count == 2 else {
             throw DeviceBindingError.portCountMismatch(
                 device: instance.name,

@@ -65,9 +65,11 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
         let scratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: transformBytes)
         defer { withExtendedLifetime(scratch) {} }
         let frontendControl = SPICEFrontendControl(resources: resources)
+        var diagnosticReservation: SPICESourceStorageReservation?
         do {
             let envelope = try NetlistLowering.resourceEnvelope(limits: request.resolutionLimits)
             let frontendRetained = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: envelope.maximumRetainedBytes)
+            diagnosticReservation = frontendRetained
             let frontendScratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: envelope.maximumTemporaryBytes)
             defer { withExtendedLifetime(frontendScratch) {} }
             let compiled = try NetlistLowering.compile(netlist, limits: request.resolutionLimits, control: frontendControl)
@@ -89,7 +91,7 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
             effectiveOptions.executionLimits = numerical
             let operating = try effectiveOptions.operatingConditions()
             try resources.checkCancellation()
-            try session.lower(geometryScale: effectiveOptions.geometryScale)
+            try session.lower(geometryScale: effectiveOptions.geometryScale, diodeProfile: request.diodeProfile)
             guard let circuit = session.circuit else { throw MOSResolutionFailure.invalidRequest }
             guard circuit.instances.count <= limits.maximumElements else {
                 throw SPICESimulationCapacityError.elements(boundary: .loweredInstances,
@@ -215,6 +217,8 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
             throw SPICESimulationPreparationError.nodeVoltage(error)
         } catch let error as MOSConditionEvaluationFailure {
             throw SPICESimulationPreparationError.condition(error, resourceCause: frontendControl.firstFailure)
+        } catch let error as DiodeResolutionFailure {
+            throw SPICESimulationPreparationError.diodeResolution(error, resourceCause: frontendControl.firstFailure, reservation: diagnosticReservation)
         } catch let error as MOSResolutionFailure {
             throw SPICESimulationPreparationError.resolution(error, resourceCause: frontendControl.firstFailure)
         }

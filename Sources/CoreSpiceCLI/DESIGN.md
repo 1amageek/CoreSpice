@@ -269,3 +269,11 @@ The completed batch record uses schema v2: `bsim45Models` is required, including
 an empty array for a run without 4.5 devices. The v2 fixture and actual CLI
 round-trip tests consume this shape; missing release evidence is a decoding
 failure, not an inferred empty record. No v1 compatibility decoder is provided.
+
+## D3 Resolution Diagnostic Lifetime
+
+The [diode resolution owner](../CoreSpiceLowering/DiodeResolution/DESIGN.md)
+defines bounded source-backed failures. The direct CLI lowering path transfers
+its frontend reservation into the IO diode failure wrapper before throwing, so
+accounting survives until diagnostic conversion releases its compiled source.
+The CLI does not infer a diode profile or authorize numerical diode execution.

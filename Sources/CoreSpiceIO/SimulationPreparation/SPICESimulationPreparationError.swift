@@ -1,7 +1,10 @@
+import CoreSpiceParsedIR
+import CoreSpiceLowering
 import CoreSpiceMOSContracts
 import CoreSpiceMOSResolution
 
 public enum SPICESimulationPreparationError: Error, Sendable {
+    case diodeResolution(DiodeResolutionFailure, resourceCause: (any Error)?, reservation: SPICESourceStorageReservation?)
     case condition(MOSConditionEvaluationFailure, resourceCause: (any Error)?)
     case resolution(MOSResolutionFailure, resourceCause: (any Error)?)
     case invalidPolicy

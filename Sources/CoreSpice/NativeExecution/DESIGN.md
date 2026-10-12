@@ -444,3 +444,9 @@ binding. This applies equally to scalar resistors and MOS. MOS topology expansio
 preserves the stamp. Executable owners continue to retain immutable conditions for
 rebinding DC sources; no bias/sweep point changes the frozen environment.
 StandardCircuitDeviceBinding enforces the same guard for direct analysis consumers.
+
+### D3 Admission Guard
+
+D3 resolved diode stages are refused before MOS setup or native reservation.
+The [IR stage contract](../../CoreSpiceIR/DiodeInstances/DESIGN.md) owns transport;
+D4/D5 must provide numerical preparation before changing this refusal.

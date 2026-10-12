@@ -325,3 +325,17 @@ Condition bootstrap failures retain MOSConditionEvaluationFailure diagnostics an
 the frontend resource cause in a dedicated condition error case. They are not
 misclassified as unrelated resource failures. Native preparation compares canonical
 Kelvin conditions rather than reconstructing them from the Celsius projection.
+
+### D3 Resolution Transport
+
+The request has a separate optional diode profile. It is forwarded unchanged to
+Lowering; nil refuses encountered diodes. Typed diode diagnostics retain the
+frontend resource cause through the public preparation error. Source preparation
+is not native numerical admission; resolved IR is refused by compile/binding
+until D4. See [resolution owner](../../CoreSpiceLowering/DiodeResolution/DESIGN.md).
+
+D3 source-backed failures retain the frontend reservation together with their
+compiled diagnostic owner. Releasing the session must not release accounting while
+the thrown diagnostic still retains the parsed/compiled values. Reservation copies
+share one exactly-once release owner. Native preparation rejects resolved diodes
+before allocating or preparing unrelated MOS owners.

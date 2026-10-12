@@ -1246,12 +1246,8 @@ struct SubcircuitExpansionTests {
         do {
             _ = try FrontendTestLowering().lower(netlist)
             Issue.record("Expected missing model lowering to fail.")
-        } catch let error as LoweringError {
-            guard case .undefinedModel(let name, _) = error else {
-                Issue.record("Unexpected lowering error: \(error)")
-                return
-            }
-            #expect(name == "missing")
+        } catch let error as DiodeResolutionFailure {
+            #expect(error.cause == .undefinedModel)
         }
     }
 

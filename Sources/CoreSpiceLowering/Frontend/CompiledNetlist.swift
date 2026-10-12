@@ -13,11 +13,14 @@ public final class CompiledNetlist: Sendable {
     let models: [FrontendModelTemplate]
     let slots: [NetlistScalarAddress: NetlistScalarSlot]
     let modelOrigins: [ParsedModelOrigin?]
+    let diodeIndex: [DiodeLookupKey: Range<Int>]
+    let diodeCandidates: [Int]
 
     init(source: ParsedNetlist, snapshot: MOSDeclarationSnapshot, retainedBytes: UInt64,
          identity: MOSIdentitySpace, scopes: [FrontendScopeTemplate], models: [FrontendModelTemplate],
          slots: [NetlistScalarAddress: NetlistScalarSlot], modelOrigins: [ParsedModelOrigin?],
-         hierarchicalMultiplier: MOSExpressionBinding?) {
+         hierarchicalMultiplier: MOSExpressionBinding?, diodeIndex: [DiodeLookupKey: Range<Int>], diodeCandidates: [Int]) {
+        self.diodeIndex = diodeIndex; self.diodeCandidates = diodeCandidates
         self.source = source; self.snapshot = snapshot; self.retainedBytes = retainedBytes
         self.hierarchicalMultiplier = hierarchicalMultiplier
         self.identity = identity; self.scopes = scopes; self.models = models

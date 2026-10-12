@@ -1,3 +1,4 @@
+import CoreSpiceDiodeContracts
 import CoreSpiceEvaluationContracts
 import CoreSpiceIR
 import CoreSpiceMOSContracts
@@ -47,7 +48,7 @@ struct BoundedFrontendNetlist {
     }
     mutating func addInstance(name: String, typeName: String, nodes names: [String],
         parameters: [String: ParameterValue] = [:], model: ResolvedDeviceModel? = nil,
-        mos: MOSInstanceStage? = nil, modelConsumption: ModelConsumption? = nil,
+        mos: MOSInstanceStage? = nil, diode: DiodeInstanceStage? = nil, modelConsumption: ModelConsumption? = nil,
         ownedBranches: [Branch] = [], referencedBranchNames: [String] = [],
         referencedNodeNames: [String] = []) throws {
         try storage.spend()
@@ -72,7 +73,7 @@ struct BoundedFrontendNetlist {
         try storage.reserve(&instanceIndices, instanceIndices.count + 1); instanceIndices[name] = instances.count
         try storage.reserve(&instances, instances.count + 1)
         instances.append(.init(name: name, typeName: typeName, nodes: ports, parameters: parameters,
-            model: model, mos: mos, modelConsumption: modelConsumption, ownedBranches: ownedBranches,
+            model: model, mos: mos, diode: diode, modelConsumption: modelConsumption, ownedBranches: ownedBranches,
             referencedNodes: readNodes))
         try storage.reserve(&references, references.count + 1); references.append(referencedBranchNames)
     }
@@ -88,7 +89,7 @@ struct BoundedFrontendNetlist {
             }
             let original = instances[index]
             instances[index] = .init(name: original.name, typeName: original.typeName, nodes: original.nodes,
-                parameters: original.parameters, model: original.model, mos: original.mos,
+                parameters: original.parameters, model: original.model, mos: original.mos, diode: original.diode,
                 modelConsumption: original.modelConsumption, ownedNodes: original.ownedNodes,
                 ownedBranches: original.ownedBranches, referencedBranches: resolved,
                 referencedNodes: original.referencedNodes)

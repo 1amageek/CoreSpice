@@ -1,3 +1,5 @@
+import CoreSpiceDiodeContracts
+
 /// A placed device instance in the circuit.
 ///
 /// Each instance references a device type by name, connects to
@@ -13,6 +15,7 @@ public struct Instance: Sendable {
 
     /// Resolution or preparation evidence; generic dictionaries never override MOS values.
     public let mos: MOSInstanceStage?
+    public let diode: DiodeInstanceStage?
 
     /// Private auxiliary nodes allocated by this instance, in model-defined order.
     public let ownedNodes: [Node]
@@ -38,6 +41,7 @@ public struct Instance: Sendable {
         parameters: [String: ParameterValue],
         model: ResolvedDeviceModel? = nil,
         mos: MOSInstanceStage? = nil,
+        diode: DiodeInstanceStage? = nil,
         modelConsumption: ModelConsumption? = nil,
         ownedNodes: [Node] = [],
         ownedBranches: [Branch] = [],
@@ -51,6 +55,7 @@ public struct Instance: Sendable {
         self.parameters = parameters
         self.model = model
         self.mos = mos
+        self.diode = diode
         self.modelConsumption = modelConsumption ?? model.map(ModelConsumption.selected) ?? .unrecorded
         self.ownedNodes = ownedNodes
         self.ownedBranches = ownedBranches

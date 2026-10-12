@@ -704,7 +704,11 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             // Source coverage preserves C declarations; it cannot authorize model-backed
             // execution until native preparation and numerical correlation are implemented.
             return "Model-backed capacitor execution is not implemented"
-        case .resistor, .diode, .npn, .pnp:
+        case .diode:
+            // FIXME(INCOMPLETE_IMPLEMENTATION): D3 resolves source inputs but has no consuming numerical owner.
+            // Public deck coverage stays blocked until D4 preparation and D5 execution admission are verified.
+            return "Typed diode numerical preparation is not implemented"
+        case .resistor, .npn, .pnp:
             return nil
         case .nmos, .pmos:
             let level = model.level ?? 1

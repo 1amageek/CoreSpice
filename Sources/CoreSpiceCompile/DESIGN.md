@@ -55,3 +55,10 @@ MOS stage admission tests exercise actual compile success and refusal for legacy
 The portable release no longer owns execution admission. Compiler validates
 prepared receipt level, identity and topology; NativeMOSDevicePreparer owns
 supported numerical releases and explicitly rejects BSIM4 4.5.0 until adoption.
+
+## D3 Change Impact
+
+The [D3 resolution owner](../CoreSpiceLowering/DiodeResolution/DESIGN.md) defines occurrence admission, frozen
+evaluation, immutable result transport and explicit numerical refusal. This layer
+consumes that contract; D4 numerical preparation and D5 downstream adoption remain
+separate. Its affected production path and behavioral tests are verified in D3.

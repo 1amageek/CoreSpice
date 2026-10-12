@@ -64,3 +64,10 @@ storage/session owner. The new child consumes
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md) | depends on | Checked environment identity | D2 temperature meaning | Standard Library only; source policy stays outside this module |
+
+## D3 Change Impact
+
+The [D3 resolution owner](DiodeResolution/DESIGN.md) defines occurrence admission, frozen
+evaluation, immutable result transport and explicit numerical refusal. This layer
+consumes that contract; D4 numerical preparation and D5 downstream adoption remain
+separate. Its affected production path and behavioral tests are verified in D3.

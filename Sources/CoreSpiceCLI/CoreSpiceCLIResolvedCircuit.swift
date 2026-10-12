@@ -26,7 +26,10 @@ struct CoreSpiceCLIResolvedCircuit: Sendable {
         var session = try NetlistLowering.beginEvaluation(compiled, profile: policy.profile,
             limits: policy.resolutionLimits, seed: seed, control: control)
         let options = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
-        try session.lower(geometryScale: options.geometryScale)
+        do { try session.lower(geometryScale: options.geometryScale) }
+        catch let failure as DiodeResolutionFailure {
+            throw SPICESimulationPreparationError.diodeResolution(failure, resourceCause: nil, reservation: retained)
+        }
         guard let circuit = session.circuit else { throw CLIError.state("lowering produced no circuit") }
         var analyses = compiled.source.analyses
         if let index = selectedAnalysisIndex {

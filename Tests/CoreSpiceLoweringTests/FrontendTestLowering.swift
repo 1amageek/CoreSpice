@@ -26,7 +26,7 @@ struct FrontendTestLowering {
         let compiled = try NetlistLowering.compile(parsed, additionalOverrideNames: Array(configuration.parameterOverrides.keys), limits: limits)
         var session = try NetlistLowering.beginEvaluation(compiled, profile: .pinnedNgspiceNormalV1,
             limits: limits, seed: 42, parameterOverrides: configuration.parameterOverrides)
-        try session.lower(geometryScale: configuration.geometryScale, expandModels: configuration.expandModels)
+        try session.lower(geometryScale: configuration.geometryScale, expandModels: configuration.expandModels, diodeProfile: .coreDiodeV1)
         return try session.finish().circuit
     }
 }

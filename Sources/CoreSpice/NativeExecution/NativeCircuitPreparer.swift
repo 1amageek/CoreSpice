@@ -25,6 +25,11 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
         do { try numericalLimits.validate() } catch { throw SPICENativePreparationError.invalidLimits }
         do { try operatingConditions.validateEvaluationEnvironment(ir.evaluationEnvironment) }
         catch { throw SPICENativePreparationError.evaluationEnvironment(error) }
+        // FIXME(INCOMPLETE_IMPLEMENTATION): D3 resolves diode input without a numerical preparation owner.
+        // The public native path refuses before any MOS setup/allocation until D4 owner transfer is implemented.
+        guard !ir.instances.contains(where: { $0.diode != nil }) else {
+            throw SPICENativePreparationError.unsupportedCapability("Resolved diode numerical preparation requires D4")
+        }
         let originalCircuit = ir
         var mosCount = 0
         for instance in originalCircuit.instances {

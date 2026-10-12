@@ -13,6 +13,8 @@ struct ParsedNetlistCompiler: ~Copyable {
     private var slots: [NetlistScalarAddress: NetlistScalarSlot] = [:]
     private var origins: [ParsedModelOrigin?] = []
     private var nextSlot = 0
+    private var diodeIndex: [DiodeLookupKey: Range<Int>] = [:]
+    private var diodeCandidates: [Int] = []
 
     init(limits: MOSResolutionLimits, control: (any MOSResolutionControlling)?) {
         self.limits = limits; self.control = control
@@ -56,7 +58,7 @@ struct ParsedNetlistCompiler: ~Copyable {
         let snapshot = try builder.finish()
         try storage.budget.add(snapshot.retainedBytes)
         return CompiledNetlist(source: source, snapshot: snapshot, retainedBytes: storage.budget.bytes,
-            identity: identity, scopes: scopes, models: models, slots: slots, modelOrigins: origins, hierarchicalMultiplier: hierarchicalMultiplier)
+            identity: identity, scopes: scopes, models: models, slots: slots, modelOrigins: origins, hierarchicalMultiplier: hierarchicalMultiplier, diodeIndex: diodeIndex, diodeCandidates: diodeCandidates)
     }
     private mutating func compileBody(_ body: ParsedNetlistBody, parent: MOSScopeID?,
         subcircuit: ParsedSubcircuit?) throws -> MOSScopeID {
@@ -138,17 +140,24 @@ struct ParsedNetlistCompiler: ~Copyable {
             functions[function.name.lowercased()] = function
         }
         var indices: [Int] = []
+        var diodeGroups: [MOSSymbolID: [Int]] = [:]
         try storage.retain(body.models)
         for model in body.models {
+            guard models.count < limits.maximumDeclarations else { throw MOSResolutionFailure.limitExceeded(.declarations) }
             try storage.location(model.location); try storage.text(model.origin?.captureID); try storage.location(model.origin?.location)
             try storage.text(model.name)
             let assignments = try orderedAssignments(model.parameterAssignments, fallback: model.parameters)
+            let modelSymbol = try builder.intern(model.name)
+            if diodeGroups[modelSymbol] == nil { try storage.reserve(&diodeGroups, diodeGroups.count + 1); diodeGroups[modelSymbol] = [] }
+            try storage.reserve(&diodeGroups[modelSymbol, default: []], diodeGroups[modelSymbol, default: []].count + 1)
+            diodeGroups[modelSymbol, default: []].append(models.count)
+            let diodeAssignments = model.type == .diode ? try compileDiodeAssignments(model.parameterAssignments) : []
             var coefficients: [MOSExpressionBinding] = [], programs: [(String, MOSProgramID)] = []
             var invalidCoefficient: MOSSymbolID?
             let isMOS = model.type == .nmos || model.type == .pmos
             for assignment in assignments {
                 let name = assignment.name.lowercased()
-                if name == "level" || name == "version" { continue }
+                if name == "level" || name == "version" || model.type == .diode { continue }
                 guard isScalar(assignment.value) else {
                     if isMOS, invalidCoefficient == nil { invalidCoefficient = try builder.intern(name) }
                     continue
@@ -176,8 +185,16 @@ struct ParsedNetlistCompiler: ~Copyable {
             }
             try storage.reserve(&indices, indices.count + 1); indices.append(models.count)
             try storage.reserve(&models, models.count + 1)
-            models.append(FrontendModelTemplate(model: model, scope: scope, programs: programs))
+            models.append(FrontendModelTemplate(model: model, scope: scope, programs: programs, diodeAssignments: diodeAssignments))
         }
+        for (symbol, candidates) in diodeGroups {
+            let start = diodeCandidates.count
+            try storage.reserve(&diodeCandidates, start + candidates.count); diodeCandidates.append(contentsOf: candidates)
+            try storage.reserve(&diodeIndex, diodeIndex.count + 1)
+            diodeIndex[.init(scope: scope, symbol: symbol)] = start..<diodeCandidates.count
+        }
+        storage.budget.release(try MOSStorageBudget.capacityBytes(diodeGroups.capacity, of: (MOSSymbolID, [Int]).self))
+        for candidates in diodeGroups.values { storage.budget.release(try MOSStorageBudget.capacityBytes(candidates.capacity, of: Int.self)) }
         var components: [FrontendComponentTemplate] = []
         try storage.retain(body.components)
         for component in body.components {
@@ -190,6 +207,7 @@ struct ParsedNetlistCompiler: ~Copyable {
             let hasInitialVector = component.type == .mosfet && assignments.contains { $0.name.lowercased() == "ic" }
             var mosFailure: String?
             for assignment in assignments {
+                if component.type == .diode { continue }
                 let name = assignment.name.lowercased()
                 if component.type == .mosfet && name == "ic" {
                     let count: Int
@@ -229,6 +247,7 @@ struct ParsedNetlistCompiler: ~Copyable {
             }
             // Metadata owns IC operands; parser default projections do not become supplied inputs.
             for (name, value) in try storage.entries(component.parameters) {
+                if component.type == .diode { continue }
                 let normalized = name.lowercased()
                 if hasInitialVector && ["ic", "ic_vds", "ic_vgs", "ic_vbs"].contains(normalized) { continue }
                 if programs[normalized] != nil { continue }
@@ -246,7 +265,9 @@ struct ParsedNetlistCompiler: ~Copyable {
             }
             if let modelName = component.modelName { _ = try builder.intern(modelName) }
             try storage.reserve(&components, components.count + 1)
-            components.append(.init(component: component, scope: scope, programs: programs, assignments: bindings,
+            let diodeAssignments = component.type == .diode ? try compileDiodeAssignments(component.parameterAssignments) : []
+            let diodeReference = try component.modelName.map { try builder.intern($0) }
+            components.append(.init(ordinal: components.count, diodeAssignments: diodeAssignments, diodeReference: diodeReference, component: component, scope: scope, programs: programs, assignments: bindings,
                 mosAssignmentFailure: mosFailure, hasMOSInitialConditionVector: hasInitialVector))
         }
         var children: [String: MOSScopeID] = [:]
@@ -258,6 +279,17 @@ struct ParsedNetlistCompiler: ~Copyable {
         scopes[Int(scope.rawValue)] = .init(id: scope, parent: parent, subcircuit: subcircuit,
             components: components, modelIndices: indices, subcircuits: children, functions: functions)
         return scope
+    }
+    private mutating func compileDiodeAssignments(_ assignments: [ParsedParameterAssignment]) throws -> [DiodeCompiledAssignment] {
+        var result: [DiodeCompiledAssignment] = []
+        for assignment in assignments {
+            try storage.spend()
+            let program = isScalar(assignment.value) && assignment.additionalValues.isEmpty
+                ? try compileValue(assignment.value) : nil
+            try storage.reserve(&result, result.count + 1)
+            result.append(.init(source: assignment, program: program))
+        }
+        return result
     }
     private func isScalar(_ value: ParsedParameterValue) -> Bool {
         switch value { case .numeric, .boolean, .expression: true; case .string, .numericVector: false }

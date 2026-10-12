@@ -118,7 +118,7 @@ internal enum NativeCircuitExecution {
         var parameters = instance.parameters
         parameters[instance.typeName == "vsource" ? "v" : "i"] = .real(value)
         let replacement = Instance(name: instance.name, typeName: instance.typeName, nodes: instance.nodes,
-            parameters: parameters, model: instance.model, mos: instance.mos, modelConsumption: instance.modelConsumption,
+            parameters: parameters, model: instance.model, mos: instance.mos, diode: instance.diode, modelConsumption: instance.modelConsumption,
             ownedNodes: instance.ownedNodes, ownedBranches: instance.ownedBranches,
             referencedBranches: instance.referencedBranches, referencedNodes: instance.referencedNodes,
             opticalNodes: instance.opticalNodes)

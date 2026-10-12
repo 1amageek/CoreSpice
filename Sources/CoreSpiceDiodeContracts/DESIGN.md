@@ -2,8 +2,8 @@
 
 ## Purpose and Scope
 
-Status: D1 checked scalar inputs and schema are implemented and registered.
-Source-resolved values, preparation receipts and consumer adoption remain D3-D5 work.
+Status: D1 checked scalar inputs/schema and D3 immutable resolved values are
+implemented. Preparation receipts and numerical adoption remain D4/D5 work.
 Parent: [CoreSpice](../../DESIGN.md). Child: [Input](Input/DESIGN.md).
 Own checked diode input/schema/stage contracts independently of numerical devices.
 

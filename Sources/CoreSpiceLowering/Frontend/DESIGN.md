@@ -592,7 +592,7 @@ ngspice control-language spelling is implemented.
 
 ## Designed Frozen Environment and Diode Adapter
 
-Status: D2 frozen evaluation implemented; D3 diode adapter remains designed. The [Environment contract](../../CoreSpiceEvaluationContracts/Environment/DESIGN.md)
+Status: D2 frozen evaluation implemented; D3 diode adapter is implemented. The [Environment contract](../../CoreSpiceEvaluationContracts/Environment/DESIGN.md)
 owns the new bootstrap/freeze ordering. Frontend retains one evaluator across
 that transition. D3 will compose [DiodeResolution](../DiodeResolution/DESIGN.md) through
 its source/index adapter. The current generic non-MOS merge must no longer serve
@@ -622,3 +622,10 @@ scalar evaluation cannot enter an unfinished bootstrap owner.
 TemperatureEnvironmentExecutionTests verifies public scalar/runtime resistor DC,
 MOS resolved/receipt identity, local/model temperature separation, caller override,
 whole-circuit refusal before reservation and direct Analysis binding refusal.
+
+## D3 Change Impact
+
+The [D3 resolution owner](../DiodeResolution/DESIGN.md) defines occurrence admission, frozen
+evaluation, immutable result transport and explicit numerical refusal. This layer
+consumes that contract; D4 numerical preparation and D5 downstream adoption remain
+separate. Its affected production path and behavioral tests are verified in D3.

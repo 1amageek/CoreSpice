@@ -13,6 +13,7 @@ public struct MOSEvaluationSession: ~Copyable {
     public var retainedBytes: UInt64 { budget.bytes }
     public var peakOwnedBufferBytes: UInt64 { budget.peakBytes }
     public private(set) var failureDiagnostic: MOSResolutionDiagnostic?
+    public static var evaluatorVersion: String { "CoreSpice.MOSEvaluator.v2.temperature-freeze" }
     public static var randomGeneratorVersion: String { MOSCoreRandom.version }
 
     public private(set) var environment: EvaluationEnvironment?
@@ -85,7 +86,7 @@ public struct MOSEvaluationSession: ~Copyable {
 
     public consuming func finishProvenance() -> MOSEvaluationProvenance {
         MOSEvaluationProvenance(environment: environment, seed: seed, randomGeneratorVersion: MOSCoreRandom.version,
-            evaluatorVersion: "CoreSpice.MOSEvaluator.v2.temperature-freeze", randomDraws: randomDraws, rootVisits: rootVisits)
+            evaluatorVersion: Self.evaluatorVersion, randomDraws: randomDraws, rootVisits: rootVisits)
     }
 
     package mutating func recordRootVisit(_ visit: MOSRootVisit) throws(MOSResolutionFailure) {

@@ -1,9 +1,11 @@
+import CoreSpiceDiodeContracts
 import CoreSpiceParser
 import CoreSpiceLowering
 import CoreSpiceMOSContracts
 import CoreSpiceParsedIR
 
 public struct SPICESimulationPreparationRequest: Sendable {
+    public let diodeProfile: DiodeInputProfile?
     public let temperaturePolicy: NetlistTemperaturePolicy?
     public let root: SPICECheckedSource
     public let environment: SPICEPreprocessingEnvironment
@@ -26,7 +28,8 @@ public struct SPICESimulationPreparationRequest: Sendable {
                 operatingPolicy: SPICEOperatingConditionPolicy,
                 limits: SPICESimulationPreparationLimits, profile: MOSInputProfile,
                 seed: UInt64, resolutionLimits: MOSResolutionLimits,
-                temperaturePolicy: NetlistTemperaturePolicy? = nil) {
+                temperaturePolicy: NetlistTemperaturePolicy? = nil, diodeProfile: DiodeInputProfile? = nil) {
+        self.diodeProfile = diodeProfile
         self.temperaturePolicy = temperaturePolicy
         self.profile = profile; self.seed = seed; self.resolutionLimits = resolutionLimits
         self.root = root; self.environment = environment; self.catalog = catalog; self.routes = routes

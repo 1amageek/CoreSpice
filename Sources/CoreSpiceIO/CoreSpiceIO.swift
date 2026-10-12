@@ -1,3 +1,4 @@
+import CoreSpiceDiodeContracts
 /// CoreSpiceIO - Unified SPICE I/O Architecture
 ///
 /// This umbrella module re-exports all I/O-related modules for CoreSpice:
@@ -90,10 +91,11 @@ public enum SPICEIO {
         seed: UInt64,
         limits: MOSResolutionLimits,
         temperaturePolicy: NetlistTemperaturePolicy? = nil,
+        diodeProfile: DiodeInputProfile? = nil,
         control: (any MOSResolutionControlling)? = nil
     ) async throws -> LoweredCircuit {
         let result = await parse(source)
-        return try lower(result.get(), profile: profile, seed: seed, limits: limits, temperaturePolicy: temperaturePolicy, control: control)
+        return try lower(result.get(), profile: profile, seed: seed, limits: limits, temperaturePolicy: temperaturePolicy, diodeProfile: diodeProfile, control: control)
     }
 
     /// Returns the resolved circuit together with its exact inspection and evaluation owners.
@@ -103,13 +105,14 @@ public enum SPICEIO {
         seed: UInt64,
         limits: MOSResolutionLimits,
         temperaturePolicy: NetlistTemperaturePolicy? = nil,
+        diodeProfile: DiodeInputProfile? = nil,
         control: (any MOSResolutionControlling)? = nil
     ) throws -> LoweredCircuit {
         let compiled = try NetlistLowering.compile(netlist, limits: limits, control: control)
         var session = try NetlistLowering.beginEvaluation(compiled, profile: profile, limits: limits,
                                                          seed: seed, temperaturePolicy: temperaturePolicy, control: control)
         let options = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
-        try session.lower(geometryScale: options.geometryScale)
+        try session.lower(geometryScale: options.geometryScale, diodeProfile: diodeProfile)
         return try session.finish()
     }
 

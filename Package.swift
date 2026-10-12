@@ -50,7 +50,7 @@ let package = Package(
                 exclude: ["DESIGN.md", "Declarations/DESIGN.md", "Evaluation/DESIGN.md", "Selection/DESIGN.md"]),
 
         // --- IR ---
-        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent", "CoreSpiceMOSContracts", "CoreSpiceEvaluationContracts"], exclude: ["README.md", "DESIGN.md", "MOSInstances/DESIGN.md"]),
+        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent", "CoreSpiceMOSContracts", "CoreSpiceEvaluationContracts", "CoreSpiceDiodeContracts"], exclude: ["README.md", "DESIGN.md", "MOSInstances/DESIGN.md", "DiodeInstances/DESIGN.md"]),
 
         // --- LAPACK ABI boundary ---
         .target(
@@ -150,7 +150,7 @@ let package = Package(
 
         // --- Lowering: ParsedNetlist → CircuitIR conversion ---
         .target(name: "CoreSpiceLowering",
-                dependencies: ["CoreSpiceParsedIR", "CoreSpiceIR", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceEvaluationContracts"], exclude: ["DESIGN.md", "Frontend/DESIGN.md", "DiodeResolution/DESIGN.md"]),
+                dependencies: ["CoreSpiceParsedIR", "CoreSpiceIR", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceEvaluationContracts", "CoreSpiceDiodeContracts"], exclude: ["DESIGN.md", "Frontend/DESIGN.md", "DiodeResolution/DESIGN.md"]),
 
         // --- Exporter: Exporter protocols and registry ---
         .target(name: "CoreSpiceExporter",
@@ -174,7 +174,7 @@ let package = Package(
                                "CoreSpiceMOSContracts", "CoreSpiceMOSResolution",
                                "CoreSpiceParsedIR", "CoreSpiceWaveform",
                                "CoreSpiceParser", "CoreSpiceParserSPICE",
-                               "CoreSpiceLowering", "CoreSpiceExporter",
+                               "CoreSpiceLowering", "CoreSpiceDiodeContracts", "CoreSpiceExporter",
                                "CoreSpiceExporterRAW", "CoreSpiceExporterCSV",
                                "CoreSpiceExporterPSF",
                                .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
@@ -230,6 +230,8 @@ let package = Package(
             resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceConditionEvaluationTests", dependencies: ["CoreSpiceLowering", "CoreSpiceIR", "CoreSpiceParsedIR", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceEvaluationContracts"]),
         .testTarget(name: "CoreSpiceEvaluationContractsTests", dependencies: ["CoreSpiceEvaluationContracts"]),
+        .testTarget(name: "CoreSpiceDiodeIntegrationTests", dependencies: ["CoreSpiceIO", "CoreSpiceLowering", "CoreSpiceMOSContracts", "CoreSpiceDiodeContracts", "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceDevices", "CoreSpiceEvent"]),
+        .testTarget(name: "CoreSpiceDiodeResolutionTests", dependencies: ["CoreSpiceParser", "CoreSpiceLowering", "CoreSpiceIR", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceDiodeContracts", "CoreSpiceEvaluationContracts", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),
         .testTarget(name: "CoreSpiceDiodeContractsTests", dependencies: ["CoreSpiceDiodeContracts", "CoreSpiceEvaluationContracts"]),
         .testTarget(name: "CoreSpiceMOSContractsTests", dependencies: ["CoreSpiceMOSContracts"]),
         .testTarget(name: "CoreSpiceMOSResolutionTests", dependencies: ["CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),
@@ -278,7 +280,7 @@ let package = Package(
             .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
             .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
 
-        .testTarget(name: "CoreSpiceNativeExecutionTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceAnalysis", "CoreSpiceLowering", "CoreSpiceIO", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceDevices",
+        .testTarget(name: "CoreSpiceNativeExecutionTests", dependencies: ["CoreSpiceDiodeContracts", "CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceAnalysis", "CoreSpiceLowering", "CoreSpiceIO", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceDevices",
             .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
 
         .testTarget(name: "CoreSpiceInitialConditionTests", dependencies: ["CoreSpiceIO", "CoreSpiceIR", "CoreSpiceParsedIR", "CoreSpiceLowering", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),

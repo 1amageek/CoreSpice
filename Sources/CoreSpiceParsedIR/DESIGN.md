@@ -237,3 +237,10 @@ value or model candidate. Q is charge, not capacitance, and cannot be converted 
 an ideal C value. The parser owns supported source combinations; selected lowering
 and direct IR binding own explicit numerical refusal until charge execution is
 implemented. Exact captured bytes remain available for unsupported source forms.
+
+## D3 Change Impact
+
+The [D3 resolution owner](../CoreSpiceLowering/DiodeResolution/DESIGN.md) defines occurrence admission, frozen
+evaluation, immutable result transport and explicit numerical refusal. This layer
+consumes that contract; D4 numerical preparation and D5 downstream adoption remain
+separate. Its affected production path and behavioral tests are verified in D3.

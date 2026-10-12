@@ -166,3 +166,10 @@ noise; future breakdown proofs require current/derivative continuity and referen
 comparison. The rs=0 vs1000 equal-current CLI counterexample must turn into an exact
 unsupported-feature result first, or a proven physical difference once implemented.
 Public raw-source/typed API tests must cover both outcomes and prevent registry bypass.
+
+## D3 Change Impact
+
+The [D3 resolution owner](../../CoreSpiceLowering/DiodeResolution/DESIGN.md) defines occurrence admission, frozen
+evaluation, immutable result transport and explicit numerical refusal. This layer
+consumes that contract; D4 numerical preparation and D5 downstream adoption remain
+separate. Its affected production path and behavioral tests are verified in D3.

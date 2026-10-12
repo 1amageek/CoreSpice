@@ -1,3 +1,4 @@
+import CoreSpiceDiodeContracts
 import CircuiteFoundation
 import CircuiteFoundationCrypto
 @testable import CoreSpice
@@ -34,7 +35,7 @@ struct PreparedNativeExecutionTests {
     func input(_ text: String, key: String = "root", resources: SourceBoundaryTestResources = .init(),
         extras: [SPICECheckedSource] = [], routes: [SPICESourceCatalogRoute] = [],
         supply: [SPICESupplyBinding] = [], policy: SPICEOperatingConditionPolicy = .recordActual,
-        index: Int? = nil, temperaturePolicy: NetlistTemperaturePolicy? = nil) async throws -> PreparedSPICESimulation {
+        index: Int? = nil, temperaturePolicy: NetlistTemperaturePolicy? = nil, diodeProfile: DiodeInputProfile? = nil) async throws -> PreparedSPICESimulation {
         let root = try capture(text, key: key, resources: resources)
         let configuration = ParserConfiguration(resolveIncludes: true)
         let environment = try SPICEPreprocessingEnvironment.empty(policyIdentity: "native-test-v1", configuration: configuration,
@@ -45,7 +46,7 @@ struct PreparedNativeExecutionTests {
             supplyBindings: supply, operatingPolicy: policy,
             limits: .init(maximumElements: 512, maximumTransformBytes: 8 * 1024 * 1024,
                 maximumSweepPoints: 100, maximumPageByteCount: 64, numerical: numerical),
-            profile: .coreStrictV1, seed: 42, resolutionLimits: resolutionLimits(), temperaturePolicy: temperaturePolicy), resources: resources)
+            profile: .coreStrictV1, seed: 42, resolutionLimits: resolutionLimits(), temperaturePolicy: temperaturePolicy, diodeProfile: diodeProfile), resources: resources)
     }
     func resolutionLimits() throws -> MOSResolutionLimits {
         try .init(maximumRetainedBytes: 8_000_000, maximumDiagnosticBytes: 4096,

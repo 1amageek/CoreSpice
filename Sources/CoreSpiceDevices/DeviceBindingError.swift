@@ -1,5 +1,6 @@
 /// Errors that can occur when binding a device instance.
 public enum DeviceBindingError: Error, Sendable {
+    case diodePreparationRequired(device: String)
     /// A required parameter was not provided and has no default.
     case missingParameter(device: String, parameter: String)
     /// A parameter has an unexpected type.

@@ -2,6 +2,7 @@ import CoreSpiceMOSContracts
 
 /// Errors that can occur during circuit compilation.
 public enum CompileError: Error, Sendable, Equatable {
+    case diodePreparationRequired(instance: String)
     case unexpectedMOSStage(instance: String)
     case mosPreparationRequired(instance: String)
     case mosNotPrepared(instance: String)

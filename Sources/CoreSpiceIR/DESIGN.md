@@ -96,3 +96,12 @@ for source-free typed IR. Builders, clones, MOS topology preparation and compile
 ExecutionPlan transport preserve it. Whole-circuit binding compares both ambient
 and nominal values before binding any device, even when no MOS exists. This stamp
 is not a claim of numerical execution or physical accuracy.
+
+## D3 Change Impact
+
+The [D3 resolution owner](../CoreSpiceLowering/DiodeResolution/DESIGN.md) defines occurrence admission, frozen
+evaluation, immutable result transport and explicit numerical refusal. This layer
+consumes that contract; D4 numerical preparation and D5 downstream adoption remain
+separate. Its affected production path and behavioral tests are verified in D3.
+
+The [DiodeInstances child](DiodeInstances/DESIGN.md) owns staged diode transport.

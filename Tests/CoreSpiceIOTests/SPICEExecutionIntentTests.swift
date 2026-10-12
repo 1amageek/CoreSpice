@@ -672,7 +672,7 @@ struct SPICEExecutionIntentTests {
             parserDiagnostics: parseResult.diagnostics
         )
 
-        #expect(item(named: "model:dmod", in: report)?.status == .supported)
+        #expect(item(named: "model:dmod", in: report)?.status == .blocked)
         #expect(item(named: "model:nch", in: report)?.status == .supported)
         #expect(item(named: "model:sky", in: report)?.status == .blocked)
         #expect(item(named: "model:sky", in: report)?.message.contains("4.8.3") == true)
@@ -680,7 +680,7 @@ struct SPICEExecutionIntentTests {
         #expect(item(named: "model:cswmod", in: report)?.status == .supported)
         #expect(item(named: "model:jmod", in: report)?.status == .supported)
         #expect(item(named: "model:zmod", in: report)?.status == .supported)
-        #expect(item(named: "component:d1", in: report)?.status == .supported)
+        #expect(item(named: "component:d1", in: report)?.status == .blocked)
         #expect(item(named: "component:m1", in: report)?.status == .supported)
         #expect(item(named: "component:m2", in: report)?.status == .blocked)
         #expect(item(named: "component:s1", in: report)?.status == .supported)

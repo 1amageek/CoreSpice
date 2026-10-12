@@ -1,3 +1,4 @@
+import CoreSpiceDiodeContracts
 import CoreSpiceEvaluationContracts
 import CoreSpiceIR
 import CoreSpiceMOSContracts
@@ -19,12 +20,15 @@ public struct NetlistLoweringSession: ~Copyable {
     private let storage: FrontendStorage
     private let jobs: [FrontendExecutionJob]
     private var scalarMemo: [Int: Double] = [:]
+    private var diodeMemo: [DiodeModelMemoKey: ResolvedDiodeModel] = [:]
     private var modelMemo: [String: [String: ParameterValue]] = [:]
 
     init(compiled: CompiledNetlist, plan: FrontendPlan, profile: MOSInputProfile,
          limits: MOSResolutionLimits, seed: UInt64, evaluator: consuming MOSEvaluationSession,
          temperatureProvenance: NetlistTemperatureProvenance) throws {
         guard let environment = evaluator.environment else { throw MOSResolutionFailure.environmentUnavailable }
+        // Diode diagnostic coordinates have a separate bounded owner from the evaluator arena.
+        try plan.storage.budget.add(limits.maximumDiagnosticBytes)
         var memo: [Int: Double] = [:]
         for (origin, value) in [(temperatureProvenance.ambient, try environment.ambient.celsius().value),
                                 (temperatureProvenance.nominal, try environment.nominal.celsius().value)] {
@@ -80,7 +84,7 @@ public struct NetlistLoweringSession: ~Copyable {
         } catch { throw poisonAndReturn(error) }
     }
     public mutating func lower(geometryScale: Double? = nil, globalWidthPerFinger: Bool? = nil,
-                               expandModels: Bool = true) throws {
+                               expandModels: Bool = true, diodeProfile: DiodeInputProfile? = nil) throws {
         do {
             try evaluator.checkHealthy()
             guard circuit == nil else { throw MOSResolutionFailure.conditionMismatch }
@@ -111,6 +115,12 @@ public struct NetlistLoweringSession: ~Copyable {
                 case .component(let component):
                     if component.template.component.type == .mosfet {
                         try emitMOS(component, scale: scale, widthPerFinger: widthPerFinger, into: &builder)
+                    } else if component.template.component.type == .diode {
+                        var resolver = DiodeResolver(compiled: compiled, job: component, storage: storage, limits: limits, graph: graph)
+                        let resolved = try resolver.resolve(schemas: StandardDiodeModelSchemas(), profile: diodeProfile, scale: scale, seed: seed,
+                                                            session: &evaluator, memo: &diodeMemo)
+                        try builder.addInstance(name: fullName(component), typeName: "diode", nodes: component.nodes,
+                                                diode: .resolved(resolved), modelConsumption: .unrecorded)
                     } else {
                         let resolved = try resolveNonMOS(component, scale: scale, expandModels: expandModels, into: &builder)
                         if component.template.component.type == .coupledInductors {

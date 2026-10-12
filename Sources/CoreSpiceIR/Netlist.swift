@@ -1,3 +1,4 @@
+import CoreSpiceDiodeContracts
 import CoreSpiceEvaluationContracts
 /// A builder for constructing a `CircuitIR` from named nodes and device instances.
 ///
@@ -89,6 +90,7 @@ public struct Netlist: Sendable {
         parameters: [String: ParameterValue] = [:],
         model: ResolvedDeviceModel? = nil,
         mos: MOSInstanceStage? = nil,
+        diode: DiodeInstanceStage? = nil,
         modelConsumption: ModelConsumption? = nil,
         ownedNodeCount: Int = 0,
         ownedBranches: [Branch] = [],
@@ -156,7 +158,7 @@ public struct Netlist: Sendable {
                 nodes: resolvedNodes,
                 parameters: parameters,
                 model: model,
-                mos: mos,
+                mos: mos, diode: diode,
                 modelConsumption: modelConsumption,
                 ownedNodes: ownedNodes,
                 ownedBranches: ownedBranches,
@@ -183,6 +185,7 @@ public struct Netlist: Sendable {
         parameters: [String: ParameterValue] = [:],
         model: ResolvedDeviceModel? = nil,
         mos: MOSInstanceStage? = nil,
+        diode: DiodeInstanceStage? = nil,
         modelConsumption: ModelConsumption? = nil,
         ownedNodeCount: Int = 0,
         ownedBranches: [Branch] = [],
@@ -244,7 +247,7 @@ public struct Netlist: Sendable {
                 nodes: resolvedNodes,
                 parameters: parameters,
                 model: model,
-                mos: mos,
+                mos: mos, diode: diode,
                 modelConsumption: modelConsumption,
                 ownedNodes: ownedNodes,
                 ownedBranches: ownedBranches,
@@ -286,7 +289,7 @@ public struct Netlist: Sendable {
                 nodes: instance.nodes,
                 parameters: instance.parameters,
                 model: instance.model,
-                mos: instance.mos,
+                mos: instance.mos, diode: instance.diode,
                 modelConsumption: instance.modelConsumption,
                 ownedNodes: instance.ownedNodes,
                 ownedBranches: instance.ownedBranches,

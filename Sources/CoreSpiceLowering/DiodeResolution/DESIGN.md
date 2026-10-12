@@ -2,8 +2,7 @@
 
 ## Purpose and Scope
 
-Status: proposed component; production source will move into this directory during
-implementation. Parent: [Lowering](../DESIGN.md). No children. Own source-to-checked
+Status: D3 implemented; native numerical preparation remains D4. Parent: [Lowering](../DESIGN.md). No children. Own source-to-checked
 diode resolution using the existing frontend declaration and evaluation owners.
 
 ## Responsibilities and Boundaries
@@ -114,7 +113,7 @@ capabilities and preparation resource limits are not input-resolution heuristics
 
 ## Verification and Change Impact
 
-Proposed DiodeResolutionTests in CoreSpiceLoweringTests runs without Devices, IO,
+DiodeResolutionTests in CoreSpiceDiodeResolutionTests runs without Devices, IO,
 external SPICE or GPU. Cover exact scope/duplicates/wrong type, case and include
 reappearance; unknown/non-scalar/positional/flag fields; both m roles; geometry units;
 model memo sharing within vs across X invocations; sibling failure isolation; random
@@ -122,3 +121,35 @@ draw counts and reporting without reevaluation; temper/local temperature; implic
 X refusal; work/storage/diagnostic limits and poisoned session. ParserSPICE tests own
 lost-token counterexamples; CoreSpiceIO tests own public raw-source preservation.
 Changes to the shared evaluator additionally revalidate MOS and resistor consumers.
+
+## D3 Resolution Integration Contract
+
+D3 owns ordered scalar admission and an immutable resolved diode stage. Lowering
+requires an explicit diode profile when a diode is encountered; absence refuses
+before evaluation. IO may transport that explicit profile without inferring it
+from the MOS profile. Numerical preparation remains D4 and downstream adoption D5.
+The resolved stage must survive IR clones, and compiler/direct binding refuse it
+until a consuming numerical preparation owner exists. Legacy source-free diode
+IR is outside this source resolution migration.
+
+The compiled frontend retains ordered assignment programs and a scope/symbol
+index with contiguous declaration occurrence ranges. Canonical direct ParsedIR
+constructors provide ordered assignments with unavailable source origin; a
+nonempty dictionary without occurrence evidence refuses rather than fabricating
+source history. Assignment/dictionary disagreement also refuses. Selected model
+values are immutable, memoized by declaration index and lexical invocation inside
+one frozen evaluation session; AREA/PJ/M/local thermal input remain per instance.
+The existing evaluator owns expressions, memo, PRNG, cancellation and poison state.
+Frontend storage owns index/model/instance capacity and bounded diagnostic context.
+No new shared mutable state or target-specific synchronization is introduced.
+
+D3 tests own raw-source and direct-ParsedIR success/refusal, both m roles, scope
+and duplicate selection, source shapes and selectors, deterministic draw counts,
+shared model identity, normalization boundaries, frozen temperature identity,
+resource refusal and poison behavior. MOS/resistor consumers are regression
+checked through the same frontend. No numerical diode capability is claimed.
+
+[Behavioral verification and ownership review](../../../validation/diode-resolution/README.md)
+links each D3 invariant to its production-path counterexample. The immutable model
+owner supplies its aligned header/payload accounting extent before allocation.
+The frontend separately reserves bounded diode diagnostic capacity.
