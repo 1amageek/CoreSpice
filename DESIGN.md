@@ -206,8 +206,8 @@ requirement-to-test evidence remains valid where its premises are unchanged.
 | [CoreSpiceCompactModels](Sources/CoreSpiceCompactModels/DESIGN.md) | child | Safe compact-model evaluation | Independent native BSIM3 kernel | Production selection is separately verified by Devices BSIM3 |
 | [CoreSpiceBSIM3](Sources/CoreSpiceBSIM3/DESIGN.md) | child | Private physics ABI | Official Berkeley model equations | The safe evaluator owns exclusive lifetime |
 
-| [EvaluationContracts](Sources/CoreSpiceEvaluationContracts/DESIGN.md) | child (proposed) | Frozen temperature values | Shared evaluation dependency floor | No evaluator or Devices dependency |
-| [DiodeContracts](Sources/CoreSpiceDiodeContracts/DESIGN.md) | child (proposed) | Typed diode roles and preparation stages | Independent input schema | No Level3 numerical claim |
+| [EvaluationContracts](Sources/CoreSpiceEvaluationContracts/DESIGN.md) | child | Frozen temperature values | Shared evaluation dependency floor | No evaluator or Devices dependency |
+| [DiodeContracts](Sources/CoreSpiceDiodeContracts/DESIGN.md) | child | Typed diode roles and preparation stages | Independent input schema | No Level3 numerical claim |
 
 ## Architecture
 
@@ -417,11 +417,13 @@ current behavior, new contracts and unavailable physical features.
 | Accepted but unused series resistance | BoundDiode.operatingPoint does not use rs; release CLI rs=0/1000 returns -2.48560822992006e-06 A at 0.5 V | Diode numerical capability admission |
 | Environment arrives after scalar roots | beginEvaluation resolves root bindings before SPICEAnalysisOptions; scalar temper probe fails while runtime-resistor control succeeds | Existing evaluation engine / IO composition |
 
-The two new pure SwiftPM targets are proposed, not registered by this documentation
-change: [EvaluationContracts](Sources/CoreSpiceEvaluationContracts/DESIGN.md) and
+D1 registers and implements the two pure SwiftPM targets: [EvaluationContracts](Sources/CoreSpiceEvaluationContracts/DESIGN.md) and
 [DiodeContracts](Sources/CoreSpiceDiodeContracts/DESIGN.md). Their dependency direction
-is enforced during implementation; no generic device framework or second evaluator
-is introduced. Lowering remains independent of Devices and numerical kernels.
+is enforced by the manifest and independent verification. D2-D5 consumer adoption
+is not implemented by D1; no second evaluator is introduced. Lowering remains independent of Devices and numerical kernels.
+
+The following diagram is the full D1-D5 target design; only the EC-to-DC edge is
+adopted in D1. Legacy public simulation behavior in the table above remains unchanged.
 
 ```mermaid
 flowchart TD
@@ -489,5 +491,13 @@ two bounded series-resistance probes. Binary SHA-256:
 Both rs cases exited zero with identical current. Existing diode tests exercise flat
 binds and capacitance stamps, not this new boundary or full charge conservation;
 they must be migrated and strengthened, not treated as completion evidence.
-This documentation commit changes no production source, numerical implementation,
-manifest or lock. Existing six-row Sky130 MOS evidence remains local to those rows.
+The original boundary-design evidence does not qualify a numerical implementation.
+Existing six-row Sky130 MOS evidence remains local to those rows. D1 completion
+is recorded separately below.
+
+D1 completion evidence is owned by the
+[contract verification runner](validation/diode-contracts/README.md): two isolated
+Native suites, public success/refusal probes on Native/normal WASM/Embedded WASM,
+registered-target builds and compiler refusal of forged schema, mixed role IDs and
+normalized-to-raw geometry. This evidence does not qualify diode numerical physics
+or fix the legacy public parse/preparation path; those remain D2-D5.

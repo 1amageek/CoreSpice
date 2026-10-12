@@ -2,7 +2,8 @@
 
 ## Purpose and Scope
 
-Status: proposed. Parent: [DiodeContracts](../DESIGN.md). No children.
+Status: D1 numeric contracts/schema implemented; source resolution and executable
+stages described below remain D3/D4 work. Parent: [DiodeContracts](../DESIGN.md). No children.
 Own the exact diode input profile, role/unit schema and immutable stage contracts.
 This boundary does not implement Sky130 Level-3 diode physics or claim ngspice
 compatibility. The initial profile is explicitly `coreDiodeV1`, with law identity
@@ -78,7 +79,7 @@ There is no generic "ignored" disposition. A schema-defined inactive value (e.g.
 validated default ibv with breakdown disabled) has an explicit inactive reason in
 the consumption report; it is not an unknown coefficient bypass.
 
-### Proposed values and interfaces
+### Stage values and interfaces (D1 schema; D3/D4 resolved/prepared stages)
 
 | Value | Owned payload |
 |---|---|
@@ -97,7 +98,7 @@ Immutable backing owners keep coefficient/range borrows alive; use typed IDs and
 Span in synchronous paths, without per-instance map merges or intermediate copies.
 
 ```swift
-// Proposed interfaces; no implementation or availability is claimed here.
+// Implemented in D1; source resolution and native preparation remain separate.
 public protocol DiodeModelSchemaProviding: Sendable {
     func schema(for law: DiodeModelLaw)
         throws(DiodeSchemaFailure) -> DiodeModelSchema
@@ -130,7 +131,7 @@ capacity, temporary peak and diagnostic capacity have caller-owned limits.
 
 ## Verification and Change Impact
 
-Proposed DiodeSchemaTests covers every row/role, model m=0.4 with instance m=2,
+[DiodeSchemaTests](../../../Tests/CoreSpiceDiodeContractsTests/DiodeSchemaTests.swift) covers every row/role, model m=0.4 with instance m=2,
 unknown zero-valued fields, aliases/case duplicates, forbidden instance is, Level3,
 area-factor vs perimeter scale, underflow/overflow, omitted vs explicit defaults,
 Tnom/temp/dtemp and immutable buffer reuse. Native prepare tests must reject a
@@ -158,3 +159,44 @@ including sky130_fd_pr__pfet_20v0__parasitic__diode_pw2dn.model.spice.
 Its level=3, scalm, model area, js/jsw, cj/cjsw and temperature selectors require
 an exact separate law. Their current unknown/unsupported status is intentional
 admission, not permission to erase coefficients or change the source card.
+
+## D1 Concrete Contract Implementation
+
+D1 implements checked numeric input values, not ResolvedDiodeInstance or executable
+receipts (owned by D3/D4). DiodeModelInput contains an InlineArray of 12 optional
+canonical coefficient values and a supplied-bit mask; disabled BV remains nil.
+DiodeInstanceInput contains distinct geometry, multiplicity and thermal values.
+Borrow model storage with a synchronous withCoefficients(Span) closure. No unsafe
+pointer, COW model dictionary, dynamic schema table or mutable shared state is needed.
+Source-name lookup happens only at this explicit input boundary and is bounded by
+DiodeInputLimits; checked inputs accept scalar assignment spans and reject every
+unknown/wrong-role/duplicate supplied field before returning a value. Selectors are
+checked separately by the explicit coreDiodeV1 schema factory. Tnom is canonical
+Kelvin in checked model storage; parameter definitions distinguish source and
+canonical units. Required features describe needs, not numerical implementation.
+D1 tests also prove schema/content identity is unforgeable through public schema
+construction. A provider may fail, but cannot substitute a mutable name table.
+
+RawDiodeGeometry.perimeter is DiodeInputPerimeter (unscaled source length), never
+DiodePerimeterMetres. Schema source/canonical unit metadata distinguishes inputLength
+from metres. Compile-negative verification rejects feeding SI perimeter back into
+the raw constructor. Checked model/instance inputs validate their stored environment
+identity; effective instance temperature uses that guard before applying local input.
+
+### D1 Behavioral Proof and Change Impact
+
+| Owned invariant | Public implementation | Counterexample evidence |
+|---|---|---|
+| Exact law and immutable schema content | DiodeInputProfile, StandardDiodeModelSchemas, DiodeModelSchema | exactLawAndProvider; compile-negative schema-forgery |
+| Model/instance roles never merge | DiodeModelInput, DiodeInstanceInput, distinct parameter IDs | sameSpellingDifferentRoles; model-instance-id-mix compile refusal |
+| Every supplied field is admitted or refused | Schema name/domain admission and supplied masks | unknownZeroAndWrongRolesRejected, duplicateCaseFoldedFieldsRejected, coefficientAndInstanceDomains |
+| Input lengths and SI lengths differ; defaults are not scaled | RawDiodeGeometry, DiodeInputPerimeter, DiodePerimeterMetres | normalizedGeometryAndOrigin; raw-si-geometry-mix compile refusal |
+| Nominal/local/ambient temperatures and frozen identity remain distinct | Checked model/instance environment guards | nominalLocalAndAmbientRemainSeparate, checkedInputRejectsAnotherEvaluationEnvironment |
+| Recognition never claims physical execution | requiredFeatures and requireSupport | featureRequirementsAreNotNumericalAdmission |
+| Bounded inspection and immutable storage | DiodeInputLimits, InlineArray and scoped Span | callerLimitsBoundAllInputInspection, everyModelDefaultAndBorrowedStorage |
+
+The [independent verification runner](../../../validation/diode-contracts/README.md)
+executes these public factories without parser, Devices, C, Metal or external
+simulator dependencies. D1 has no preparation owner, source diagnostic arena or
+mutable shared state to cancel/release. D2-D5 must supply their own source, lifecycle
+and numerical evidence before changing public diode admission.

@@ -18,6 +18,8 @@ let package = Package(
         .library(name: "CoreSpice", targets: ["CoreSpice"]),
         .library(name: "CoreSpiceCompactModels", targets: ["CoreSpiceCompactModels"]),
         .library(name: "CoreSpiceIR", targets: ["CoreSpiceIR"]),
+        .library(name: "CoreSpiceEvaluationContracts", targets: ["CoreSpiceEvaluationContracts"]),
+        .library(name: "CoreSpiceDiodeContracts", targets: ["CoreSpiceDiodeContracts"]),
         .library(name: "CoreSpiceMOSContracts", targets: ["CoreSpiceMOSContracts"]),
         .library(name: "CoreSpiceMOSResolution", targets: ["CoreSpiceMOSResolution"]),
         .library(name: "CoreSpiceIO", targets: ["CoreSpiceIO"]),
@@ -36,6 +38,11 @@ let package = Package(
 
         // --- Event, observer, and cancellation primitives ---
         .target(name: "CoreSpiceEvent", exclude: ["README.md"]),
+
+        // --- Portable evaluation and diode input contracts ---
+        .target(name: "CoreSpiceEvaluationContracts", exclude: ["DESIGN.md", "Environment/DESIGN.md"]),
+        .target(name: "CoreSpiceDiodeContracts", dependencies: ["CoreSpiceEvaluationContracts"],
+                exclude: ["DESIGN.md", "Input/DESIGN.md"]),
 
         // --- Portable MOS interpretation boundary ---
         .target(name: "CoreSpiceMOSContracts", exclude: ["DESIGN.md", "Values/DESIGN.md", "Schema/DESIGN.md", "Preparation/DESIGN.md"]),
@@ -221,6 +228,8 @@ let package = Package(
         .testTarget(name: "CoreSpiceBSIM4KernelTests", dependencies: ["CoreSpiceCompactModels"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceCompactModelsTests", dependencies: ["CoreSpiceCompactModels"],
             resources: [.copy("Fixtures")]),
+        .testTarget(name: "CoreSpiceEvaluationContractsTests", dependencies: ["CoreSpiceEvaluationContracts"]),
+        .testTarget(name: "CoreSpiceDiodeContractsTests", dependencies: ["CoreSpiceDiodeContracts", "CoreSpiceEvaluationContracts"]),
         .testTarget(name: "CoreSpiceMOSContractsTests", dependencies: ["CoreSpiceMOSContracts"]),
         .testTarget(name: "CoreSpiceMOSResolutionTests", dependencies: ["CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),
         .testTarget(name: "CoreSpiceMOSPreparationTests", dependencies: ["CoreSpiceDevices", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceCompactModels"]),
