@@ -589,3 +589,13 @@ Resolved rules and selection geometry retain its applied effect; physical W and 
 remain separately normalized and unchanged. This is a CoreSpice source spelling
 for the explicitly selected pinned ordinary-MOS contract, not a claim that every
 ngspice control-language spelling is implemented.
+
+## Designed Frozen Environment and Diode Adapter
+
+Status: proposed migration; the implemented eager root-evaluation API is not yet
+changed. The [Environment contract](../../CoreSpiceEvaluationContracts/Environment/DESIGN.md)
+owns the new bootstrap/freeze ordering. Frontend will retain one evaluator across
+that transition and compose [DiodeResolution](../DiodeResolution/DESIGN.md) through
+its source/index adapter. The current generic non-MOS merge must no longer serve
+diodes. Evaluation-free invocation planning remains here; new diode model buffers
+are charged by declaration/invocation, not copied into every instance dictionary.

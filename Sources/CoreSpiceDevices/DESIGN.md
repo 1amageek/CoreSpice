@@ -120,3 +120,13 @@ Binding tests must show that a valid first node followed by an invalid/duplicate
 node leaves both unclaimed, that failed CSR/IC checks claim nothing, and that a
 later valid bind can claim the same nodes. Existing successful duplicate-ownership
 refusal remains. This proof does not change branch-claim semantics.
+
+## Designed Diode Preparation Composition
+
+Status: proposed migration. [Diode](Diode/DESIGN.md) is a new direct child and owns
+the replacement checked diode preparation/binding/evaluation path. Existing diode
+files in Devices remain the current implementation until moved in that unit.
+Consume [DiodeContracts](../CoreSpiceDiodeContracts/DESIGN.md) and adapt the shared
+[Environment](../CoreSpiceEvaluationContracts/Environment/DESIGN.md) to the existing
+OperatingConditions API. That adapter must validate semantic identity rather than
+silently choosing a second nominal or operating temperature.

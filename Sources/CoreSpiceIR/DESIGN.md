@@ -69,3 +69,21 @@ owns the physical current/noise law; IR owns only this preserved meaning. The
 variable is implemented as `BehavioralVariable.ambientTemperatureCelsius`; proof
 remains B8.6.5.13-owned. IR/Lowering/device tests must verify
 that one retained expression can be rebound at different operating temperatures.
+
+## Designed Typed Diode Stage
+
+Status: proposed. Depend on [DiodeContracts](../CoreSpiceDiodeContracts/DESIGN.md) and
+transport `Instance.diode` as resolved input or immutable preparation receipt. The
+[Input child contract](../CoreSpiceDiodeContracts/Input/DESIGN.md) owns its meaning.
+Physical diode inputs must not be reconstructed from Instance.parameters/model maps.
+Clone/replacement/perturbation consumers preserve a stage only when semantic input
+is unchanged; changed input requires checked resolution and fresh preparation.
+A prepared receipt is transport evidence, not executable ownership or bind permission.
+
+Source-evaluated CircuitIR additionally retains the frozen evaluation environment
+identity from the [Environment contract](../CoreSpiceEvaluationContracts/Environment/DESIGN.md).
+Native preparation validates this circuit identity before any family-specific work;
+this protects scalar non-MOS values too. All CircuitIR reconstruction paths preserve
+it. Source-free typed circuits have a distinct programmatic origin; runtime ambient
+variables keep their existing binding semantics and cannot masquerade as evaluated
+source scalars. D2 owns this common stamp/entry guard; D5 verifies every transport.

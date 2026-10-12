@@ -491,3 +491,11 @@ The incomplete charge law is explicit and requires the numerical guarantees in
 [Lowering](../../CoreSpiceLowering/DESIGN.md#charge-capacitor-numerical-admission)
 before admission. Direct IR tests cover Q alone, Q plus C and Q plus a physical
 model. Existing ideal and URC-generated C stamping remains unchanged.
+
+## Designed Diode Ownership Transfer
+
+Current diode descriptor/model/bound files still reside here and use flattened
+inputs. Their replacement authority is the proposed sibling
+[Diode component](../Diode/DESIGN.md). Move those files with implementation; this
+component will no longer own diode admission or numerical feature policy. The new
+path refuses unsupported features rather than inheriting today's silent acceptance.

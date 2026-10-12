@@ -81,3 +81,11 @@ Embedded WASM compile/link/runtime proofs are required for this module, using
 the [MOSContracts runtime requirements](../CoreSpiceMOSContracts/DESIGN.md#verification-and-change-impact). Devices
 is separately verified on Native CPU. Changes to IDs/schema/selection require
 Lowering and Devices assumption checks and package composition verification.
+
+## Designed Evaluation Environment Dependency
+
+The [Evaluation child](Evaluation/DESIGN.md#designed-scalar-temperature-dependency)
+will consume the proposed [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md)
+target. It remains independent of IR, Devices, Foundation and diode physics.
+Existing MOS resolution results must bind the frozen environment/provenance through
+their evaluation identity when the new shared-session contract is adopted.

@@ -206,6 +206,9 @@ requirement-to-test evidence remains valid where its premises are unchanged.
 | [CoreSpiceCompactModels](Sources/CoreSpiceCompactModels/DESIGN.md) | child | Safe compact-model evaluation | Independent native BSIM3 kernel | Production selection is separately verified by Devices BSIM3 |
 | [CoreSpiceBSIM3](Sources/CoreSpiceBSIM3/DESIGN.md) | child | Private physics ABI | Official Berkeley model equations | The safe evaluator owns exclusive lifetime |
 
+| [EvaluationContracts](Sources/CoreSpiceEvaluationContracts/DESIGN.md) | child (proposed) | Frozen temperature values | Shared evaluation dependency floor | No evaluator or Devices dependency |
+| [DiodeContracts](Sources/CoreSpiceDiodeContracts/DESIGN.md) | child (proposed) | Typed diode roles and preparation stages | Independent input schema | No Level3 numerical claim |
+
 ## Architecture
 
 The request-to-domain-to-evidence diagram above describes package composition.
@@ -399,3 +402,92 @@ and transitive versions are resolved from published Git objects; normal and
 qualification builds use `--force-resolved-versions`. Local edits/overrides are
 not final execution evidence. Updating this lock requires actual target build
 and public-path regression, with no implicit release/tag or dependency downgrade.
+
+## Diode Boundary Design and Implementation Units
+
+Status: designed on 2026-10-12 against f2bd586; not implemented. This is the
+composition authority for the new diode boundary. Existing MOS release/owner and
+numerical solver contracts remain in force. Child documents distinguish confirmed
+current behavior, new contracts and unavailable physical features.
+
+| Current evidence | Source / actual behavior | Required change owner |
+|---|---|---|
+| Flattened coefficient/instance maps | NetlistLoweringSession.resolveNonMOS and DiodeDescriptor.bind; model m=0.4 plus instance m=2 fails grading validation | Diode resolution / input schema |
+| Ignored geometry and Level3 | Release CLI area=1/2 and js=1e-14/1e-10 return the same current | Input admission / native feature admission |
+| Accepted but unused series resistance | BoundDiode.operatingPoint does not use rs; release CLI rs=0/1000 returns -2.48560822992006e-06 A at 0.5 V | Diode numerical capability admission |
+| Environment arrives after scalar roots | beginEvaluation resolves root bindings before SPICEAnalysisOptions; scalar temper probe fails while runtime-resistor control succeeds | Existing evaluation engine / IO composition |
+
+The two new pure SwiftPM targets are proposed, not registered by this documentation
+change: [EvaluationContracts](Sources/CoreSpiceEvaluationContracts/DESIGN.md) and
+[DiodeContracts](Sources/CoreSpiceDiodeContracts/DESIGN.md). Their dependency direction
+is enforced during implementation; no generic device framework or second evaluator
+is introduced. Lowering remains independent of Devices and numerical kernels.
+
+```mermaid
+flowchart TD
+    EC[EvaluationContracts: immutable temperature values] --> MC[Existing MOS contracts/resolution]
+    EC --> DC[DiodeContracts: role/schema/staged input]
+    DC --> IR[IR typed diode stage]
+    MC --> L[Lowering: existing session + diode resolution]
+    DC --> L
+    EC --> L
+    L --> Resolved[Checked diode result]
+    DC --> D[Devices: checked preparation + consuming owner]
+    Resolved --> D
+    D --> Native[Native execution: prepare / compile / bind]
+    Native --> Analysis[Existing Analysis]
+    IO[IO: source/caller policy and effective condition selection] --> L
+    IO --> Native
+```
+
+| Unit | Responsibility / dependencies | Independent completion evidence |
+|---|---|---|
+| D1 Contracts/schema | EvaluationContracts and DiodeContracts; no lower implementation dependency | Role/unit/default/domain tables; known vs unknown fields; finite/underflow/identity checks; Native/WASM/Embedded pure runtime |
+| D2 Evaluation environment | Existing MOSResolution evaluator + Frontend/IO condition planning and common IR/native condition guard; depends D1 | One memo/RNG across bootstrap/freeze; scalar temper success, indirect cycle refusal, source/caller precedence, no model/local T contamination; MOS/resistor regressions |
+| D3 Diode resolution | Lowering/DiodeResolution and parser occurrence admission; depends D1/D2 | Raw-source and direct-ParsedIR counterexamples, exact scope/duplicates, m separation, normalization once, model sharing and independent GPU-free resolver tests |
+| D4 Native preparation | Devices/Diode typed owner and minimal correct admitted junction law; depends D1, independently construct checked fixtures without D2/D3 | Identity/temperature/A/M, consuming bind, finite analytic I/G, limits/cancel/cleanup; reject rs, breakdown, nonzero cjo/tt/pj before execution |
+| D5 Public adoption/integration | IR stage/clone transport, NativeExecution batch accounting, IO/API/CLI/downstream consumers; depends D2/D3/D4 | Actual parse->freeze->resolve->prepare->compile->bind->DC/AC/memoryless transient/shot-noise; no raw descriptor bypass, one setup per diode, failure atomicity and exact diagnostics |
+
+D2 and D4 may be developed independently after D1; they do not share production
+files or mutable state. D3 follows the frozen-session contract. D5 owns composition
+rather than repeating the lower proofs. Each unit updates its owning design before
+implementation, runs timeout-bounded focused tests, receives one complete review
+and finding-limited recheck, then a coherent local commit. Adoption updates affected
+public consumers/instance clones and exact dependency pins in the same migration,
+without a compatibility merge or fallback path.
+
+First native admission deliberately provides no sidewall/Level3, series resistance,
+breakdown or charge-physics claim. Recognition/reporting of these features is distinct
+from preparation support. Additional physics units must define their exact laws and
+independent I/Q/derivative/noise/temperature proofs before capability admission changes.
+Original Sky130 Level3 cards remain unchanged and fail precisely; they are never
+translated into coreJunctionV1 or counted as successful PDK coverage. The physical-area,
+scalm and density rules for that future law require their own original-source study.
+
+### Completion and verification ownership
+
+| Invariant | Owner / falsifying evidence |
+|---|---|
+| No lost source input or model/instance role collision | ParserSPICE / DiodeResolution: unknown trailing token, duplicate m roles and selected non-scalar field |
+| No silent coefficient/feature loss | Diode schema / Devices: unknown zero coefficient, Level3 js, nonzero rs/pj/cjo/tt and requested unsupported analysis |
+| Exactly one evaluation/normalization and consistent temperature | Existing evaluator / Environment: draw counts across freeze, scale once, changed-environment mismatch |
+| No late model search, raw bind or repeated setup | Diode owner / NativeExecution: typed-stage tests, setup counter and public bypass attempts |
+| No partial publication or leaked resources | NativeExecution: budget edge, prepare/compile/bind cancellation and batch failure, reservation transfer/release |
+| Physical evaluation matches admitted capability | Devices / Analysis: independent I/G and KCL, AC/transient/noise actual execution; future Q/dQ/dV/BE/trapezoidal proofs before charge support |
+| Evidence has the correct scope | IO/API/CLI: resolution, preparation and completed execution results separately recorded; process qualification remains separate |
+
+D5 also records release total input-to-binding/representative-analysis time, peak
+retained/temporary capacity, allocations/copies, expression visits and cold setups,
+separating cold parsing from snapshot reuse. Structural completion requires zero
+late diode model-name searches, repeated same-binding evaluation and repeated
+same-execution cold setups, plus no intermediate coefficient-range copies.
+Timing improvements require measurements; this design makes no speedup claim.
+
+Current investigation reuses the previous eight source-bound CLI probes and adds
+two bounded series-resistance probes. Binary SHA-256:
+144816b5cdb49bec82d1953b3a34a8de0aefdb4551e62ec33ed940719a462935.
+Both rs cases exited zero with identical current. Existing diode tests exercise flat
+binds and capacitance stamps, not this new boundary or full charge conservation;
+they must be migrated and strengthened, not treated as completion evidence.
+This documentation commit changes no production source, numerical implementation,
+manifest or lock. Existing six-row Sky130 MOS evidence remains local to those rows.

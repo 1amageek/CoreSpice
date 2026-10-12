@@ -50,3 +50,10 @@ Embedded executable composition explicitly links the matching SDK standard-libra
 admitted identifiers are ASCII. The link/runtime probe records the exact SDK
 library identity. This is a standard-library runtime requirement, not a
 Foundation, numerical-kernel or Metal dependency.
+
+## Designed Shared Evaluation Identity Dependency
+
+Status: proposed. The [Values child](Values/DESIGN.md#designed-environment-bound-evaluation-identity)
+consumes the new [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md)
+values when frozen-temperature evaluation is adopted. This adds a pure dependency
+floor, not an IR/Devices dependency or a diode-law dependency.

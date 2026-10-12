@@ -123,3 +123,11 @@ level selectors retain explicitLevel origin independently of BSIM version origin
 Explicit release origin retains source spelling. Checked construction resolves
 that spelling using the recorded input profile and requires the same exact
 release, rather than comparing it to the canonical display spelling.
+
+## Designed Environment-Bound Evaluation Identity
+
+Status: proposed. Shared temperature meaning belongs to
+[Environment](../../CoreSpiceEvaluationContracts/Environment/DESIGN.md). MOS result
+identity/provenance must retain its frozen evaluation identity when the shared
+evaluator migration is adopted; numerical preparation cannot rebind a result whose
+coefficients used temper to another ambient temperature. Snapshot reuse remains valid.

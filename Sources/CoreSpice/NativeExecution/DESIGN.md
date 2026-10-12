@@ -419,3 +419,19 @@ with exact implementation identity. It is separate from 4.8.3 metadata.
 The public source execution gate checks the same explicit stress policy against
 conditions for both releases. DC/AC/transient/noise evidence is issued only after
 the corresponding existing analysis actually completes.
+
+## Designed Diode Owner Adoption
+
+Status: proposed. Compose the [Diode owner](../../CoreSpiceDevices/Diode/DESIGN.md)
+with the existing MOS preparation owner in NativeCircuitPreparer. IR carries checked
+stages; prepare both families before compiling topology and consume each owner in
+binding. The child contract owns feature admission, temperature identity, resource
+transfer and release requirements. This composition owns complete-batch publication
+and actual execution receipts; no raw registry fallback may bypass diode admission.
+D5 in the [package implementation units](../../../DESIGN.md#diode-boundary-design-and-implementation-units)
+owns public/API/CLI and downstream adoption checks.
+
+D2 also adds the common source-evaluated CircuitIR environment guard before any
+owner allocation. It covers temperature-dependent scalar non-MOS inputs, not just
+diodes/MOS. The environment contract owns the distinction from source-free typed
+runtime expressions. D5 tests preservation across compile, cloning and execution.

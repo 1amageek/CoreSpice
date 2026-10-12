@@ -208,3 +208,12 @@ assignments overwritten through canonical aliases. Strict rejects duplicate exac
 symbols/canonical IDs; pinned retains the last canonical assignment. Later cards
 discarded by FIRST model-declaration authority are not evaluated. Source
 occurrences remain in the snapshot.
+
+## Designed Scalar Temperature Dependency
+
+Status: proposed. The shared [Environment contract](../../CoreSpiceEvaluationContracts/Environment/DESIGN.md)
+is the authority for builtin temper, condition roots, freeze and identity. This
+component continues to own all scalar execution, memoization, RNG and poisoning.
+Implement the condition-graph phase in this engine, not in a second IO evaluator.
+Preserve validated dependency results and PRNG state through the consuming freeze;
+record evaluator-V2 visitation and revalidate existing MOS/resistor callers.

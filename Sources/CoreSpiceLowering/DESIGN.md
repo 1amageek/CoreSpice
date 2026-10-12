@@ -3,7 +3,7 @@
 ## Purpose and Scope
 
 This SwiftPM module exposes typed parsed-netlist compilation and circuit lowering.
-Parent: [CoreSpice](../../DESIGN.md). Its sole child is
+Parent: [CoreSpice](../../DESIGN.md). Its implemented child is
 [Frontend](Frontend/DESIGN.md), which owns the approved S4 adapter contract.
 Implementation/completion state belongs to workspace PROGRESS.md B8.6.5.18.4.
 
@@ -51,3 +51,10 @@ public exports, allowed package dependencies and direct IO/native composition.
 Changes to the child public contract require corresponding IO, native execution,
 CLI and host consumer migration; leaf evidence alone does not establish that
 integration. Root owns Package.swift and cumulative integration/commit evidence.
+
+## Designed Diode Resolution Composition
+
+Status: proposed addition. [DiodeResolution](DiodeResolution/DESIGN.md) is the new
+direct child owning diode source admission; Frontend remains the single compiled
+storage/session owner. The new child consumes
+[DiodeContracts](../CoreSpiceDiodeContracts/DESIGN.md); no Devices edge is introduced.

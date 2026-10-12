@@ -673,3 +673,12 @@ own parity, cross-quote conditionals, LF/CRLF physical diagnostics, accounting
 refusal/cancellation and last-owner release. IO tests own scoped model-coefficient
 evaluation before and after serialization. The actual CLI replays unchanged PDK
 bytes and records the next boundary; intake success does not qualify its models.
+
+## Designed Diode Source Admission
+
+Status: proposed. [DiodeResolution](../CoreSpiceLowering/DiodeResolution/DESIGN.md)
+owns source roles; parser grammar must preserve every supplied named assignment
+and reject unsupported trailing positional/flag tokens with a location. Current
+D parsing can consume such tokens without retaining them; fix that grammar path
+before claiming unknown-parameter rejection through the public API. Do not expand
+the MOS profile into a general SPICE/diode compatibility promise.

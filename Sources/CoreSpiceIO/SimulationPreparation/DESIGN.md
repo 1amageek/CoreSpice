@@ -298,3 +298,14 @@ full-capacity path for callers that explicitly request that capacity.
 elements, a 64 MiB transform ceiling and a shared 64 MiB temporary budget; exact
 encoding hash failure with other scratch still live; and unchanged framing at the
 exact required capacity versus refusal one byte below it.
+
+## Designed Condition and Diode Intake Migration
+
+Status: proposed; current beginEvaluation still evaluates roots before options.
+IO owns source/caller/default selection into the
+[Environment contract](../../CoreSpiceEvaluationContracts/Environment/DESIGN.md),
+then freezes the shared frontend session before ordinary scalar/device resolution.
+The new diode profile is explicit alongside the existing MOS profile. IO retains
+source-backed diode/environment diagnostics through public failures and CLI encoding.
+Do not return only an interned symbol ID or produce execution evidence from resolution.
+Native preparation remains external to this component.
