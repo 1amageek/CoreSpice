@@ -1,3 +1,4 @@
+import CoreSpiceEvaluationContracts
 import CoreSpiceIR
 import CoreSpiceMOSContracts
 import CoreSpiceMOSResolution
@@ -5,6 +6,8 @@ import CoreSpiceParsedIR
 
 /// Exclusive single-run scalar, random and resolved-circuit evaluation owner.
 public struct NetlistLoweringSession: ~Copyable {
+    public let environment: EvaluationEnvironment
+    public let temperatureProvenance: NetlistTemperatureProvenance
     public let compiled: CompiledNetlist
     public let graph: MOSInvocationGraph
     public let profile: MOSInputProfile
@@ -19,10 +22,21 @@ public struct NetlistLoweringSession: ~Copyable {
     private var modelMemo: [String: [String: ParameterValue]] = [:]
 
     init(compiled: CompiledNetlist, plan: FrontendPlan, profile: MOSInputProfile,
-         limits: MOSResolutionLimits, seed: UInt64, evaluator: consuming MOSEvaluationSession) {
+         limits: MOSResolutionLimits, seed: UInt64, evaluator: consuming MOSEvaluationSession,
+         temperatureProvenance: NetlistTemperatureProvenance) throws {
+        guard let environment = evaluator.environment else { throw MOSResolutionFailure.environmentUnavailable }
+        var memo: [Int: Double] = [:]
+        for (origin, value) in [(temperatureProvenance.ambient, try environment.ambient.celsius().value),
+                                (temperatureProvenance.nominal, try environment.nominal.celsius().value)] {
+            if case .sourceControl(let index) = origin {
+                let slot = try compiled.scalarSlot(at: .control(index: index, field: "value"))
+                try plan.storage.reserve(&memo, memo.count + 1); memo[slot.index] = value
+            }
+        }
+        self.environment = environment; self.temperatureProvenance = temperatureProvenance
         self.compiled = compiled; graph = plan.graph; self.profile = profile
         self.limits = limits; self.seed = seed; storage = plan.storage; jobs = plan.jobs
-        self.evaluator = evaluator
+        scalarMemo = memo; self.evaluator = evaluator
     }
     mutating func resolveRootBindings() throws { try resolveBindings(in: 0) }
     public mutating func poison(_ cause: MOSResolutionFailure) { evaluator.poison(cause) }
@@ -31,6 +45,14 @@ public struct NetlistLoweringSession: ~Copyable {
             try evaluator.checkHealthy()
             guard compiled.identity.sameStorage(as: slot.identity) else { throw MOSResolutionFailure.conditionMismatch }
             if let cached = scalarMemo[slot.index] { return cached }
+            if case .control(let index, _) = slot.address {
+                switch compiled.source.controls[index] {
+                case .temp: throw MOSResolutionFailure.invalidRequest
+                case .option(let name, _, _) where name.lowercased() == "temp" || name.lowercased() == "tnom":
+                    throw MOSResolutionFailure.invalidRequest
+                default: break
+                }
+            }
             let value = try evaluateMOSProgram(slot.program, invocation: 0, lexicalScope: MOSScopeID(0),
                 from: compiled.snapshot, session: &evaluator)
             try storage.reserve(&scalarMemo, scalarMemo.count + 1); scalarMemo[slot.index] = value
@@ -108,7 +130,7 @@ public struct NetlistLoweringSession: ~Copyable {
                     nodes: job.nodes, parameters: parameters, model: model, consumption: consumption,
                     prefix: job.prefix, referencedNodes: [], referencedBranches: [], into: &builder)
             }
-            circuit = try builder.build()
+            circuit = try builder.build(environment: environment.identity)
         } catch { throw poisonAndReturn(error) }
     }
     public consuming func finish() throws -> LoweredCircuit {
@@ -118,7 +140,7 @@ public struct NetlistLoweringSession: ~Copyable {
         let retained = try checkedAdd(storage.budget.bytes, evaluator.retainedBytes)
         let peak = try checkedAdd(storage.budget.peakBytes, evaluator.peakOwnedBufferBytes)
         let compiled = self.compiled, graph = self.graph, profile = self.profile
-        let provenance = NetlistEvaluationProvenance(profile: profile,
+        let provenance = NetlistEvaluationProvenance(temperatures: temperatureProvenance, profile: profile,
             evaluation: evaluator.finishProvenance(), evaluationSteps: steps,
             retainedBytes: retained, peakOwnedBufferBytes: peak)
         return LoweredCircuit(circuit: circuit, compiled: compiled, graph: graph, evaluationProvenance: provenance)

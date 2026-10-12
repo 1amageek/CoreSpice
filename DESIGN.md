@@ -405,7 +405,8 @@ and public-path regression, with no implicit release/tag or dependency downgrade
 
 ## Diode Boundary Design and Implementation Units
 
-Status: designed on 2026-10-12 against f2bd586; not implemented. This is the
+Status: D1 and D2 implemented; D3-D5 remain designed. Designed on 2026-10-12
+against f2bd586. This is the
 composition authority for the new diode boundary. Existing MOS release/owner and
 numerical solver contracts remain in force. Child documents distinguish confirmed
 current behavior, new contracts and unavailable physical features.
@@ -419,11 +420,12 @@ current behavior, new contracts and unavailable physical features.
 
 D1 registers and implements the two pure SwiftPM targets: [EvaluationContracts](Sources/CoreSpiceEvaluationContracts/DESIGN.md) and
 [DiodeContracts](Sources/CoreSpiceDiodeContracts/DESIGN.md). Their dependency direction
-is enforced by the manifest and independent verification. D2-D5 consumer adoption
-is not implemented by D1; no second evaluator is introduced. Lowering remains independent of Devices and numerical kernels.
+is enforced by the manifest and independent verification. D2 adopts the existing evaluator, shared environment and circuit-wide native guard;
+D3-D5 diode consumers remain deferred. No second evaluator is introduced. Lowering remains independent of Devices and numerical kernels.
 
-The following diagram is the full D1-D5 target design; only the EC-to-DC edge is
-adopted in D1. Legacy public simulation behavior in the table above remains unchanged.
+The following diagram is the full D1-D5 target design; D1 adopts EC-to-DC and D2 adopts the evaluation/IR/native temperature edges.
+The historical evidence table describes the pre-D1/D2 behavior; diode numerical
+behavior remains unchanged until D3-D5.
 
 ```mermaid
 flowchart TD
@@ -501,3 +503,17 @@ Native suites, public success/refusal probes on Native/normal WASM/Embedded WASM
 registered-target builds and compiler refusal of forged schema, mixed role IDs and
 normalized-to-raw geometry. This evidence does not qualify diode numerical physics
 or fix the legacy public parse/preparation path; those remain D2-D5.
+
+D2 integrates the existing evaluator's temperature bootstrap/freeze without a new
+evaluator target. [Evaluation](Sources/CoreSpiceMOSResolution/Evaluation/DESIGN.md)
+owns session continuity; [Frontend](Sources/CoreSpiceLowering/Frontend/DESIGN.md)
+owns source/caller root selection; [IR](Sources/CoreSpiceIR/DESIGN.md) transports
+the stamp and [native execution](Sources/CoreSpice/NativeExecution/DESIGN.md)
+rejects another environment before numerical preparation. D3/D4 diode adoption
+remains separate.
+
+D2 downstream impact: Xcircuite already consumes the selected session conditions.
+Studio currently pins the prior CoreSpice and changes process temperature after
+beginEvaluation. D5 must move that override into NetlistTemperaturePolicy before
+adopting D2 or the exact environment guard correctly refuses the conflicting edit.
+D2 does not update those pinned downstream dependency graphs.

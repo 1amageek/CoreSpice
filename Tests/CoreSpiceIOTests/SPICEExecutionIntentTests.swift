@@ -114,7 +114,7 @@ struct SPICEExecutionIntentTests {
         let netlist = try parseResult.get()
         let options = try IOTestFrontend.options(netlist)
 
-        #expect(options.temperatureCelsius == nil)
+        #expect(options.temperatureCelsius == 27)
         #expect(options.nominalTemperatureCelsius == 25)
         #expect(options.diagnostics.isEmpty)
         #expect(try options.operatingConditions().nominalTemperatureKelvin == 298.15)

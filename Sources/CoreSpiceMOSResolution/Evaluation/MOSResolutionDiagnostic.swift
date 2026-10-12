@@ -1,7 +1,11 @@
+import CoreSpiceEvaluationContracts
 import CoreSpiceMOSContracts
 
 /// Immutable failure evidence. Candidate ranges require this retained snapshot owner.
 public struct MOSResolutionDiagnostic: Sendable {
+    public let condition: EvaluationCondition?
+    public let conditionSource: MOSSourceOccurrence?
+    public let conditionDependencies: [MOSConditionDependency]
     public let snapshot: MOSDeclarationSnapshot
     public let cause: MOSResolutionFailure
     public let instance: String?

@@ -130,3 +130,9 @@ Consume [DiodeContracts](../CoreSpiceDiodeContracts/DESIGN.md) and adapt the sha
 [Environment](../CoreSpiceEvaluationContracts/Environment/DESIGN.md) to the existing
 OperatingConditions API. That adapter must validate semantic identity rather than
 silently choosing a second nominal or operating temperature.
+
+## D2 Operating Conditions
+
+| Design | Relationship | Contract Used | Summary | Cautions |
+|---|---|---|---|---|
+| [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md) | depends on | Checked environment identity | D2 temperature meaning | Standard Library only; source policy stays outside this module |

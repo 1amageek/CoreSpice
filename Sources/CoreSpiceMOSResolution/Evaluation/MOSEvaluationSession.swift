@@ -1,3 +1,4 @@
+import CoreSpiceEvaluationContracts
 import CoreSpiceMOSContracts
 
 /// Exclusive deterministic evaluation state shared by numeric consumers and MOS selection.
@@ -14,6 +15,24 @@ public struct MOSEvaluationSession: ~Copyable {
     public private(set) var failureDiagnostic: MOSResolutionDiagnostic?
     public static var randomGeneratorVersion: String { MOSCoreRandom.version }
 
+    public private(set) var environment: EvaluationEnvironment?
+    package var activeCondition: EvaluationCondition?
+    package var bootstrapAmbient: TemperatureKelvin?
+
+    package mutating func freezeEnvironment(_ value: EvaluationEnvironment) {
+        environment = value; activeCondition = nil; bootstrapAmbient = nil
+        attempt.conditionSource = nil; attempt.variableBytes = 0; attempt.isTruncated = false
+    }
+    package func scalarAmbient() throws(MOSResolutionFailure) -> Double {
+        let temperature: TemperatureKelvin
+        if let environment { temperature = environment.ambient }
+        else if let bootstrapAmbient { temperature = bootstrapAmbient }
+        else if let activeCondition { throw .conditionCycle(activeCondition) }
+        else { throw .environmentUnavailable }
+        do { return try temperature.celsius().value }
+        catch { throw .invalidTemperature(activeCondition ?? .ambient, error) }
+    }
+
     private var budget: MOSStorageBudget
     private var random: MOSCoreRandom
     private var rootVisits: [MOSRootVisit] = []
@@ -22,6 +41,7 @@ public struct MOSEvaluationSession: ~Copyable {
     private var instances: [MOSInstanceEvaluationKey: MOSInstanceEvaluationRecord] = [:]
     private var attempt = MOSEvaluationAttempt()
     private let diagnosticHeaderBytes: UInt64
+    private let diagnosticDependencyBytes: UInt64
     private let diagnosticCandidateBytes: UInt64
 
     public init(snapshot: MOSDeclarationSnapshot, graph: MOSInvocationGraph, seed: UInt64,
@@ -51,14 +71,21 @@ public struct MOSEvaluationSession: ~Copyable {
         attempt.candidates.reserveCapacity(Int(count))
         let candidateBytes = try MOSStorageBudget.capacityBytes(attempt.candidates.capacity, of: MOSCandidateEvidence.self)
         guard candidateBytes <= limits.maximumDiagnosticBytes - header else { throw .limitExceeded(.diagnosticBytes) }
+        let dependencyStride = UInt64(MemoryLayout<MOSConditionDependency>.stride)
+        let dependencyCount = min(UInt64(limits.maximumExpressionDepth),
+            (limits.maximumDiagnosticBytes - header - candidateBytes) / 2 / dependencyStride)
+        attempt.conditionDependencies.reserveCapacity(Int(dependencyCount))
+        let dependencyBytes = try MOSStorageBudget.capacityBytes(attempt.conditionDependencies.capacity, of: MOSConditionDependency.self)
+        guard dependencyBytes <= limits.maximumDiagnosticBytes - header - candidateBytes else { throw .limitExceeded(.diagnosticBytes) }
+        self.diagnosticDependencyBytes = dependencyBytes
         self.snapshot = snapshot; self.graph = graph; self.seed = seed; self.limits = limits
         self.budget = budget; self.random = MOSCoreRandom(seed: seed); self.attempt = attempt
         self.diagnosticHeaderBytes = header; self.diagnosticCandidateBytes = candidateBytes
     }
 
     public consuming func finishProvenance() -> MOSEvaluationProvenance {
-        MOSEvaluationProvenance(seed: seed, randomGeneratorVersion: MOSCoreRandom.version,
-            evaluatorVersion: "CoreSpice.MOSEvaluator.v1", randomDraws: randomDraws, rootVisits: rootVisits)
+        MOSEvaluationProvenance(environment: environment, seed: seed, randomGeneratorVersion: MOSCoreRandom.version,
+            evaluatorVersion: "CoreSpice.MOSEvaluator.v2.temperature-freeze", randomDraws: randomDraws, rootVisits: rootVisits)
     }
 
     package mutating func recordRootVisit(_ visit: MOSRootVisit) throws(MOSResolutionFailure) {
@@ -159,7 +186,7 @@ public struct MOSEvaluationSession: ~Copyable {
             attempt.candidates.removeAll(keepingCapacity: true)
             attempt.variableBytes = 0; attempt.isTruncated = false
             let textBytes = UInt64(request.instance.utf8.count) + sourceBytes(request.source)
-            if textBytes <= limits.maximumDiagnosticBytes - diagnosticHeaderBytes - diagnosticCandidateBytes {
+            if textBytes <= limits.maximumDiagnosticBytes - diagnosticHeaderBytes - diagnosticCandidateBytes - diagnosticDependencyBytes {
                 attempt.instance = request.instance; attempt.instanceSource = request.source
                 attempt.variableBytes = textBytes
             } else { attempt.isTruncated = true }
@@ -314,9 +341,30 @@ public struct MOSEvaluationSession: ~Copyable {
         else { attempt.isTruncated = true }
     }
 
+    package mutating func beginCondition(_ condition: EvaluationCondition, source: MOSSourceOccurrence?) {
+        activeCondition = condition
+        attempt.program = nil; attempt.binding = nil; attempt.scope = nil; attempt.invocation = nil
+        attempt.conditionSource = nil; attempt.variableBytes = 0; attempt.isTruncated = false
+        let bytes = sourceBytes(source)
+        if bytes <= limits.maximumDiagnosticBytes - diagnosticHeaderBytes - diagnosticCandidateBytes - diagnosticDependencyBytes {
+            attempt.conditionSource = source; attempt.variableBytes = bytes
+        } else { attempt.isTruncated = true }
+    }
+
+    package mutating func recordConditionPath(_ keys: [MOSInvocationBindingKey]) {
+        guard failureDiagnostic == nil else { return }
+        attempt.conditionDependencies.removeAll(keepingCapacity: true)
+        for key in keys {
+            guard attempt.conditionDependencies.count < attempt.conditionDependencies.capacity else {
+                attempt.isTruncated = true; break
+            }
+            attempt.conditionDependencies.append(.init(invocation: key.invocation, symbol: key.symbol))
+        }
+    }
+
     package mutating func poison(_ cause: MOSResolutionFailure) {
         guard failureDiagnostic == nil else { return }
-        failureDiagnostic = MOSResolutionDiagnostic(snapshot: snapshot, cause: cause,
+        failureDiagnostic = MOSResolutionDiagnostic(condition: activeCondition, conditionSource: attempt.conditionSource, conditionDependencies: attempt.conditionDependencies, snapshot: snapshot, cause: cause,
             instance: attempt.instance, instanceSource: attempt.instanceSource, invocation: attempt.invocation,
             scope: attempt.scope, modelReference: attempt.modelReference, binding: attempt.binding,
             program: attempt.program, rawGeometry: attempt.rawGeometry, normalizedGeometry: attempt.normalizedGeometry,

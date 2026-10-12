@@ -94,3 +94,10 @@ CoreSpiceMOSContractsTests owns condition, identity and malformed topology failu
 Devices tests own actual exact-release preparation, owner transfer and cancellation.
 Native/WASM/Embedded runtime probes verify these portable values. Changes require
 rechecking IR, Devices and native execution composition assumptions.
+
+## D2 Frozen Environment Admission
+
+MOSPreparationIdentity compares a resolved value's non-nil evaluation environment
+with ambient/nominal preparation Kelvin words before publishing an identity.
+Mismatch is invalidConditions; no kernel owner/setup is created. Accounting
+capacities remain separate from semantic identity.

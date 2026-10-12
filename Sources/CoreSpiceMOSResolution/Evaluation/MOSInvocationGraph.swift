@@ -34,7 +34,7 @@ public final class MOSInvocationGraph: Sendable {
             try budget.addArray(invocation.actuals)
             for actual in invocation.actuals {
                 try budget.spend(); try budget.addSource(actual.source)
-                _ = try snapshot.name(of: actual.symbol)
+                if try snapshot.name(of: actual.symbol) == "temper" { throw .reservedParameter(actual.symbol) }
                 switch actual.value {
                 case .program(let program): _ = try snapshot.program(program)
                 case .constant(let value): guard value.isFinite else { throw .nonFiniteValue(actual.symbol) }

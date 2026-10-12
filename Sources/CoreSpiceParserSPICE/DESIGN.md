@@ -682,3 +682,7 @@ and reject unsupported trailing positional/flag tokens with a location. Current
 D parsing can consume such tokens without retaining them; fix that grammar path
 before claiming unknown-parameter rejection through the public API. Do not expand
 the MOS profile into a general SPICE/diode compatibility promise.
+
+D2 parses one scalar .temp value and refuses trailing temperature sweep values
+instead of discarding them. Expression bootstrap semantics belong to Lowering;
+Parser preserves expressions without evaluating them.

@@ -2,8 +2,7 @@
 
 ## Purpose and Scope
 
-Status: D1 temperature values and identity implemented; D2 bootstrap/freeze and
-consumer transport below remain designed, not implemented. Parent: [EvaluationContracts](../DESIGN.md). No children.
+Status: D1 values and D2 bootstrap/freeze consumer transport implemented. Parent: [EvaluationContracts](../DESIGN.md). No children.
 Own immutable ambient/nominal temperature meaning and evaluation identity.
 
 ## Responsibilities and Boundaries
@@ -84,7 +83,7 @@ receive the same checked environment through binding, not a duplicated scalar ca
 
 ## State, Ownership, and Lifecycle
 
-The proposed bootstrap session is noncopyable and cannot publish a CircuitIR.
+The bootstrap session is noncopyable and cannot publish a CircuitIR.
 Consuming freeze returns the ordinary exclusive session; a frozen environment is
 an immutable Sendable value. No mutable global temperature or cache invalidation API
 exists. Failure/cancel poisons the session and releases its owned reservations.
@@ -116,9 +115,22 @@ Kelvin words, with a validating reconstruction initializer. It is a semantic val
 not a digest and not Swift Hasher output; artifact digest encoding remains external.
 Kelvin-to-Celsius conversion can fail when subtraction rounds a positive temperature
 to absolute zero; it must not manufacture an invalid Celsius value. Scalar builtin
-lookup, bootstrap/freeze and circuit identity transport remain D2 work.
+lookup, bootstrap/freeze and circuit identity transport are implemented by the
+linked evaluator/frontend consumers under D2.
 
 The component stores immutable checked values only. Native, WASM and Embedded use
 the same stored types and read paths, with no conditional synchronization or mutable
 cache. [D1 verification](../../../validation/diode-contracts/README.md) records the
 fixed toolchain, runtime scope and reproducible commands.
+
+## D2 Composition Contract
+
+EvaluationCondition identifies ambient and nominal bootstrap roots. The existing
+MOS evaluation engine owns their execution; this component owns only their units
+and immutable identity. Typed caller defaults/overrides never come from the process
+environment. A source-evaluated CircuitIR and any temperature-aware resolved MOS
+carry this exact identity; preparing/binding under another environment fails.
+
+Condition programs carry their source occurrence into bounded diagnostics, including
+the root directive location. Retaining that source shares the existing diagnostic
+byte reservation; oversized source text is omitted with isTruncated set.

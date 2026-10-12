@@ -228,3 +228,10 @@ full CoreSpiceAnalysisTests target verifies unchanged numerical behavior.
 Result-storage retention exposes its optional opaque owner within the package.
 [Waveform conversion](../CoreSpiceWaveform/DESIGN.md) transports that lease without
 retaining discarded numerical payload arrays or changing admission policy.
+
+## D2 Source Evaluation Guard
+
+StandardCircuitDeviceBinding checks plan.ir evaluationEnvironment against its
+OperatingConditions before binding any instances. Monte Carlo/sensitivity retain
+the plan and guard through this same binding entry. Source-free typed plans remain
+bindable under explicitly supplied conditions.

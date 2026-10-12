@@ -87,3 +87,12 @@ this protects scalar non-MOS values too. All CircuitIR reconstruction paths pres
 it. Source-free typed circuits have a distinct programmatic origin; runtime ambient
 variables keep their existing binding semantics and cannot masquerade as evaluated
 source scalars. D2 owns this common stamp/entry guard; D5 verifies every transport.
+
+## D2 Source Evaluation Environment Transport
+
+CircuitIR optionally carries EvaluationEnvironmentIdentity. Non-nil means source
+scalar values were evaluated under that frozen environment; absence is reserved
+for source-free typed IR. Builders, clones, MOS topology preparation and compiler
+ExecutionPlan transport preserve it. Whole-circuit binding compares both ambient
+and nominal values before binding any device, even when no MOS exists. This stamp
+is not a claim of numerical execution or physical accuracy.

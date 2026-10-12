@@ -1,3 +1,5 @@
+import CoreSpiceEvaluationContracts
+
 /// Complete process-local semantic identity; accounting capacities are not preparation inputs.
 public struct MOSPreparationIdentity: Sendable, Hashable {
     public let resolved: ResolvedMOSInstance
@@ -6,6 +8,10 @@ public struct MOSPreparationIdentity: Sendable, Hashable {
 
     public init(resolved: ResolvedMOSInstance, conditions: MOSPreparationConditions,
                 implementationIdentity: String) throws(MOSPreparationFailure) {
+        if let environment = resolved.evaluationEnvironment {
+            guard environment.ambientKelvinBits == conditions.ambientKelvin.bitPattern,
+                  environment.nominalKelvinBits == conditions.nominalKelvin.bitPattern else { throw .invalidConditions }
+        }
         guard !implementationIdentity.isEmpty else { throw .invalidImplementationIdentity }
         self.resolved = resolved; self.conditions = conditions; self.implementationIdentity = implementationIdentity
     }
@@ -13,7 +19,7 @@ public struct MOSPreparationIdentity: Sendable, Hashable {
     public static func == (lhs: Self, rhs: Self) -> Bool {
         let a = lhs.resolved, b = rhs.resolved
         return lhs.conditions == rhs.conditions && lhs.implementationIdentity == rhs.implementationIdentity &&
-            a.identitySpace == b.identitySpace && a.source == b.source && a.instanceSource == b.instanceSource &&
+            a.evaluationEnvironment == b.evaluationEnvironment && a.identitySpace == b.identitySpace && a.source == b.source && a.instanceSource == b.instanceSource &&
             a.selectedName == b.selectedName && a.symbolNames == b.symbolNames && a.scope == b.scope &&
             a.scopeInstantiation == b.scopeInstantiation && a.instance == b.instance && a.declaration == b.declaration &&
             a.polarity == b.polarity && a.release == b.release && a.releaseOrigin == b.releaseOrigin &&
@@ -25,6 +31,7 @@ public struct MOSPreparationIdentity: Sendable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(conditions); hasher.combine(implementationIdentity)
+        hasher.combine(resolved.evaluationEnvironment)
         hasher.combine(resolved.identitySpace); hasher.combine(resolved.source); hasher.combine(resolved.instanceSource)
         hasher.combine(resolved.selectedName); hasher.combine(resolved.symbolNames); hasher.combine(resolved.scope)
         hasher.combine(resolved.scopeInstantiation); hasher.combine(resolved.instance); hasher.combine(resolved.declaration)

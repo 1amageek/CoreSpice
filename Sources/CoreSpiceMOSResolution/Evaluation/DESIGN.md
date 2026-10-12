@@ -217,3 +217,30 @@ component continues to own all scalar execution, memoization, RNG and poisoning.
 Implement the condition-graph phase in this engine, not in a second IO evaluator.
 Preserve validated dependency results and PRNG state through the consuming freeze;
 record evaluator-V2 visitation and revalidate existing MOS/resistor callers.
+
+## D2 Bootstrap and Freeze Implementation Contract
+
+MOSEvaluationBootstrapSession exclusively owns one MOSEvaluationSession. Consuming
+freeze evaluates ambient then nominal roots through the existing interpreter and
+returns that same owner, including binding memo, PRNG, diagnostic reserve and work
+ledger. It creates no second interpreter or RNG. Root inputs are checked Kelvin
+values or snapshot-owned expression programs. The frozen environment is immutable.
+Before ambient completes, reaching builtin temper is a condition cycle; nominal
+may read the completed ambient. Function formals precede builtin lookup. Binding
+declarations/actuals named temper are reserved and refused; absent time/hertz are
+explicit unsupported scalar variables. Failure poisons the existing session.
+
+Provenance records evaluator V2, ordered condition roots and exact environment.
+Condition-cycle diagnostics retain bounded active binding dependencies; diagnostic
+capacity is reserved by the same session owner. Plain source-free resolver sessions
+have no environment and refuse temper. Frozen sessions stamp resolved MOS values;
+MOS preparation identity rejects conditions that differ from that stamp.
+
+ConditionEvaluationTests owns memo/random continuity, direct/indirect cycles, formal
+shadowing, reserved names, invalid temperature, work/storage/cancel and poisoning.
+Native/WASM/Embedded probes use the same stored state and access implementation.
+
+Condition source is admitted into the already reserved diagnostic capacity before
+executing its root. It is cleared after successful freeze. Oversized path/capture
+text sets truncation and cannot increase the diagnostic budget. Source location and
+active binding path remain separate fields.

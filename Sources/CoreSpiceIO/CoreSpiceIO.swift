@@ -89,10 +89,11 @@ public enum SPICEIO {
         profile: MOSInputProfile,
         seed: UInt64,
         limits: MOSResolutionLimits,
+        temperaturePolicy: NetlistTemperaturePolicy? = nil,
         control: (any MOSResolutionControlling)? = nil
     ) async throws -> LoweredCircuit {
         let result = await parse(source)
-        return try lower(result.get(), profile: profile, seed: seed, limits: limits, control: control)
+        return try lower(result.get(), profile: profile, seed: seed, limits: limits, temperaturePolicy: temperaturePolicy, control: control)
     }
 
     /// Returns the resolved circuit together with its exact inspection and evaluation owners.
@@ -101,11 +102,12 @@ public enum SPICEIO {
         profile: MOSInputProfile,
         seed: UInt64,
         limits: MOSResolutionLimits,
+        temperaturePolicy: NetlistTemperaturePolicy? = nil,
         control: (any MOSResolutionControlling)? = nil
     ) throws -> LoweredCircuit {
         let compiled = try NetlistLowering.compile(netlist, limits: limits, control: control)
         var session = try NetlistLowering.beginEvaluation(compiled, profile: profile, limits: limits,
-                                                         seed: seed, control: control)
+                                                         seed: seed, temperaturePolicy: temperaturePolicy, control: control)
         let options = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
         try session.lower(geometryScale: options.geometryScale)
         return try session.finish()

@@ -45,12 +45,12 @@ let package = Package(
                 exclude: ["DESIGN.md", "Input/DESIGN.md"]),
 
         // --- Portable MOS interpretation boundary ---
-        .target(name: "CoreSpiceMOSContracts", exclude: ["DESIGN.md", "Values/DESIGN.md", "Schema/DESIGN.md", "Preparation/DESIGN.md"]),
-        .target(name: "CoreSpiceMOSResolution", dependencies: ["CoreSpiceMOSContracts"],
+        .target(name: "CoreSpiceMOSContracts", dependencies: ["CoreSpiceEvaluationContracts"], exclude: ["DESIGN.md", "Values/DESIGN.md", "Schema/DESIGN.md", "Preparation/DESIGN.md"]),
+        .target(name: "CoreSpiceMOSResolution", dependencies: ["CoreSpiceMOSContracts", "CoreSpiceEvaluationContracts"],
                 exclude: ["DESIGN.md", "Declarations/DESIGN.md", "Evaluation/DESIGN.md", "Selection/DESIGN.md"]),
 
         // --- IR ---
-        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent", "CoreSpiceMOSContracts"], exclude: ["README.md", "DESIGN.md", "MOSInstances/DESIGN.md"]),
+        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent", "CoreSpiceMOSContracts", "CoreSpiceEvaluationContracts"], exclude: ["README.md", "DESIGN.md", "MOSInstances/DESIGN.md"]),
 
         // --- LAPACK ABI boundary ---
         .target(
@@ -73,8 +73,8 @@ let package = Package(
             exclude: ["DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "BSIM45/DESIGN.md", "PreparationStorage/DESIGN.md"]),
 
         // --- Devices ---
-        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceMOSContracts"],
-                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "BSIM45/DESIGN.md", "OutputReferredNoise/DESIGN.md", "MOSPreparation/DESIGN.md"]),
+        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceMOSContracts", "CoreSpiceEvaluationContracts"],
+                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "BSIM45/DESIGN.md", "OutputReferredNoise/DESIGN.md", "MOSPreparation/DESIGN.md", "Diode/DESIGN.md"]),
 
         // --- Compile ---
         .target(
@@ -150,7 +150,7 @@ let package = Package(
 
         // --- Lowering: ParsedNetlist → CircuitIR conversion ---
         .target(name: "CoreSpiceLowering",
-                dependencies: ["CoreSpiceParsedIR", "CoreSpiceIR", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution"], exclude: ["DESIGN.md", "Frontend/DESIGN.md"]),
+                dependencies: ["CoreSpiceParsedIR", "CoreSpiceIR", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceEvaluationContracts"], exclude: ["DESIGN.md", "Frontend/DESIGN.md", "DiodeResolution/DESIGN.md"]),
 
         // --- Exporter: Exporter protocols and registry ---
         .target(name: "CoreSpiceExporter",
@@ -170,7 +170,7 @@ let package = Package(
 
         // --- I/O Umbrella: Re-exports all I/O modules ---
         .target(name: "CoreSpiceIO",
-                dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceAnalysis",
+                dependencies: ["CoreSpiceEvaluationContracts", "CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceAnalysis",
                                "CoreSpiceMOSContracts", "CoreSpiceMOSResolution",
                                "CoreSpiceParsedIR", "CoreSpiceWaveform",
                                "CoreSpiceParser", "CoreSpiceParserSPICE",
@@ -220,14 +220,15 @@ let package = Package(
         // ==========================================================================
 
         .testTarget(name: "CoreSpiceBSIM45KernelTests", dependencies: ["CoreSpiceCompactModels", "CoreSpiceMOSContracts"]),
-        .testTarget(name: "CoreSpiceBSIM3IntegrationTests", dependencies: ["CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "CoreSpiceBSIM3NoiseTests", dependencies: ["CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "CoreSpiceBSIM45IntegrationTests", dependencies: ["CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"]),
-        .testTarget(name: "CoreSpiceBSIM4IntegrationTests", dependencies: ["CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "CoreSpiceBSIM4NoiseTests", dependencies: ["CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceCompactModels", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
+        .testTarget(name: "CoreSpiceBSIM3IntegrationTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
+        .testTarget(name: "CoreSpiceBSIM3NoiseTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
+        .testTarget(name: "CoreSpiceBSIM45IntegrationTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"]),
+        .testTarget(name: "CoreSpiceBSIM4IntegrationTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
+        .testTarget(name: "CoreSpiceBSIM4NoiseTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceCompactModels", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceBSIM4KernelTests", dependencies: ["CoreSpiceCompactModels"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceCompactModelsTests", dependencies: ["CoreSpiceCompactModels"],
             resources: [.copy("Fixtures")]),
+        .testTarget(name: "CoreSpiceConditionEvaluationTests", dependencies: ["CoreSpiceLowering", "CoreSpiceIR", "CoreSpiceParsedIR", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceEvaluationContracts"]),
         .testTarget(name: "CoreSpiceEvaluationContractsTests", dependencies: ["CoreSpiceEvaluationContracts"]),
         .testTarget(name: "CoreSpiceDiodeContractsTests", dependencies: ["CoreSpiceDiodeContracts", "CoreSpiceEvaluationContracts"]),
         .testTarget(name: "CoreSpiceMOSContractsTests", dependencies: ["CoreSpiceMOSContracts"]),
@@ -277,7 +278,7 @@ let package = Package(
             .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
             .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
 
-        .testTarget(name: "CoreSpiceNativeExecutionTests", dependencies: ["CoreSpice", "CoreSpiceIO", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceDevices",
+        .testTarget(name: "CoreSpiceNativeExecutionTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceAnalysis", "CoreSpiceLowering", "CoreSpiceIO", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceDevices",
             .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
 
         .testTarget(name: "CoreSpiceInitialConditionTests", dependencies: ["CoreSpiceIO", "CoreSpiceIR", "CoreSpiceParsedIR", "CoreSpiceLowering", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),

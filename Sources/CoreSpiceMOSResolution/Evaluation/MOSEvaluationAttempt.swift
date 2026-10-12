@@ -1,6 +1,8 @@
 import CoreSpiceMOSContracts
 
 package struct MOSEvaluationAttempt {
+    package var conditionSource: MOSSourceOccurrence?
+    package var conditionDependencies: [MOSConditionDependency] = []
     package var instance: String?
     package var instanceSource: MOSSourceOccurrence?
     package var invocation: UInt64?

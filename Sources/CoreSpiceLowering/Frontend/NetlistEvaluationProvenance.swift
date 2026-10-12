@@ -3,6 +3,7 @@ import CoreSpiceMOSResolution
 
 /// Final shared evaluation trace and checked resource counters.
 public struct NetlistEvaluationProvenance: Sendable {
+    public let temperatures: NetlistTemperatureProvenance
     public let profile: MOSInputProfile
     public let evaluation: MOSEvaluationProvenance
     public let evaluationSteps: UInt64

@@ -94,9 +94,14 @@ public struct MOSDeclarationSnapshotBuilder: ~Copyable {
         programs.append(program)
         return id
     }
+    private func nameForBinding(_ symbol: MOSSymbolID) throws(MOSResolutionFailure) -> String {
+        try requireSymbol(symbol)
+        return symbols[Int(symbol.rawValue)]
+    }
     public mutating func addBinding(symbol: MOSSymbolID, scope: MOSScopeID, program: MOSProgramID,
                                    source: MOSSourceOccurrence? = nil) throws(MOSResolutionFailure) -> MOSBindingID {
         try requireActive()
+        if try nameForBinding(symbol) == "temper" { throw .reservedParameter(symbol) }
         try requireSymbol(symbol); try requireScope(scope); try requireProgram(program)
         let id = MOSBindingID(try index(bindings.count, maximum: limits.maximumBindings, kind: .bindings))
         let position = Int(scope.rawValue)

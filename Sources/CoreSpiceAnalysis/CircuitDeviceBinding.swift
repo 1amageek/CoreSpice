@@ -27,6 +27,7 @@ public struct StandardCircuitDeviceBinding: CircuitDeviceBinding, Sendable {
         plan: ExecutionPlan,
         instances: [Instance]
     ) throws -> PreparedCircuit {
+        try operatingConditions.validateEvaluationEnvironment(plan.ir.evaluationEnvironment)
         guard instances.count == plan.ir.instances.count else {
             throw PreparedCircuitError.boundDeviceCountMismatch(
                 expected: plan.ir.instances.count,

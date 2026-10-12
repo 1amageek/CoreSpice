@@ -51,7 +51,7 @@ extension NativeCircuitPreparer {
         }
         return CircuitIR(nodes: nodes, branches: circuit.branches, instances: instances,
             groundNode: circuit.groundNode, nodeNames: names, branchNames: circuit.branchNames,
-            opticalNodes: circuit.opticalNodes, opticalConnections: circuit.opticalConnections)
+            opticalNodes: circuit.opticalNodes, opticalConnections: circuit.opticalConnections, evaluationEnvironment: circuit.evaluationEnvironment)
     }
 
 }

@@ -1,6 +1,8 @@
 import CoreSpiceMOSContracts
+import CoreSpiceMOSResolution
 
 public enum SPICESimulationPreparationError: Error, Sendable {
+    case condition(MOSConditionEvaluationFailure, resourceCause: (any Error)?)
     case resolution(MOSResolutionFailure, resourceCause: (any Error)?)
     case invalidPolicy
     case missingAnalysis

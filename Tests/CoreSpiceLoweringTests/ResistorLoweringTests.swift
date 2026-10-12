@@ -128,10 +128,10 @@ struct ResistorLoweringTests {
         #expect(bound.instance.referencedNodes == instance.referencedNodes)
     }
 
-    @Test func functionTemperatureRemainsRuntimeWithNumericParameterOfSameName() async throws {
+    @Test func functionTemperatureRemainsRuntimeWithScalarParameters() async throws {
         let parsed = try await SPICEParser().parse(source: """
         ambient temperature is runtime
-        .param rv=100 temper=999
+        .param rv=100
         .func thermal(x) {x*(1+.01*(temper-27))}
         R1 a 0 r=thermal(rv)
         .end

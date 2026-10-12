@@ -1,3 +1,4 @@
+import CoreSpiceEvaluationContracts
 import CoreSpiceMOSContracts
 
 /// Resolves one concrete MOS instance using the session's shared evaluation order.
@@ -146,8 +147,9 @@ private func resolveAdmittedMOS(_ request: MOSResolutionRequest, from snapshot: 
         rules.append(MOSSelectionPolicy.rule(at: index, family: family, profile: request.profile, widthPerFinger: useFingers))
     }
     let limits = session.limits
+    let environment = session.environment?.identity
     return try session.withValidationBudget { (workBudget: inout MOSStorageBudget) throws(MOSResolutionFailure) -> ResolvedMOSInstance in
-        try ResolvedMOSInstance(identitySpace: snapshot.identitySpace, source: model.source,
+        try ResolvedMOSInstance(evaluationEnvironment: environment, identitySpace: snapshot.identitySpace, source: model.source,
         instanceSource: request.source, selectedName: model.name, symbolNames: snapshot.symbols,
         scope: model.scope, scopeInstantiation: request.scopeInstantiation, instance: request.instance,
         declaration: model.id, polarity: model.polarity, release: release, releaseOrigin: origin,

@@ -592,10 +592,33 @@ ngspice control-language spelling is implemented.
 
 ## Designed Frozen Environment and Diode Adapter
 
-Status: proposed migration; the implemented eager root-evaluation API is not yet
-changed. The [Environment contract](../../CoreSpiceEvaluationContracts/Environment/DESIGN.md)
-owns the new bootstrap/freeze ordering. Frontend will retain one evaluator across
-that transition and compose [DiodeResolution](../DiodeResolution/DESIGN.md) through
+Status: D2 frozen evaluation implemented; D3 diode adapter remains designed. The [Environment contract](../../CoreSpiceEvaluationContracts/Environment/DESIGN.md)
+owns the new bootstrap/freeze ordering. Frontend retains one evaluator across
+that transition. D3 will compose [DiodeResolution](../DiodeResolution/DESIGN.md) through
 its source/index adapter. The current generic non-MOS merge must no longer serve
 diodes. Evaluation-free invocation planning remains here; new diode model buffers
 are charged by declaration/invocation, not copied into every instance dictionary.
+
+## D2 Temperature Frontend Implementation Contract
+
+NetlistTemperaturePolicy supplies checked defaults and optional typed ambient and
+nominal overrides. The documented standard convenience policy is 27 C for both;
+IO profile preparation supplies ParserConfiguration.defaultTemperature explicitly.
+The last ordered global .temp/.options temp wins for ambient, and the last global
+.options tnom wins for nominal; caller overrides precede source. All condition
+syntax is checked at compile time, including dead settings. Only winning condition
+programs are evaluated. Local condition controls and multiple-temperature sweeps
+are refused. Condition provenance retains selected control indices and origin;
+CompiledNetlist retains their actual source locations.
+
+Planning remains evaluation-free. beginEvaluation bootstraps/freeze using the same
+MOSEvaluationSession before resolving ordinary root bindings. The returned lowering
+session holds the frozen environment; winning condition scalar slots are memoized
+without replay. CircuitIR publication carries the exact identity, including scalar
+resistors and all source-derived constants. Runtime resistor temper remains a
+runtime expression and uses the same checked binding environment. Public ordinary
+scalar evaluation cannot enter an unfinished bootstrap owner.
+
+TemperatureEnvironmentExecutionTests verifies public scalar/runtime resistor DC,
+MOS resolved/receipt identity, local/model temperature separation, caller override,
+whole-circuit refusal before reservation and direct Analysis binding refusal.

@@ -85,7 +85,13 @@ Lowering and Devices assumption checks and package composition verification.
 ## Designed Evaluation Environment Dependency
 
 The [Evaluation child](Evaluation/DESIGN.md#designed-scalar-temperature-dependency)
-will consume the proposed [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md)
+consumes [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md)
 target. It remains independent of IR, Devices, Foundation and diode physics.
 Existing MOS resolution results must bind the frozen environment/provenance through
-their evaluation identity when the new shared-session contract is adopted.
+their evaluation identity under the D2 shared-session contract.
+
+## D2 Environment Dependency
+
+| Design | Relationship | Contract Used | Summary | Cautions |
+|---|---|---|---|---|
+| [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md) | depends on | Checked environment identity | D2 temperature meaning | Standard Library only; source policy stays outside this module |

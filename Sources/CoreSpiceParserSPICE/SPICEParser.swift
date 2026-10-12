@@ -3057,6 +3057,9 @@ private struct SPICEParserImpl {
 
     private mutating func parseTemp(location: SourceLocation?) throws {
         let value = try parseParameterValue()
+        guard isAtEnd || isNewline else {
+            throw ParserDiagnostic.error("Temperature sweeps require an explicit supported contract", at: currentLocation)
+        }
         try controls.append(.temp(value: value, location: location))
         try skipToEndOfLine()
     }

@@ -1,3 +1,4 @@
+import CoreSpiceEvaluationContracts
 import CoreSpiceAnalysis
 import CoreSpiceDevices
 import CoreSpiceIR
@@ -13,6 +14,8 @@ import Foundation
 /// not applied.
 public struct SPICEAnalysisOptions: Sendable {
 
+    public private(set) var evaluationEnvironment: EvaluationEnvironment?
+    public private(set) var temperatureProvenance: NetlistTemperatureProvenance?
     public var bsim4NoisePreparationRequested: Bool
     public var bsim4PreparationPolicy: BSIM4PreparationPolicy?
     public var executionLimits: TransientExecutionLimits?
@@ -75,6 +78,7 @@ public struct SPICEAnalysisOptions: Sendable {
             switch control {
             case .option(let name, let sourceValue, let location):
                 let key = normalizedOptionName(name)
+                if key == "temp" || key == "tnom" { continue }
                 if key == "wnflag" {
                     _ = try session.evaluateMOSWidthPerFingerOption(at: index)
                     continue
@@ -110,16 +114,16 @@ public struct SPICEAnalysisOptions: Sendable {
                     options: &options,
                     diagnostics: &diagnostics
                 )
-            case .temp:
-                let slot = try compiled.scalarSlot(at: .control(index: index, field: "value"))
-                let temperature = try session.evaluateScalar(slot)
-                try validateFinite(temperature, optionName: "temp")
-                options.temperatureCelsius = temperature
+            case .temp: continue
             default:
                 break
             }
         }
 
+        options.evaluationEnvironment = session.environment
+        options.temperatureProvenance = session.temperatureProvenance
+        options.temperatureCelsius = try session.environment.ambient.celsius().value
+        options.nominalTemperatureCelsius = try session.environment.nominal.celsius().value
         options.executionLimitOptionsPresent = !budgetValues.isEmpty
         if let accepted = budgetValues[budgetKeys[0]], let attempts = budgetValues[budgetKeys[1]],
            let iterations = budgetValues[budgetKeys[2]], let scalars = budgetValues[budgetKeys[3]],
@@ -147,7 +151,15 @@ public struct SPICEAnalysisOptions: Sendable {
 
     /// Resolves validated device operating conditions for binding.
     public func operatingConditions() throws -> OperatingConditions {
-        try OperatingConditions(
+        if let environment = evaluationEnvironment {
+            guard temperatureCelsius == (try environment.ambient.celsius().value),
+                  nominalTemperatureCelsius == (try environment.nominal.celsius().value) else {
+                throw MOSResolutionFailure.conditionMismatch
+            }
+            return try OperatingConditions(temperatureKelvin: environment.ambient.value,
+                nominalTemperatureKelvin: environment.nominal.value)
+        }
+        return try OperatingConditions(
             temperatureCelsius: temperatureCelsius
                 ?? 27.0,
             nominalTemperatureCelsius: nominalTemperatureCelsius ?? 27.0

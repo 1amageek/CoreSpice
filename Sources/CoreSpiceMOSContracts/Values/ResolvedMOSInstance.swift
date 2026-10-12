@@ -1,5 +1,8 @@
+import CoreSpiceEvaluationContracts
+
 /// Immutable resolution only; inspection capability does not admit numerical execution.
 public struct ResolvedMOSInstance: Sendable, Hashable {
+    public let evaluationEnvironment: EvaluationEnvironmentIdentity?
     public let identitySpace: MOSIdentitySpace
     public let source: MOSSourceOccurrence
     public let instanceSource: MOSSourceOccurrence?
@@ -24,7 +27,7 @@ public struct ResolvedMOSInstance: Sendable, Hashable {
     public let candidates: [MOSCandidateEvidence]
     public let retainedBytes: UInt64
 
-    package init(identitySpace: MOSIdentitySpace, source: MOSSourceOccurrence, instanceSource: MOSSourceOccurrence?, selectedName: MOSSymbolID,
+    package init(evaluationEnvironment: EvaluationEnvironmentIdentity? = nil, identitySpace: MOSIdentitySpace, source: MOSSourceOccurrence, instanceSource: MOSSourceOccurrence?, selectedName: MOSSymbolID,
                  symbolNames: [String], scope: MOSScopeID, scopeInstantiation: UInt64, instance: String, declaration: MOSDeclarationID, polarity: MOSPolarity,
                  release: MOSModelRelease, releaseOrigin: MOSReleaseOrigin, schema: MOSSchemaIdentity,
                  modelCoefficients: [MOSNumericParameter], instanceParameters: [MOSNumericParameter],
@@ -91,6 +94,7 @@ public struct ResolvedMOSInstance: Sendable, Hashable {
         }
         try validate(modelCoefficients); try validate(instanceParameters)
         self.retainedBytes = budget.bytes
+        self.evaluationEnvironment = evaluationEnvironment
         self.identitySpace = identitySpace
         self.source = source; self.instanceSource = instanceSource; self.selectedName = selectedName
         self.symbolNames = symbolNames; self.scope = scope; self.scopeInstantiation = scopeInstantiation

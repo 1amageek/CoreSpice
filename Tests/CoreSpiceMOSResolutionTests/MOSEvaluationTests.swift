@@ -40,7 +40,7 @@ struct MOSEvaluationTests {
         let provenance = session.finishProvenance()
         #expect(provenance.seed == 0 && provenance.randomDraws == 4)
         #expect(provenance.randomGeneratorVersion == "CoreSpice.XorShift64Star.v1")
-        #expect(provenance.evaluatorVersion == "CoreSpice.MOSEvaluator.v1")
+        #expect(provenance.evaluatorVersion == "CoreSpice.MOSEvaluator.v2.temperature-freeze")
         #expect(provenance.rootVisits == [.binding(p, invocation: 2), .binding(p, invocation: 2),
             .binding(p, invocation: 3), .program(random, invocation: 2, lexicalScope: child),
             .program(random, invocation: 2, lexicalScope: child)])

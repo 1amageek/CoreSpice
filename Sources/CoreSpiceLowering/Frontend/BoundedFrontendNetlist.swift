@@ -1,3 +1,4 @@
+import CoreSpiceEvaluationContracts
 import CoreSpiceIR
 import CoreSpiceMOSContracts
 
@@ -75,7 +76,7 @@ struct BoundedFrontendNetlist {
             referencedNodes: readNodes))
         try storage.reserve(&references, references.count + 1); references.append(referencedBranchNames)
     }
-    mutating func build() throws -> CircuitIR {
+    mutating func build(environment: EvaluationEnvironmentIdentity) throws -> CircuitIR {
         for index in instances.indices {
             try storage.spend()
             var resolved: [Branch] = []
@@ -93,6 +94,6 @@ struct BoundedFrontendNetlist {
                 referencedNodes: original.referencedNodes)
         }
         return CircuitIR(nodes: nodes, branches: branches, instances: instances,
-            nodeNames: nodeNames, branchNames: branchNames)
+            nodeNames: nodeNames, branchNames: branchNames, evaluationEnvironment: environment)
     }
 }

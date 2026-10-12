@@ -126,8 +126,15 @@ release, rather than comparing it to the canonical display spelling.
 
 ## Designed Environment-Bound Evaluation Identity
 
-Status: proposed. Shared temperature meaning belongs to
+Status: D2 implemented. Shared temperature meaning belongs to
 [Environment](../../CoreSpiceEvaluationContracts/Environment/DESIGN.md). MOS result
-identity/provenance must retain its frozen evaluation identity when the shared
-evaluator migration is adopted; numerical preparation cannot rebind a result whose
+identity/provenance retains its frozen evaluation identity; numerical preparation cannot rebind a result whose
 coefficients used temper to another ambient temperature. Snapshot reuse remains valid.
+
+## D2 MOS Evaluation Identity
+
+ResolvedMOSInstance retains the optional exact evaluation environment of its
+evaluation session. Plain source-free resolver values can remain unstamped;
+temperature-aware source resolution is stamped. This field participates in
+preparation semantic identity and follows the resolved value through instance
+clones and inspection. It does not change model/instance temperature coefficients.

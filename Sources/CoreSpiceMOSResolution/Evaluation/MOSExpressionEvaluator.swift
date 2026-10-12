@@ -62,6 +62,12 @@ private func runMOSExpression(_ expression: MOSExpression, invocation: UInt64, l
                     if formals[index].symbol == symbol { formalValue = formals[index].value; break }
                 }
                 if let formalValue { try pushValue(formalValue, onto: &values, session: &session); continue }
+                let name = try session.snapshot.name(of: symbol)
+                if name == "temper" {
+                    do { try pushValue(session.scalarAmbient(), onto: &values, session: &session) }
+                    catch { session.recordConditionPath(activeBindings); throw error }
+                    continue
+                }
                 let lookupInvocation = symbol == context.selfSymbol ? (context.selfCaller ?? context.invocation) : context.invocation
                 // Charge every bounded ancestry hop, including lookup work on a cache hit.
                 var current: UInt64? = lookupInvocation
@@ -71,7 +77,10 @@ private func runMOSExpression(_ expression: MOSExpression, invocation: UInt64, l
                     if let local = try session.graph.localBinding(symbol, in: id) { binding = local; break }
                     current = try session.graph.invocation(id).callerInvocationID
                 }
-                guard let binding else { throw .undefinedParameter(symbol) }
+                guard let binding else {
+                    if name == "time" || name == "hertz" { throw .unsupportedScalarVariable(symbol) }
+                    throw .undefinedParameter(symbol)
+                }
                 let key = MOSInvocationBindingKey(invocation: binding.ownerInvocation, symbol: symbol)
                 if let cached = session.cachedBinding(key) { try pushValue(cached, onto: &values, session: &session); continue }
                 for active in activeBindings {

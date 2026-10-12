@@ -435,3 +435,12 @@ D2 also adds the common source-evaluated CircuitIR environment guard before any
 owner allocation. It covers temperature-dependent scalar non-MOS inputs, not just
 diodes/MOS. The environment contract owns the distinction from source-free typed
 runtime expressions. D5 tests preservation across compile, cloning and execution.
+
+## D2 Circuit-wide Environment Guard
+
+NativeCircuitPreparer checks the optional CircuitIR evaluation stamp against checked
+OperatingConditions before reservations, topology preparation, compilation or
+binding. This applies equally to scalar resistors and MOS. MOS topology expansion
+preserves the stamp. Executable owners continue to retain immutable conditions for
+rebinding DC sources; no bias/sweep point changes the frozen environment.
+StandardCircuitDeviceBinding enforces the same guard for direct analysis consumers.

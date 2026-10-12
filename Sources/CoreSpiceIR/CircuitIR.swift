@@ -1,3 +1,5 @@
+import CoreSpiceEvaluationContracts
+
 /// The intermediate representation of a complete circuit.
 ///
 /// `CircuitIR` captures all structural information needed to
@@ -5,6 +7,8 @@
 /// instances, and the designated ground reference.
 public struct CircuitIR: Sendable {
 
+    /// Exact source scalar evaluation environment; nil denotes source-free typed IR.
+    public let evaluationEnvironment: EvaluationEnvironmentIdentity?
     public let nodes: [Node]
     public let branches: [Branch]
     public let instances: [Instance]
@@ -26,8 +30,10 @@ public struct CircuitIR: Sendable {
         nodeNames: [Node: String] = [:],
         branchNames: [Branch: String] = [:],
         opticalNodes: [OpticalNode] = [],
-        opticalConnections: [OpticalConnection] = []
+        opticalConnections: [OpticalConnection] = [],
+        evaluationEnvironment: EvaluationEnvironmentIdentity? = nil
     ) {
+        self.evaluationEnvironment = evaluationEnvironment
         self.nodes = nodes
         self.branches = branches
         self.instances = instances

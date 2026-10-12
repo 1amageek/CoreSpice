@@ -1,3 +1,5 @@
+import CoreSpiceEvaluationContracts
+
 public enum MOSResolutionFailure: Error, Sendable, Equatable {
     case invalidLimits
     case limitExceeded(MOSResolutionWork)
@@ -8,6 +10,11 @@ public enum MOSResolutionFailure: Error, Sendable, Equatable {
     case invalidScope
     case invalidInvocation(UInt64)
     case duplicateInvocation(UInt64)
+    case conditionCycle(EvaluationCondition)
+    case invalidTemperature(EvaluationCondition, TemperatureFailure)
+    case environmentUnavailable
+    case reservedParameter(MOSSymbolID)
+    case unsupportedScalarVariable(MOSSymbolID)
     case conditionMismatch
     case duplicateParameter(MOSSymbolID)
     case undefinedParameter(MOSSymbolID)

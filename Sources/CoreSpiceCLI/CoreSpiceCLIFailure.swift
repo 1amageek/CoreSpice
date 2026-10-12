@@ -1,3 +1,4 @@
+import CoreSpiceMOSResolution
 import CoreSpice
 import CoreSpiceCompile
 import CoreSpiceMOSContracts
@@ -54,6 +55,9 @@ extension CoreSpiceCLIFailure {
 
     case let preparation as SPICESimulationPreparationError:
       switch preparation {
+      case .condition(let cause, let resourceCause):
+        if let resourceCause { self.init(error: resourceCause) }
+        else { self.init(error: cause) }
       case .resolution(let cause, let resourceCause):
         if let resourceCause {
           let failure = Self(error: resourceCause)
@@ -116,11 +120,20 @@ extension CoreSpiceCLIFailure {
     case let source as SPICEBoundedSourceError:
       self.init(code: "deck.source-policy", message: Self.describe(source), stage: "parse")
 
+    case let condition as MOSConditionEvaluationFailure:
+      if condition.cause == .cancelled {
+        self.init(code: "analysis.cancelled", message: "Temperature evaluation was cancelled", stage: "evaluation")
+      } else {
+        let source = condition.diagnostic?.conditionSource
+        let location = source.map { " at \($0.path ?? "<source>"):\($0.line ?? 0):\($0.column ?? 0)" } ?? ""
+        self.init(code: "evaluation.temperature", message: String(describing: condition.cause) + location, stage: "evaluation")
+      }
     case let preparation as SPICENativePreparationError:
       switch preparation {
       case .compile(let cause), .binding(let cause), .resource(let cause): self.init(error: cause)
       case .mosPreparation(let cause): self.init(code: "mos.preparation", message: Self.describe(cause), stage: "preparation")
       case .mosBinding(let cause): self.init(code: "mos.binding", message: Self.describe(cause), stage: "preparation")
+      case .evaluationEnvironment: self.init(code: "native.environment-mismatch", message: "Operating conditions differ from source evaluation", stage: "preparation")
       case .invalidLimits, .capacityExceeded: self.init(code: "preparation.capacity", message: Self.describe(preparation), stage: "preparation")
       case .unsupportedCapability(let detail): self.init(code: "preparation.unsupported-capability", message: detail, stage: "preparation")
       }

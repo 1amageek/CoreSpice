@@ -1,6 +1,8 @@
+import CoreSpiceDevices
 import CoreSpiceMOSContracts
 
 public enum SPICENativePreparationError: Error, Sendable {
+    case evaluationEnvironment(OperatingConditionsError)
     case invalidLimits
     case mosPreparation(MOSPreparationFailure)
     case mosBinding(MOSBindingFailure)

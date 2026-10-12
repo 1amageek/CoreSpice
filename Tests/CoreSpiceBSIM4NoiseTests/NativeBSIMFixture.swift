@@ -1,3 +1,4 @@
+import CoreSpiceEvaluationContracts
 @testable import CoreSpice
 import CoreSpiceAnalysis
 import CoreSpiceCompactModels
@@ -25,20 +26,21 @@ enum NativeBSIMFixture {
             maximumFunctionDepth: 32, maximumExpressionNodes: 8192, maximumExpressionDepth: 128,
             maximumCandidates: 1024, maximumCacheEntries: 16384, maximumEvaluationSteps: 1_000_000)
     }
-    static func frontend(_ source: String) async throws -> (LoweredCircuit, SPICEAnalysisOptions) {
+    static func frontend(_ source: String, temperature: Double = 300.15) async throws -> (LoweredCircuit, SPICEAnalysisOptions) {
         let parsed = try await SPICEParser().parse(source: source).get()
         let limits = try resolutionLimits()
         let compiled = try NetlistLowering.compile(parsed, limits: limits)
-        var session = try NetlistLowering.beginEvaluation(compiled, profile: .coreStrictV1, limits: limits, seed: 1)
+        var session = try NetlistLowering.beginEvaluation(compiled, profile: .coreStrictV1, limits: limits, seed: 1,
+            temperaturePolicy: .init(defaults: .init(ambient: try TemperatureKelvin(temperature),
+                nominal: try TemperatureKelvin(300.15))))
         let options = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
         try session.lower(geometryScale: options.geometryScale)
         return (try session.finish(), options)
     }
     static func prepare(_ source: String, temperature: Double = 300.15,
                         capabilities: MOSAnalysisCapabilities) async throws -> PreparedNativeCircuit {
-        let (lowered, resolvedOptions) = try await frontend(source)
+        let (lowered, resolvedOptions) = try await frontend(source, temperature: temperature)
         var options = resolvedOptions
-        if options.temperatureCelsius == nil { options.temperatureCelsius = temperature - 273.15 }
         options.bsim4NoisePreparationRequested = capabilities.contains(.noise)
         let operating = try options.operatingConditions()
         let conditions = try MOSPreparationConditions(ambientKelvin: operating.temperatureKelvin,

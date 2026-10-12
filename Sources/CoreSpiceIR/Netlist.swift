@@ -1,3 +1,4 @@
+import CoreSpiceEvaluationContracts
 /// A builder for constructing a `CircuitIR` from named nodes and device instances.
 ///
 /// `Netlist` manages node name resolution, branch allocation, and
@@ -17,7 +18,10 @@ public struct Netlist: Sendable {
     private var branches: [Branch] = []
     private var instanceNames: Set<String> = []
 
-    public init() {}
+    public let evaluationEnvironment: EvaluationEnvironmentIdentity?
+    public init(evaluationEnvironment: EvaluationEnvironmentIdentity? = nil) {
+        self.evaluationEnvironment = evaluationEnvironment
+    }
 
     /// Resolves a node name to a `Node`, creating a new one if the name has not been seen.
     ///

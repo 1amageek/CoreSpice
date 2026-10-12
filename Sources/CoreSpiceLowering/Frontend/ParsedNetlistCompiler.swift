@@ -86,8 +86,9 @@ struct ParsedNetlistCompiler: ~Copyable {
         if subcircuit != nil {
             for control in body.controls {
                 try storage.spend()
-                if case .option(let name, _, _) = control, name.lowercased() == "wnflag" {
-                    throw LoweringError.unsupportedFeature(feature: "wnflag must be declared at global scope")
+                if case .temp = control { throw LoweringError.unsupportedFeature(feature: "Temperature must be global") }
+                if case .option(let name, _, _) = control, ["wnflag", "temp", "tnom"].contains(name.lowercased()) {
+                    throw LoweringError.unsupportedFeature(feature: "Temperature and width conditions must be declared at global scope")
                 }
             }
         }
@@ -348,9 +349,15 @@ struct ParsedNetlistCompiler: ~Copyable {
             try storage.spend()
             switch statement {
             case .option(let name, let value, _):
+                if ["temp", "tnom"].contains(name.lowercased()) {
+                    guard let value, isScalar(value) else {
+                        throw LoweringError.unsupportedFeature(feature: "Temperature requires one scalar value")
+                    }
+                }
                 try storage.text(name); if let value { try storage.value(value) }
                 try addSlot(value, at: .control(index: index, field: "value"))
             case .temp(let value, _):
+                guard isScalar(value) else { throw LoweringError.unsupportedFeature(feature: "Temperature sweeps are not supported") }
                 try storage.value(value); try addSlot(value, at: .control(index: index, field: "value"))
             case .initialCondition(let node, let value, _):
                 try storage.text(node); try storage.value(value)

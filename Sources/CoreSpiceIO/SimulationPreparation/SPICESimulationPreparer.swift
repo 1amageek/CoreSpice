@@ -1,8 +1,10 @@
+import CoreSpiceEvaluationContracts
 import CircuiteFoundation
 import CoreSpiceAnalysis
 import CoreSpiceIR
 import CoreSpiceLowering
 import CoreSpiceMOSContracts
+import CoreSpiceMOSResolution
 import CoreSpiceParsedIR
 import CoreSpiceParser
 import CoreSpiceParserSPICE
@@ -69,8 +71,11 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
             let frontendScratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: envelope.maximumTemporaryBytes)
             defer { withExtendedLifetime(frontendScratch) {} }
             let compiled = try NetlistLowering.compile(netlist, limits: request.resolutionLimits, control: frontendControl)
+            let temperaturePolicy = try request.temperaturePolicy ?? NetlistTemperaturePolicy(defaults:
+                .init(ambient: TemperatureCelsius(request.configuration.defaultTemperature).kelvin,
+                      nominal: TemperatureCelsius(27).kelvin))
             var session = try NetlistLowering.beginEvaluation(compiled, profile: request.profile,
-                limits: request.resolutionLimits, seed: request.seed, control: frontendControl)
+                limits: request.resolutionLimits, seed: request.seed, temperaturePolicy: temperaturePolicy, control: frontendControl)
             let options = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
             guard options.diagnostics.isEmpty else {
                 throw SPICESimulationPreparationError.unsupportedCapability("Unapplied source option")
@@ -82,9 +87,6 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
             try numerical.validate()
             var effectiveOptions = options
             effectiveOptions.executionLimits = numerical
-            if effectiveOptions.temperatureCelsius == nil {
-                effectiveOptions.temperatureCelsius = request.configuration.defaultTemperature
-            }
             let operating = try effectiveOptions.operatingConditions()
             try resources.checkCancellation()
             try session.lower(geometryScale: effectiveOptions.geometryScale)
@@ -171,7 +173,7 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
             default: throw SPICESimulationPreparationError.unsupportedCapability("Analysis outside op/dc/tran")
             }
             let conditions = try instanceConditions(circuit: circuit, options: effectiveOptions,
-                temperatureDefaulted: options.temperatureCelsius == nil, resources: resources)
+                temperatureDefaulted: options.temperatureProvenance?.ambient == .callerDefault, resources: resources)
             let supplies = try prescribedSupplies(request.supplyBindings, circuit: circuit, analysis: analysis,
                                                   resources: resources)
             switch request.operatingPolicy {
@@ -191,13 +193,13 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
             let inputDigest = try inputIdentity(parsed: parsed, sources: sources, request: request, resources: resources)
             let identity = try configurationIdentity(analysis: analysis, index: index, options: effectiveOptions,
                 initial: initial, nodeset: nodeset, request: request, supplies: supplies,
-                conditions: conditions, temperatureDefaulted: options.temperatureCelsius == nil,
+                conditions: conditions, temperatureDefaulted: options.temperatureProvenance?.ambient == .callerDefault,
                 provenance: lowered.evaluationProvenance, resources: resources)
             let configuration = SPICEEffectiveSimulationConfiguration(analysis: analysis, analysisIndex: index,
                 options: effectiveOptions, temperatureCelsius: effectiveOptions.temperatureCelsius!,
-                temperatureOrigin: options.temperatureCelsius == nil ? "parser-default-v1" : "source",
+                temperatureOrigin: options.temperatureProvenance?.ambient == .callerDefault ? "caller-default-v1" : (options.temperatureProvenance?.ambient.description ?? "source"),
                 nominalTemperatureCelsius: options.nominalTemperatureCelsius ?? 27,
-                nominalTemperatureOrigin: options.nominalTemperatureCelsius == nil ? "device-default-v1" : "source",
+                nominalTemperatureOrigin: options.temperatureProvenance?.nominal.description ?? "caller-default-v1",
                 instanceOperatingConditions: conditions, supplyBindings: request.supplyBindings, prescribedSupplies: supplies,
                 operatingPolicy: request.operatingPolicy, numericalLimits: numerical, seed: request.seed, identity: identity)
             withExtendedLifetime(operating) {}
@@ -211,6 +213,8 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
                 throw SPICESimulationPreparationError.resolution(failure, resourceCause: frontendControl.firstFailure)
             }
             throw SPICESimulationPreparationError.nodeVoltage(error)
+        } catch let error as MOSConditionEvaluationFailure {
+            throw SPICESimulationPreparationError.condition(error, resourceCause: frontendControl.firstFailure)
         } catch let error as MOSResolutionFailure {
             throw SPICESimulationPreparationError.resolution(error, resourceCause: frontendControl.firstFailure)
         }
@@ -264,8 +268,8 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
             let global = options.temperatureCelsius!
             let circuitNominal = options.nominalTemperatureCelsius ?? 27
             var temperature = global, nominal = circuitNominal
-            var temperatureOrigin = temperatureDefaulted ? "parser-default-v1" : "source"
-            var nominalOrigin = options.nominalTemperatureCelsius == nil ? "device-default-v1" : "source"
+            var temperatureOrigin = temperatureDefaulted ? "caller-default-v1" : (options.temperatureProvenance?.ambient.description ?? "source")
+            var nominalOrigin = options.temperatureProvenance?.nominal.description ?? "caller-default-v1"
             if instance.typeName == "resistor" {
                 if case .real(let value) = instance.model?.parameters["tnom"] {
                     nominal = value; nominalOrigin = "model-source"
@@ -393,12 +397,16 @@ public struct SPICESimulationPreparer: SPICESimulationPreparing {
         conditions: [SPICEInstanceOperatingConditions], temperatureDefaulted: Bool,
         provenance: NetlistEvaluationProvenance,
         resources: any SPICESourceResourceAccounting) throws -> ContentDigest {
-        return try SPICEPreparationEncoding.digest(domain: "CoreSpice.effective-settings.v2.defaults-v1",
+        return try SPICEPreparationEncoding.digest(domain: "CoreSpice.effective-settings.v3.temperature-freeze",
             maximumBytes: request.limits.maximumTransformBytes, resources: resources) { e in
             try e.integer(UInt64(index)); try e.integer(request.seed)
             try e.field(request.profile.rawValue); try e.field(provenance.randomGeneratorVersion)
-            try e.field(temperatureDefaulted ? "parser-default-v1" : "source")
-            try e.field(options.nominalTemperatureCelsius == nil ? "device-default-v1" : "source")
+            try e.field(provenance.evaluation.evaluatorVersion)
+            guard let environment = provenance.evaluation.environment else { throw MOSResolutionFailure.environmentUnavailable }
+            try e.integer(UInt64(environment.identity.contractVersion))
+            try e.integer(environment.identity.ambientKelvinBits); try e.integer(environment.identity.nominalKelvinBits)
+            try e.field(temperatureDefaulted ? "caller-default-v1" : (options.temperatureProvenance?.ambient.description ?? "source"))
+            try e.field(options.temperatureProvenance?.nominal.description ?? "caller-default-v1")
             try e.integer(UInt64(conditions.count))
             for condition in conditions {
                 try e.field(condition.instanceName); try e.field(condition.modelName ?? "")

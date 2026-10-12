@@ -53,7 +53,13 @@ Foundation, numerical-kernel or Metal dependency.
 
 ## Designed Shared Evaluation Identity Dependency
 
-Status: proposed. The [Values child](Values/DESIGN.md#designed-environment-bound-evaluation-identity)
+Status: D2 implemented. The [Values child](Values/DESIGN.md#designed-environment-bound-evaluation-identity)
 consumes the new [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md)
-values when frozen-temperature evaluation is adopted. This adds a pure dependency
+values for frozen-temperature evaluation. This adds a pure dependency
 floor, not an IR/Devices dependency or a diode-law dependency.
+
+## D2 Dependency Floor
+
+| Design | Relationship | Contract Used | Summary | Cautions |
+|---|---|---|---|---|
+| [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md) | depends on | Checked environment identity | D2 temperature meaning | Standard Library only; source policy stays outside this module |

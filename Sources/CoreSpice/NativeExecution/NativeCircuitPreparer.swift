@@ -23,6 +23,8 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
         guard limits.maximumDeviceCount > 0, limits.maximumMatrixDimension > 0,
               limits.maximumAllocationBytes > 0 else { throw SPICENativePreparationError.invalidLimits }
         do { try numericalLimits.validate() } catch { throw SPICENativePreparationError.invalidLimits }
+        do { try operatingConditions.validateEvaluationEnvironment(ir.evaluationEnvironment) }
+        catch { throw SPICENativePreparationError.evaluationEnvironment(error) }
         let originalCircuit = ir
         var mosCount = 0
         for instance in originalCircuit.instances {

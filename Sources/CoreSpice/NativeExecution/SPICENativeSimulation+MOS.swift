@@ -12,8 +12,9 @@ extension SPICENativeSimulation {
         var capabilities: MOSAnalysisCapabilities = [.dc]
         if case .transient = configuration.analysis { capabilities.insert(.transient) }
         if configuration.options.bsim4NoisePreparationRequested { capabilities.insert(.noise) }
-        guard conditions.ambientKelvin == configuration.temperatureCelsius + 273.15,
-              conditions.nominalKelvin == configuration.nominalTemperatureCelsius + 273.15,
+        let operating = try configuration.options.operatingConditions()
+        guard conditions.ambientKelvin == operating.temperatureKelvin,
+              conditions.nominalKelvin == operating.nominalTemperatureKelvin,
               conditions.analysisCapabilities == capabilities else {
             throw SPICENativePreparationError.mosPreparation(.invalidConditions)
         }

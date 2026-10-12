@@ -309,3 +309,19 @@ The new diode profile is explicit alongside the existing MOS profile. IO retains
 source-backed diode/environment diagnostics through public failures and CLI encoding.
 Do not return only an interned symbol ID or produce execution evidence from resolution.
 Native preparation remains external to this component.
+
+## D2 Condition Policy Adoption
+
+Public IO, CLI and profile preparer choose a typed NetlistTemperaturePolicy before
+beginEvaluation. Frozen source/caller/default precedence is resolved once.
+SPICEAnalysisOptions consumes the frozen conditions/provenance and skips all source
+temp/tnom replay. operatingConditions uses canonical Kelvin words and rejects
+subsequent conflicting Celsius edits. Effective settings identity includes the
+frozen environment, condition origins and evaluator V2. Numerical preparation
+receives the same conditions. Condition-source evaluation changes invalidate the
+old effective-settings digest, not the captured original source identity.
+
+Condition bootstrap failures retain MOSConditionEvaluationFailure diagnostics and
+the frontend resource cause in a dedicated condition error case. They are not
+misclassified as unrelated resource failures. Native preparation compares canonical
+Kelvin conditions rather than reconstructing them from the Celsius projection.

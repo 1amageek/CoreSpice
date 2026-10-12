@@ -58,3 +58,9 @@ Status: proposed addition. [DiodeResolution](DiodeResolution/DESIGN.md) is the n
 direct child owning diode source admission; Frontend remains the single compiled
 storage/session owner. The new child consumes
 [DiodeContracts](../CoreSpiceDiodeContracts/DESIGN.md); no Devices edge is introduced.
+
+## D2 Environment Composition
+
+| Design | Relationship | Contract Used | Summary | Cautions |
+|---|---|---|---|---|
+| [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md) | depends on | Checked environment identity | D2 temperature meaning | Standard Library only; source policy stays outside this module |

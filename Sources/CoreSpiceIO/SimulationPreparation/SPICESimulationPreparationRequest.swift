@@ -1,8 +1,10 @@
 import CoreSpiceParser
+import CoreSpiceLowering
 import CoreSpiceMOSContracts
 import CoreSpiceParsedIR
 
 public struct SPICESimulationPreparationRequest: Sendable {
+    public let temperaturePolicy: NetlistTemperaturePolicy?
     public let root: SPICECheckedSource
     public let environment: SPICEPreprocessingEnvironment
     public let catalog: [SPICEExactSourceBinding]
@@ -23,7 +25,9 @@ public struct SPICESimulationPreparationRequest: Sendable {
                 analysisIndex: Int? = nil, supplyBindings: [SPICESupplyBinding] = [],
                 operatingPolicy: SPICEOperatingConditionPolicy,
                 limits: SPICESimulationPreparationLimits, profile: MOSInputProfile,
-                seed: UInt64, resolutionLimits: MOSResolutionLimits) {
+                seed: UInt64, resolutionLimits: MOSResolutionLimits,
+                temperaturePolicy: NetlistTemperaturePolicy? = nil) {
+        self.temperaturePolicy = temperaturePolicy
         self.profile = profile; self.seed = seed; self.resolutionLimits = resolutionLimits
         self.root = root; self.environment = environment; self.catalog = catalog; self.routes = routes
         self.provider = provider; self.configuration = configuration; self.analysisIndex = analysisIndex
