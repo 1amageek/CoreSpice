@@ -29,15 +29,28 @@ extension FourierAnalysis {
             }
             let reservation = try await NativeCircuitExecution.admit(record, capabilities: [.dc, .transient],
                 points: 1, cancellation: cancellation, observer: observer, analysis: .fourier,
-                additionalRetainedBytes: retainedBytes)
+                additionalRetainedBytes: NativeCircuitExecution.capacitySum(retainedBytes,
+                    NativeCircuitExecution.physicalValidationCapacity(record)), allowOSDIOperatingPoint: true)
             return try await withTaskCancellationHandler {
                 let budget = try NativeCircuitExecution.budget(record)
                 var analysis = self
+                if record.osdiLifetime != nil {
+                    let transient = try NativeCircuitExecution.configuredTransientAnalysis(
+                        TransientAnalysis(config: transientConfig, convergenceConfig: convergenceConfig),
+                        record: record, devices: devices, cancellation: cancellation, budget: budget, finalizeOnCompletion: false)
+                    analysis = FourierAnalysis(fundamentalFrequency: fundamentalFrequency, harmonicCount: harmonicCount,
+                        outputs: outputs, transientConfig: transientConfig, convergenceConfig: convergenceConfig,
+                        completionFinalizer: NativeOSDICompletionFinalizer(record: record,
+                            cancellation: cancellation, prior: completionFinalizer))
+                    analysis.preparedTransientAnalysis = transient
+                }
                 analysis.executionBudget = budget
                 analysis.resultStorage = reservation
                 let result = try await analysis.run(plan: record.plan, devices: devices, solver: solver,
                     observer: observer, cancellation: cancellation)
                 try NativeCircuitExecution.check(cancellation)
+                try NativeCircuitExecution.validateTransientResult(result.transientResult, config: transientConfig,
+                    precision: analysis.preparedTransientAnalysis?.physicalResidualEncloser != nil)
                 guard result.transientResult.timePoints.last == transientConfig.stopTime,
                       result.transientResult.executionStatistics != nil,
                       result.harmonics.values.allSatisfy({ components in
@@ -47,10 +60,19 @@ extension FourierAnalysis {
                       }), result.thd.values.allSatisfy({ $0.isFinite }) else {
                     throw SPICENativeExecutionError.invalidOutput
                 }
-                return NativeCircuitRun(result: result, phases: [.init(record: record,
-                    instances: record.plan.ir.instances, analysis: "fourier", completedPointCount: result.transientResult.timePoints.count, reservation: reservation)],
+                let phases: [NativeCircuitExecutionFacts]
+                if record.osdiLifetime != nil {
+                    phases = NativeCircuitExecution.phases(record: record,
+                        operatingPoint: result.transientResult.operatingPoint, analysis: "fourier",
+                        points: result.transientResult.timePoints.count, reservation: reservation,
+                        equationPolicy: analysis.preparedTransientAnalysis?.equationPolicy)
+                } else {
+                    phases = [.init(record: record, instances: record.plan.ir.instances, analysis: "fourier",
+                        completedPointCount: result.transientResult.timePoints.count, reservation: reservation)]
+                }
+                return NativeCircuitRun(result: result, phases: phases,
                     reservation: reservation, statistics: budget.statistics)
             } onCancel: { cancellation.cancel() }
-        } catch { throw NativeCircuitExecution.failure(error) }
+        } catch { throw NativeCircuitExecution.failure(error, closing: record) }
     }
 }

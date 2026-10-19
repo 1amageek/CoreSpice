@@ -4,18 +4,12 @@ package enum MOSSelectionPolicy {
     package static func release(_ model: MOSModelDeclaration, profile: MOSInputProfile)
         throws(MOSResolutionFailure) -> (MOSModelRelease, MOSReleaseOrigin) {
         let level = model.level ?? 1
-        var version = model.version
-        let origin: MOSReleaseOrigin
-        if let explicit = version { origin = .explicit(explicit) }
-        else if level == 49 || level == 54 {
-            guard profile == .pinnedNgspiceNormalV1 else {
-                throw .schema(.unsupportedRelease(level: level, version: nil))
-            }
-            version = level == 49 ? "3.3.0" : "4.8.3"
-            origin = .defaulted(profile)
-        } else if let explicit = model.level { origin = .explicitLevel(explicit) }
-        else { origin = .defaulted(profile) }
+        let version = model.version
+        let origin: MOSReleaseOrigin = model.level.map(MOSReleaseOrigin.explicitLevel) ?? .defaulted(profile)
         do { return (try MOSModelRelease.resolve(level: level, version: version, profile: profile), origin) }
+        catch .osdiBindingRequired(let level, let version) {
+            throw .osdiBindingRequired(level: level, version: version, source: model.source)
+        }
         catch { throw .schema(error) }
     }
 

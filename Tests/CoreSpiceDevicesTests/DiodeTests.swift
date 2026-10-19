@@ -40,7 +40,7 @@ struct DiodeTests {
     }
 
     @Test func diodeBinding() throws {
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node(id: 2)
         let instance = Instance(
@@ -77,7 +77,7 @@ struct DiodeTests {
     }
 
     @Test func diodeForwardBiasStamp() throws {
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node(id: 2)
         let instance = Instance(
@@ -123,7 +123,7 @@ struct DiodeTests {
     }
 
     @Test func diodeReverseBiasStamp() throws {
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node(id: 2)
         let instance = Instance(
@@ -161,7 +161,7 @@ struct DiodeTests {
     }
 
     @Test func diodeConvergenceCheck() throws {
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node(id: 2)
         let instance = Instance(
@@ -198,7 +198,7 @@ struct DiodeTests {
 
     @Test func diodeExponentialCharacteristic() throws {
         // Verify the exponential I-V relationship
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node(id: 2)
 
@@ -244,7 +244,7 @@ struct DiodeTests {
     }
 
     @Test func diodeWithGroundCathode() throws {
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node.ground
 

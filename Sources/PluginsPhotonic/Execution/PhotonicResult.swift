@@ -13,10 +13,10 @@ public struct PhotonicPortOutput: Sendable {
     public let imag: Float
 
     /// Optical power (magnitude squared).
-    public var power: Float { real * real + imag * imag }
+    public var power: Double { Double(real) * Double(real) + Double(imag) * Double(imag) }
 
     /// Field amplitude (magnitude).
-    public var amplitude: Float { sqrt(power) }
+    public var amplitude: Double { sqrt(power) }
 
     /// Phase angle in radians.
     public var phase: Float { atan2(imag, real) }
@@ -43,8 +43,8 @@ public struct PhotonicWavelengthResult: Sendable {
     }
 
     /// Sum of optical power across all output ports.
-    public var totalOutputPower: Float {
-        outputs.reduce(Float(0)) { $0 + $1.power }
+    public var totalOutputPower: Double {
+        outputs.reduce(Double(0)) { $0 + $1.power }
     }
 }
 

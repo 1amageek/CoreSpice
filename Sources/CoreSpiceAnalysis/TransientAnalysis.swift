@@ -11,7 +11,7 @@ import Foundation
 /// estimation. The algorithm:
 ///
 /// 1. Find the DC operating point for `t = 0`.
-/// 2. Start with Backward Euler for the first step.
+/// 2. Validate Backward Euler startup using independent quarter, half and full trials.
 /// 3. For each timestep:
 ///    a. Constrain `dt` by `maxTimeStep` and breakpoints.
 ///    b. Run Newton-Raphson with `stampTransient`.
@@ -19,7 +19,7 @@ import Foundation
 ///    d. Estimate LTE; if too large, reduce `dt` and reject the step.
 ///    e. Save the accepted solution.
 ///    f. Compute the optimal next `dt` from LTE.
-///    g. Switch to Trapezoidal after the first accepted step.
+///    g. Use the preferred method after three smooth accepted samples.
 /// 4. Return all saved time points and solutions.
 public struct TransientAnalysis: Analysis, Sendable {
     package var executionBudget: TransientExecutionBudget?
@@ -32,6 +32,13 @@ public struct TransientAnalysis: Analysis, Sendable {
     public let config: TransientConfig
 
     /// Convergence configuration for the Newton-Raphson solver at each timestep.
+    public let equationPolicy: DCEquationPolicy?
+    public let operatingPointValidator: (any DCPhysicalResidualValidating)?
+    public let physicalResidualEncloser: (any TransientPhysicalResidualEnclosing)?
+    public let physicalResidualValidator: (any TransientPhysicalResidualValidating)?
+    public let completionFinalizer: (any AnalysisCompletionFinalizing)?
+    /// Caller-proven coordinates requiring integration error control; nil preserves the existing selection.
+    public let errorControlVariables: Set<MNAVariable>?
     public let convergenceConfig: ConvergenceConfig
 
     /// Called after each accepted timestep with the accepted time and solution.
@@ -40,8 +47,20 @@ public struct TransientAnalysis: Analysis, Sendable {
     public init(
         config: TransientConfig,
         convergenceConfig: ConvergenceConfig = ConvergenceConfig(),
-        onStepAccepted: (@Sendable (Double, [Double]) -> Void)? = nil
+        onStepAccepted: (@Sendable (Double, [Double]) -> Void)? = nil,
+        equationPolicy: DCEquationPolicy? = nil,
+        operatingPointValidator: (any DCPhysicalResidualValidating)? = nil,
+        physicalResidualValidator: (any TransientPhysicalResidualValidating)? = nil,
+        completionFinalizer: (any AnalysisCompletionFinalizing)? = nil,
+        errorControlVariables: Set<MNAVariable>? = nil,
+        physicalResidualEncloser: (any TransientPhysicalResidualEnclosing)? = nil
     ) {
+        self.physicalResidualEncloser = physicalResidualEncloser
+        self.errorControlVariables = errorControlVariables
+        self.equationPolicy = equationPolicy
+        self.operatingPointValidator = operatingPointValidator
+        self.physicalResidualValidator = physicalResidualValidator
+        self.completionFinalizer = completionFinalizer
         self.config = config
         self.convergenceConfig = convergenceConfig
         self.onStepAccepted = onStepAccepted
@@ -59,6 +78,7 @@ public struct TransientAnalysis: Analysis, Sendable {
         let startTimestamp = Timestamp()
         let dim = plan.topology.dimension
         let variableMap = plan.topology.variableMap
+        let compensated = physicalResidualEncloser != nil
 
         await observer?.emit(.analysisStarted(AnalysisStartedInfo(
             id: analysisID,
@@ -70,6 +90,18 @@ public struct TransientAnalysis: Analysis, Sendable {
 
         do {
             try config.validate()
+            if compensated {
+                guard equationPolicy != nil, !(physicalResidualValidator is any TransientPhysicalResidualEvaluating),
+                      !devices.contains(where: { $0 is any VoltageLimitingDevice }) else {
+                    throw NumericalStateError.incompatiblePrecisionConfiguration
+                }
+            }
+            if let errorControlVariables {
+                for variable in errorControlVariables where variableMap[variable] == nil {
+                    throw TransientExecutionError.unknownErrorControlVariable(variable)
+                }
+            }
+            try equationPolicy?.validate(dimension: dim, variableMap: variableMap, config: convergenceConfig)
             try validate(convergenceConfig: convergenceConfig)
 
             if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
@@ -85,6 +117,10 @@ public struct TransientAnalysis: Analysis, Sendable {
                     nonZeroCount: plan.matrixStructure.nonZeroCount, deviceCount: devices.count)
             }
             try budget.admitSavedPoint(accepted: false)
+            if compensated { try budget.admitSavedScalars(dim) }
+            let precisionBytes = compensated ? try TransientExecutionBudget.multiply(dim, 8 * MemoryLayout<Double>.stride, "precision scratch bytes") : 0
+            let precisionStorage = try resultStorage?.reserveTemporaryBytes(UInt64(precisionBytes))
+            defer { withExtendedLifetime(precisionStorage) {} }
             // Extract branch current indices for LTE normalization
             let branchCurrentIndices: Set<Int> = Set(
                 variableMap.compactMap { key, value in
@@ -97,7 +133,9 @@ public struct TransientAnalysis: Analysis, Sendable {
 
             // Phase 1: Initial solution for t = 0
             let initialSolution: [Double]
+            let operatingPoint: DCResult?
             if config.useInitialConditions {
+                operatingPoint = nil
                 // UIC mode: skip DC, build initial solution from device ICs
                 initialSolution = try Self.buildUICInitialSolution(
                     devices: devices,
@@ -110,9 +148,13 @@ public struct TransientAnalysis: Analysis, Sendable {
                 // Standard mode: DC operating point
                 var dcAnalysis = DCAnalysis(
                     config: convergenceConfig,
-                    nodeInitialGuess: config.nodeVoltageGuesses
+                    nodeInitialGuess: config.nodeVoltageGuesses,
+                    equationPolicy: equationPolicy,
+                    physicalResidualValidator: operatingPointValidator,
+                    precisionMode: compensated ? .automatic : .binary64
                 )
                 dcAnalysis.executionBudget = budget
+                dcAnalysis.resultStorage = resultStorage
                 let dcResult = try await dcAnalysis.run(
                     plan: plan,
                     devices: devices,
@@ -120,6 +162,8 @@ public struct TransientAnalysis: Analysis, Sendable {
                     observer: observer,
                     cancellation: cancellation
                 )
+                try budget.admitSavedScalars(dcResult.variables.count)
+                operatingPoint = dcResult
                 initialSolution = dcResult.variables
             }
 
@@ -128,11 +172,16 @@ public struct TransientAnalysis: Analysis, Sendable {
             }
             var acquiredSessions: [any TransientSessionDevice] = []
             defer { for device in acquiredSessions.reversed() { device.endTransientSession() } }
-            let initialState = SolutionState(variables: initialSolution, variableMap: variableMap)
-            for device in devices {
-                if let session = device as? any TransientSessionDevice {
-                    try session.beginTransientSession(initialState: initialState)
-                    acquiredSessions.append(session)
+            var currentLow = compensated ? (operatingPoint?.variableLowComponents ?? [Double](repeating: 0, count: dim)) : []
+            do {
+                let initialState = SolutionState(variables: initialSolution, variableMap: variableMap,
+                    variableLowComponents: compensated ? currentLow : nil)
+                for device in devices {
+                    if let session = device as? any TransientSessionDevice {
+                        try session.beginTransientSession(initialState: initialState,
+                            initialization: config.useInitialConditions ? .initialConditions : .operatingPoint)
+                        acquiredSessions.append(session)
+                    }
                 }
             }
 
@@ -146,54 +195,80 @@ public struct TransientAnalysis: Analysis, Sendable {
             var previousBuf = [Double](repeating: 0, count: dim)
             var twoPreviousBuf = [Double](repeating: 0, count: dim)
             var newtonSolutionBuf = [Double](repeating: 0, count: dim)
-            var hasTwoPrevious = false
+            let quarterStorage = try resultStorage?.reserveTemporaryBytes(UInt64(dim) * UInt64(MemoryLayout<Double>.stride))
+            defer { withExtendedLifetime(quarterStorage) {} }
+            var quarterSolutionBuf = [Double](repeating: 0, count: dim)
+            var previousLow = compensated ? [Double](repeating: 0, count: dim) : []
+            var twoPreviousLow = compensated ? [Double](repeating: 0, count: dim) : []
+            var newtonSolutionLow = compensated ? [Double](repeating: 0, count: dim) : []
+            var quarterSolutionLow = compensated ? [Double](repeating: 0, count: dim) : []
+            var smoothHistoryCount = config.useInitialConditions ? 0 : 1
+            let variableTolerances = equationPolicy?.rows.map(\.variableAbsoluteTolerance)
+            let excludedLTEIndices: Set<Int>
+            if let errorControlVariables {
+                var excluded: Set<Int> = []
+                excluded.reserveCapacity(dim)
+                for (variable, index) in variableMap where !errorControlVariables.contains(variable) {
+                    excluded.insert(index)
+                }
+                excludedLTEIndices = excluded
+            } else {
+                excludedLTEIndices = equationPolicy == nil ? branchCurrentIndices : Set<Int>()
+            }
+            let auditScalars = (MemoryLayout<TransientAcceptedStep>.stride + MemoryLayout<Double>.stride - 1) / MemoryLayout<Double>.stride
+            let coordinateScalars = try TransientExecutionBudget.multiply(dim, compensated ? 2 : 1, "retained coordinate scalars")
+            let retainedPointScalars = try TransientExecutionBudget.add(
+                TransientExecutionBudget.add(coordinateScalars, 1, "point scalars"), auditScalars, "point audit scalars")
+            let operatingPointScalars = try TransientExecutionBudget.multiply(
+                operatingPoint?.variables.count ?? 0, operatingPoint?.variableLowComponents == nil ? 1 : 2,
+                "transient represented OP scalars")
             // Initialize previousBuf to initialSolution
-            for i in 0..<dim { previousBuf[i] = initialSolution[i] }
+            for i in 0..<dim {
+                previousBuf[i] = initialSolution[i]
+                if compensated { previousLow[i] = currentLow[i] }
+            }
 
             // Optical state buffers (mirroring electrical buffer rotation)
             let evaluator = OpticalNetworkEvaluator()
             let opticalNodeCount = plan.opticalNetwork?.opticalNodeCount ?? 0
             var currentOpticalState = OpticalState(nodeCount: opticalNodeCount)
+            var acceptedOpticalState = currentOpticalState
 
             // Saved results (pre-allocate estimated capacity)
             let initialDt = try config.effectiveInitialTimeStep()
-            let estimatedSteps = resultStorage == nil ? min(executionLimits.maximumSavedScalars / (dim + 1),
+            let estimatedSteps = resultStorage == nil ? min(executionLimits.maximumSavedScalars / retainedPointScalars,
                 executionLimits.maximumAcceptedSteps,
                 Self.estimatedPointCapacity(
                 stopTime: config.stopTime,
                 initialTimeStep: initialDt
             )) : 1
             var reservedPointCapacity = estimatedSteps
-            try resultStorage?.reserveResultScalars(TransientExecutionBudget.multiply(
-                estimatedSteps, dim + 1, "transient result capacity"))
+            try resultStorage?.reserveResultScalars(TransientExecutionBudget.add(
+                TransientExecutionBudget.multiply(estimatedSteps, retainedPointScalars, "transient result capacity"),
+                operatingPointScalars, "transient OP and result capacity"))
+            var integrationRecords: [TransientAcceptedStep] = []
+            integrationRecords.reserveCapacity(estimatedSteps)
             var timePoints: [Double] = [0.0]
             timePoints.reserveCapacity(estimatedSteps)
             var solutionTrace = try SolutionTrace(variableCount: dim, estimatedPointCapacity: estimatedSteps)
             try currentBuf.withUnsafeBufferPointer { try solutionTrace.append($0) }
+            var solutionLowTrace: SolutionTrace? = compensated ? try SolutionTrace(variableCount: dim, estimatedPointCapacity: estimatedSteps) : nil
+            if compensated { try currentLow.withUnsafeBufferPointer { try solutionLowTrace?.append($0) } }
 
             // Timestep control
             var dt = initialDt
             var previousDt: Double? = nil
-            var method = config.initialMethod
+            var twoPreviousDt: Double? = nil
+            var previousDtLow: Double? = nil
+            var twoPreviousDtLow: Double? = nil
             var acceptedSteps = 0
             var rejectedSteps = 0
 
             // Breakpoint management: collect from device waveforms
             var breakpointMgr = BreakpointManager()
             let breakpointInterval = 0.0...config.stopTime
-            var deviceMaximumTimeStep = Double.infinity
             var breakpointCount = 0
             for device in devices {
-                if let constrainedDevice = device as? any TransientTimeStepConstraintDevice {
-                    guard constrainedDevice.maximumTransientTimeStep.isFinite,
-                          constrainedDevice.maximumTransientTimeStep > 0 else {
-                        throw TransientExecutionError.invalidTimeStep(constrainedDevice.maximumTransientTimeStep)
-                    }
-                    deviceMaximumTimeStep = min(
-                        deviceMaximumTimeStep,
-                        constrainedDevice.maximumTransientTimeStep
-                    )
-                }
                 let remaining = executionLimits.maximumBreakpoints - breakpointCount
                 let deviceBreakpoints = try device.breakpoints(in: breakpointInterval, maximumCount: remaining)
                 guard deviceBreakpoints.count <= remaining,
@@ -226,13 +301,34 @@ public struct TransientAnalysis: Analysis, Sendable {
                 }
 
                 // Constrain by maximum timestep
+                var deviceMaximumTimeStep = Double.infinity
+                for device in devices {
+                    if let constrained = device as? any TransientTimeStepConstraintDevice {
+                        let maximum = constrained.maximumTransientTimeStep
+                        guard maximum > 0, !maximum.isNaN else { throw TransientExecutionError.invalidTimeStep(maximum) }
+                        deviceMaximumTimeStep = min(deviceMaximumTimeStep, maximum)
+                    }
+                }
                 dt = min(dt, config.maxTimeStep, deviceMaximumTimeStep)
 
+                let remaining = config.stopTime - currentTime
+                if remaining > dt, remaining - dt < config.minTimeStep {
+                    let approach = BreakpointManager.constrainApproach(distance: remaining, proposedStep: dt)
+                    if approach >= config.minTimeStep, approach <= dt { dt = approach }
+                }
+
                 // Constrain by breakpoints
+                let proposedDt = dt
                 dt = breakpointMgr.constrainTimeStep(
                     currentTime: currentTime,
                     proposedStep: dt
                 )
+                // Optional half-distance approaches must not invalidate an admitted proposal.
+                if proposedDt >= config.minTimeStep, dt < config.minTimeStep,
+                   currentTime + dt != config.stopTime,
+                   !breakpointMgr.isAtBreakpoint(currentTime + dt) {
+                    dt = proposedDt
+                }
 
                 // Guard against zero or negative timestep
                 try Self.validateAdvance(time: currentTime, step: dt)
@@ -251,311 +347,258 @@ public struct TransientAnalysis: Analysis, Sendable {
                     }
 
                     try Self.validateAdvance(time: currentTime, step: dt)
-                    let currentIntegration = IntegrationState(
-                        method: method,
-                        timeStep: dt,
-                        currentTime: currentTime + dt,
-                        previousTimeStep: previousDt
-                    )
-
-                    // Newton-Raphson solve
-                    var nr = NewtonRaphsonSolver(config: convergenceConfig)
-                    nr.executionBudget = budget
-                    var newtonIterations: Int
-
+                    let bootstrapping = smoothHistoryCount < 3
+                    let quarterTime = currentTime + dt / 4
+                    let halfTime = currentTime + dt / 2
+                    var embeddedBootstrap = bootstrapping && acceptedSteps > 0 && !(currentTime < quarterTime
+                        && quarterTime < halfTime && halfTime < currentTime + dt)
+                    let method: IntegrationMethod = bootstrapping ? .backwardEuler : config.preferredMethod
+                    let currentIntegration = try integrationState(method: method, acceptedTime: currentTime,
+                        candidateTime: currentTime + dt, proposedStep: dt, previousTimeStep: previousDt,
+                        previousLow: previousDtLow)
+                    let allowGmin = try TransientExecutionBudget.add(reductions, 1, "recovery threshold") == config.gminSteppingThreshold
+                    var newtonIterations = 0
                     do {
-                        newtonIterations = try await nr.solve(
-                            initialGuess: currentBuf,
-                            solution: &newtonSolutionBuf,
-                            matrix: &matrix,
-                            rhs: &rhs,
-                            devices: devices,
-                            variableMap: variableMap,
-                            solver: &mutableSolver,
-                            stampFunction: { stamper, state in
-                                let transientState = SolutionState(
-                                    variables: state.variables,
-                                    previousVariables: currentBuf,
-                                    twoPreviousVariables: previousBuf,
-                                    variableMap: variableMap
-                                )
-                                // Evaluate optical network at each NR iteration
-                                if let graph = plan.opticalNetwork {
-                                    currentOpticalState = evaluator.evaluate(
-                                        graph: graph,
-                                        devices: devices,
-                                        electricalState: transientState,
-                                        previousOpticalState: currentOpticalState
-                                    )
-                                }
-                                for device in devices {
-                                    if let optoDevice = device as? OptoelectronicDevice {
-                                        optoDevice.stampTransient(
-                                            into: &stamper,
-                                            state: transientState,
-                                            opticalState: currentOpticalState,
-                                            integration: currentIntegration
-                                        )
-                                    } else {
-                                        try device.stampTransient(
-                                            into: &stamper,
-                                            state: transientState,
-                                            integration: currentIntegration
-                                        )
-                                    }
-                                }
-                            },
-                            observer: observer,
-                            analysisID: analysisID,
-                            cancellation: cancellation
-                        )
-                    } catch let error as AnalysisError {
-                        guard case .convergenceFailure = error else { throw error }
-                        // Newton failed: try GMIN stepping before reducing timestep
-                        reductions = try TransientExecutionBudget.add(reductions, 1, "timeStepReductions")
-
-                        if reductions == config.gminSteppingThreshold {
+                        if bootstrapping && !embeddedBootstrap {
+                            let subdivisionStartIterations = budget.statistics.newtonIterations
                             do {
-                                let gminResult = try await tryGminStepping(
-                                    currentBuf: currentBuf,
-                                    previousBuf: previousBuf,
-                                    solution: &newtonSolutionBuf,
-                                    opticalState: &currentOpticalState,
-                                    evaluator: evaluator,
-                                    opticalNetwork: plan.opticalNetwork,
-                                    matrix: &matrix,
-                                    rhs: &rhs,
-                                    devices: devices,
-                                    variableMap: variableMap,
-                                    solver: &mutableSolver,
-                                    integration: currentIntegration,
-                                    observer: observer,
-                                    analysisID: analysisID,
-                                    cancellation: cancellation,
-                                    executionBudget: budget
-                                )
-                                // GMIN stepping succeeded — use this solution
-                                newtonIterations = gminResult
+                                // The invalid oldest-history slot is scratch until three accepted samples exist.
+                                let half = dt / 2
+                                let quarter = dt / 4
+                                try Self.validateAdvance(time: currentTime, step: quarter)
+                                try Self.validateAdvance(time: currentTime, step: half)
+                                newtonIterations = try await solveTransientTrial(
+                                    currentBuf: currentBuf, previousBuf: previousBuf, solution: &quarterSolutionBuf,
+                                    currentLow: currentLow, previousLow: previousLow, solutionLow: &quarterSolutionLow,
+                                    acceptedOpticalState: acceptedOpticalState, opticalState: &currentOpticalState,
+                                    evaluator: evaluator, opticalNetwork: plan.opticalNetwork, matrix: &matrix, rhs: &rhs,
+                                    devices: devices, variableMap: variableMap, solver: &mutableSolver,
+                                    integration: try integrationState(method: .backwardEuler, acceptedTime: currentTime,
+                                        candidateTime: currentTime + quarter, proposedStep: quarter,
+                                        previousTimeStep: previousDt, previousLow: previousDtLow),
+                                    allowGmin: allowGmin, observer: observer, analysisID: analysisID,
+                                    cancellation: cancellation, executionBudget: budget)
+                                let halfIterations = try await solveTransientTrial(
+                                    currentBuf: currentBuf, previousBuf: previousBuf, solution: &twoPreviousBuf,
+                                    currentLow: currentLow, previousLow: previousLow, solutionLow: &twoPreviousLow,
+                                    acceptedOpticalState: acceptedOpticalState, opticalState: &currentOpticalState,
+                                    evaluator: evaluator, opticalNetwork: plan.opticalNetwork, matrix: &matrix, rhs: &rhs,
+                                    devices: devices, variableMap: variableMap, solver: &mutableSolver,
+                                    integration: try integrationState(method: .backwardEuler, acceptedTime: currentTime,
+                                        candidateTime: currentTime + half, proposedStep: half,
+                                        previousTimeStep: previousDt, previousLow: previousDtLow),
+                                    allowGmin: allowGmin, observer: observer, analysisID: analysisID,
+                                    cancellation: cancellation, executionBudget: budget)
+                                newtonIterations = try TransientExecutionBudget.add(newtonIterations, halfIterations, "bootstrap iterations")
                             } catch let error as AnalysisError {
-                                guard case .convergenceFailure = error else { throw error }
-                                // GMIN stepping failed — fall through to timestep reduction
-                                let oldDt = dt
-                                dt *= config.shrinkFactor
+                                guard case .convergenceFailure = error, acceptedSteps > 0 else { throw error }
+                                newtonIterations = budget.statistics.newtonIterations - subdivisionStartIterations
                                 try budget.rejectStep()
                                 rejectedSteps = try TransientExecutionBudget.add(rejectedSteps, 1, "rejectedSteps")
-
-                                await observer?.emit(.timeStepRejected(TimeStepRejectInfo(
-                                    id: analysisID,
-                                    time: currentTime,
-                                    rejectedStep: oldDt,
-                                    newStep: dt,
-                                    reason: "Newton-Raphson + GMIN stepping failure: \(error)"
-                                )))
-
-                                if dt < config.minTimeStep {
-                                    throw AnalysisError.timestepTooSmall(dt)
-                                }
-                                continue
+                                await observer?.emit(.timeStepRejected(TimeStepRejectInfo(id: analysisID,
+                                    time: currentTime, rejectedStep: dt, newStep: dt,
+                                    reason: "Bootstrap subdivision convergence failure; using same-interval BE/TR estimate")))
+                                embeddedBootstrap = true
                             }
-                        } else {
-                            // Normal timestep reduction
-                            let oldDt = dt
-                            dt *= config.shrinkFactor
-                            try budget.rejectStep()
-                            rejectedSteps = try TransientExecutionBudget.add(rejectedSteps, 1, "rejectedSteps")
-
-                            await observer?.emit(.timeStepRejected(TimeStepRejectInfo(
-                                id: analysisID,
-                                time: currentTime,
-                                rejectedStep: oldDt,
-                                newStep: dt,
-                                reason: "Newton-Raphson convergence failure"
-                            )))
-
-                            if dt < config.minTimeStep {
-                                throw AnalysisError.timestepTooSmall(dt)
-                            }
-                            continue
                         }
+                        if embeddedBootstrap {
+                            // Both methods use the same accepted derivative history and full interval.
+                            let referenceIterations = try await solveTransientTrial(
+                                currentBuf: currentBuf, previousBuf: previousBuf, solution: &quarterSolutionBuf,
+                                    currentLow: currentLow, previousLow: previousLow, solutionLow: &quarterSolutionLow,
+                                acceptedOpticalState: acceptedOpticalState, opticalState: &currentOpticalState,
+                                evaluator: evaluator, opticalNetwork: plan.opticalNetwork, matrix: &matrix, rhs: &rhs,
+                                devices: devices, variableMap: variableMap, solver: &mutableSolver,
+                                integration: try integrationState(method: .trapezoidal, acceptedTime: currentTime,
+                                    candidateTime: currentTime + dt, proposedStep: dt,
+                                    previousTimeStep: previousDt, previousLow: previousDtLow),
+                                allowGmin: allowGmin, observer: observer, analysisID: analysisID,
+                                cancellation: cancellation, executionBudget: budget)
+                            newtonIterations = try TransientExecutionBudget.add(newtonIterations, referenceIterations, "embedded trial iterations")
+                        }
+                        let fullIterations = try await solveTransientTrial(
+                            currentBuf: currentBuf, previousBuf: previousBuf, solution: &newtonSolutionBuf,
+                            currentLow: currentLow, previousLow: previousLow, solutionLow: &newtonSolutionLow,
+                            acceptedOpticalState: acceptedOpticalState, opticalState: &currentOpticalState,
+                            evaluator: evaluator, opticalNetwork: plan.opticalNetwork, matrix: &matrix, rhs: &rhs,
+                            devices: devices, variableMap: variableMap, solver: &mutableSolver,
+                            integration: currentIntegration, allowGmin: allowGmin, observer: observer,
+                            analysisID: analysisID, cancellation: cancellation, executionBudget: budget)
+                        newtonIterations = try TransientExecutionBudget.add(newtonIterations, fullIterations, "trial iterations")
+                    } catch let error as AnalysisError {
+                        guard case .convergenceFailure = error else { throw error }
+                        reductions = try TransientExecutionBudget.add(reductions, 1, "timeStepReductions")
+                        let oldDt = dt
+                        dt *= config.shrinkFactor
+                        if oldDt > config.minTimeStep { dt = max(dt, config.minTimeStep) }
+                        try budget.rejectStep()
+                        rejectedSteps = try TransientExecutionBudget.add(rejectedSteps, 1, "rejectedSteps")
+                        await observer?.emit(.timeStepRejected(TimeStepRejectInfo(id: analysisID,
+                            time: currentTime, rejectedStep: oldDt, newStep: dt,
+                            reason: "Newton-Raphson convergence failure")))
+                        if dt < config.minTimeStep { throw AnalysisError.timestepTooSmall(dt) }
+                        continue
                     }
 
-                    // LTE check (skip for the very first step)
-                    if acceptedSteps > 0 {
-                        let lte = lteEstimator.estimate(
-                            current: newtonSolutionBuf,
-                            previous: currentBuf,
-                            twoPrevious: hasTwoPrevious ? previousBuf : nil,
-                            timeStep: dt,
-                            previousTimeStep: previousDt,
-                            method: method,
-                            branchCurrentIndices: branchCurrentIndices,
-                            reltol: convergenceConfig.reltol,
-                            vntol: convergenceConfig.vntol,
-                            abstol: convergenceConfig.abstol
-                        )
-
-                        guard lte.isFinite else { throw TransientExecutionError.nonFiniteLTE(lte) }
-                        if lte > config.lteTolerance {
-                            // LTE too large: reduce timestep and reject
-                            let optDt = lteEstimator.optimalTimeStep(
-                                currentStep: dt,
-                                lte: lte,
-                                tolerance: config.lteTolerance,
-                                method: method
-                            )
-                            let oldDt = dt
-                            guard dt > config.minTimeStep else { throw AnalysisError.timestepTooSmall(dt) }
-                            dt = max(optDt, config.minTimeStep)
-                            reductions = try TransientExecutionBudget.add(reductions, 1, "timeStepReductions")
-                            try budget.rejectStep()
-                            rejectedSteps = try TransientExecutionBudget.add(rejectedSteps, 1, "rejectedSteps")
-
-                            await observer?.emit(.timeStepRejected(TimeStepRejectInfo(
-                                id: analysisID,
-                                time: currentTime,
-                                rejectedStep: oldDt,
-                                newStep: dt,
-                                reason: "LTE exceeded tolerance (\(lte) > \(config.lteTolerance))"
-                            )))
-
-                            if dt < config.minTimeStep {
-                                throw AnalysisError.timestepTooSmall(dt)
-                            }
-                            continue
-                        }
-
-                        // Compute optimal next dt from LTE
-                        let optimalNext = lteEstimator.optimalTimeStep(
-                            currentStep: dt,
-                            lte: lte,
-                            tolerance: config.lteTolerance,
-                            method: method
-                        )
-
-                        // Update dt for the next step (will be clamped by maxTimeStep later)
-                        let nextDt = min(optimalNext, config.maxTimeStep)
-
-                        try budget.admitSavedPoint(accepted: true)
-                        try reserveResultPoint(timePoints.count + 1, capacity: &reservedPointCapacity,
-                            maximumPoints: executionLimits.maximumSavedScalars / (dim + 1),
-                            timePoints: &timePoints, trace: &solutionTrace)
-                        // Accept this step — O(1) buffer rotation
-                        stepAccepted = true
-                        swap(&twoPreviousBuf, &previousBuf)
-                        swap(&previousBuf, &currentBuf)
-                        swap(&currentBuf, &newtonSolutionBuf)
-                        hasTwoPrevious = true
-
-                        // Commit transient device state for trapezoidal companion models.
-                        // After buffer rotation: currentBuf=V_n, previousBuf=V_{n-1}.
-                        let commitState = SolutionState(
-                            variables: currentBuf,
-                            previousVariables: previousBuf,
-                            variableMap: variableMap
-                        )
-                        let commitIntegration = IntegrationState(
-                            method: method,
-                            timeStep: dt,
-                            currentTime: currentTime + dt,
-                            previousTimeStep: previousDt
-                        )
-                        for device in devices {
-                            if let committingDevice = device as? any TransientStateCommittingDevice {
-                                try committingDevice.commitTransientStep(state: commitState, integration: commitIntegration)
-                            }
-                        }
-
-                        previousDt = dt
-                        currentTime += dt
-                        acceptedSteps += 1
-
-                        // Save the time point
-                        timePoints.append(currentTime)
-                        try currentBuf.withUnsafeBufferPointer { try solutionTrace.append($0) }
-                        onStepAccepted?(currentTime, currentBuf)
-
-                        await observer?.emit(.timeStepCompleted(TimeStepInfo(
-                            id: analysisID,
-                            time: currentTime,
-                            timeStep: dt,
-                            iterations: newtonIterations,
-                            lte: lte
-                        )))
-
-                        // Emit progress
-                        let fraction = min(currentTime / config.stopTime, 1.0)
-                        await observer?.emit(.progressUpdate(try ProgressInfo(
-                            id: analysisID,
-                            fraction: fraction,
-                            message: "Transient: t = \(currentTime) s"
-                        )))
-
-                        // If we landed on a breakpoint, reset integration state
-                        // to avoid LTE artifacts from the 3-point formula spanning
-                        // across a waveform discontinuity.
-                        if breakpointMgr.isAtBreakpoint(currentTime) {
-                            hasTwoPrevious = false
-                            method = .backwardEuler
-                        } else if method == .backwardEuler && hasTwoPrevious {
-                            // Restore trapezoidal after completing one backward Euler
-                            // step past the breakpoint (standard SPICE approach).
-                            method = .trapezoidal
-                        }
-
-                        // Update dt for next iteration
-                        dt = nextDt
+                    try budget.chargeWork(TransientExecutionBudget.multiply(dim, compensated ? 2048 : (bootstrapping ? 12 : 20), "LTE vector work"))
+                    if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
+                    let lte: Double
+                    if compensated {
+                        lte = try CompensatedLTEEstimator().estimate(
+                            current: SolutionState(variables: newtonSolutionBuf, previousVariables: currentBuf,
+                                twoPreviousVariables: previousBuf, variableMap: variableMap,
+                                variableLowComponents: newtonSolutionLow, previousVariableLowComponents: currentLow,
+                                twoPreviousVariableLowComponents: previousLow),
+                            threePrevious: twoPreviousBuf, threePreviousLow: twoPreviousLow,
+                            half: twoPreviousBuf, halfLow: twoPreviousLow,
+                            quarter: quarterSolutionBuf, quarterLow: quarterSolutionLow,
+                            integration: currentIntegration, twoPreviousTimeStep: twoPreviousDt,
+                            twoPreviousTimeStepLow: twoPreviousDtLow, bootstrap: bootstrapping,
+                            embedded: embeddedBootstrap, excluded: excludedLTEIndices,
+                            relativeTolerance: convergenceConfig.reltol, absoluteTolerances: variableTolerances,
+                            defaultAbsoluteTolerance: convergenceConfig.vntol)
+                    } else if embeddedBootstrap {
+                        lte = try lteEstimator.estimateEmbedded(current: newtonSolutionBuf, reference: quarterSolutionBuf,
+                            branchCurrentIndices: excludedLTEIndices, reltol: convergenceConfig.reltol,
+                            vntol: convergenceConfig.vntol, variableAbsoluteTolerances: variableTolerances)
+                    } else if bootstrapping {
+                        lte = try lteEstimator.estimateBootstrap(current: newtonSolutionBuf, half: twoPreviousBuf,
+                            quarter: quarterSolutionBuf, branchCurrentIndices: excludedLTEIndices,
+                            reltol: convergenceConfig.reltol, vntol: convergenceConfig.vntol,
+                            variableAbsoluteTolerances: variableTolerances)
                     } else {
-                        try budget.admitSavedPoint(accepted: true)
-                        try reserveResultPoint(timePoints.count + 1, capacity: &reservedPointCapacity,
-                            maximumPoints: executionLimits.maximumSavedScalars / (dim + 1),
-                            timePoints: &timePoints, trace: &solutionTrace)
-                        // First step: no LTE check, just accept — O(1) buffer rotation
-                        stepAccepted = true
-                        swap(&previousBuf, &currentBuf)
-                        swap(&currentBuf, &newtonSolutionBuf)
-                        // hasTwoPrevious stays false
-
-                        // Commit transient device state (first step is always BE).
-                        let commitState = SolutionState(
-                            variables: currentBuf,
-                            previousVariables: previousBuf,
-                            variableMap: variableMap
-                        )
-                        let commitIntegration = IntegrationState(
-                            method: method,
-                            timeStep: dt,
-                            currentTime: currentTime + dt,
-                            previousTimeStep: previousDt
-                        )
-                        for device in devices {
-                            if let committingDevice = device as? any TransientStateCommittingDevice {
-                                try committingDevice.commitTransientStep(state: commitState, integration: commitIntegration)
-                            }
-                        }
-
-                        previousDt = dt
-                        currentTime += dt
-                        acceptedSteps += 1
-
-                        timePoints.append(currentTime)
-                        try currentBuf.withUnsafeBufferPointer { try solutionTrace.append($0) }
-                        onStepAccepted?(currentTime, currentBuf)
-
-                        await observer?.emit(.timeStepCompleted(TimeStepInfo(
-                            id: analysisID,
-                            time: currentTime,
-                            timeStep: dt,
-                            iterations: newtonIterations,
-                            lte: 0.0
-                        )))
-
-                        // Switch to Trapezoidal for subsequent steps
-                        // (unless we landed on a breakpoint, in which case
-                        // stay on backward Euler to avoid LTE artifacts)
-                        if !breakpointMgr.isAtBreakpoint(currentTime) {
-                            method = .trapezoidal
+                        lte = try lteEstimator.estimate(current: newtonSolutionBuf, previous: currentBuf,
+                            twoPrevious: previousBuf, timeStep: dt, previousTimeStep: previousDt,
+                            method: method, branchCurrentIndices: excludedLTEIndices,
+                            reltol: convergenceConfig.reltol, vntol: convergenceConfig.vntol,
+                            abstol: convergenceConfig.abstol, earlyExitThreshold: config.lteTolerance,
+                            threePrevious: twoPreviousBuf, twoPreviousTimeStep: twoPreviousDt,
+                            variableAbsoluteTolerances: variableTolerances)
+                    }
+                    guard lte.isFinite else { throw TransientExecutionError.nonFiniteLTE(lte) }
+                    if lte > config.lteTolerance {
+                        let optimal = lteEstimator.optimalTimeStep(currentStep: dt, lte: lte,
+                            tolerance: config.lteTolerance, method: method)
+                        let oldDt = dt
+                        guard dt > config.minTimeStep else { throw AnalysisError.timestepTooSmall(dt) }
+                        dt = max(optimal, config.minTimeStep)
+                        reductions = try TransientExecutionBudget.add(reductions, 1, "timeStepReductions")
+                        try budget.rejectStep()
+                        rejectedSteps = try TransientExecutionBudget.add(rejectedSteps, 1, "rejectedSteps")
+                        await observer?.emit(.timeStepRejected(TimeStepRejectInfo(id: analysisID,
+                            time: currentTime, rejectedStep: oldDt, newStep: dt,
+                            reason: "LTE exceeded tolerance (\(lte) > \(config.lteTolerance))")))
+                        continue
+                    }
+                    let candidateState = SolutionState(variables: newtonSolutionBuf,
+                        previousVariables: currentBuf, twoPreviousVariables: previousBuf, variableMap: variableMap,
+                        variableLowComponents: compensated ? newtonSolutionLow : nil,
+                        previousVariableLowComponents: compensated ? currentLow : nil,
+                        twoPreviousVariableLowComponents: compensated ? previousLow : nil)
+                    var candidateMaximum = Double.infinity
+                    for device in devices {
+                        if let constrained = device as? any TransientTrialTimeStepConstraintDevice,
+                           let maximum = try constrained.maximumTransientTimeStep(state: candidateState, integration: currentIntegration) {
+                            guard maximum.isFinite, maximum > 0 else { throw TransientExecutionError.invalidTimeStep(maximum) }
+                            candidateMaximum = min(candidateMaximum, maximum)
                         }
                     }
+                    if candidateMaximum < dt {
+                        let oldDt = dt
+                        guard dt > config.minTimeStep, candidateMaximum >= config.minTimeStep else {
+                            throw AnalysisError.timestepTooSmall(candidateMaximum)
+                        }
+                        dt = candidateMaximum
+                        reductions = try TransientExecutionBudget.add(reductions, 1, "timeStepReductions")
+                        try budget.rejectStep()
+                        rejectedSteps = try TransientExecutionBudget.add(rejectedSteps, 1, "rejectedSteps")
+                        await observer?.emit(.timeStepRejected(TimeStepRejectInfo(id: analysisID,
+                            time: currentTime, rejectedStep: oldDt, newStep: dt, reason: "Device candidate timestep bound")))
+                        continue
+                    }
+                    if let physicalResidualEncloser {
+                        guard let finalEncloser = transientResidualEncloser(currentBuf: currentBuf, previousBuf: previousBuf,
+                            currentLow: currentLow, previousLow: previousLow, variableMap: variableMap, integration: currentIntegration),
+                              let equationPolicy else { throw NumericalStateError.incompatiblePrecisionConfiguration }
+                        var finalConfig = convergenceConfig
+                        finalConfig.gmin = 0
+                        var gate = NewtonRaphsonSolver(config: finalConfig, equationPolicy: equationPolicy,
+                            physicalResidualEncloser: finalEncloser)
+                        gate.executionBudget = budget
+                        // Reference trials are dead after LTE; reuse their storage for the final certificate.
+                        try gate.evaluateResidualEnclosure(finalEncloser, state: candidateState,
+                            residual: &rhs, low: &quarterSolutionBuf, radii: &quarterSolutionLow,
+                            nonZeroCount: plan.matrixStructure.nonZeroCount, cancellation: cancellation)
+                        for index in 0..<dim {
+                            let residual = try CompensatedEnclosure(center: CompensatedValue(high: rhs[index], low: quarterSolutionBuf[index]),
+                                radius: quarterSolutionLow[index])
+                            let tolerance = equationPolicy.rows[index].equationAbsoluteTolerance
+                            guard residual.absoluteUpperBound <= tolerance else {
+                                throw NonlinearPhysicalResidualError.uncertifiedResidual(row: index,
+                                    upperBound: residual.absoluteUpperBound, tolerance: tolerance)
+                            }
+                        }
+                        try physicalResidualEncloser.validate(state: candidateState, integration: currentIntegration)
+                    }
+                    try physicalResidualValidator?.validate(state: candidateState, integration: currentIntegration)
+                    if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
+                    let nextDt = max(config.minTimeStep,
+                        min(lteEstimator.optimalTimeStep(currentStep: dt, lte: lte,
+                            tolerance: config.lteTolerance, method: method), config.maxTimeStep))
+                    try budget.admitSavedScalars(TransientExecutionBudget.add(auditScalars,
+                        compensated ? dim : 0, "paired point audit scalars"))
+                    try budget.admitSavedPoint(accepted: true)
+                    try reserveResultPoint(timePoints.count + 1, capacity: &reservedPointCapacity,
+                        maximumPoints: executionLimits.maximumSavedScalars / retainedPointScalars,
+                        timePoints: &timePoints, trace: &solutionTrace, lowTrace: &solutionLowTrace, records: &integrationRecords,
+                        retainedPointScalars: retainedPointScalars, operatingPointScalars: operatingPointScalars)
+                    stepAccepted = true
+                    swap(&twoPreviousBuf, &previousBuf)
+                    swap(&previousBuf, &currentBuf)
+                    swap(&currentBuf, &newtonSolutionBuf)
+                    if compensated {
+                        swap(&twoPreviousLow, &previousLow)
+                        swap(&previousLow, &currentLow)
+                        swap(&currentLow, &newtonSolutionLow)
+                    }
+                    let commitState = SolutionState(variables: currentBuf,
+                        previousVariables: previousBuf, twoPreviousVariables: twoPreviousBuf, variableMap: variableMap,
+                        variableLowComponents: compensated ? currentLow : nil,
+                        previousVariableLowComponents: compensated ? previousLow : nil,
+                        twoPreviousVariableLowComponents: compensated ? twoPreviousLow : nil)
+                    for device in devices {
+                        if let committing = device as? any TransientStateCommittingDevice {
+                            try committing.commitTransientStep(state: commitState, integration: currentIntegration)
+                        }
+                    }
+                    integrationRecords.append(TransientAcceptedStep(time: currentIntegration.currentTime,
+                        timeStep: currentIntegration.timeStep, method: method, previousTimeStep: previousDt,
+                        timeStepLowComponent: currentIntegration.timeStepLowComponent,
+                        previousTimeStepLowComponent: previousDtLow))
+                    acceptedOpticalState = currentOpticalState
+                    twoPreviousDt = previousDt
+                    twoPreviousDtLow = previousDtLow
+                    previousDt = currentIntegration.timeStep
+                    previousDtLow = compensated ? currentIntegration.timeStepLowComponent : nil
+                    smoothHistoryCount = min(3, smoothHistoryCount + 1)
+                    currentTime += dt
+                    acceptedSteps += 1
+                    timePoints.append(currentTime)
+                    try currentBuf.withUnsafeBufferPointer { try solutionTrace.append($0) }
+                    if compensated { try currentLow.withUnsafeBufferPointer { try solutionLowTrace?.append($0) } }
+                    onStepAccepted?(currentTime, currentBuf)
+                    await observer?.emit(.timeStepCompleted(TimeStepInfo(id: analysisID,
+                        time: currentTime, timeStep: dt, iterations: newtonIterations, lte: lte)))
+                    await observer?.emit(.progressUpdate(try ProgressInfo(id: analysisID,
+                        fraction: min(currentTime / config.stopTime, 1), message: "Transient: t = \(currentTime) s")))
+                    if breakpointMgr.isAtBreakpoint(currentTime) {
+                        smoothHistoryCount = 1
+                        previousDt = nil
+                        twoPreviousDt = nil
+                        previousDtLow = nil
+                        twoPreviousDtLow = nil
+                    }
+                    dt = nextDt
                 }
 
                 if !stepAccepted {
@@ -570,8 +613,13 @@ public struct TransientAnalysis: Analysis, Sendable {
                 variableMap: variableMap,
                 timeSteps: acceptedSteps,
                 rejectedSteps: rejectedSteps,
-                executionStatistics: budget.statistics
+                executionStatistics: budget.statistics,
+                operatingPoint: operatingPoint, acceptedSteps: integrationRecords, solutionLowTrace: solutionLowTrace
             )
+
+            for device in acquiredSessions.reversed() { device.endTransientSession() }
+            acquiredSessions.removeAll(keepingCapacity: true)
+            try completionFinalizer?.finalizeCompletion()
 
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
@@ -610,17 +658,108 @@ public struct TransientAnalysis: Analysis, Sendable {
     }
 
     private func reserveResultPoint(_ count: Int, capacity: inout Int, maximumPoints: Int,
-                                    timePoints: inout [Double], trace: inout SolutionTrace) throws {
+                                    timePoints: inout [Double], trace: inout SolutionTrace, lowTrace: inout SolutionTrace?,
+                                    records: inout [TransientAcceptedStep], retainedPointScalars: Int, operatingPointScalars: Int) throws {
         guard let resultStorage, count > capacity else { return }
         let next = capacity + min(capacity, maximumPoints - capacity)
         guard next >= count else {
             throw TransientExecutionError.arithmeticOverflow("transient result capacity")
         }
-        try resultStorage.reserveResultScalars(TransientExecutionBudget.multiply(
-            next, trace.variableCount + 1, "transient result capacity"))
+        try resultStorage.reserveResultScalars(TransientExecutionBudget.add(
+            TransientExecutionBudget.multiply(next, retainedPointScalars, "transient result capacity"),
+            operatingPointScalars, "transient OP and result capacity"))
+        records.reserveCapacity(next)
         timePoints.reserveCapacity(next)
         try trace.reservePointCapacity(next)
+        try lowTrace?.reservePointCapacity(next)
         capacity = next
+    }
+
+    /// Solves one trial from immutable accepted electrical and optical histories.
+    private func solveTransientTrial(
+        currentBuf: [Double], previousBuf: [Double], solution: inout [Double],
+        currentLow: [Double], previousLow: [Double], solutionLow: inout [Double],
+        acceptedOpticalState: OpticalState, opticalState: inout OpticalState,
+        evaluator: OpticalNetworkEvaluator, opticalNetwork: OpticalNetworkGraph?,
+        matrix: inout SparseMatrix, rhs: inout [Double], devices: [any BoundDevice],
+        variableMap: [MNAVariable: Int], solver: inout any LinearSolver,
+        integration: IntegrationState, allowGmin: Bool, observer: EventDispatcher?,
+        analysisID: AnalysisID, cancellation: CancellationToken, executionBudget: TransientExecutionBudget
+    ) async throws -> Int {
+        let startingIterations = executionBudget.statistics.newtonIterations
+        opticalState = acceptedOpticalState
+        let residualEvaluator = transientResidualEvaluator(currentBuf: currentBuf, previousBuf: previousBuf,
+            variableMap: variableMap, integration: integration)
+        let encloser = transientResidualEncloser(currentBuf: currentBuf, previousBuf: previousBuf,
+            currentLow: currentLow, previousLow: previousLow, variableMap: variableMap, integration: integration)
+        var originalConfig = convergenceConfig
+        originalConfig.gmin = 0
+        var nr = NewtonRaphsonSolver(config: originalConfig, equationPolicy: equationPolicy,
+            physicalResidualEvaluator: residualEvaluator, physicalResidualEncloser: encloser)
+        nr.executionBudget = executionBudget
+        nr.resultStorage = resultStorage
+        do {
+            _ = try await nr.solveInternal(
+                initialGuess: currentBuf, initialLowComponents: physicalResidualEncloser == nil ? nil : currentLow,
+                solution: &solution, solutionLowComponents: &solutionLow,
+                matrix: &matrix,
+                rhs: &rhs,
+                devices: devices,
+                variableMap: variableMap,
+                solver: &solver,
+                stampFunction: { stamper, state in
+                    let transientState = SolutionState(
+                        variables: state.variables,
+                        previousVariables: currentBuf,
+                        twoPreviousVariables: previousBuf,
+                        variableMap: variableMap,
+                        variableLowComponents: state.variableLowComponents,
+                        previousVariableLowComponents: physicalResidualEncloser == nil ? nil : currentLow,
+                        twoPreviousVariableLowComponents: physicalResidualEncloser == nil ? nil : previousLow
+                    )
+                    // Evaluate optical network at each NR iteration
+                    if let graph = opticalNetwork {
+                        opticalState = evaluator.evaluate(
+                            graph: graph,
+                            devices: devices,
+                            electricalState: transientState,
+                            previousOpticalState: opticalState
+                        )
+                    }
+                    for device in devices {
+                        if let optoDevice = device as? OptoelectronicDevice {
+                            optoDevice.stampTransient(
+                                into: &stamper,
+                                state: transientState,
+                                opticalState: opticalState,
+                                integration: integration
+                            )
+                        } else {
+                            try device.stampTransient(
+                                into: &stamper,
+                                state: transientState,
+                                integration: integration
+                            )
+                        }
+                    }
+                },
+                observer: observer,
+                analysisID: analysisID,
+                cancellation: cancellation
+            )
+            return executionBudget.statistics.newtonIterations - startingIterations
+        } catch let error as AnalysisError {
+            guard case .convergenceFailure = error, allowGmin else { throw error }
+            opticalState = acceptedOpticalState
+            _ = try await tryGminStepping(currentBuf: currentBuf, previousBuf: previousBuf,
+                solution: &solution, currentLow: currentLow, previousLow: previousLow, solutionLow: &solutionLow,
+                opticalState: &opticalState, evaluator: evaluator,
+                opticalNetwork: opticalNetwork, matrix: &matrix, rhs: &rhs, devices: devices,
+                variableMap: variableMap, solver: &solver, integration: integration,
+                observer: observer, analysisID: analysisID, cancellation: cancellation,
+                executionBudget: executionBudget)
+            return executionBudget.statistics.newtonIterations - startingIterations
+        }
     }
 
     /// Attempts GMIN stepping at the current timestep to find a converged solution.
@@ -634,6 +773,7 @@ public struct TransientAnalysis: Analysis, Sendable {
         currentBuf: [Double],
         previousBuf: [Double],
         solution: inout [Double],
+        currentLow: [Double], previousLow: [Double], solutionLow: inout [Double],
         opticalState: inout OpticalState,
         evaluator: OpticalNetworkEvaluator,
         opticalNetwork: OpticalNetworkGraph?,
@@ -659,18 +799,32 @@ public struct TransientAnalysis: Analysis, Sendable {
         if solution.count != currentBuf.count {
             solution = [Double](repeating: 0.0, count: currentBuf.count)
         }
+        var guessLow = currentLow
         var totalIterations = 0
 
-        for gmin in config.gminStepping.lazyValues() {
+        var stages = config.gminStepping.lazyValues().makeIterator()
+        var lastGmin: Double?
+        while true {
+            let gmin: Double
+            if let stage = stages.next() { gmin = stage }
+            else if lastGmin != 0 { gmin = 0 }
+            else { break }
+            lastGmin = gmin
             var stepConfig = convergenceConfig
             stepConfig.gmin = gmin
 
-            var nr = NewtonRaphsonSolver(config: stepConfig)
+            let residualEvaluator = transientResidualEvaluator(currentBuf: currentBuf, previousBuf: previousBuf,
+                variableMap: variableMap, integration: integration)
+            let encloser = transientResidualEncloser(currentBuf: currentBuf, previousBuf: previousBuf,
+                currentLow: currentLow, previousLow: previousLow, variableMap: variableMap, integration: integration)
+            var nr = NewtonRaphsonSolver(config: stepConfig, equationPolicy: equationPolicy,
+                physicalResidualEvaluator: residualEvaluator, physicalResidualEncloser: encloser)
             nr.executionBudget = executionBudget
+            nr.resultStorage = resultStorage
             do {
-                let iterations = try await nr.solve(
-                    initialGuess: guess,
-                    solution: &solution,
+                let iterations = try await nr.solveInternal(
+                    initialGuess: guess, initialLowComponents: physicalResidualEncloser == nil ? nil : guessLow,
+                    solution: &solution, solutionLowComponents: &solutionLow,
                     matrix: &matrix,
                     rhs: &rhs,
                     devices: devices,
@@ -681,7 +835,10 @@ public struct TransientAnalysis: Analysis, Sendable {
                             variables: state.variables,
                             previousVariables: currentBuf,
                             twoPreviousVariables: previousBuf,
-                            variableMap: variableMap
+                            variableMap: variableMap,
+                            variableLowComponents: state.variableLowComponents,
+                            previousVariableLowComponents: physicalResidualEncloser == nil ? nil : currentLow,
+                            twoPreviousVariableLowComponents: physicalResidualEncloser == nil ? nil : previousLow
                         )
                         // Evaluate optical network
                         if let graph = opticalNetwork {
@@ -714,6 +871,7 @@ public struct TransientAnalysis: Analysis, Sendable {
                     cancellation: cancellation
                 )
                 swap(&guess, &solution)
+                if physicalResidualEncloser != nil { swap(&guessLow, &solutionLow) }
                 totalIterations += iterations
             } catch {
                 throw error
@@ -721,7 +879,40 @@ public struct TransientAnalysis: Analysis, Sendable {
         }
 
         swap(&guess, &solution)
+        if physicalResidualEncloser != nil { swap(&guessLow, &solutionLow) }
         return totalIterations
+    }
+
+    private func integrationState(method: IntegrationMethod, acceptedTime: Double, candidateTime: Double,
+        proposedStep: Double, previousTimeStep: Double?, previousLow: Double?
+    ) throws -> IntegrationState {
+        if physicalResidualEncloser != nil {
+            let interval = try CompensatedValue(high: candidateTime).subtracting(CompensatedValue(high: acceptedTime))
+            guard interval.high > 0 else { throw TransientExecutionError.invalidTimeStep(interval.high) }
+            return IntegrationState(method: method, timeStep: interval.high, currentTime: candidateTime,
+                previousTimeStep: previousTimeStep, timeStepLowComponent: interval.low,
+                previousTimeStepLowComponent: previousLow)
+        }
+        return IntegrationState(method: method, timeStep: proposedStep, currentTime: candidateTime,
+            previousTimeStep: previousTimeStep)
+    }
+
+    private func transientResidualEncloser(currentBuf: [Double], previousBuf: [Double],
+        currentLow: [Double], previousLow: [Double], variableMap: [MNAVariable: Int], integration: IntegrationState
+    ) -> (any NonlinearPhysicalResidualEnclosing)? {
+        guard let evaluator = physicalResidualEncloser else { return nil }
+        return TransientStepPhysicalResidualEncloser(evaluator: evaluator,
+            previousVariables: currentBuf, twoPreviousVariables: previousBuf,
+            previousLowComponents: currentLow, twoPreviousLowComponents: previousLow,
+            variableMap: variableMap, integration: integration)
+    }
+
+    private func transientResidualEvaluator(
+        currentBuf: [Double], previousBuf: [Double], variableMap: [MNAVariable: Int], integration: IntegrationState
+    ) -> (any NonlinearPhysicalResidualEvaluating)? {
+        guard let evaluator = physicalResidualValidator as? any TransientPhysicalResidualEvaluating else { return nil }
+        return TransientStepPhysicalResidualEvaluator(evaluator: evaluator, previousVariables: currentBuf,
+            twoPreviousVariables: previousBuf, variableMap: variableMap, integration: integration)
     }
 
     /// Builds the initial solution vector from device initial conditions (UIC mode).

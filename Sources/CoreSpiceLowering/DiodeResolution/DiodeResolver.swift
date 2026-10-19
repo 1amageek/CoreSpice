@@ -15,7 +15,8 @@ struct DiodeResolver {
 
     mutating func resolve<Schemas: DiodeModelSchemaProviding>(schemas: borrowing Schemas, profile: DiodeInputProfile?, scale: Double, seed: UInt64,
                          session: inout MOSEvaluationSession,
-                         memo: inout [DiodeModelMemoKey: ResolvedDiodeModel]) throws -> ResolvedDiodeInstance {
+                         memo: inout [DiodeModelMemoKey: DiodeModelMemoEntry],
+                         sourceScalars: inout [NetlistSourceScalarOverride]) throws -> ResolvedDiodeInstance {
         do {
             try session.checkHealthy()
             guard let profile else { throw DiodeResolutionFailure.Cause.profileRequired }
@@ -39,8 +40,20 @@ struct DiodeResolver {
             let key = DiodeModelMemoKey(declaration: index, invocation: owner)
             let inputLimits = try DiodeInputLimits(maximumAssignments: limits.maximumPrograms,
                                                   maximumParameterNameBytes: Int(min(limits.maximumRetainedBytes, UInt64(Int.max))))
+            let overrides = compiled.scalarOverrides[fullName.lowercased()] ?? []
+            for override in overrides {
+                let assignments = override.source.role == .model ? declaration.diodeAssignments : job.template.diodeAssignments
+                guard override.name != "level", override.name != "version",
+                      assignments.contains(where: { $0.source.name.lowercased() == override.name && $0.program != nil }) else {
+                    throw LoweringError.invalidComponent(name: fullName, reason: "Diode override is not an explicit scalar source assignment")
+                }
+            }
+            let hasModelOverride = overrides.contains(where: { $0.source.role == .model })
             let model: ResolvedDiodeModel
-            if let cached = memo[key] { model = cached }
+            var modelAssignments: [DiodeScalarAssignment] = []
+            if !hasModelOverride, let cached = memo[key] {
+                model = cached.model; modelAssignments = cached.assignments
+            }
             else {
                 guard memo.count < limits.maximumCacheEntries else { throw MOSResolutionFailure.limitExceeded(.cacheEntries) }
                 try validateProjection(declaration.diodeAssignments, projection: declaration.model.parameters,
@@ -79,6 +92,7 @@ struct DiodeResolver {
                 }
                 let input = try DiodeModelInput(schema: schema, assignments: values.span,
                                                environment: environment, limits: inputLimits)
+                if compiled.captureSourceScalars { modelAssignments = values }
                 let source = frontendModelSource(declaration.model)
                 model = ResolvedDiodeModel(declaration: .init(declaration: UInt64(index),
                     scope: declaration.scope.rawValue, invocation: owner, sourcePath: source.path,
@@ -87,22 +101,36 @@ struct DiodeResolver {
                     orderedAssignmentEvidence: !declaration.model.parameterAssignments.isEmpty || declaration.model.parameters.isEmpty)
             }
             // Cache insertion is outside the scratch release scope; immutable backing is charged once.
-            if memo[key] == nil {
-                memo[key] = model
+            if !hasModelOverride, memo[key] == nil {
+                try storage.retain(modelAssignments)
+                memo[key] = .init(model: model, assignments: modelAssignments)
+            }
+            if hasModelOverride { try storage.retain(modelAssignments) }
+            defer {
+                if hasModelOverride {
+                    storage.budget.release(UInt64(modelAssignments.capacity) * UInt64(MemoryLayout<DiodeScalarAssignment>.stride))
+                }
+            }
+            let modelSchema = try schemas.schema(for: model.input.schemaIdentity.law)
+            for assignment in modelAssignments where compiled.captureSourceScalars {
+                try storage.spend()
+                let definition = try modelSchema.parameter(named: assignment.name, role: .model, limits: inputLimits)
+                guard case .model(let id) = definition.id, model.input.disposition(for: id) == .active else { continue }
+                try recordScalar(assignment, role: .model, into: &sourceScalars)
             }
             modelAssignment = false; assignmentIndex = nil
             let assignments = job.template.diodeAssignments
             try validateProjection(assignments, projection: job.template.component.parameters, level: nil)
             let schema = try schemas.schema(for: model.input.schemaIdentity.law)
             try admit(assignments, schema: schema, role: .instance, inputLimits: inputLimits)
-            let baseline = storage.budget.bytes
             var values: [DiodeScalarAssignment] = []
-            defer { storage.budget.release(storage.budget.bytes - baseline) }
+            defer { storage.budget.release(UInt64(values.capacity) * UInt64(MemoryLayout<DiodeScalarAssignment>.stride)) }
             for (offset, assignment) in assignments.enumerated() {
                 assignmentIndex = offset
                 let value = try evaluate(assignment, invocation: job.invocation, scope: job.template.scope, session: &session)
                 try storage.reserve(&values, values.count + 1)
                 values.append(.init(name: assignment.source.name, value: value))
+                try recordScalar(.init(name: assignment.source.name, value: value), role: .instance, into: &sourceScalars)
             }
             let input = try DiodeInstanceInput(schema: schema, assignments: values.span,
                 environment: environment, scale: DiodeGeometryScale(scale), limits: inputLimits)
@@ -138,6 +166,14 @@ struct DiodeResolver {
                 declarationRange: fits ? candidates : nil, assignmentIndex: fits ? assignmentIndex : nil,
                 modelAssignment: modelAssignment, componentIndex: fits ? job.template.ordinal : nil, isTruncated: !fits)
         }
+    }
+    private func recordScalar(_ assignment: DiodeScalarAssignment, role: NetlistSourceScalarOverride.Role,
+        into sourceScalars: inout [NetlistSourceScalarOverride]) throws {
+        guard compiled.captureSourceScalars else { return }
+        try storage.text(fullName); try storage.text(assignment.name)
+        try storage.reserve(&sourceScalars, sourceScalars.count + 1)
+        sourceScalars.append(try .init(instanceName: fullName, parameterName: assignment.name,
+            role: role, value: assignment.value))
     }
     private var fullName: String {
         job.prefix.isEmpty ? job.template.component.name : job.prefix + "." + job.template.component.name
@@ -197,7 +233,11 @@ struct DiodeResolver {
                            session: inout MOSEvaluationSession) throws -> Double {
         guard let program = assignment.program else { throw DiodeResolutionFailure.Cause.nonScalarAssignment }
         if case .boolean = assignment.source.value { throw DiodeResolutionFailure.Cause.nonScalarAssignment }
-        return try evaluateMOSProgram(program, invocation: invocation, lexicalScope: scope,
+        let role: NetlistSourceScalarOverride.Role = modelAssignment ? .model : .instance
+        let overridden = compiled.scalarOverrides[fullName.lowercased()]?.first {
+            $0.source.role == role && $0.name == assignment.source.name.lowercased()
+        }
+        return try evaluateMOSProgram(overridden?.binding.program ?? program, invocation: invocation, lexicalScope: scope,
                                       from: compiled.snapshot, session: &session)
     }
 }

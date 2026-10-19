@@ -48,11 +48,12 @@ L and W; exact models preserve omitted dimensions as absent.
 | Missing bound | invalid declaration | exclude with retained reason |
 | Invalid/inverted visited bounds | typed failure | typed failure |
 | Selection width | full normalized drawn width | full width; explicit global flag uses raw W/NF then scale |
-| Missing BSIM version | reject | 3.3.0 / 4.8.3 with default origin |
+| Legacy BSIM levels 49/54 | OSDI binding required | OSDI binding required |
 
 Explicit classic levels retain `explicitLevel`; an omitted level defaults to L1.
 Exact version strings never prefix-match or substitute an executable release.
-BSIM4 4.5 resolution/inspection succeeds independently of preparation admission.
+Legacy native BSIM cards fail before schema evaluation and retain the actual
+visited declaration source; they cannot be inspected as supported resolved models.
 All visited active-card assignments evaluate in source order. Strict rejects
 canonical alias collisions; pinned evaluates each then keeps the last assignment.
 The resulting model/instance buffer has one winning raw SymbolID/value per schema
@@ -130,3 +131,29 @@ rejects marked visited declarations as invalid resolved evidence. Pinned discard
 duplicate cards are skipped before this admission check; no later invalid card can
 replace or invalidate the first source card. Frontend regression tests own original
 quoted coefficient and unknown-name inputs; resolver tests own marker admission.
+
+## Fresh Source Effective Model Overlay
+
+Fresh source runs may attach explicit scalar `modelOverrides` to one concrete
+request. Each visited candidate validates override role, schema kind and canonical
+name; only real scalar physical parameters are perturbable. Initial-condition
+components and non-real selectors fail. The shared source model is evaluated and
+memoized normally; an independently admitted effective buffer applies overrides
+before candidate bounds, normalization and model preparation. Its values never
+replace a declaration or a shared model cache entry. The declaration identity and
+source provenance remain exact; Frontend separately retains the applied overlay.
+Overrides are evaluated in the target instance invocation, are finite and use
+model units. Canonical alias duplicates fail before publication. Resolver-produced
+results retain original raw instance values as defined by [Values](../../CoreSpiceMOSContracts/Values/DESIGN.md#fresh-source-scalar-perturbations).
+
+Focused tests must distinguish two instances sharing one declaration, changed
+literal hierarchical geometry, changed effective model coefficient, unchanged
+source/cache identity, rejection of unknown/non-real parameters and independent
+inspection of the fresh result. No resolved or prepared receipt is mutated.
+
+
+## Classical Schema Boundary
+Only actual Level 1/2/3 parameter semantics survive native BSIM removal.
+The resolver does not invent classical bin-bound or finger semantics. Old BSIM
+bin-normalization fixtures are removed; source indexing, lexical ownership,
+classical exact-model evaluation and failure evidence remain independently tested.

@@ -1,5 +1,6 @@
 import CoreSpiceIR
 import CoreSpiceMOSContracts
+import CoreSpiceDiodeContracts
 @testable import CoreSpiceDevices
 import Testing
 
@@ -32,8 +33,8 @@ struct ModelParameterValidationTests {
         )
         var context = emptyContext()
 
-        #expect(throws: DeviceBindingError.self) {
-            _ = try DiodeDescriptor().bind(instance: instance, context: &context)
+        #expect(throws: DiodeSchemaFailure.invalidValue(.model(.saturationCurrent))) {
+            _ = try PreparedDiodeFixture().bind(instance: instance, context: &context)
         }
     }
 

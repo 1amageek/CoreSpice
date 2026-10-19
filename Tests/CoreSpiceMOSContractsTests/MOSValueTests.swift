@@ -27,15 +27,15 @@ struct MOSValueTests {
         let resultLimits = try limits()
         var validationBudget = MOSStorageBudget(maximumBytes: resultLimits.maximumRetainedBytes, maximumSteps: resultLimits.maximumEvaluationSteps)
         let result = try ResolvedMOSInstance(identitySpace: MOSIdentitySpace(), source: source, instanceSource: nil, selectedName: .init(0),
-            symbolNames: ["nm", "vth0"], scope: .init(2), scopeInstantiation: 99, instance: "x1.m1",
-            declaration: .init(3), polarity: .nmos, release: .bsim4_4_5,
-            releaseOrigin: .explicit("4.5"), schema: MOSModelRelease.bsim4_4_5.schemaIdentity,
+            symbolNames: ["nm", "vto"], scope: .init(2), scopeInstantiation: 99, instance: "x1.m1",
+            declaration: .init(3), polarity: .nmos, release: .level1,
+            releaseOrigin: .explicitLevel(1), schema: MOSModelRelease.level1.schemaIdentity,
             modelCoefficients: [.init(symbol: .init(1), value: 0.7)], instanceParameters: [],
             rawGeometry: .init(length: nil, width: nil), normalizedGeometry: .init(length: nil, width: nil),
             selectionGeometry: .init(length: nil, width: nil, fingerDivisor: 1),
             profile: .coreStrictV1, geometryScale: 1, rules: [.exactName], candidates: [.init(declaration: .init(3), disposition: .selected)], limits: resultLimits, workBudget: &validationBudget)
         #expect(result.source == source)
-        #expect(result.symbolNames[Int(result.modelCoefficients[0].symbol.rawValue)] == "vth0")
+        #expect(result.symbolNames[Int(result.modelCoefficients[0].symbol.rawValue)] == "vto")
         #expect(result.normalizedGeometry.length == nil)
         #expect(result.instanceParameters.isEmpty)
         #expect(result.scopeInstantiation == 99)

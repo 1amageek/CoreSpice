@@ -152,7 +152,7 @@ public struct SymbolicAnalysis: Sendable {
     public let fillInCount: Int
     public let factorizationStructure: SparseStructure
 
-    public static func analyze(structure: SparseStructure) -> SymbolicAnalysis
+    public static func analyze(structure: SparseStructure) throws -> SymbolicAnalysis
 }
 
 // Incremental parameter updates
@@ -162,79 +162,45 @@ public struct IncrementalUpdate: Sendable {
 }
 ```
 
-## Implementation Status
+## Numerical and Resource Contracts
 
-### Complete Features
+The real and complex solvers use a shared Pure Swift column-oriented sparse LU.
+Updated Schur-column values select numeric row pivots. All nonzero computed fill
+is retained; no fixed absolute singularity/drop threshold or dense fallback is
+used. Input CSR and the selected ordering key reusable structural preparation.
+Numerical pivots and fill are recomputed for every matrix value update.
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| CSR sparse structure | Complete | Efficient deduplication and binary search lookup |
-| Real sparse matrix | Complete | Value storage, accumulation, matrix-vector multiply |
-| Complex sparse matrix | Complete | Full complex arithmetic support |
-| LU decomposition (real) | Complete | Partial pivoting, forward/backward substitution |
-| LU decomposition (complex) | Complete | Magnitude-based partial pivoting |
-| Matrix topology mapping | Complete | MNA variable indexing, sparsity pattern generation |
-| Execution plan generation | Complete | Standard compiler implementation |
-| Incremental updates | Partial | Data structure defined, application logic in analysis module |
+Storage follows dimension, input entries and actual factor fill, including managed
+capacity slack. Sparse inputs can still produce dense factors. The indexed
+minimum-degree heap removes the former dimension scan per eliminated node; its
+explicit clique fill is still genuine work/storage that may require refusal.
+SymbolicAnalysis is an advisory no-numeric-pivot view and is not a factor-capacity
+certificate. Ordering and symbolic APIs propagate control failures with throws.
 
-### Incomplete/Simplified Features
+Bounded callers install LinearSolverExecutionControlling through the solver
+protocol requirement. Work/checkpoint and capacity leases join the existing run
+budget; a custom solver that cannot enforce a nonnil controller refuses explicitly.
+Unbounded low-level calls remain available and do not claim application ceilings.
+The inout solve uses caller-owned result storage; the allocating variant allocates
+its returned vector. Repeated same-structure factorization can reuse numeric buffer
+capacity. Copy-on-write and replacement capacity are admitted before mutation.
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Symbolic analysis | Simplified | Only ensures diagonal presence; does not predict off-diagonal fill-in |
-| Sparse LU factorization | Dense conversion | Converts to dense internally; acceptable for small/medium circuits |
+See [factorization](SparseFactorization/DESIGN.md), [ordering](SparseOrdering/DESIGN.md)
+and [Analysis composition](../CoreSpiceAnalysis/SparseExecution/DESIGN.md) for the
+normative numerical, ownership, failure and verification contracts. Native solver
+identity is CoreSpice.SparseLU.SwiftCSC.v2; previous evidence is not silently relabeled.
 
-## Code Review Notes
+## Verification Scope
 
-### Strengths
+Compile tests cover independent dense-reference solutions, updated Schur pivots,
+nonsymmetric fill, extreme scales, cache/ordering changes, multiple right-hand
+sides, invalid values/shapes, failed-factor refusal, capacity/work/cancellation,
+solver-copy ownership and sparse diagonal/band scaling. Original CSR residuals
+remain the numerical check; factor structure alone does not establish accuracy.
 
-1. **Clean Protocol-Oriented Design**: The `LinearSolver` and `ComplexLinearSolver` protocols allow for alternative solver implementations while providing a stable API.
-
-2. **Value Types**: All types are structs with `Sendable` conformance, enabling safe concurrent use.
-
-3. **Clear Separation of Concerns**: Structure (sparsity pattern) is separated from values, allowing pattern reuse across iterations.
-
-4. **Comprehensive Documentation**: All public types and methods have doc comments with clear explanations.
-
-5. **Structural Integrity**: Methods like `addValue` require positions to exist in the sparsity pattern and fail fast when a stamp targets a missing entry.
-
-### Areas for Improvement
-
-1. **Dense LU Factorization**: The `SparseLUSolver` and `ComplexSparseLUSolver` convert sparse matrices to dense arrays for factorization. This is O(n^2) in memory and O(n^3) in time. For large circuits (>1000 nodes), a true sparse LU algorithm (e.g., SuperLU, UMFPACK-style) would be significantly more efficient.
-
-2. **Symbolic Analysis is Minimal**: The `SymbolicAnalysis.analyze` method only adds missing diagonal entries. A complete implementation would perform symbolic Gaussian elimination to predict all fill-in positions, which is important for:
-   - Pre-allocating exact memory for factors
-   - Optimal pivot ordering (AMD, COLAMD)
-   - Reusing symbolic structure across Newton iterations
-
-3. **Hardcoded Singularity Threshold**: Both solvers use `1e-15` as the singularity threshold. This should ideally be configurable or scaled relative to matrix norms for better numerical robustness.
-
-4. **Sparse Input Validation**: Public `SparseStructure` construction validates
-   dimensions, row-pointer shape and monotonicity, terminal nonzero count,
-   column bounds, and per-row ordering. Internal compiler construction uses a
-   checked-by-construction path.
-
-5. **Error Type Reuse**: `solve(rhs:)` throws `CompileError.singularMatrix` when called without prior factorization. A more specific error (e.g., `.notFactorized`) would improve diagnostics.
-
-6. **Branch Connectivity**: `MatrixTopology` uses each instance's owned and
-   referenced branches to emit only local node/branch and branch/branch
-   structure. A conservative fallback remains only for legacy programmatic IR
-   whose branches have no instance association.
-
-### Test Coverage
-
-The test suite (`CoreSpiceCompileTests.swift`) covers:
-- Sparse structure creation from triplets
-- Sparse matrix operations (add, retrieve, clear, multiply)
-- LU solver for 2x2 and 3x3 systems with pivoting
-- Complex arithmetic and complex LU solver
-- Matrix topology creation from circuit IR
-- Standard compiler execution
-
-### Quality Assessment
-
-**Overall**: Good production-ready code for small to medium circuits. The implementation is correct, well-documented, and follows Swift best practices. For large-scale simulations, the dense LU approach would need to be replaced with a sparse direct solver.
-
-**Maintainability**: High. Clear separation between files, consistent naming, and thorough documentation make the code easy to understand and modify.
-
-**Performance**: Adequate for typical use cases. The O(n^3) LU factorization is the primary bottleneck for large circuits.
+Large extracted PEX accuracy, cold-process peak RSS and time, Native API/CLI
+persistence and repeated-factor measurements are qualified separately by
+[the package tooling](../../tools/SparseQualification/DESIGN.md). Implementation
+and focused test success alone do not establish foundry or whole-platform
+production readiness, general sparse-memory complexity under arbitrary fill,
+end-to-end acceleration, or zero-copy behavior.

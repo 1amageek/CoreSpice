@@ -15,6 +15,8 @@ public struct PreparedSPICESimulation: Sendable {
     public let sourceInputIdentity: ContentDigest
     public let initialConditions: SPICEOwnedNodeVoltages
     public let nodeSets: SPICEOwnedNodeVoltages
+    package var retainedConfigurationBytes: UInt64 { reservation.byteCount }
+    package let request: SPICESimulationPreparationRequest
     package let resources: any SPICESourceResourceAccounting
     package let maximumTransformBytes: UInt64
     private let reservation: SPICESourceStorageReservation
@@ -23,7 +25,8 @@ public struct PreparedSPICESimulation: Sendable {
                   configuration: SPICEEffectiveSimulationConfiguration, sourceInputIdentity: ContentDigest,
                   initialConditions: SPICEOwnedNodeVoltages, nodeSets: SPICEOwnedNodeVoltages,
                   reservation: SPICESourceStorageReservation, frontendReservation: SPICESourceStorageReservation, resources: any SPICESourceResourceAccounting,
-                  maximumTransformBytes: UInt64) {
+                  maximumTransformBytes: UInt64, request: SPICESimulationPreparationRequest) {
+        self.request = request
         self.frontendReservation = frontendReservation
         self.sourceOccurrences = sourceOccurrences
         self.parsedResult = parsedResult; self.sources = sources; self.lowered = lowered
@@ -31,4 +34,12 @@ public struct PreparedSPICESimulation: Sendable {
         self.resources = resources; self.maximumTransformBytes = maximumTransformBytes
         self.initialConditions = initialConditions; self.nodeSets = nodeSets; self.reservation = reservation
     }
+    /// Preserves all owned storage while adding a stricter invocation cancellation boundary.
+    package func checkingResources(_ accounting: any SPICESourceResourceAccounting) -> Self {
+        Self(parsedResult: parsedResult, sourceOccurrences: sourceOccurrences, sources: sources, lowered: lowered,
+            configuration: configuration, sourceInputIdentity: sourceInputIdentity, initialConditions: initialConditions,
+            nodeSets: nodeSets, reservation: reservation, frontendReservation: frontendReservation,
+            resources: accounting, maximumTransformBytes: maximumTransformBytes, request: request)
+    }
+
 }

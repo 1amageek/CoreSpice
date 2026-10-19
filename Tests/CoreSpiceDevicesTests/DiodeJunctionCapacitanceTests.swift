@@ -54,7 +54,7 @@ struct DiodeJunctionCapacitanceTests {
     /// - At V = 0: Cj = Cjo / 1^m = Cjo
     @Test("Zero bias junction capacitance equals Cjo")
     func zeroBiasCapacitance() throws {
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node(id: 2)
 
@@ -114,7 +114,7 @@ struct DiodeJunctionCapacitanceTests {
     ///   Cj = Cjo / (1 + 2/0.7)^0.5 = Cjo / 2.04 ≈ 0.49 × Cjo
     @Test("Reverse bias junction capacitance follows 1/(1-V/Vj)^m")
     func reverseBiasCapacitance() throws {
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node(id: 2)
 
@@ -175,7 +175,7 @@ struct DiodeJunctionCapacitanceTests {
     ///   C = C(0.5×Vj) + dC/dV|_{0.5Vj} × (V - 0.5×Vj)
     @Test("Forward bias uses linear extrapolation to avoid singularity")
     func forwardBiasLinearExtrapolation() throws {
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node(id: 2)
 
@@ -235,7 +235,7 @@ struct DiodeJunctionCapacitanceTests {
     /// - Cd = τ × Is/Vt × exp(Vd/Vt) = τ × gd (where gd is small-signal conductance)
     @Test("Diffusion capacitance Cd = τ × gd in forward bias")
     func diffusionCapacitance() throws {
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node(id: 2)
 
@@ -295,7 +295,7 @@ struct DiodeJunctionCapacitanceTests {
     /// Verifies total AC capacitance is sum of junction and diffusion components.
     @Test("Total AC capacitance = Cj(depletion) + Cd(diffusion)")
     func totalACCapacitance() throws {
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node(id: 2)
 
@@ -364,7 +364,7 @@ struct DiodeJunctionCapacitanceTests {
     /// meaning C = B/ω should be constant.
     @Test("Junction capacitance is frequency independent")
     func capacitanceFrequencyIndependence() throws {
-        let desc = DiodeDescriptor()
+        let desc = PreparedDiodeFixture()
         let anode = Node(id: 1)
         let cathode = Node(id: 2)
 

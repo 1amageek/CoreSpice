@@ -1,0 +1,8 @@
+{
+  "headerURL": "https://raw.githubusercontent.com/OpenVAF/OpenVAF-Reloaded/fdf2522b70f42793f64b1c72f0195c96dea0cc19/openvaf/osdi/header/osdi_0_4.h",
+  "headerSHA256": "0f3eeb9ef3c9f0bea9b3c59f34c632555e2367f6e28722e219d8c3f1d655a16f",
+  "licenseURL": "https://raw.githubusercontent.com/OpenVAF/OpenVAF-Reloaded/fdf2522b70f42793f64b1c72f0195c96dea0cc19/LICENSE",
+  "licenseSHA256": "0a6210390a8ad42c031d42c911faf9495873b1dead64fe0edd350d99587850ce",
+  "compilerRelease": "v24.0.2mob",
+  "compilerSourceCommit": "fdf2522b70f42793f64b1c72f0195c96dea0cc19"
+}

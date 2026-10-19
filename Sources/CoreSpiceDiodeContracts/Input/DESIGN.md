@@ -208,3 +208,27 @@ The [D3 resolution owner](../../CoreSpiceLowering/DiodeResolution/DESIGN.md) def
 evaluation, immutable result transport and explicit numerical refusal. This layer
 consumes that contract; D4 numerical preparation and D5 downstream adoption remain
 separate. Its affected production path and behavioral tests are verified in D3.
+
+## D4 Preparation Values
+
+Preparation values retain checked resolved input and its exact semantic identity.
+DiodePreparationInput admits an explicit environment, analysis set and limits.
+DiodePreparationIdentity binds the checked resolution, environment, effective
+local temperature, implementation and analysis set. DiodePreparationReceipt is
+inspection-only; its package constructor is unavailable to external callers.
+The numerical owner lives in Devices. Copying a receipt cannot create or rebind
+an executable device. Equality compares canonical model/instance values and their
+origins as well as declaration/profile/environment/provenance, without hashing or
+pointer identity. Source-free typed inputs explicitly carry unavailable source
+coordinates and never claim source capture evidence.
+
+### Exact Generic Profile Transport
+
+The distinct genericDiodeV1 selects genericJunctionV1 with the same checked
+model/instance roles and selected level/version admission. Its preparation owner
+preserves previously declared generic Cjo/Tt/breakdown inputs; numerical
+qualification and replacement of incomplete generic branches belong to 07N.
+coreDiodeV1 feature admission remains restricted and unchanged. Unknown fields,
+Level3, sidewall and accepted-but-unused Rs do not become generic success.
+Preparation types are implemented by [Preparation](../Preparation/DESIGN.md),
+which owns their identity/limits/receipt contract without duplicating input schema.

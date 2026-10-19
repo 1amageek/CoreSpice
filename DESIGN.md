@@ -34,6 +34,32 @@ flowchart TD
     Diagnostics --> Consumer
 ```
 
+## Finite prerequisite source publication
+
+This source candidate makes the implementation tree from
+`bb754369fd2e4796eb4ac44ba07856565529a797` available as a dependency prerequisite,
+with the already public `eee5576fddf54cdbad887063668a205dd02b3ebd` as its
+sole Git parent. The implementation, tests, resources, all thirteen products,
+`Package.swift`, and `Package.resolved` retain their exact source-tree identities.
+Only this publication contract and the current dependency distribution inventory
+are updated. The private intermediate commit ancestry is not part of this source
+publication; the final candidate commit and archive digest identify the conveyed
+source independently of that history.
+
+| Boundary | Qualification and remaining obligation |
+|---|---|
+| Source availability prerequisite | Exact tracked-tree comparison, six public dependency pins, and an actual bounded public `CoreSpiceIO` profile-parsing client |
+| Previously qualified finite paths | Existing evidence remains scoped to its exact source, inputs, models, backend, and conditions; source equivalence does not enlarge those guarantees |
+| PDK consumer adoption | A separately qualified PDK candidate must pin the new public CoreSpice commit; the unavailable private revision is not an interchangeable public dependency |
+| Complete simulation release | The remaining production gates below, including validated flow and all-phase/all-history guarantees, remain open; this prerequisite publication does not complete RL2 or RL3 |
+
+The removed `CoreSpiceCompactModels` product is not restored. Clients of that
+retired product must migrate explicitly to the OSDI boundary. Existing public
+products retain the selected implementation tree; no compatibility claim is made
+for APIs or products removed since the public parent. Distribution remains
+[source-only](docs/distribution-licensing.md), with external model, compiler,
+worker, and numerical-library artifacts supplied separately under their own terms.
+
 ## CircuiteFoundation integration
 
 The package depends on `CircuiteFoundation` and uses its types directly from
@@ -59,128 +85,67 @@ digests or provenance.
 |---|---|
 | Artifact, provenance, evidence, and diagnostic vocabulary | CircuiteFoundation |
 | SPICE syntax, netlist lowering, circuit IR | CoreSpice |
-| Device physics and numerical solvers | CoreSpice |
+| Circuit equations, elementary device laws and numerical solvers | CoreSpice |
+| Compact-model physics and model-local derivatives | Official model / external compiler through swift-osdi |
 | Waveform serialization and SPICE-compatible formats | CoreSpice |
 | Process timeout and external tool cleanup | SignoffToolSupport |
 | Tool qualification and trust gates | ToolQualification / DesignFlowKernel |
 | Project/run persistence and human approval | Xcircuite / DesignFlowKernel |
 | DRC, LVS, PEX, STA, EM/IR, and physical signoff rules | Domain signoff engines |
 
-## BSIM4 4.5 Implementation Units
+## Sole Compact-Model Boundary and Retired Physics
 
-Status: B45-1 portable schema, B45-2 isolated C preparation and B45-3 static
-I/Q/Jacobians are implemented.
-The public native execution provider adopts the separate 4.5 safe/prepared owner. The [research record](docs/bsim45-research/RESEARCH.md)
-owns original-source and Sky130 observations. Child designs own their
-respective implemented/proposed contracts; this package owns composition, ordering and completion.
-The solver's numerical algorithms remain unchanged.
+The adopted model boundary is [swift-osdi](../swift-osdi/DESIGN.md), consumed by
+[CoreSpiceOSDI](Sources/CoreSpiceOSDI/DESIGN.md). Official Verilog-A models and
+external OpenVAF-generated evaluation code own compact-model physics. Those
+external implementations need not be Swift. CoreSpice owns circuit assembly,
+sparse solution, Newton iteration, integration, analyses and artifacts in Swift;
+model equations are not duplicated in Swift or in an embedded C kernel.
 
-```mermaid
-flowchart TD
-    Source["Pinned original 4.5.0 + Sky130 inventory"] --> Schema["B45-1 portable schema"]
-    Source --> Owner["B45-2 C preparation owner"]
-    Owner --> Static["B45-3 full I/Q/Jacobians"]
-    Static --> Dynamic["B45-4 AC and transient history"]
-    Static --> Noise["B45-5 original noise"]
-    Schema --> Binding["B45-6 safe Swift and consuming binding"]
-    Dynamic --> Binding
-    Noise --> Binding
-    Binding --> Adoption["B45-7 original PDK and consumer adoption"]
+```text
+Official model -> external compiler -> OSDI artifact -> swift-osdi
+    -> CoreSpice model projection -> Swift circuit equations/solvers/analyses
+    -> exact API/CLI artifacts
 ```
 
-| Unit / responsibility | Dependencies | Independent completion evidence |
-|---|---|---|
-| B45-1: [Schema](Sources/CoreSpiceMOSContracts/Schema/DESIGN.md) | Frozen research | Pure original ID/kind/unit/alias/version tests; unsupported extension refusal; one-evaluation resolver; fixed Native/WASM/Embedded runtime |
-| B45-2: [Native owner](Sources/CoreSpiceBSIM45/DESIGN.md) and [source adaptation](Sources/CoreSpiceBSIM45/Kernel/DESIGN.md) | Frozen research | Standalone C setup/defaults/temp/topology; exact owner-size accounting; allocation/fatal-check/diagnostic/work failure; ASan/UBSan cleanup |
-| B45-3: original current, charge and analytic derivatives | B45-2 | Separate unadapted-source references, n/p reverse/body bias, every enabled selector, full-node finite differences/conservation and SC correction |
-| B45-4: AC and BE/TR state machine | B45-3 | Actual frequency-dependent NQS matrix, all 29 states, accepted/rejected trials, stale/double/cross-owner commit refusal, history preserved by DC/AC |
-| B45-5: release-specific noise | B45-3 | Thirteen original sources plus total, gain-pair/partition, mode 0/1, temperature/frequency, noise-only topology and unchanged accepted history |
-| B45-6: [Safe owner](Sources/CoreSpiceCompactModels/BSIM45/DESIGN.md) and [production](Sources/CoreSpiceDevices/BSIM45/DESIGN.md) | B45-1, B45-4, B45-5 | Real C-backed Swift evaluator plus public parse->resolve->prepare->compile->consume->bind->Analysis; identity/capability/budget/cancel/cleanup and lock-order proof |
-| B45-7: original PDK and direct/transitive adoption | B45-6 | Source/corner/wrapper-specific DC/AC/transient/noise runs, 4.62 refusal, release performance/resource counters, actual CLI/API/PDK/Host/Studio consumers and dependency pins |
+The obsolete native BSIM3, BSIM4.5, BSIM4.8.3 kernels, custom Swift compact-model
+wrappers, source-specific enclosure, registration, schemas and execution records
+are removed together. Classic MOS L1/L2/L3 and other built-in elementary devices
+are separate responsibilities. A former BSIM level/version without an explicit
+OSDI binding fails with its original source location. It is never reinterpreted
+as a classic MOS device or another model release.
 
-Independence means each unit's contract can be falsified without completing the
-whole platform, not removing its real prerequisites. B45-1 and B45-2 can progress
-on separate responsibilities after source freeze. B45-4 and B45-5 have independent
-proof inputs but share native context/adapter state; serialize those implementation
-changes under the same owner. Package manifest and higher-level composition changes
-have one owner. During implementation, each sprint updates the workspace progress,
-reviews its complete change, verifies only findings after fixes, runs bounded
-focused checks, and creates a coherent local commit before dependent adoption.
+Historical verification receipts and Git history remain historical evidence;
+they do not make a removed backend available or qualify a new model. The same
+rule applies to the old Sky130 native capture and its PVT/enclosure exports.
+Required Sky130 execution must obtain an exact independently admitted OSDI model
+binding for the original PDK equations; modern BSIM-BULK cards are not a substitute.
+The [RangeExecution contract](Sources/CoreSpiceOSDI/RangeExecution/DESIGN.md)
+owns the remaining causal-model obligations.
 
-Completion is a matrix, not a single supported flag: exact-source kernel behavior,
-public numerical execution, original-PDK wrapper execution, and physical process
-accuracy are distinct evidence. A selected/inspected declaration is not a run.
-BSIM4.62 and unsupported composed wrapper elements remain explicit refusals and
-cannot inflate 4.5 numerical coverage. Full 4.5 kernel qualification includes modes
-absent from Sky130 cards; Sky130 qualification includes wrappers outside that kernel.
+The Pure Swift numerical boundary is a requirement, not a completion claim:
+existing Newton vDSP operations and the pole/zero LAPACK pencil path must be
+replaced and behaviorally qualified before this package meets that boundary.
+External model workers and optional Metal/photonic execution remain explicitly
+separate capabilities.
 
-For Native CPU integration references, record units and an absolute-plus-relative
-comparison before generating fixtures: DC current uses the child kernel threshold;
-AC complex admittance uses `1e-12 S + 2e-6 relative` per active matrix entry; reference
-waveform voltage uses `1e-6 V + 2e-4 relative` on the same requested sample grid with
-recorded integration tolerances. These are proposed numerical acceptance thresholds,
-not measured 4.5 results or physical accuracy. Step-size/convergence studies must
-explain a failure before any tolerance change; do not tune thresholds just to pass.
+The electrical `CoreSpice`, `CoreSpiceAnalysis` and CLI targets do not depend on
+or reexport the photonic backend. `CoreSpiceBackend` is an explicit optional
+product, and `PluginsPhotonic` keeps its existing dependency on that backend and
+its Metal ABI types. Clients using GPU types select that product and import its
+module explicitly. Removing an unused electrical dependency does not remove or
+qualify the optional GPU implementation.
 
-Release measurements separate cold parsing/snapshot/preparation/binding/analysis
-from snapshot reuse, with identical input/seed/conditions, sample counts and audit
-settings. Report wall time, allocation/copy counters, retained/temporary peaks,
-expression work, candidate visits and cold setup count. Enforce zero downstream
-model search, binding re-evaluation, candidate-range intermediate copies and
-duplicate same-condition cold setup. Compare 4.8.3 only for infrastructure cost;
-different-release numerical results are not an equivalence oracle. No runtime
-speedup is claimed until measured on the complete changed path.
+```text
+CoreSpice / CLI -> Swift Analysis -> Swift sparse Compile
+               -> swift-osdi -> external official-model image
+PluginsPhotonic -> optional CoreSpiceBackend -> Metal / SharedTypes
+```
 
-The first original-source adoption matrix uses unchanged Volare
-`c6d73a35f524070e85faff4a6a9eef49553ebc2b` files: `nfet_01v8` TT/FF/SS,
-`pfet_01v8` TT, `rf_nfet_01v8_bM02W1p65L0p15` TT (including its dummy
-MOS), and `esd_nfet_01v8` TT. Each row retains its exact pm3/corner/mismatch
-file catalog, micron caller scale, seed 42 and supplied geometry. Original LOD
-parameters supply pFET stress defaults; original invariant parameters supply
-RF/ESD global corrections. RF/ESD corner files expand their own pm3 include,
-rather than adding a duplicate model occurrence at the root. The original
-20V composed wrappers currently refuse undefined numeric scope bindings before
-preparation. A separate unchanged pFET model-declaration inspection rejects exact
-4.62 before coefficient evaluation. The latter is not a full-wrapper release
-refusal; neither result establishes high-voltage numerical coverage.
-This matrix establishes these rows only, not every Sky130 family/corner or
-foundry process accuracy.
+Standard-library/runtime memory operations and scalar math facilities are distinct
+from delegation of the owned circuit, sparse-solver and QZ algorithms. No external
+circuit solver becomes the native default through this separation.
 
-`Sky130OriginalExecutionTests` owns public exact-source preparation and numerical
-execution of each accepted row. A single immutable resolution is reused across
-explicit new DC/AC/transient/noise preparation owners; each completed phase must
-refer to that resolution, correct conditions and one cold setup per MOS. Output
-KCL, source waveforms and noise-channel accumulation/integration are independent
-network checks. Recorded numerical arrays permit external simulator comparison;
-the comparator identity and any release adaptation differences remain explicit.
-The matrix requests the same explicit convergence conditions for all four analyses:
-ABSTOL=1e-12 A, RELTOL=1e-8, VNTOL=1e-10 V and solver GMIN=0.
-The earlier 1e-13 A noise-start experiment is retained as a refusal: the original
-noise topology can insert 1e3 S prime-node conductances, and the NFET TT solve
-stalls at 1.1368683772161603e-13 A, consistent with cancellation at these
-conductances (the exact matrix-product roundoff floor is not independently
-qualified here). The standard 1e-12 A admission criterion stays below independent network
-comparison tolerances; derivative criteria are unchanged. RF differential probes
-separately use ABSTOL=1e-15 A and step refinement to isolate analytic correctness.
-The original-source tests additionally require zero outstanding live/temporary
-reservations after the row owner is released. Input snapshots retain the original
-bytes and digest. Resource observations
-separate admitted logical capacity from actual allocation, and record parsing
-and reused-resolution wall times with identical observer settings.
-
-The prepared CLI uses [typed admission diagnostics](Sources/CoreSpiceCLI/DESIGN.md)
-from the owning [IO capacity boundary](Sources/CoreSpiceIO/SimulationPreparation/DESIGN.md).
-Its finite developer policy may refuse an original row that an explicitly
-admitted API policy executes; refusal is not numerical coverage.
-
-R01-R20 remain owned by Parser/Lowering/MOSResolution and the release schema;
-B45-1 revalidates their changed release/scale assumptions. R21-R30 are owned by
-MOSPreparation, the new native/safe/bound owners and existing NativeExecution;
-B45-2 through B45-6 provide concrete failure/resource/lifetime counterexamples.
-R31-R35 are owned by independent target tests and B45-7 integration evidence;
-every adopted row records source/release/schema/conditions and actual completed
-analysis, never declaration counts as executed coverage. The package's existing
-requirement-to-test evidence remains valid where its premises are unchanged.
 
 ## Related Designs
 
@@ -196,15 +161,11 @@ requirement-to-test evidence remains valid where its premises are unchanged.
 | [CoreSpiceCLICore](Sources/CoreSpiceCLI/DESIGN.md) | child | Completed phase evidence and explicit case output | Direct developer execution | Baseline binding does not prove sweep or Monte Carlo execution |
 | [CoreSpiceMOSContracts](Sources/CoreSpiceMOSContracts/DESIGN.md) | child | Explicit MOS input profiles, exact release/schema and staged values | Portable semantic dependency floor | Selection is distinct from preparation and physical qualification |
 | [CoreSpiceMOSResolution](Sources/CoreSpiceMOSResolution/DESIGN.md) | child | Immutable declaration snapshot and checked one-evaluation resolution | Independent scoped MOS interpretation | No numerical device/kernel dependency |
-| [CoreSpiceBSIM4](Sources/CoreSpiceBSIM4/DESIGN.md) | child | Exact existing 4.8.3 opaque kernel | Current native release | Release-specific physics and qualification |
-| [CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md) | child | Exact 4.5.0 opaque preparation/static kernel and bounded outputs | Independent native C implementation | Native Devices adoption is owned by B45-6; original PDK adoption remains B45-7 |
 | [CoreSpiceLowering](Sources/CoreSpiceLowering/DESIGN.md) | child | Parsed declaration/program projection and circuit lowering | Source-preserving adapter to MOS resolution | Device preparation belongs to execution composition |
 | [CoreSpiceCompile](Sources/CoreSpiceCompile/DESIGN.md) | child | Auxiliary sparse topology | CPU solver structure | Revalidate direct consumers |
 | [CoreSpiceWaveform](Sources/CoreSpiceWaveform/DESIGN.md) | child | Opaque result-storage retention and waveform views | Export value lifetime | Numerical conversion and IO projection retain the admitted owner |
 | [CoreSpiceAnalysis](Sources/CoreSpiceAnalysis/DESIGN.md) | child | Fallible stamps and session lifetime | Numerical execution | Revalidate direct consumers |
 | [CoreSpiceDevices](Sources/CoreSpiceDevices/DESIGN.md) | child | Bound-device stamping | Native electrical models | Revalidate affected analyses when device derivatives change |
-| [CoreSpiceCompactModels](Sources/CoreSpiceCompactModels/DESIGN.md) | child | Safe compact-model evaluation | Independent native BSIM3 kernel | Production selection is separately verified by Devices BSIM3 |
-| [CoreSpiceBSIM3](Sources/CoreSpiceBSIM3/DESIGN.md) | child | Private physics ABI | Official Berkeley model equations | The safe evaluator owns exclusive lifetime |
 
 | [EvaluationContracts](Sources/CoreSpiceEvaluationContracts/DESIGN.md) | child | Frozen temperature values | Shared evaluation dependency floor | No evaluator or Devices dependency |
 | [DiodeContracts](Sources/CoreSpiceDiodeContracts/DESIGN.md) | child | Typed diode roles and preparation stages | Independent input schema | No Level3 numerical claim |
@@ -221,7 +182,7 @@ and physical qualification are distinct boundaries. The target PDK contracts are
 owned by [IO](Sources/CoreSpiceIO/DESIGN.md),
 [Lowering](Sources/CoreSpiceLowering/DESIGN.md),
 [native resistors](Sources/CoreSpiceDevices/Devices/DESIGN.md#resistor-execution-contract)
-and [exact BSIM4 release admission](Sources/CoreSpiceCompactModels/BSIM4/DESIGN.md#exact-release-admission).
+and [exact OSDI preparation](Sources/CoreSpiceOSDI/Preparation/DESIGN.md).
 These contracts record current gaps; they do not assert completed Sky130 support.
 The [CLI](Sources/CoreSpiceCLI/DESIGN.md) owns receipts generated from actual
 selected/bound models. Trust and application criteria remain with
@@ -256,16 +217,12 @@ flowchart LR
     Analysis --> Receipts[Completed execution evidence]
 ```
 
-The [MOS requirement/evidence index](docs/mos-boundary-requirements.md) links
-R01–R35 to their owners, tests and scoped cumulative verification. Workspace
-PROGRESS.md, B8.6.5.18, owns task completion, including the final commit.
 The semantic contracts and their local counterexamples are owned by MOSContracts
 and MOSResolution. Parser owns source retention, Lowering owns the
 adapter, Devices owns preparation and executable lifetime, and the native/CLI
 composition owns complete run ordering. Each owner design records its local
-requirement mapping. BSIM4.5 inspection succeeds independently of executable support. The exact
-Native CPU provider now admits 4.5 through its separate B45-6 owner; a provider
-without that capability rejects it without release substitution.
+requirement mapping. Native MOS intake is restricted to classic L1/L2/L3; compact
+models use the separate exact OSDI binding and preparation contract.
 No loaded or selected declaration is counted as executed model coverage.
 
 ## Verification and Change Impact
@@ -320,11 +277,7 @@ selector and a bounded process. CPU-only, compile and kernel-load checks do not
 prove GPU execution. Test-owned shared buffers remain alive until the awaited
 dispatch completes and are returned to the backend pool on all exit paths.
 
-## BSIM4 Kernel Composition
-
-[BSIM4 standalone kernel](Sources/CoreSpiceBSIM4/DESIGN.md) owns exact Berkeley 4.8.3 host CPU evaluation. This lower
-contract is composed by [BSIM4 Devices](Sources/CoreSpiceDevices/BSIM4/DESIGN.md)
-under explicit caller preparation policy and noise-dependent topology intent. [CLI](Sources/CoreSpiceCLI/DESIGN.md) owns execution provenance.
+## Exact Source Intake
 
 ### Exact caller-owned SPICE source intake
 
@@ -367,45 +320,31 @@ The parser rejects malformed model fields before declaration publication; native
 preparation separates its IR/MOS reservation from exact-topology compile admission.
 Their owning contracts are [parser](Sources/CoreSpiceParserSPICE/DESIGN.md#mos-declaration-intake)
 and [native execution](Sources/CoreSpice/NativeExecution/DESIGN.md#incremental-result-capacity-ownership).
-The reproducible [MOS boundary benchmark](Benchmarks/MOSBoundary/DESIGN.md) owns
-calibrated allocation/copy API measurements and their scope; it creates no new
-physical-model or portable numerical qualification.
-
-B45-1/B45-2 evidence covers portable interpretation and Native CPU C
-preparation. B45-3 implements independently verified static I/Q and analytic
-Jacobians with explicit derivative correction identities. B45-4 AC/transient and
-B45-5 noise feed the implemented B45-6 safe/prepared/bound owner on Native CPU.
-Original PDK and downstream consumer adoption remains B45-7; existing 4.8.3
-execution remains separate.
-
-B45-4 AC/frequency NQS is implemented/qualified separately from its transient
-history unit. Its ABI, exclusive ownership and verification authority are
-[CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md#b45-4-ac-and-frequency-nqs-contract).
-Native Devices uses the B45-6 composition for 4.5; C capability
-does not imply public simulation capability.
-
-B45-4 transient BE/TR/NQS qualification uses the Native C history contract in
-[CoreSpiceBSIM45](Sources/CoreSpiceBSIM45/DESIGN.md#b45-4-transient-contract).
-The 29-state owner and augmented deficit equation do not change Analysis methods;
-public 4.5 adoption is owned by the B45-6 prepared-owner contract.
-
-B45-5 Native C spectra and interval integration are independently qualified under
-[the noise contract](Sources/CoreSpiceBSIM45/DESIGN.md#b45-5-noise-contract).
-The C target owns bounded source evaluation; existing Analysis owns sweep
-storage, frequency policy, input referral and cumulative sums. B45-6 connects
-the exact-release sources without changing that integration policy.
 
 ## Fixed Native Dependency Lock
 
-The repository tracks its root `Package.resolved`. Direct revision requirements
+The repository tracks its root `Package.resolved`. Direct exact requirements
 and transitive versions are resolved from published Git objects; normal and
 qualification builds use `--force-resolved-versions`. Local edits/overrides are
 not final execution evidence. Updating this lock requires actual target build
 and public-path regression, with no implicit release/tag or dependency downgrade.
 
+The earlier Native compatibility adoption pinned CircuiteFoundation `c952ac5` and
+ToolQualification `4a2f804` in its manifest and root lock. The current graph is
+owned by [released OSDI adoption](#migration-scope-and-dependency-authority).
+That earlier Foundation change was limited to Linux secure filesystem handling; Native APIs, persisted
+schemas and numerical/Metal sources are unchanged. The fixed Swift 6.4.0 build
+consumes clean normal checkouts without automatic resolution. The existing diode
+operating-point CLI exports a CSV with reloaded input/output content identities
+and Kirchhoff current consistency; unsupported series resistance remains an
+explicit preparation failure. [Compatibility evidence](../.verification/runs/s3-stageIII-20261013-2e1f3af7/s3m-core-native/proof.json)
+records this Native CPU scope and reuses the unchanged `spice07C` proofs without
+extending Metal, portable numerical or physical qualification.
+
 ## Diode Boundary Design and Implementation Units
 
-Status: D1-D3 implemented; D4/D5 remain designed. Designed on 2026-10-12
+Status: D1-D4 implemented; D5 CoreSpice API/CLI admission is implemented by 07C,
+with downstream package adoption owned by workspace integration. Designed on 2026-10-12
 against f2bd586. This is the
 composition authority for the new diode boundary. Existing MOS release/owner and
 numerical solver contracts remain in force. Child documents distinguish confirmed
@@ -421,12 +360,15 @@ current behavior, new contracts and unavailable physical features.
 D1 registers and implements the two pure SwiftPM targets: [EvaluationContracts](Sources/CoreSpiceEvaluationContracts/DESIGN.md) and
 [DiodeContracts](Sources/CoreSpiceDiodeContracts/DESIGN.md). Their dependency direction
 is enforced by the manifest and independent verification. D2 adopts the existing evaluator, shared environment and circuit-wide native guard;
-D3 source resolution is implemented; D4 numerical preparation and D5 downstream adoption remain deferred. No second evaluator is introduced. Lowering remains independent of Devices and numerical kernels.
+D3 source resolution and D4 exact/generic numerical preparation are implemented.
+D5 CoreSpice consumers are described below; downstream package adoption remains
+a separate integration responsibility. No second evaluator is introduced. Lowering
+remains independent of Devices and numerical kernels.
 
 The following diagram is the full D1-D5 target design; D1 adopts EC-to-DC and D2 adopts the evaluation/IR/native temperature edges.
 The historical evidence table describes the pre-D1/D2 behavior. D3 replaces
-source diode lowering with checked staged input and explicit numerical refusal;
-D4/D5 are required for executable diode adoption.
+source diode lowering with checked staged input; D4/07N supply numerical owners
+and 07C closes CoreSpice public admission and original evidence publication.
 
 ```mermaid
 flowchart TD
@@ -450,8 +392,8 @@ flowchart TD
 | D1 Contracts/schema | EvaluationContracts and DiodeContracts; no lower implementation dependency | Role/unit/default/domain tables; known vs unknown fields; finite/underflow/identity checks; Native/WASM/Embedded pure runtime |
 | D2 Evaluation environment | Existing MOSResolution evaluator + Frontend/IO condition planning and common IR/native condition guard; depends D1 | One memo/RNG across bootstrap/freeze; scalar temper success, indirect cycle refusal, source/caller precedence, no model/local T contamination; MOS/resistor regressions |
 | D3 Diode resolution | Lowering/DiodeResolution and parser occurrence admission; depends D1/D2 | Raw-source and direct-ParsedIR counterexamples, exact scope/duplicates, m separation, normalization once, model sharing and independent GPU-free resolver tests |
-| D4 Native preparation | Devices/Diode typed owner and minimal correct admitted junction law; depends D1, independently construct checked fixtures without D2/D3 | Identity/temperature/A/M, consuming bind, finite analytic I/G, limits/cancel/cleanup; reject rs, breakdown, nonzero cjo/tt/pj before execution |
-| D5 Public adoption/integration | IR stage/clone transport, NativeExecution batch accounting, IO/API/CLI/downstream consumers; depends D2/D3/D4 | Actual parse->freeze->resolve->prepare->compile->bind->DC/AC/memoryless transient/shot-noise; no raw descriptor bypass, one setup per diode, failure atomicity and exact diagnostics |
+| D4 Native preparation | Devices/Diode typed owner and minimal correct admitted junction law; depends D1, independently construct checked fixtures without D2/D3 | Identity/temperature/A/M, consuming bind, finite analytic I/G, limits/cancel/cleanup; core rejects breakdown/nonzero Cjo/Tt; generic supports its declared dynamic/breakdown law; both reject unsupported Rs/Pj |
+| D5 Public adoption/integration | IR stage/clone transport, NativeExecution batch accounting, IO/API/CLI/downstream consumers; depends D2/D3/D4 | Actual parse->freeze->resolve->prepare->compile->bind->DC/AC/transient/shot-noise under the selected law; no raw descriptor bypass, one setup per diode, failure atomicity and exact diagnostics |
 
 D2 and D4 may be developed independently after D1; they do not share production
 files or mutable state. D3 follows the frozen-session contract. D5 owns composition
@@ -522,6 +464,540 @@ D2 does not update those pinned downstream dependency graphs.
 ## D3 Change Impact
 
 The [D3 resolution owner](Sources/CoreSpiceLowering/DiodeResolution/DESIGN.md) defines occurrence admission, frozen
-evaluation, immutable result transport and explicit numerical refusal. This layer
-consumes that contract; D4 numerical preparation and D5 downstream adoption remain
-separate. Its affected production path and behavioral tests are verified in D3.
+evaluation and immutable result transport. D4 preparation and CoreSpice D5
+API/CLI adoption are implemented by their owning contracts below; downstream
+package graph adoption remains workspace-owned. D3 evidence remains scoped to
+source resolution.
+
+## D4 Exact and Generic Diode Preparation
+
+[Preparation values](Sources/CoreSpiceDiodeContracts/Preparation/DESIGN.md),
+[Devices Diode](Sources/CoreSpiceDevices/Diode/DESIGN.md), IR, compiler and native
+composition provide checked once-resolved preparation. coreDiodeV1 remains the
+restricted memoryless profile. genericDiodeV1 preserves the existing generic
+breakdown/Cjo/Tt input profile through the same typed owner; the
+[07N numerical law](Sources/CoreSpiceDevices/Diode/DESIGN.md#07n-generic-numerical-law)
+is verified on the native CPU path. Raw descriptor binding does not authorize either profile.
+This preparation sprint does not graduate numerical generic physics, complete CLI
+model receipt encoding or process qualification. The [optional process backend](Sources/CoreSpiceProcessBackend/DESIGN.md)
+adopts typed SignoffToolSupport failure and cleanup ownership independently of
+native numerical execution.
+
+07N qualifies the generic diode numerical law through the
+[owning diode contract](Sources/CoreSpiceDevices/Diode/DESIGN.md#07n-generic-numerical-law).
+It preserves the distinct restricted core law. Full CoreSpice CLI/admission/receipt integration is owned by the
+[07C CLI contract](Sources/CoreSpiceCLI/DESIGN.md#07c-diode-and-original-evidence-admission).
+Native CPU evidence does not imply portable numerical backend qualification.
+
+
+## S3 OSDI DC Integration Contract
+
+Status: implemented and behaviorally verified for the Native operating-point profile
+through the existing typed API and both CLI command paths. This is numerical
+execution evidence, not model/foundry certification or release qualification.
+Parent system policy is
+[the OSDI model boundary](../DESIGN.md#device-model-connection-authority).
+Model-family source acquisition and qualification are owned by
+[OSDI model qualification](tools/OSDIModelQualification/DESIGN.md).
+The user-selected criterion is the latest obtainable official stable source.
+SOI4.7.0 (2025-05-19) is qualified from its unchanged official Verilog-A archive;
+the separate 100.x download currently containing 100.1.0 is never relabelled 100.1.1.
+Exact source/artifact and family-version authority remain in the qualification design.
+
+Physical output metadata is owned by [Waveform](Sources/CoreSpiceWaveform/DESIGN.md)
+and [CSV exchange](Sources/CoreSpiceExporterCSV/DESIGN.md);
+[OSDI test support](Tests/CoreSpiceOSDITestSupport/DESIGN.md) owns only shared
+manifest values for the separate adapter/API/CLI witnesses.
+
+Children: [portable OSDI integration values](Sources/CoreSpiceOSDIContracts/DESIGN.md)
+and [native OSDI adapter](Sources/CoreSpiceOSDI/DESIGN.md). S2 native model evaluation
+is owned and independently verified by [swift-osdi](../swift-osdi/DESIGN.md).
+
+```text
+explicit OSDI N instance + model catalog / typed CircuitIR
+ -> exact artifact acquisition and one isolated library per prepared instance
+ -> generated setup/collapse -> canonical local-to-circuit unknown mapping
+ -> existing StandardCompiler CSR -> consuming bind of fixed index tables
+ -> existing DCAnalysis / NewtonRaphsonSolver / SparseLUSolver
+ -> independently checked physical DC result -> existing API / CLI outputs
+```
+
+CoreSpiceOSDI owns only OSDI topology projection and native equation contribution.
+It neither copies model equations nor launches a compiler. Raw descriptor offsets
+remain inside swift-osdi. The initial source profile admits explicit `N` instances
+and `.model <name> osdi` with a separately supplied typed catalog. The catalog
+retains model/instance assignment kinds and scopes and explicit previous state;
+source coefficient expressions are refused in this profile, not flattened or
+silently ignored. Existing X subcircuit and MOS/diode selection remain distinct.
+
+The existing solver solves a full new solution. For raw-to-global incidence P,
+the contribution is A += P^T G P and rhs += P^T (G P x - F). Collapsed row/column
+contributions add; ground contributes no global unknown. Internal potential and
+flow coordinates remain instance-private. V/A, A/V and K/W equations retain their
+units; unsupported natures fail preparation. A collapse requiring distinct external
+nets to become the same unknown is rejected explicitly by the initial adapter
+profile rather than choosing a net or creating an unused matrix row.
+
+Preparation precedes sparse compilation and binds checked CSR indices once.
+Each OSDI session has an exclusive native owner. A copyable BoundDevice may expose
+only an execution reference: taking/returning its noncopyable session is serialized
+under Mutex, while all foreign evaluation and caller stamping run outside that
+lock. Concurrent/reentrant use fails explicitly. Previous state is fixed throughout
+Newton and residual restamps; evaluation does not commit candidate state.
+
+The existing DC solver remains the numerical owner. Unit-aware convergence uses
+explicit variable/equation tolerances; thermal unknowns are temperature rises,
+not electrical voltages or ambient temperature. Electrical gmin is not applied to
+thermal/flow equations in the OSDI profile. A result must satisfy the final physical
+residual with the original source conditions before completed output is published.
+DC-only capability refuses AC, transient and noise before a run. The legacy device
+profiles retain their existing choices; OSDI failure never selects a legacy model.
+
+Native host preparation acquires OSDI artifacts asynchronously before the existing
+synchronous numerical preparation boundary. Original sync callers remain usable
+without OSDI inputs; an OSDI circuit missing explicit runtime inputs fails. Original
+API/CLI preparation and execution own exact catalog/model/environment identities,
+caller limits, cancellation and failure-atomic cleanup. Native .op is the S3
+profile; no source sweep, AC/transient/noise or all-history qualification is implied.
+
+### S3 local immutable dependency exception
+
+The user explicitly authorized this exception for S3: the independent, unpublished
+swift-osdi repository may be consumed through a local Git URL at one exact committed
+revision. This is not a path dependency, editable override, implicit HEAD/latest,
+publication or release-qualified lock. The common Foundation revision is the
+existing CoreSpice exact `c952ac5ebe3c21bf0cbd6d6ac239130efd732b3a`; swift-osdi
+must retain its S1/S2 behavior after alignment. The final S3 evidence records both
+source commits and dependency checkout identities. Existing unpushed exact
+Foundation/ToolQualification/SignoffToolSupport commits use project-local Git
+mirror availability without editable overrides or changed revision requirements.
+The published dependency rule
+above remains the release contract; this exception does not authorize publishing,
+tags, pushing unrelated commits or incorporating unrelated working-tree changes.
+
+### S3 verification ownership
+
+| Owner | Required falsifying evidence |
+|---|---|
+| OSDI values / IR / source | scoped parameters, explicit device/catalog admission, clone transport and invalid-input refusal |
+| OSDI adapter | nonlinear F/G stamp, collapse/ground sums, private internal and flow variables, state/lifetime/bounds failures |
+| Analysis | per-unit update and residual checks, electrical-only gmin, singular/nonconvergent/cancelled cases |
+| [Independent direct-ABI oracle](tools/OSDIDCVerification/DESIGN.md) | same-artifact circuit solve and physical residual at returned CoreSpice x, including thermal balance |
+| Native API / CLI | real BSIM-BULK107.2.1, CMG112.1.0, IMG103.1.0 and SOI4.7.0; unknown drain/load solution, current/KCL, exact bindings, save/reload and explicit failure |
+| Whole S3 task | committed integration, focused unaffected-device regressions, sanitizers and measured steady allocation/copy boundaries |
+
+[PROGRESS.md](PROGRESS.md) is the sole S3 task ledger. Existing unrelated BSIM45
+enclosure, README and evidence edits remain outside this task and are preserved.
+
+
+## S4 Dynamic OSDI Composition Contract
+
+Status: implementation contract; S3 DC evidence alone does not establish dynamic
+behavior. Parent model authority remains the system's
+[OSDI boundary](../DESIGN.md#device-model-connection-authority). The user extended
+the S3 immutable local Git exact-revision exception to S4 explicitly. Uncommitted
+state, editable overrides, implicit latest, publication and release eligibility
+are not final dependency evidence.
+
+The user-authorized S4D precision extension preserves this completion scope and
+its equation tolerances. [NumericalState](Sources/CoreSpiceDevices/NumericalState/DESIGN.md)
+owns represented high/low coordinates; [CompensatedTransient](Sources/CoreSpiceAnalysis/CompensatedTransient/DESIGN.md)
+owns their Newton/integration/history propagation. The linked
+[swift-osdi precision boundary](../swift-osdi/Sources/OSDIContracts/ModelEvaluation/DESIGN.md#s4d-precision-boundary--d1-proposal)
+owns original nonlinear F and model-derived DeltaQ enclosures. A dedicated native
+arithmetic worker is a model-runtime implementation detail, not a second circuit
+solver. Rounded total-Q subtraction or an uncertified first-order correction
+does not meet the new contract. Actual four-family API/CLI, strict residual,
+complete saved/reloaded trajectory and independent replay evidence remains
+required; the precision design alone is not completion evidence.
+
+### Responsibilities and Related Designs
+
+| Owner | Contract used by composition | Verification responsibility |
+|---|---|---|
+| [swift-osdi](../swift-osdi/DESIGN.md) | Typed evaluation mode, absolute time, explicit IC, fresh noise PSD and bound-step output | Actual ABI flags/data, bounded scoped views and unchanged model/storage lifetime |
+| [Analysis](Sources/CoreSpiceAnalysis/DESIGN.md) | Existing Newton, complex LU, BE/TR integration, accepted-step decisions and finalization barrier | UIC, unit-aware rows, reject/retry and accepted-step numerical audit |
+| [Devices](Sources/CoreSpiceDevices/DESIGN.md) | Existing stamp/session requirements plus narrow noise/trial-bound/physical residual interfaces | Canonical equation identities, source units and immutable accepted history |
+| [OSDI adapter](Sources/CoreSpiceOSDI/DESIGN.md) | Project actual F/Q/G/C, native state and source PSD into the fixed compiled graph | No Q=Cx approximation, no name-based topology or noise identity |
+| [NativeExecution](Sources/CoreSpice/NativeExecution/DESIGN.md) | Existing prepared API, resource owner and exact executed facts | Whole-operation lifetime, physical acceptance and fresh reruns |
+| [CLI](Sources/CoreSpiceCLI/DESIGN.md) | Existing batch/prepared commands with versioned completed records | Actual executable, full numerical artifacts, projection and reload |
+| [Waveform](Sources/CoreSpiceWaveform/DESIGN.md) / [CSV](Sources/CoreSpiceExporterCSV/DESIGN.md) | Complete real/complex layouts and physical units | Same row map and typed PSD across conversion/reload |
+| [Independent reference](tools/OSDIDCVerification/DESIGN.md) | Direct ABI numerical reference and complete-candidate validation | Independent complex solve, charge integration and per-source noise transfer |
+
+### Architecture and Frozen Boundaries
+
+```text
+exact source/catalog + immutable generated model
+  -> setup/collapse -> same compiled graph
+  -> actual OP, or explicit UIC initialization
+  -> AC / noise / BE-TR transient on the existing numerical engine
+  -> validate physical results; reject never advances accepted history
+  -> end transient sessions -> caller finalization -> outer completed event
+  -> exact phases + full numerical values -> JSON and CSV -> checked reload
+```
+
+The following contracts are implemented by their listed owners. Each owner defines
+its detailed contract in its linked DESIGN.md; behavioral verification remains
+tracked in PROGRESS.md. Generic APIs stay independent of OSDI physics and types.
+
+- Analysis owns `AnalysisCompletionFinalizing.finalizeCompletion() throws`, invoked
+  after successful numerical validation and session end, before outer completed.
+  Nested OP validation is pure; only the full operation closes model resources.
+- Transient analysis retains the actual nested OP when used and each accepted
+  integration record (time, actual step, BE/TR method and previous-step context).
+  UIC initial samples remain explicit; no OP is manufactured when UIC skips it.
+- Devices owns an explicit transient initialization phase on its session boundary,
+  a fresh candidate-step limit query, and direct transient physical residual
+  contribution. Existing conformers retain compatible default behavior.
+- Analysis owns a transient physical-validation hook before accepted commits.
+  Trial-step bounds are checked before acceptance, not merely at the next step.
+- Devices owns optional direct complex CSR stamping, residual-row noise metadata
+  and scoped PSD borrowing, and a separate noise-matrix stamp requirement. Pure
+  AC and noise matrix evaluation use distinct typed runtime contexts.
+- Generic frequency analysis owns actual `operatingPoint` evidence on AC/noise
+  results and input-referred noise quantity. Native output retains actual noise
+  results rather than reconstructing them from a reduced display waveform.
+- Native/IO owns AC/noise cases in the existing effective configuration and their
+  exact identity encoding. Mixed R/L/C/V/I admission requires original physical
+  equations for each included device; a matrix-derived acceptance substitute is
+  not allowed.
+- CLI preserves readable S3 records and gives dynamic evidence a new version.
+  Full pre-projection values and actual OP/accepted-step/source-channel evidence
+  remain independent of CSV display selection or column order. Production JSON
+  decoding and CSV reading establish reload; no test-only RAW decoder is used as
+  evidence of a production import capability.
+
+### Numerical and State Invariants
+
+Runtime state slots and integrator charge/current history are distinct. Trial
+native next-state values are candidates; accepted native/Q/current history changes
+only at accepted initialization/steps. No general Verilog-A hidden-state support
+is inferred from the four models' zero native-state counts. Supported retained
+state is tested separately from unsupported compiler paths.
+
+AC uses the actual complex linearization. Noise uses actual frequency-dependent
+PSD (including model signal factors once), stable source indices, canonical
+residual endpoints and their A/V/W units. Collapse cancels coincident injections;
+zero, ground, missing, invalid and unmeasured are distinct. Output noise is a
+voltage differential in this profile; a thermal output is explicitly refused,
+while thermal equations and their coupled effects remain in the solve. Input
+voltage/current noise units are retained separately. Existing correlated legacy
+noise follows its existing single accounting path.
+
+Nonlinear transient uses native Q and C with BE/TR accepted charge-current history.
+A source's state-dependent positive finite bound can reject the current trial;
+no-limit is optional, not zero. Model/cancellation/resource errors are terminal
+failures rather than convergence retries. Invalid PSD, dimensions, time, source
+identity or units cannot publish successful output. Initial-condition mode is
+explicit and never inferred from time zero.
+
+UIC correction must remove the demonstrated algebraic initial-jump LTE failure
+without raising tolerances or overwriting explicit initial samples. The chosen
+bootstrap uses independent positive-time BE trials at h, h/2 and h/4 when those
+absolute times are representable, with the same accepted history and the
+corresponding second-order error estimate. After accepted history exists, an
+adjacent-representable endpoint that cannot be subdivided uses an embedded full-time
+BE/TR comparison, retaining the BE candidate and explicit failure on unavailable
+history or failed error acceptance. It neither invents substep times nor discards
+the endpoint. The [transient numerical owner](Sources/CoreSpiceAnalysis/DESIGN.md#s4-transient-numerical-and-lifecycle-contract)
+defines this bounded branch. The inconsistent initial algebraic vector does not
+seed later TR smooth-history LTE.
+LTE selection is independent of physical equation validation. Generic transient
+analysis accepts an optional explicit set of error-controlled variables; invalid
+or ground identities fail before model execution. Native OSDI composition may
+select an empty set only when the entire circuit has structurally zero reactive
+residual: each OSDI raw node has the ABI absent-reactive-residual sentinel and all
+other devices are R/V/I. The runtime exposes this immutable descriptor fact.
+Any reactive residual offset, C/L device, or unclassified component retains
+state error control with the branch eligibility defined below. Numeric zero Q/C and reactive Jacobian columns
+do not prove absence of time- or native-state-dependent charge. Exclusion changes
+only LTE; every Newton equation, physical residual and accepted-state check still
+runs. This profile prevents ideal algebraic retained-state jumps from being
+misclassified as integration error without claiming general DAE error control.
+For a circuit with reactive storage, automatic Native solution LTE controls all
+coordinates except structurally unreferenced independent voltage-source reaction
+currents. The admitted RLCVI/OSDI profile cannot use those source-owned branches
+as storage inputs; private model flow coordinates and inductor currents remain
+controlled. A referenced or unclassified branch retains conservative control.
+This is a state-error indicator, not a certified bound on every derived output.
+In particular Q(time) under a clamped voltage can produce derivative error in
+source current without voltage error. All original per-point equations still
+pass their unchanged strict residual gates; complete-output time refinement and
+analytic derivative fixtures separately verify temporal accuracy. A one-picoampere
+physical residual is never presented as a one-picoampere temporal error bound.
+For Native OSDI transient Newton solves, the complete original physical residual
+is available independently of the absolute-solution matrix RHS. At small steps,
+forming Jx minus the physical residual can discard a resolvable current residual.
+Analysis therefore accepts an optional original-residual evaluator and solves
+J times delta equals minus that residual, then applies the normal damping/update
+and direct-residual convergence gates. The matching electrical GMIN contribution
+is included in the Newton equation only; original final physical validation stays
+independent. The existing nil-evaluator path is preserved. Transient supplies the
+actual integration context and Native supplies every original device contribution;
+no inferred matrix residual certifies this path. Callback indices, finite sums,
+workspace and extra numerical work remain bounded, and any failure precedes commit.
+Additional solves, scratch, accepted-step records, noise channels and serialization
+are admitted under caller-owned count/byte/work/output limits before retention.
+
+### Verification and Change Impact
+
+The same exact four official model artifacts remain input authority. New dynamic
+references retain twelve circuits: n-loaded, p-reverse and an internal/series/thermal
+or correlated-noise case per family. AC and transient exercise nonzero complex
+response and actual charge dynamics. A native artifact returning negative PSD
+must fail explicitly for that unchanged input; it cannot be qualified by clipping,
+absolute value or omitting the channel. Such profiles remain expected-failure
+regressions, alongside separately named loaded forward-polarity noise controls
+that establish nonzero valid spectra for each family and polarity. Independent
+direct ABI references validate complete returned candidates, not only plotted ports.
+Source API and CLI use the same source-representable frequency schedule, with an
+immutable derivation linking its independent references to the original circuit
+capture. A multipoint noise integral must come from one actual analysis run; it
+cannot be reconstructed from unrelated single-point runs. A transient's actual
+accepted schedule/method is replayed separately from h/h2/h4 time-accuracy tests. External resistor thermal noise participates consistently.
+
+Analytic controls cover RC/RLC, non-ground UIC, nonlinear Q, mixed electrical/flow/
+thermal rows, mode/time/IC, noise units/collapse and retained native state. Rejection,
+retry, bound-step, invalid spectra, singularity, capacity, cancellation, reentry,
+close failure and fresh rerun must preserve their stated lifecycle. API and actual
+CLI save/reload retain full values and exact binding. Existing DC proofs remain
+valid only while their premises are unchanged and receive affected regressions.
+Swift 6.4.0 Debug plus an actual Release consumer compile/link/runtime, scoped
+allocation/copy measurement and instrumented ownership checks are required. These
+numerical traces do not establish interval/all-phase/all-history or foundry model
+certification. [PROGRESS.md](PROGRESS.md) is the sole task control ledger.
+
+
+## Verified OSDI Runtime Adoption
+
+The cross-package task ledger is [swift-osdi/PROGRESS.md](../swift-osdi/PROGRESS.md).
+The changed test contract is [OSDI adapter tests](Tests/CoreSpiceOSDITests/DESIGN.md).
+
+The earlier S4 continuation adopted swift-osdi's exact committed latest-family
+runtime qualification under its local immutable Git exception. That snapshot did
+not publish dependencies or establish release eligibility. The current dependency
+authority is [released OSDI adoption](#migration-scope-and-dependency-authority). Its
+[package qualification](../swift-osdi/DESIGN.md#four-family-completion-and-performance-qualification)
+owns the precise supported Native point envelope, signed fixed-bias noise
+interpretation, precision semantics and arithmetic equivalence. CoreSpice owns
+regression of the affected circuit/API/CLI composition. SOI101's six-terminal
+artifact must be bound by exact library ID and digest; its descriptor name is
+also used by old SOI releases and cannot select a version. Parent solved-circuit
+qualification is separate from swift-osdi's raw-point qualification. Existing
+original full-schedule evidence remains valid where source equations, programs,
+settings and numerical outputs remain unchanged. The original causal/all-corner
+completion requirement remains unclosed by these finite fixtures.
+
+
+## Released OSDI Adoption and Semiconductor Production Gates
+
+This section owns the current migration and the package-level production admission
+matrix. It supersedes the historical S3/S4 local-dependency exception for the final
+evidence of this migration. Earlier receipts remain immutable historical evidence.
+The declared and resolved dependency is public `swift-osdi` exact `1.2.0` at commit
+`e17d3bcca1224c8ab9ccfaddea7a47580b29b748`, published as a
+[source-only release](https://github.com/1amageek/swift-osdi/releases/tag/1.2.0).
+This adds explicit typed REAL simulation lookup, own-scope Given facts and
+caller-controlled cold snapshot construction. The SDK's public exact-version
+consumer verifies those controlled snapshot bytes, identities, bounded work,
+shared storage lifetime and typed refusals with its analytic source fixture;
+that does not qualify a CoreSpice circuit composition. The manifest/lockfile own
+the selected dependency. A fresh immutable Core archive with the manifest and
+lockfile overlaid resolved all six public HTTPS dependencies without mirrors or
+edited overrides; only the SDK version/revision changed. The final manifest also
+enables lexical lifetime checking for the native borrowed inspection surface;
+ordinary public clients require neither experimental flags nor package/test
+privileges. The final public-resolution receipt is
+`/private/tmp/CoreSpice-public-sdk120-resolution-20261019-r2/receipt.json`.
+
+The actual central production build is frozen against Core `184b7f4` plus the
+explicitly reviewed migration, native inspection and controlled capture changes.
+Four current families complete eight original DC/AC cases through both Native API
+and independent production CLI, exact public cold persistence and unchanged
+full-row numerical criteria. Each API case exercises capacity refusal, cancellation
+and completion with exact refunds. Three existing Native and three CLI selected
+compensated tests also pass with no skips, including both artifact-tamper arguments.
+Their retained protocol-1 worker remains distinct from the operation-5 capture
+worker. The capture owner passes 19 new tests and the complete 56-test adapter
+registry with one existing optional binding-performance skip. The public lexical
+inspection consumer is recompiled and executed against the final frozen objects.
+The aggregate source/object/command binding is
+`.verification/sdk-1.2.0-adoption-20261019/consumer-adoption-aggregate-r1.json`.
+Local build availability mirrors are recorded separately from the fresh public-only
+resolution proof. These finite Native tests do not establish circuit roots,
+validated flow, all-phase/all-history/all-corner behavior or Core release readiness.
+
+Historical CoreSpice qualification used exact `1.1.0` at
+`2c9ee1f620406e7a479ac10a4fddfaa17bc23d6d` (tree
+`d2d47ca4e13c0acdb5be160dba5add0d8e850f60`), after exact `1.0.1` at
+`9e321b082d71528b64c7ca69d640389c0e144cbb`. Its fresh immutable-source archive
+resolved all six public HTTPS dependencies without mirrors or edited overrides.
+The central immutable Core snapshot498d6f8 qualified all four current official families
+through eight DC/AC cases in both Native API and independent production CLI,
+complete public cold persistence, original full-row oracles and resource refusal/
+cancellation/refund. Three selected Native and three CLI existing compensated
+point tests also pass with zero skips; their protocol-1 worker remains a separate
+exact retained input. The source/object/binary and evidence join is retained in
+`.verification/sdk-1.1.0-adoption-20261019/consumer-adoption-aggregate-r1.json`.
+This finite consumer compatibility grants no circuit range/root/history authority.
+Historical qualification receipts retain their original dependency and worker
+identities. Public Foundation remains
+exact `26.1018.0` at `5f132c58209123433e0e479e1ea61096e46061ba`.
+The existing qualified adapter consumes ordinary and compensated point APIs; published SDK
+range/chart/cover/conditional-identity capabilities do not create a CoreSpice
+consumer. Their adoption boundary is owned by
+[RangeExecution](Sources/CoreSpiceOSDI/RangeExecution/DESIGN.md).
+The existing CoreSpice host floor remains macOS 27 arm64 and Swift 6.4.0.
+The SDK's macOS 26 support does not lower the consuming simulator's own floor.
+
+```text
+public exact package versions + source/model/compiler/worker identities
+  -> bounded SPICE resolution and immutable conditions
+  -> prepared native model owners and fixed MNA topology
+  -> original circuit equations, numerical solve and accepted history
+  -> independent numerical validation and exact API/CLI artifacts
+  -> saved/reloaded results, bounded failure and exactly-owned cleanup
+```
+
+### Related Designs
+
+| Design | Relationship | Contract used | Change impact |
+|---|---|---|---|
+| [OSDI adapter](Sources/CoreSpiceOSDI/DESIGN.md) | child | Prepared model-to-circuit ownership and stamps | Revalidate affected analyses and failure cleanup |
+| [Model qualification](tools/OSDIModelQualification/DESIGN.md) | child | Exact finite family/source/artifact/case authority | Profile changes require new bound capture |
+| [OSDI test support](Tests/CoreSpiceOSDITestSupport/DESIGN.md) | child | Shared manifest and pre-execution admission | Revalidate adapter/API/CLI inputs |
+| [Latest SOI precision qualification](tools/OSDIPrecisionSOIQualification/DESIGN.md) | child | Full finite same-candidate trajectory replay | New source/worker/conditions require new circuit evidence |
+| [OSDI CLI tests](Tests/CoreSpiceOSDICLITests/DESIGN.md) | child | Actual Native/batch/prepared persistence and lifecycle | Keep process cleanup and numerical paths real |
+
+### Migration Scope and Dependency Authority
+
+CoreSpice owns its model-to-circuit adapter, solver, analysis, API/CLI and result
+artifacts. The released SDK owns OSDI ABI/storage/model-local evaluation and its
+explicit precision profiles. Its model-local enclosures do not establish a
+continuous-time or whole-circuit guarantee.
+
+The user authorized MIT licensing and stable publication of the required
+ToolQualification metric-policy and SignoffToolSupport process-control APIs.
+Both dependencies use public exact `26.1018.0`: ToolQualification at
+`601ff5933396be4ba62c77b8bb0502e2f601f159` and SignoffToolSupport at
+`e15ea6cd60ca1957297aafbba839e51a478d735e`. Their published source/test bytes
+match the previously qualified compatibility candidates. License and documentation
+changes do not certify new numerical behavior. Historical candidate receipts remain
+provisional dependency evidence; their numerical results carry forward only when
+the source, models, programs, conditions and settings remain identical.
+Final verification must resolve the complete public graph with no local mirror,
+editable dependency or sibling-path availability. Existing user configuration is
+preserved; verification uses isolated configuration rather than deleting it.
+
+### Profile Completeness and New Precision Execution
+
+The qualification tools and test-support owner must distinguish the historical
+SOI 4.7 profile from SOI 101.0.0. A descriptor string, minimum aggregate case count,
+or appended SOI point cannot establish a four-family production profile. Admission
+must bind each required family/version to actual libraries and required case IDs,
+reject omissions/misbindings, and retain exact official source and compiler facts.
+Latest SOI ordinary and compensated transient evidence are separate obligations.
+Latest SOI AC/noise also requires separately selected exact-image Native/CLI
+execution; the historical SOI dynamic manifest cannot establish it. Ordinary CLI
+terminal metadata comes from preparing that actual admitted model, independently
+of whichever DC family profile was selected for another suite.
+A new worker is verified through actual evaluation; an old exact-worker receipt
+cannot certify a different executable. Earlier references may be reused only when
+their source, model, equations, parameters, conditions and tolerances are unchanged.
+
+### Semiconductor Simulation Requirements Matrix
+
+Each row is an admission obligation, not a declaration of completed support.
+Detailed numerical and lifetime contracts remain with their linked owners.
+
+| ID | Required capability and owner | Production evidence and known gap |
+|---|---|---|
+| PR01 | Exact source, include/lib hierarchy, scope, expressions, units and parameter resolution: Parser/Lowering/IO | Original PDK decks, boundary failures and retained source identities; parsed syntax alone is not numerical support |
+| PR02 | Model preparation, internal/collapsed/flow/thermal nodes and temperature: OSDI/Devices | BULK107.2.1, CMG112.1.0, IMG103.1.0 and SOI101.0.0 by exact source/selector/polarity/topology; legacy models remain separately identified |
+| PR03 | DC operating point and source/device sweeps: Analysis | Original physical KCL, operating regions, strict unit-specific residuals, singular/no-solution/multiple-solution diagnostics; recovery aids cannot alter the final problem |
+| PR04 | Complex AC and frequency-dependent model contributions: Analysis | Independent complete complex matrix/gain/phase across admitted frequencies and internal topology |
+| PR05 | Transient, initialization, events, accepted/rejected state and integration: Analysis/Devices | Full waveform/charge/current and step-refinement checks, startup/stiff/switching cases and exact rollback; local LTE is not a global error certificate |
+| PR06 | Compensated coordinates and model-derived F/DeltaQ: Analysis/OSDI | Strict residual and independent replay for the actual worker/program, including latest SOI; G/C Newton aids cannot replace nonlinear charge difference |
+| PR07 | Thermal/flicker/correlated noise and band integration: Analysis/OSDI | Exact source PSD, transfer, temperature and integrated noise; small-signal frequency noise does not establish periodic noise |
+| PR08 | TF, poles/zeros and sensitivity: Analysis | Independent analytic/network cases, model applicability and exact typed port classification; source-backed TF/PZ/Fourier/DC/AC sensitivity use fresh resolved owners and require their Native/CLI qualification |
+| PR09 | Parameter, temperature, process-corner, mismatch and Monte Carlo execution: IO/Analysis | Fresh resolved owners per changed condition, deterministic seeds, complete provenance and coverage; multi-temperature/source-seed schedules are implemented, with actual-model family qualification required |
+| PR10 | Measurement and Fourier extraction: Analysis/IO/CLI | Explicit sampling/interpolation/window/crossing semantics, analytic harmonics and failure for unfulfilled measurement; source-backed sensitivity publication retains typed child identities and requires strict saved-record verification |
+| PR11 | PDK/passive/device capability admission: Devices/IO | Every accepted parameter has a numerical owner; independent BJT, static/model-backed capacitor, conservative charge and differential-capacitance tests verify their separate laws, and unsupported values fail explicitly |
+| PR12 | Sparse factorization and post-layout scale: Compile | Real/complex conditioning, pivots, residual/error checks and measured realistic PEX memory/time; true sparse CSC LU is qualified for the finite Native CPU envelope in the [measured report](docs/sparse-pex-qualification.md); actual fill, peak RSS, complete execution time and transient reference sensitivity are retained, while general sparse eigensolving and whole-platform qualification remain separate |
+| PR13 | PEX and layout handoff: CoreSpice with PEX/Timing owners | Exact parasitic R/C/coupling, node mapping, units, model/PDK/corner binding and pre/post comparison; extraction and signoff remain external domain responsibilities |
+| PR14 | API, CLI, persistence and replay: NativeExecution/CLI/Waveform | Same-candidate complete real/complex values, saved/reloaded/rerun equality, exact identities and structured failure |
+| PR15 | Resource bounds, cancellation and lifecycle: every allocation/process owner | Cold start, overflow/admission refusal, mid-run cancellation, failed preparation/retry and owner release without partial success or orphan processes |
+| PR16 | Concurrency and isolation: device/runtime owners | Immutable model inputs, exclusive instance state, synchronized shared state, reentrancy and close/cancel races; sequential execution is not a parallel safety proof |
+| PR17 | Runtime performance: complete execution owner | Cold and reused parse/prepare/solve/save wall time, peak storage and allocation/copy counts with identical inputs/audit; local heap reduction is not end-to-end speedup |
+| PR18 | Public distribution and numerical qualification: package/qualification owners | Stable public dependency closure, licenses, fixed toolchain, independent oracle and explicit tested envelope; finite cases do not establish foundry/process accuracy |
+| PR19 | Adopted fixed-bias RF profile: Analysis/IO/Native/CLI | Existing AC/noise/TF/PZ plus multiport S/Y/Z, Touchstone and conditional pointwise two-port stability metrics are required for this release. The [Analysis child](Sources/CoreSpiceAnalysis/NetworkParameters/DESIGN.md) owns the mathematical profile and [IO codec](Sources/CoreSpiceIO/Touchstone/DESIGN.md) owns exchange; periodic PSS/HB/PAC/Pnoise and oscillator/envelope proposals have not been adopted by this profile. Pointwise criteria do not establish internal-pole or whole-frequency stability |
+| PR20 | Requested continuous-time/all-phase/all-history/corner enclosure: CoreSpice with Timing/PEX | Explicit causal-response/source-model contract, validated integration/ranges and same-candidate complete-corner evidence; ordinary OSDI points and accepted traces do not close this original goal |
+
+### Verification and Change Impact
+
+Migration completion requires a fresh public dependency solve, the adapter's
+success/failure/state/topology/precision tests, Native and actual batch/prepared
+CLI DC/AC/noise/transient with exact saved/reloaded artifacts, the original full
+precision schedules and latest-SOI compensated execution, and scoped numerical
+and lifecycle regressions. Builds are bounded under one scratch owner. Distinct
+test processes use immutable binaries and independent run owners; they do not
+mutate shared SwiftPM state. Source/model/oracle evidence and final products are retained
+when obsolete intermediates are removed. No Metal, Linux, WASM or Embedded
+execution guarantee is added by the Native CPU migration.
+
+The matrix records the full target without absorbing unrelated implementations
+into this migration. A remaining row is reported as a gap and cannot be described
+as production-ready. PDK/model qualification, simulator numerical qualification,
+all-history enclosure and foundry signoff remain distinct evidence kinds.
+
+## True Sparse PEX Qualification
+
+Numerical and capacity contracts are owned by [Compile sparse factorization](Sources/CoreSpiceCompile/SparseFactorization/DESIGN.md)
+and [Analysis sparse execution](Sources/CoreSpiceAnalysis/SparseExecution/DESIGN.md).
+This task targets DC/Newton/transient and complex AC/noise normal solves, not sparse
+generalized eigenvalue or GPU execution. Stable public dependencies stay unchanged.
+
+The [qualification tooling child](tools/SparseQualification/DESIGN.md) owns
+conversion, independent comparisons and measured execution protocols.
+Qualification uses the retained public OpenSTA `examples/gcd_sky130hd.spef`,
+SHA-256 `775b511037d1b3bd3ed7fc7b85561e7496bef80ff5ee0f65c46842ce7fa9135b`,
+1,478 interconnect nodes, 1,190 resistors, 1,478 ground-cap records and 1,604 physical
+coupling capacitors. Mirrored coupling records are checked and counted once.
+Explicit source/sink terminations define a passive-interconnect test boundary;
+they do not recreate original logic-cell behavior or establish foundry signoff.
+Larger deterministic replicas and analytic chain/mesh cases are labeled as scaling
+fixtures, separately from the original extracted network. The original public
+corpus remains an external input; no model/fixture license is silently changed.
+
+Use identical retained SPICE bytes and sampling/audit/output conditions for the
+immutable d8157f1 baseline and new Native implementation. Independent ngspice and
+closed-form/edge-list KCL references qualify DC/complex AC/transient values.
+Report cold-process total time and peak RSS, warm reuse and factor/storage counts
+separately. Baseline refusals/timeouts remain refusals, not estimated measurements.
+API/CLI must save and reload the same complete result with exact source/configuration
+and new solver identity. Source/model/oracle evidence and frozen executables are
+retained while obsolete build caches may be removed. No whole-platform production
+readiness follows from this sparse migration alone.
+
+
+## Production Release Integration
+
+This release task retains every PR01–PR20 gate above. The [distribution contract](docs/distribution-licensing.md) fixes source-only package publication with exact dependency identities; external model/compiler/worker artifacts are supplied separately under their own terms. The following direct child
+owners define the corrected execution contracts; their presence is not a claim
+that runtime qualification or the all-history proof is complete.
+
+| Child | Contract used | Integration evidence required |
+|---|---|---|
+| [Backend](Sources/CoreSpiceBackend/DESIGN.md) | Checked Metal owner and completion | Actual Metal execution, bounds, races and release |
+| [Photonic plugin](Sources/PluginsPhotonic/DESIGN.md) | Finite optical results and wavelength model | Independent complex reference and real GPU sweeps |
+| [Exporter](Sources/CoreSpiceExporter/DESIGN.md) | Exclusive session and publication | Concurrent writes, cancellation and destination preservation |
+| [CSV](Sources/CoreSpiceExporterCSV/DESIGN.md) | Delimited real/complex exchange | Escaped fields and complete reload |
+| [RAW](Sources/CoreSpiceExporterRAW/DESIGN.md) | RAW encoding and session | Complete reload and bounded failures |
+| [PSF](Sources/CoreSpiceExporterPSF/DESIGN.md) | PSF encoding and session | Complete reload and bounded failures |
+| [CLI](Sources/CoreSpiceCLI/DESIGN.md) | Invocation resources and phase completions | All requested analyses execute and every completion decodes |
+
+CLI batch record schema v6 owns ordered multiphase completion evidence. Each
+entry retains its own analysis, waveform summary, original DC result and OSDI
+receipt where applicable; no final phase substitutes for earlier evidence.
+Single-phase schema v3/v4/v5 contracts are preserved. This version is distinct
+from other domain record schemas with the same numeric version.

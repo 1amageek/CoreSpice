@@ -21,12 +21,15 @@ struct ParsedNetlistCompiler: ~Copyable {
         builder = MOSDeclarationSnapshotBuilder(limits: limits, control: control)
         storage = FrontendStorage(limits: limits, control: control)
     }
-    consuming func compile(_ source: ParsedNetlist, overrideNames: [String]) throws -> CompiledNetlist {
+    consuming func compile(_ source: ParsedNetlist, overrideNames: [String],
+        sourceOverrides: [NetlistSourceScalarOverride], temperatureSelection: NetlistSourceTemperature?,
+        captureSourceScalars: Bool) throws -> CompiledNetlist {
         try storage.budget.add(UInt64(MemoryLayout<CompiledNetlist>.stride + MemoryLayout<ParsedNetlist>.stride))
         try storage.text(source.title); try storage.text(source.sourcePath)
         for name in overrideNames { _ = try builder.intern(name) }
         _ = try compileBody(source.body, parent: nil, subcircuit: nil)
-        try compileControls(source.controls)
+        try NetlistSourceTemperature.validate(temperatureSelection, in: source, storage: storage)
+        try compileControls(source.controls, temperatureSelection: temperatureSelection)
         try validateNodeAliases(source.initialConditions, initial: true)
         try validateNodeAliases(source.nodeSets, initial: false)
         try storage.retain(source.analyses)
@@ -55,10 +58,30 @@ struct ParsedNetlistCompiler: ~Copyable {
                 }
             }
         }
+        var scalarOverrides: [String: [FrontendScalarOverride]] = [:]
+        try storage.retain(sourceOverrides)
+        for override in sourceOverrides {
+            try storage.spend()
+            try storage.text(override.instanceName); try storage.text(override.parameterName)
+            let instance = override.instanceName.lowercased(), name = override.parameterName.lowercased()
+            try storage.text(instance); try storage.text(name)
+            if scalarOverrides[instance]?.contains(where: { $0.source.role == override.role && $0.name == name }) == true {
+                throw LoweringError.invalidComponent(name: override.instanceName, reason: "Duplicate scalar source override")
+            }
+            let symbol = try builder.intern(name)
+            let program = try compileValue(.numeric(override.value))
+            if scalarOverrides[instance] == nil { try storage.reserve(&scalarOverrides, scalarOverrides.count + 1) }
+            var values = scalarOverrides[instance] ?? []
+            try storage.reserve(&values, values.count + 1)
+            values.append(.init(source: override, name: name, binding: .init(symbol: symbol, program: program)))
+            scalarOverrides[instance] = values
+        }
         let snapshot = try builder.finish()
         try storage.budget.add(snapshot.retainedBytes)
         return CompiledNetlist(source: source, snapshot: snapshot, retainedBytes: storage.budget.bytes,
-            identity: identity, scopes: scopes, models: models, slots: slots, modelOrigins: origins, hierarchicalMultiplier: hierarchicalMultiplier, diodeIndex: diodeIndex, diodeCandidates: diodeCandidates)
+            identity: identity, scopes: scopes, models: models, slots: slots, modelOrigins: origins, hierarchicalMultiplier: hierarchicalMultiplier, diodeIndex: diodeIndex, diodeCandidates: diodeCandidates,
+            sourceOverrides: sourceOverrides, scalarOverrides: scalarOverrides, temperatureSelection: temperatureSelection,
+            captureSourceScalars: captureSourceScalars)
     }
     private mutating func compileBody(_ body: ParsedNetlistBody, parent: MOSScopeID?,
         subcircuit: ParsedSubcircuit?) throws -> MOSScopeID {
@@ -143,6 +166,12 @@ struct ParsedNetlistCompiler: ~Copyable {
         var diodeGroups: [MOSSymbolID: [Int]] = [:]
         try storage.retain(body.models)
         for model in body.models {
+            if model.type == .osdi,
+               model.level != nil || !model.parameters.isEmpty || !model.parameterAssignments.isEmpty {
+                throw LoweringError.invalidOSDIInput(name: model.name,
+                    reason: "OSDI model declarations are coefficient-free",
+                    location: model.parameterAssignments.first?.location ?? model.location)
+            }
             guard models.count < limits.maximumDeclarations else { throw MOSResolutionFailure.limitExceeded(.declarations) }
             try storage.location(model.location); try storage.text(model.origin?.captureID); try storage.location(model.origin?.location)
             try storage.text(model.name)
@@ -198,6 +227,13 @@ struct ParsedNetlistCompiler: ~Copyable {
         var components: [FrontendComponentTemplate] = []
         try storage.retain(body.components)
         for component in body.components {
+            if component.type == .osdi,
+               component.nodes.isEmpty || component.modelName == nil || component.passiveModelCandidate != nil
+                || !component.parameters.isEmpty || !component.parameterAssignments.isEmpty {
+                throw LoweringError.invalidOSDIInput(name: component.name,
+                    reason: "OSDI requires terminals, a model symbol and external typed assignments only",
+                    location: component.parameterAssignments.first?.location ?? component.location)
+            }
             try storage.location(component.location); try storage.origin(component.origin)
             try storage.text(component.name); try storage.text(component.modelName); try storage.text(component.passiveModelCandidate)
             try storage.retain(component.nodes)
@@ -264,7 +300,8 @@ struct ParsedNetlistCompiler: ~Copyable {
                 try storage.reserve(&bindings, bindings.count + 1); bindings.append(.init(symbol: symbol, program: program))
             }
             if let modelName = component.modelName { _ = try builder.intern(modelName) }
-            try storage.reserve(&components, components.count + 1)
+            // Private local backing has no copy until the immutable scope assignment below.
+            try storage.reserveExclusiveComponents(&components, components.count + 1)
             let diodeAssignments = component.type == .diode ? try compileDiodeAssignments(component.parameterAssignments) : []
             let diodeReference = try component.modelName.map { try builder.intern($0) }
             components.append(.init(ordinal: components.count, diodeAssignments: diodeAssignments, diodeReference: diodeReference, component: component, scope: scope, programs: programs, assignments: bindings,
@@ -375,7 +412,8 @@ struct ParsedNetlistCompiler: ~Copyable {
         slots[address] = .init(address: address, program: program, identity: identity, index: nextSlot)
         nextSlot += 1
     }
-    private mutating func compileControls(_ controls: [ParsedControlStatement]) throws {
+    private mutating func compileControls(_ controls: [ParsedControlStatement],
+        temperatureSelection: NetlistSourceTemperature?) throws {
         try storage.retain(controls)
         for (index, statement) in controls.enumerated() {
             try storage.spend()
@@ -389,8 +427,15 @@ struct ParsedNetlistCompiler: ~Copyable {
                 try storage.text(name); if let value { try storage.value(value) }
                 try addSlot(value, at: .control(index: index, field: "value"))
             case .temp(let value, _):
-                guard isScalar(value) else { throw LoweringError.unsupportedFeature(feature: "Temperature sweeps are not supported") }
-                try storage.value(value); try addSlot(value, at: .control(index: index, field: "value"))
+                try storage.value(value)
+                if case .numericVector = value {
+                    if let temperatureSelection, temperatureSelection.controlIndex == index {
+                        try addSlot(.numeric(temperatureSelection.celsius), at: .control(index: index, field: "value"))
+                    }
+                } else {
+                    guard isScalar(value) else { throw LoweringError.unsupportedFeature(feature: "Temperature requires a scalar or literal family") }
+                    try addSlot(value, at: .control(index: index, field: "value"))
+                }
             case .initialCondition(let node, let value, _):
                 try storage.text(node); try storage.value(value)
                 try addSlot(value, at: .control(index: index, field: "value"))

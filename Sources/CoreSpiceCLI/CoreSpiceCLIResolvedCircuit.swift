@@ -4,6 +4,7 @@ import CoreSpiceIR
 import CoreSpiceParsedIR
 import CoreSpiceLowering
 import CoreSpiceMOSContracts
+import CoreSpiceOSDIContracts
 
 /// Immutable final source values; it carries inspection capability, never executable devices.
 struct CoreSpiceCLIResolvedCircuit: Sendable {
@@ -16,17 +17,19 @@ struct CoreSpiceCLIResolvedCircuit: Sendable {
     let nodeSetVoltages: [Node: Double]
 
     static func resolve(_ compiled: CompiledNetlist, policy: CoreSpiceCLIExecutionPolicy,
-                        seed: UInt64, selectedAnalysisIndex: Int?, cancellation: CancellationToken? = nil) throws -> Self {
+                        seed: UInt64, selectedAnalysisIndex: Int?, cancellation: CancellationToken? = nil,
+                        osdiInstances: [String: OSDIResolvedInstance] = [:]) throws -> Self {
         let resources = try policy.resources()
         let envelope = try NetlistLowering.resourceEnvelope(limits: policy.resolutionLimits)
         let retained = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: envelope.maximumRetainedBytes)
         let scratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: envelope.maximumTemporaryBytes)
         defer { withExtendedLifetime(scratch) {} }
         let control = CoreSpiceCLIResolutionControl(resources: resources, cancellation: cancellation)
+        do {
         var session = try NetlistLowering.beginEvaluation(compiled, profile: policy.profile,
             limits: policy.resolutionLimits, seed: seed, control: control)
         let options = try SPICEAnalysisOptions.resolve(from: compiled, session: &session)
-        do { try session.lower(geometryScale: options.geometryScale) }
+        do { try session.lower(geometryScale: options.geometryScale, diodeProfile: policy.diodeProfile, osdiInstances: osdiInstances) }
         catch let failure as DiodeResolutionFailure {
             throw SPICESimulationPreparationError.diodeResolution(failure, resourceCause: nil, reservation: retained)
         }
@@ -61,6 +64,7 @@ struct CoreSpiceCLIResolvedCircuit: Sendable {
         }
         return Self(frontendReservation: retained, resources: resources, lowered: try session.finish(), options: options, analyses: analyses,
             initialNodeVoltages: initial, nodeSetVoltages: nodeset)
+        } catch { throw control.preservingResourceCause(error) }
     }
 
     private static func requiresTransient(_ analysis: ParsedAnalysisCommand) -> Bool {

@@ -13,6 +13,7 @@ IR owns resolved model provenance, stage-tagged MOS values, and auxiliary node i
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [MOSInstances](MOSInstances/DESIGN.md) | child | Typed resolved/prepared MOS stage | Exact immutable value authority | Preserve when cloning |
+| [OSDIInstances](OSDIInstances/DESIGN.md) | child | Typed resolved/prepared OSDI stage | Exact artifact/descriptor and scoped values | Preserve when cloning; no runtime ownership |
 | [CoreSpice](../../DESIGN.md) | parent | Package composition | Owned module boundary | Revalidate direct consumers when contracts change |
 
 ## Architecture
@@ -49,7 +50,7 @@ Invalid allocation requests and name collisions produce NetlistError. Owner iden
 
 ## Verification and Change Impact
 
-BSIM3 integration tests trace provenance, private identities, and actual sparse topology. Revalidate Compile, Devices binding, Analysis composition, Lowering, and instance-copy consumers.
+IR ownership tests and OSDI integration tests trace provenance, private identities, and actual sparse topology. Revalidate Compile, Devices binding, Analysis composition, Lowering, and instance-copy consumers.
 
 ## Typed Source Vector Input
 
@@ -72,7 +73,7 @@ that one retained expression can be rebound at different operating temperatures.
 
 ## Designed Typed Diode Stage
 
-Status: proposed. Depend on [DiodeContracts](../CoreSpiceDiodeContracts/DESIGN.md) and
+Status: implemented. Depend on [DiodeContracts](../CoreSpiceDiodeContracts/DESIGN.md) and
 transport `Instance.diode` as resolved input or immutable preparation receipt. The
 [Input child contract](../CoreSpiceDiodeContracts/Input/DESIGN.md) owns its meaning.
 Physical diode inputs must not be reconstructed from Instance.parameters/model maps.
@@ -100,8 +101,14 @@ is not a claim of numerical execution or physical accuracy.
 ## D3 Change Impact
 
 The [D3 resolution owner](../CoreSpiceLowering/DiodeResolution/DESIGN.md) defines occurrence admission, frozen
-evaluation, immutable result transport and explicit numerical refusal. This layer
-consumes that contract; D4 numerical preparation and D5 downstream adoption remain
-separate. Its affected production path and behavioral tests are verified in D3.
+evaluation and immutable result transport. This layer consumes that contract;
+D4 numerical preparation and D5 API/CLI adoption are separate implemented owners
+linked by the package design. Its own affected path and tests remain the D3 proof.
 
 The [DiodeInstances child](DiodeInstances/DESIGN.md) owns staged diode transport.
+
+The [OSDIInstances child](OSDIInstances/DESIGN.md) owns S3 OSDI stage
+transport. Its portable [binding contract](../CoreSpiceOSDIContracts/Binding/DESIGN.md)
+owns exact artifact/descriptor identity, distinct typed assignment scopes, explicit
+previous state and immutable setup facts. IR does not load or retain executable
+libraries, infer foreign parameter types, or flatten this input into generic maps.

@@ -20,11 +20,14 @@ public struct ACResult: Sendable, AnalysisResultStorageRetaining {
 
     /// Mapping from MNA variables to indices in each solution vector.
     public let variableMap: [MNAVariable: Int]
+    /// Actual nested DC solve; nil only for externally constructed results without that evidence.
+    public let operatingPoint: DCResult?
 
     public init(
         frequencies: [Double],
         solutions: [[ComplexPair]],
-        variableMap: [MNAVariable: Int]
+        variableMap: [MNAVariable: Int],
+        operatingPoint: DCResult? = nil
     ) throws {
         guard frequencies.count == solutions.count else {
             throw ACResultError.frequencySolutionCountMismatch(
@@ -51,9 +54,13 @@ public struct ACResult: Sendable, AnalysisResultStorageRetaining {
                 count: solutionSize
             )
         }
+        if let operatingPoint, operatingPoint.variableMap != variableMap {
+            throw AnalysisResultValidationError.variableMapMismatch
+        }
         self.frequencies = frequencies
         self.solutions = solutions
         self.variableMap = variableMap
+        self.operatingPoint = operatingPoint
         self.retainedStorage = nil
     }
 
@@ -66,6 +73,7 @@ public struct ACResult: Sendable, AnalysisResultStorageRetaining {
         self.frequencies = result.frequencies
         self.solutions = result.solutions
         self.variableMap = result.variableMap
+        self.operatingPoint = result.operatingPoint?.retainingStorage(owner)
         self.retainedStorage = owner
     }
 

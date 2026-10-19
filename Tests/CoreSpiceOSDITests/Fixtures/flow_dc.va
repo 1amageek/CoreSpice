@@ -1,0 +1,9 @@
+`include "dc_disciplines.vams"
+module flow_dc(p, n);
+    inout p, n;
+    electrical p, n;
+    branch (p, n) drive;
+    parameter real bias = 0.4;
+    parameter real resistance = 50.0;
+    analog V(drive) <+ bias + resistance * I(drive);
+endmodule

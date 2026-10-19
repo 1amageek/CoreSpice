@@ -25,6 +25,7 @@ public enum ComponentType: String, Sendable, Hashable, Codable {
     case bjt = "Q"
     case jfet = "J"
     case mosfet = "M"
+    case osdi = "N"
     case mesfet = "Z"
 
     // Transmission lines
@@ -64,7 +65,7 @@ public enum ComponentType: String, Sendable, Hashable, Codable {
             return 3
         case .transmissionLine:
             return 4
-        case .coupledInductors, .behavioral, .subcircuitInstance:
+        case .coupledInductors, .behavioral, .subcircuitInstance, .osdi:
             return nil
         }
     }

@@ -7,13 +7,45 @@ import CoreSpiceIR
 /// and allocation on every conversion.
 public struct WaveformVariableLayout: Sendable {
     public let variables: [VariableDescriptor]
+    private let variableMap: [MNAVariable: Int]
 
     public init(variableMap: [MNAVariable: Int], topology: CircuitTopology) {
         self.variables = Self.buildVariableDescriptors(from: variableMap, topology: topology)
+        self.variableMap = variableMap
     }
 
-    public init(validatingVariableMap variableMap: [MNAVariable: Int], topology: CircuitTopology) throws {
-        self.variables = try Self.buildValidatedVariableDescriptors(from: variableMap, topology: topology)
+    /// Creates a checked layout, marking explicit thermal unknowns as temperature rises in kelvins.
+    ///
+    /// Thermal identities must exist in the compiled map; ground cannot be a temperature-rise unknown.
+    public init(
+        validatingVariableMap variableMap: [MNAVariable: Int],
+        topology: CircuitTopology,
+        temperatureRiseNodes: Set<Node> = []
+    ) throws {
+        for node in temperatureRiseNodes {
+            guard node != .ground, variableMap[.nodeVoltage(node)] != nil else {
+                throw WaveformValidationError.unknownTemperatureRiseNode(nodeID: node.id)
+            }
+        }
+        self.variables = try Self.buildDescriptors(
+            from: variableMap,
+            topology: topology,
+            strict: true,
+            temperatureRiseNodes: temperatureRiseNodes
+        )
+        self.variableMap = variableMap
+    }
+
+    func validate(variableMap: [MNAVariable: Int], variableCount: Int) throws {
+        guard self.variableMap == variableMap else {
+            throw WaveformValidationError.variableLayoutMapMismatch
+        }
+        guard variables.count == variableCount else {
+            throw WaveformValidationError.variableLayoutWidthMismatch(
+                expected: variableCount,
+                actual: variables.count
+            )
+        }
     }
 
     private static func buildVariableDescriptors(
@@ -27,17 +59,11 @@ public struct WaveformVariableLayout: Sendable {
         }
     }
 
-    private static func buildValidatedVariableDescriptors(
-        from variableMap: [MNAVariable: Int],
-        topology: CircuitTopology
-    ) throws -> [VariableDescriptor] {
-        try buildDescriptors(from: variableMap, topology: topology, strict: true)
-    }
-
     private static func buildDescriptors(
         from variableMap: [MNAVariable: Int],
         topology: CircuitTopology,
-        strict: Bool
+        strict: Bool,
+        temperatureRiseNodes: Set<Node> = []
     ) throws -> [VariableDescriptor] {
         var variables: [VariableDescriptor?] = Array(repeating: nil, count: variableMap.count)
         for (mnaVariable, solverIndex) in variableMap {
@@ -50,7 +76,12 @@ public struct WaveformVariableLayout: Sendable {
                 }
                 continue
             }
-            variables[solverIndex] = descriptor(for: mnaVariable, topology: topology, index: solverIndex)
+            variables[solverIndex] = descriptor(
+                for: mnaVariable,
+                topology: topology,
+                index: solverIndex,
+                temperatureRiseNodes: temperatureRiseNodes
+            )
         }
 
         var descriptors: [VariableDescriptor] = []
@@ -70,14 +101,16 @@ public struct WaveformVariableLayout: Sendable {
     private static func descriptor(
         for variable: MNAVariable,
         topology: CircuitTopology,
-        index: Int
+        index: Int,
+        temperatureRiseNodes: Set<Node>
     ) -> VariableDescriptor {
         switch variable {
         case .nodeVoltage(let node):
+            let isTemperatureRise = temperatureRiseNodes.contains(node)
             return VariableDescriptor(
-                name: "V(\(topology.name(for: node) ?? String(node.id)))",
-                unit: .volt,
-                type: .voltage,
+                name: "\(isTemperatureRise ? "dT" : "V")(\(topology.name(for: node) ?? String(node.id)))",
+                unit: isTemperatureRise ? .kelvin : .volt,
+                type: isTemperatureRise ? .temperature : .voltage,
                 index: index
             )
         case .branchCurrent(let branch):

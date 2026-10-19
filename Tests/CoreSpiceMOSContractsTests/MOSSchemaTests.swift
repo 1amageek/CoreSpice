@@ -1,76 +1,51 @@
 import CoreSpiceMOSContracts
 import Testing
 
-@Suite("Exact MOS schema contracts")
+@Suite("Classical MOS schema contracts")
 struct MOSSchemaTests {
-    @Test func exactReleaseIdentityAndInspectionAreIndependentOfExecution() throws {
-        #expect(try MOSModelRelease.resolve(level: 49, version: "3.3.0", profile: .coreStrictV1) == .bsim3_3_3_0)
-        #expect(try MOSModelRelease.resolve(level: 54, version: "4.5", profile: .coreStrictV1) == .bsim4_4_5)
-        #expect(throws: MOSSchemaFailure.unsupportedRelease(level: 54, version: nil)) {
-            try MOSModelRelease.resolve(level: 54, version: nil, profile: .coreStrictV1)
-        }
-        for version in ["4.50", "4.500000e+0", "4.8", "4.8.30", "4.62"] {
-            #expect(throws: MOSSchemaFailure.unsupportedRelease(level: 54, version: version)) {
-                try MOSModelRelease.resolve(level: 54, version: version, profile: .coreStrictV1)
+    @Test func nativeReleaseDomainContainsOnlyClassicalLevels() throws {
+        #expect(MOSModelRelease.allCases == [.level1, .level2, .level3])
+        for level in 1...3 {
+            let release = try MOSModelRelease.resolve(level: level, version: nil, profile: .coreStrictV1)
+            #expect(release.level == level && release.exactVersion == nil)
+            #expect(release.schemaIdentity.revision == 1)
+            #expect(throws: MOSSchemaFailure.unsupportedRelease(level: level, version: "4.5")) {
+                try MOSModelRelease.resolve(level: level, version: "4.5", profile: .coreStrictV1)
             }
         }
-        let provider: any MOSModelSchemaProviding = StandardMOSModelSchemas()
-        let inspect = try provider.schema(for: .bsim4_4_5)
-        #expect(try inspect.parameter(named: "vth0", role: .model).kind == .real)
-        #expect(MOSModelRelease.bsim4_4_5.exactVersion == "4.5.0")
-        #expect(try MOSModelRelease.resolve(level: 54, version: "4.5.0", profile: .coreStrictV1) == .bsim4_4_5)
-        #expect(try MOSModelRelease.resolve(level: 54, version: "4.500000e+0", profile: .pinnedNgspiceNormalV1) == .bsim4_4_5)
-        #expect(MOSInputProfile.allCases.count == 2)
-        #expect(MOSInputProfile.pinnedNgspiceCommit == "ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6")
+        for profile in MOSInputProfile.allCases {
+            for (level, version) in [(49, nil), (49, "3.3.0"), (54, nil), (54, "4.5"),
+                                      (54, "4.5.0"), (54, "4.8.3"), (54, "4.500000e+0")] as [(Int, String?)] {
+                #expect(throws: MOSSchemaFailure.osdiBindingRequired(level: level, version: version)) {
+                    try MOSModelRelease.resolve(level: level, version: version, profile: profile)
+                }
+            }
+        }
     }
 
-    @Test func exactSetterRulesDoNotGuessDimensionsOrConflateReleases() throws {
-        for release in [MOSModelRelease.bsim4_4_5, .bsim4_4_8_3] {
-            let schema = MOSModelSchema(release: release)
-            for name in ["l", "w", "pd", "ps", "sa", "sb", "sd", "sc"] {
+    @Test func classicalParameterAdmissionDoesNotInheritCompactModelFields() throws {
+        let provider: any MOSModelSchemaProviding = StandardMOSModelSchemas()
+        for release in MOSModelRelease.allCases {
+            let schema = try provider.schema(for: release)
+            for name in ["l", "w", "pd", "ps"] {
                 #expect(try schema.parameter(named: name, role: .instance).scale == .length)
             }
-            for name in ["ad", "as"] { #expect(try schema.parameter(named: name, role: .instance).scale == .area) }
-            for name in ["m", "nf", "nrs", "nrd", "sca", "scb", "scc", "xgw"] {
-                #expect(try schema.parameter(named: name, role: .instance).scale == .none)
+            for name in ["ad", "as"] {
+                #expect(try schema.parameter(named: name, role: .instance).scale == .area)
             }
-            for name in ["lmin", "lmax", "wmin", "wmax", "binunit", "toxe"] {
-                #expect(try schema.parameter(named: name, role: .model).scale == .none)
+            #expect(try schema.parameter(named: "m", role: .instance).scale == .none)
+            #expect(try schema.parameter(named: "vto", role: .model).kind == .real)
+            for name in ["nf", "sa", "sc", "trnqsmod", "rgatemod"] {
+                #expect(throws: MOSSchemaFailure.unknownParameter(name: name, role: .instance, release: release)) {
+                    try schema.parameter(named: name, role: .instance)
+                }
             }
-            #expect(try schema.parameter(named: "rgatemod", role: .instance).kind == .integer)
-            #expect(try schema.parameter(named: "vtho", role: .model).canonicalName == "vth0")
-            #expect(try schema.parameter(named: "vth0", role: .model).canonicalName == "vth0")
-            #expect(try schema.parameter(named: "off", role: .instance).kind == .flag)
-            try schema.parameter(named: "nf", role: .instance).validate(1.5)
-        }
-        for name in ["mulu0", "dtemp", "gidlmod"] {
-            let role: MOSParameterRole = name == "gidlmod" ? .model : .instance
-            #expect(throws: MOSSchemaFailure.unknownParameter(name: name, role: role, release: .bsim4_4_5)) {
-                try MOSModelSchema(release: .bsim4_4_5).parameter(named: name, role: role)
+            for name in ["toxe", "lmin", "binunit", "vth0", "version"] {
+                #expect(throws: MOSSchemaFailure.unknownParameter(name: name, role: .model, release: release)) {
+                    try schema.parameter(named: name, role: .model)
+                }
             }
         }
-        #expect(throws: MOSSchemaFailure.unknownParameter(name: "mulu0", role: .instance, release: .bsim4_4_8_3)) {
-            try MOSModelSchema(release: .bsim4_4_8_3).parameter(named: "mulu0", role: .instance)
-        }
-        #expect(throws: MOSSchemaFailure.unknownParameter(name: "nf", role: .instance, release: .bsim3_3_3_0)) {
-            try MOSModelSchema(release: .bsim3_3_3_0).parameter(named: "nf", role: .instance)
-        }
-    }
-
-    @Test func originalSelectorsKeepRoleAndFrontendOwnershipSeparate() throws {
-        let schema = MOSModelSchema(release: .bsim4_4_5)
-        let sc = try schema.parameter(named: "sc", role: .instance)
-        let sca = try schema.parameter(named: "sca", role: .instance)
-        guard case .native(let scID) = sc.authority,
-              case .native(let scaID) = sca.authority else { Issue.record("Missing original selector identity"); return }
-        #expect(scID != scaID && scID.schema.revision == 2 && scID.role == .instance)
-        #expect(sc.scale == .length && sca.scale == .none)
-        #expect(try schema.parameter(named: "m", role: .instance).authority == .parallelMultiplicity)
-        for (index, name) in ["ic_vds", "ic_vgs", "ic_vbs"].enumerated() {
-            #expect(try schema.parameter(named: name, role: .instance).authority == .initialConditionComponent(index))
-        }
-        #expect(try schema.parameter(named: "delvt0", role: .instance).authority == schema.parameter(named: "delvto", role: .instance).authority)
-        #expect(try schema.parameter(named: "vtho", role: .model).authority == schema.parameter(named: "vth0", role: .model).authority)
     }
 
     @Test func scalingPreservesRepresentableAreaAndRefusesUnderflowOverflowAndNonfinite() throws {

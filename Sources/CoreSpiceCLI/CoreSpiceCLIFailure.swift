@@ -3,8 +3,8 @@ import CoreSpiceMOSResolution
 import CoreSpice
 import CoreSpiceCompile
 import CoreSpiceMOSContracts
+import CoreSpiceDiodeContracts
 import CoreSpiceDevices
-import CoreSpiceCompactModels
 import CoreSpiceExporterCSV
 import CoreSpiceIO
 import Foundation
@@ -40,6 +40,25 @@ extension CoreSpiceCLIFailure {
   /// typed error.
   init(error: any Error) {
     switch error {
+    case let profile as CoreSpiceCLIExecutionProfile.Failure:
+      switch profile {
+      case .invalidProfile(let reason): self.init(code: "cli.execution-profile", message: reason, stage: "admission")
+      case .conflictingPrecisionBudget: self.init(code: "cli.execution-profile", message: "Execution profile conflicts with OSDI precision execution budget", stage: "admission")
+      }
+    case let osdi as CoreSpiceCLIOSDIError:
+      switch osdi {
+      case .invalidCatalog(let reason): self.init(code: "osdi.catalog", message: reason, stage: "admission")
+      case .unsupportedAnalysis(let name): self.init(code: "osdi.unsupported-analysis", message: name, stage: "admission")
+      case .incompleteReceipt(let reason): self.init(code: "osdi.incomplete-receipt", message: reason, stage: "execution")
+      }
+
+    case let verification as NativePrecisionConfigurationVerification.Failure:
+      switch verification {
+      case .resource(let cause): self.init(error: cause)
+      case .identityMismatch: self.init(code: "osdi.incomplete-receipt", message: "Saved precision configuration facts differ from Native commitment", stage: "execution")
+      case .invalidFacts(let reason): self.init(code: "osdi.incomplete-receipt", message: reason, stage: "execution")
+      }
+
     case is CancellationError:
       self.init(code: "case.cancelled", message: "Case execution was cancelled", stage: "execution")
 
@@ -54,6 +73,12 @@ extension CoreSpiceCLIFailure {
       }
       self.init(code: code, message: caseError.localizedDescription, stage: "case-publication")
 
+    case let diode as DiodeNumericalFailure:
+      self.init(code: "diode.numerical", message: Self.describe(diode), stage: "analysis")
+    case let diode as DiodePreparationFailure:
+      self.init(code: "diode.preparation", message: Self.describe(diode), stage: "preparation")
+    case let diode as DiodeSchemaFailure:
+      self.init(code: "diode.schema", message: Self.describe(diode), stage: "admission")
     case let diode as DiodeResolutionFailure:
       self.init(code: "diode.resolution", message: "\(diode.instance ?? "diode"): \(diode.cause); source \(diode.assignment?.location?.description ?? "unavailable")", stage: "resolution",
         suggestedActions: ["inspect the explicit diode profile and selected source assignments"])
@@ -138,7 +163,10 @@ extension CoreSpiceCLIFailure {
       }
     case let preparation as SPICENativePreparationError:
       switch preparation {
+      case .osdi(let cause): self.init(code: "osdi.preparation", message: Self.describe(cause), stage: "preparation")
+      case .osdiCleanup(let cause): self.init(code: "osdi.cleanup", message: Self.describe(cause), stage: "preparation")
       case .compile(let cause), .binding(let cause), .resource(let cause): self.init(error: cause)
+      case .diodePreparation(let cause): self.init(code: "diode.preparation", message: Self.describe(cause), stage: "preparation")
       case .mosPreparation(let cause): self.init(code: "mos.preparation", message: Self.describe(cause), stage: "preparation")
       case .mosBinding(let cause): self.init(code: "mos.binding", message: Self.describe(cause), stage: "preparation")
       case .evaluationEnvironment: self.init(code: "native.environment-mismatch", message: "Operating conditions differ from source evaluation", stage: "preparation")
@@ -146,8 +174,26 @@ extension CoreSpiceCLIFailure {
       case .unsupportedCapability(let detail): self.init(code: "preparation.unsupported-capability", message: detail, stage: "preparation")
       }
 
+    case let network as NetworkParameterError:
+      self.init(code: "analysis.network-parameters", message: Self.describe(network), stage: "analysis",
+        suggestedActions: ["inspect the selected voltage-source boundaries, positive frequencies, reference resistances and RF resource policy"])
+
+    case let physical as SPICEOSDIPhysicalResidualFailure:
+      let kind: String
+      let unit: String
+      switch physical.kind {
+      case .electricalPotential: kind = "electricalPotential"; unit = "A"
+      case .electricalFlow: kind = "electricalFlow"; unit = "V"
+      case .thermalPotential: kind = "thermalPotential"; unit = "W"
+      }
+      self.init(code: "analysis.physical-residual",
+        message: "Original physical equation gate failed at row \(physical.row) (\(kind)): residual \(physical.residual) \(unit), absolute tolerance \(physical.absoluteTolerance) \(unit)",
+        stage: "analysis", suggestedActions: ["inspect the original equation, selected model inputs and operating conditions at the reported row"])
+
     case let nativeError as SPICENativeExecutionError:
       switch nativeError {
+      case .osdi(let cause): self.init(code: "osdi.execution", message: Self.describe(cause), stage: "analysis")
+      case .osdiCleanup(let cause): self.init(code: "osdi.cleanup", message: Self.describe(cause), stage: "analysis")
       case .numerical(let cause), .binding(let cause), .resource(let cause): self.init(error: cause)
       case .cancelled: self.init(code: "analysis.cancelled", message: "Native execution was cancelled", stage: "analysis")
       case .mosPreparation(let cause): self.init(code: "mos.preparation", message: Self.describe(cause), stage: "preparation")
@@ -162,8 +208,21 @@ extension CoreSpiceCLIFailure {
       if case .evaluation(_, let cause) = nodeError { self.init(error: cause) }
       else { self.init(code: "deck.node-voltage", message: Self.describe(nodeError), stage: "lower") }
 
+    case MOSSchemaFailure.osdiBindingRequired(let level, let version):
+      self.init(code: "mos.osdi-binding-required",
+        message: "MOS level \(level) version \(version ?? "unspecified") requires an explicit OSDI catalog/model binding",
+        stage: "lower", suggestedActions: ["provide an OSDI catalog and bind the external model"])
+
     case let failure as MOSResolutionFailure:
-      self.init(code: "mos.resolution", message: Self.describe(failure), stage: "lower")
+      if case .osdiBindingRequired(let level, let version, let source) = failure {
+        let location = (source.path ?? source.captureID ?? "captured source") + ":" +
+          (source.line.map(String.init) ?? "unknown") + ":" + (source.column.map(String.init) ?? "unknown")
+        self.init(code: "mos.osdi-binding-required",
+          message: "MOS level \(level) version \(version ?? "unspecified") requires an explicit OSDI catalog/model binding at \(location)",
+          stage: "lower", suggestedActions: ["provide an OSDI catalog and bind the external model"])
+      } else {
+        self.init(code: "mos.resolution", message: Self.describe(failure), stage: "lower")
+      }
 
     case let cliError as CLIError:
       self.init(cliError: cliError)
@@ -199,11 +258,11 @@ extension CoreSpiceCLIFailure {
       )
 
     case let loweringError as LoweringError:
-      self.init(
-        code: "deck.lower",
-        message: Self.describe(loweringError),
-        stage: "lower"
-      )
+      if case .invalidOSDIInput = loweringError {
+        self.init(code: loweringError.diagnostic.code, message: Self.describe(loweringError), stage: "lower")
+      } else {
+        self.init(code: "deck.lower", message: Self.describe(loweringError), stage: "lower")
+      }
 
     case let optionError as SPICEAnalysisOptionError:
       self.init(
@@ -247,31 +306,6 @@ extension CoreSpiceCLIFailure {
         message: Self.describe(bindingError),
         stage: "compile"
       )
-
-    case let deviceError as BSIM4DeviceError:
-      let suffix: String
-      switch deviceError {
-      case .missingPreparationPolicy: suffix = "missing-preparation-policy"
-      case .missingModel, .modelTypeMismatch: suffix = "model-provenance"
-      case .invalidAuxiliaryTopology: suffix = "auxiliary-topology"
-      case .transientSessionAlreadyActive, .transientSessionRequired: suffix = "session"
-      case .unsupportedAnalysis: suffix = "unsupported-analysis"
-      }
-      self.init(code: "device.bsim4." + suffix, message: Self.describe(deviceError),
-        stage: suffix == "unsupported-analysis" || suffix == "session" ? "analysis" : "prepare")
-
-    case let modelError as BSIM4Error:
-      let suffix: String
-      switch modelError {
-      case .unsupportedVersion: suffix = "version"
-      case .invalidConfiguration, .invalidParameter, .modelRejected: suffix = "model-admission"
-      case .nonFiniteEvaluation: suffix = "non-finite"
-      case .resourceBudgetExceeded: suffix = "preparation-budget"
-      case .allocationFailure, .diagnosticCapacityExceeded: suffix = "resources"
-      case .invalidHistory: suffix = "history"
-      case .noiseNotPrepared: suffix = "noise-not-prepared"
-      }
-      self.init(code: "device.bsim4." + suffix, message: Self.describe(modelError), stage: "device")
 
     case let budgetError as TransientExecutionError:
       self.init(code: "analysis.transient-execution", message: budgetError.description, stage: "analysis")
@@ -442,6 +476,8 @@ extension CoreSpiceCLIFailure {
       code = "analysis.invalid-configuration"
     case .timestepTooSmall:
       code = "analysis.timestep-too-small"
+    case .unsupportedPoleZeroDevice:
+      code = "analysis.pole-zero-applicability"
     case .requiresFreshMOSResolution:
       code = "analysis.requires-fresh-mos-resolution"
       suggestedActions = ["resolve the original source with fresh parameters and a new evaluation session"]

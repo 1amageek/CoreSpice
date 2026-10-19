@@ -1,5 +1,0 @@
-module AllocationProbe [system] {
-    header "include/AllocationProbe.h"
-    link "AllocationProbe"
-    export *
-}

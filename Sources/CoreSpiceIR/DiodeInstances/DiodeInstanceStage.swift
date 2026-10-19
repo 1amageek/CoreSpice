@@ -1,10 +1,10 @@
 import CoreSpiceDiodeContracts
 
-/// Canonical source resolution stage; numerical preparation is a separate capability.
+/// Canonical inspection stages, separate from executable owner lifetime.
 public enum DiodeInstanceStage: Sendable {
     case resolved(ResolvedDiodeInstance)
-
+    case prepared(DiodePreparationReceipt)
     public var resolved: ResolvedDiodeInstance {
-        switch self { case .resolved(let value): value }
+        switch self { case .resolved(let value): value; case .prepared(let receipt): receipt.identity.resolved }
     }
 }

@@ -367,7 +367,10 @@ struct BJTPhysicsTests {
         let gm_low = -collectorLowVce.matrixSum(row: 2, col: 1) - gpi_low
 
         // gm at Vce=10V should be (1 + 10/100) / (1 + 1/100) = 1.1/1.01 ≈ 1.089x larger
-        let expectedGmRatio = (1.0 + vce_high / vaf) / (1.0 + vce_low / vaf)
+        // Low-injection SPICE3 base charge uses Vbc and d(Itransport)/dVbc.
+        let exactVT = 1.38064852e-23 * 300.15 / 1.6021766208e-19
+        let expectedGmRatio = (1.0 + (vce_high - 0.7 - exactVT) / vaf)
+            / (1.0 + (vce_low - 0.7 - exactVT) / vaf)
         let actualGmRatio = gm_high / gm_low
 
         #expect(abs(actualGmRatio - expectedGmRatio) / expectedGmRatio < 0.02,

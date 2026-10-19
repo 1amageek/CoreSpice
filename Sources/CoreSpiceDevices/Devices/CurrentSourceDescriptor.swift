@@ -14,6 +14,7 @@ public struct CurrentSourceDescriptor: DeviceDescriptor, Sendable {
     public let parameterDescriptors = [
         ParameterDescriptor(name: "pwl", defaultValue: nil, description: "Alternating finite time/value pairs"),
         ParameterDescriptor(name: "ac", defaultValue: .real(0), description: "AC small-signal magnitude"),
+        ParameterDescriptor(name: "acphase", defaultValue: .real(0), description: "AC phase in degrees"),
         // DC
         ParameterDescriptor(name: "i", defaultValue: .real(0.0), description: "DC current in amperes"),
         // Pulse waveform
@@ -50,6 +51,7 @@ public struct CurrentSourceDescriptor: DeviceDescriptor, Sendable {
             negNode: instance.nodes[1],
             dcCurrent: dcCurrent,
             acMagnitude: acMagnitude,
+            acPhaseDegrees: try IndependentSourceWaveformParser.real("acphase", instance: instance, defaultValue: 0),
             waveform: waveform,
             posIdx: context.nodeIndex(instance.nodes[0]),
             negIdx: context.nodeIndex(instance.nodes[1])

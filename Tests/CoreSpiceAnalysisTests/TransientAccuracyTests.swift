@@ -266,6 +266,7 @@ struct TransientAccuracyTests {
         let error_h  = abs(v_h - analyticalValue)
         let error_h2 = abs(v_h2 - analyticalValue)
         let error_h4 = abs(v_h4 - analyticalValue)
+        print("CONTROLLED_RC_ORDER errors=\([error_h, error_h2, error_h4]) points=\([result_h.timeSteps, result_h2.timeSteps, result_h4.timeSteps])")
 
         // Verify the three runs produce different step counts (confirming different step sizes)
         #expect(result_h.timeSteps < result_h2.timeSteps,

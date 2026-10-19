@@ -241,6 +241,14 @@ implemented. Exact captured bytes remain available for unsupported source forms.
 ## D3 Change Impact
 
 The [D3 resolution owner](../CoreSpiceLowering/DiodeResolution/DESIGN.md) defines occurrence admission, frozen
-evaluation, immutable result transport and explicit numerical refusal. This layer
-consumes that contract; D4 numerical preparation and D5 downstream adoption remain
-separate. Its affected production path and behavioral tests are verified in D3.
+evaluation and immutable result transport. This layer consumes that contract;
+D4 numerical preparation and D5 API/CLI adoption are separate implemented owners
+linked by the package design. Its own affected path and tests remain the D3 proof.
+
+## S3 Explicit OSDI Source Identity
+
+The portable parsed inventory adds `ComponentType.osdi` (`N`) and
+`ModelType.osdi` (`OSDI`). The device has an ordered variable-length terminal list
+and a distinct model symbol. These values do not authorize artifact loading,
+parameter-kind inference, or MOS/subcircuit fallback. ParserSPICE owns source
+admission and Lowering owns exact catalog matching.

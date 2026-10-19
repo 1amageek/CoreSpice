@@ -1,0 +1,23 @@
+`include "dc_disciplines.vams"
+nature Temperature;
+    units = "K";
+    access = Temp;
+endnature
+nature Power;
+    units = "W";
+    access = Pwr;
+endnature
+discipline thermal;
+    potential Temperature;
+    flow Power;
+enddiscipline
+module dynamic_flow_thermal(p, n);
+    inout p, n;
+    electrical p, n;
+    thermal t;
+    branch (p, n) drive;
+    analog begin
+        V(drive) <+ 50.0 * I(drive) + ddt(1.0e-6 * I(drive));
+        Pwr(t) <+ 0.002 * Temp(t) + ddt(1.0e-9 * Temp(t)) - 0.0002 * V(p, n);
+    end
+endmodule

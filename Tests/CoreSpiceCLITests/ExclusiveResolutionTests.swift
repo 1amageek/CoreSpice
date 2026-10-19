@@ -28,14 +28,25 @@ struct ExclusiveResolutionTests {
             inner: specification.analysis, seedOverride: 42)
         let phases = try #require(session.phaseCollector).phases
         #expect(result.runs.count == 2)
-        #expect(phases.count == 2)
+        let expectedIDs = result.runs.indices.flatMap { index in
+            ["mc-seed:\(42 + index):op", "mc-seed:\(42 + index):tran"]
+        }
+        #expect(phases.map(\.id) == expectedIDs)
         var lengths: [Double] = []
         for (index, run) in result.runs.enumerated() {
-            let receipt = try #require(phases[index].facts.mosPreparationReceipts.first)
+            let prefix = "mc-seed:\(42 + index):"
+            let selected = phases.filter { $0.id.hasPrefix(prefix) }
+            #expect(selected.map { $0.facts.analysis } == ["op", "tran"])
+            let op = try #require(selected.first)
+            let transient = try #require(selected.last)
+            #expect(op.facts.completedPointCount == 1)
+            #expect(transient.facts.completedPointCount == run.waveform.pointCount)
+            let receipt = try #require(transient.facts.mosPreparationReceipts.first)
+            let operatingPointReceipt = try #require(op.facts.mosPreparationReceipts.first)
+            #expect(operatingPointReceipt == receipt)
             let length = try #require(receipt.identity.resolved.normalizedGeometry.length)
             lengths.append(length)
             #expect(receipt.coldSetupCount == 1)
-            #expect(phases[index].id == "mc-seed:\(42 + index):tran")
             #expect(try #require(run.waveform.sweepValues.last) == 1e-6)
             #expect(run.waveform.sweepValues == result.runs[0].waveform.sweepValues)
         }

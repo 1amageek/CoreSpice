@@ -17,7 +17,7 @@ public struct ComplexPair: Sendable, Hashable {
 
     /// The magnitude (absolute value) of the complex number.
     public var magnitude: Double {
-        (real * real + imag * imag).squareRoot()
+        hypot(real, imag)
     }
 
     /// The complex conjugate.
@@ -41,11 +41,46 @@ public struct ComplexPair: Sendable, Hashable {
     }
 
     public static func / (lhs: ComplexPair, rhs: ComplexPair) -> ComplexPair {
-        let denom = rhs.real * rhs.real + rhs.imag * rhs.imag
+        guard lhs.real.isFinite, lhs.imag.isFinite,
+              rhs.real.isFinite, rhs.imag.isFinite,
+              rhs.real != 0 || rhs.imag != 0 else {
+            return ComplexPair(real: .nan, imag: .nan)
+        }
+        let exponent = max(abs(rhs.real), abs(rhs.imag)).exponent
+        let real = Double(sign: .plus, exponent: -exponent, significand: rhs.real)
+        let imag = Double(sign: .plus, exponent: -exponent, significand: rhs.imag)
+        let denominator = real * real + imag * imag
         return ComplexPair(
-            real: (lhs.real * rhs.real + lhs.imag * rhs.imag) / denom,
-            imag: (lhs.imag * rhs.real - lhs.real * rhs.imag) / denom
+            real: dividedProductSum(lhs.real, rhs.real, lhs.imag, rhs.imag,
+                                    denominator: denominator, exponent: 2 * exponent),
+            imag: dividedProductSum(lhs.imag, rhs.real, -lhs.real, rhs.imag,
+                                    denominator: denominator, exponent: 2 * exponent)
         )
+    }
+
+    // Scale each dot product independently so a large real component cannot
+    // erase a representable small imaginary component during normalization.
+    private static func dividedProductSum(
+        _ a: Double, _ b: Double, _ c: Double, _ d: Double,
+        denominator: Double, exponent: Int
+    ) -> Double {
+        let firstIsZero = a == 0 || b == 0
+        let secondIsZero = c == 0 || d == 0
+        if firstIsZero && secondIsZero { return 0 }
+        let firstExponent = firstIsZero ? Int.min : a.exponent + b.exponent
+        let secondExponent = secondIsZero ? Int.min : c.exponent + d.exponent
+        let productExponent = max(firstExponent, secondExponent)
+        // FloatingPoint.significand is unsigned; restore each product's sign.
+        let first = firstIsZero ? 0 : Double(
+            sign: a.sign == b.sign ? .plus : .minus, exponent: firstExponent - productExponent,
+            significand: a.significand * b.significand
+        )
+        let second = secondIsZero ? 0 : Double(
+            sign: c.sign == d.sign ? .plus : .minus, exponent: secondExponent - productExponent,
+            significand: c.significand * d.significand
+        )
+        return Double(sign: .plus, exponent: productExponent - exponent,
+                      significand: (first + second) / denominator)
     }
 
     /// The additive identity.
@@ -100,6 +135,11 @@ public struct ComplexSparseMatrix: Sendable {
             return
         }
         values[idx] = values[idx] + value
+    }
+
+    /// Adds through a CSR index resolved against this immutable structure by binding.
+    public mutating func addValueDirect(at valueIndex: Int, value: ComplexPair) {
+        values[valueIndex] = values[valueIndex] + value
     }
 
     /// Returns the complex value at the given position.

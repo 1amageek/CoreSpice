@@ -35,6 +35,11 @@ public extension LoweringError {
     /// Returns a structured diagnostic that preserves the typed failure context.
     var diagnostic: LoweringDiagnostic {
         switch self {
+        case .invalidOSDIInput(let name, let reason, let location):
+            return LoweringDiagnostic(severity: "error", code: "lowering.osdi_input", message: description,
+                location: location, subject: name, details: ["reason": reason],
+                suggestedActions: ["check-explicit-osdi-catalog"])
+
         case .undefinedParameter(let name, let location):
             return LoweringDiagnostic(
                 severity: "error",

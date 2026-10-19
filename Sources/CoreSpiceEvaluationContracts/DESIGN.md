@@ -3,7 +3,8 @@
 ## Purpose and Scope
 
 Status: D1 values and D2 evaluator/IR/native consumers implemented. Diode-specific
-resolution and preparation adoption remain D3-D5 work.
+resolution and preparation adoption are implemented by their D3-D5 owners;
+this module does not provide a numerical backend.
 Parent: [CoreSpice](../../DESIGN.md). Child: [Environment](Environment/DESIGN.md).
 Own the shared meaning of scalar evaluation conditions, independently of device physics.
 

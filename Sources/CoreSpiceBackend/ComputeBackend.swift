@@ -5,13 +5,13 @@ public protocol ComputeBackend: Sendable {
     associatedtype BufferHandle: Sendable
     associatedtype KernelHandle: Sendable
 
-    func allocateBuffer<T: Sendable>(
+    func allocateBuffer<T: GPUBufferElement>(
         type: T.Type,
         count: Int,
         label: String
     ) throws -> BufferHandle
 
-    func withMutableContents<T, Result>(
+    func withMutableContents<T: GPUBufferElement, Result>(
         of buffer: BufferHandle,
         as type: T.Type,
         _ body: (UnsafeMutableBufferPointer<T>) throws -> Result

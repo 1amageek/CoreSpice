@@ -1,7 +1,6 @@
 import CoreSpiceWaveform
 import CoreSpiceExporter
 import Foundation
-import Synchronization
 
 /// Exports waveform data in Cadence PSF (Parameter Storage Format).
 ///
@@ -21,6 +20,7 @@ public struct PSFExporter: WaveformExporter, StreamingWaveformExporter {
         to destination: ExportDestination,
         configuration: ExportConfiguration
     ) async throws -> ExportResult {
+        try Task.checkCancellation()
         let exportData = configuration.applyFilters(to: data)
         let session = try PSFExportSession(
             destination: destination,
@@ -31,29 +31,7 @@ public struct PSFExporter: WaveformExporter, StreamingWaveformExporter {
         )
 
         do {
-            if exportData.isComplex {
-                for point in 0..<exportData.pointCount {
-                    guard let sweepValue = exportData.sweepValue(at: point) else {
-                        throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
-                    }
-                    try session.writeComplexPointValues(
-                        sweepValue: sweepValue,
-                        source: exportData,
-                        point: point
-                    )
-                }
-            } else {
-                for point in 0..<exportData.pointCount {
-                    guard let sweepValue = exportData.sweepValue(at: point) else {
-                        throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
-                    }
-                    try session.writePointValues(
-                        sweepValue: sweepValue,
-                        source: exportData,
-                        point: point
-                    )
-                }
-            }
+            try await session.writeWaveform(exportData)
             return try await session.finalize()
         } catch {
             await session.cancel()
@@ -79,19 +57,14 @@ public struct PSFExporter: WaveformExporter, StreamingWaveformExporter {
 }
 
 /// Export session for PSF format.
-final class PSFExportSession: ExportSession, Sendable {
+actor PSFExportSession: ExportSession {
 
-    /// Local mutable state protected by Mutex.
-    private struct LocalState {
-        var headerWritten = false
-        var isComplex = false
-    }
-
-    private let localState: Mutex<LocalState>
+    private var headerWritten = false
+    private nonisolated let progress: ExportSessionProgress
     private let helper: ExportSessionHelper
 
-    var pointsWritten: Int {
-        helper.pointsWritten
+    nonisolated var pointsWritten: Int {
+        progress.pointsWritten
     }
 
     init(
@@ -106,14 +79,44 @@ final class PSFExportSession: ExportSession, Sendable {
                 reason: "PSF requires metadata and variable names for a valid file"
             )
         }
-        self.localState = Mutex(LocalState())
-        self.helper = try ExportSessionHelper(
+        let helper = try ExportSessionHelper(
             metadata: metadata,
             sweepVariable: sweepVariable,
             variables: variables,
             configuration: configuration,
             destination: destination
         )
+        self.progress = helper.progress
+        self.helper = helper
+    }
+
+    /// Keep full-waveform export on one executor while retaining per-point cancellation checks.
+    func writeWaveform(_ exportData: any WaveformReadable) throws {
+        if exportData.isComplex {
+            for point in 0..<exportData.pointCount {
+                try Task.checkCancellation()
+                guard let sweepValue = exportData.sweepValue(at: point) else {
+                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
+                }
+                try writeComplexPointValues(
+                    sweepValue: sweepValue,
+                    source: exportData,
+                    point: point
+                )
+            }
+        } else {
+            for point in 0..<exportData.pointCount {
+                try Task.checkCancellation()
+                guard let sweepValue = exportData.sweepValue(at: point) else {
+                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
+                }
+                try writePointValues(
+                    sweepValue: sweepValue,
+                    source: exportData,
+                    point: point
+                )
+            }
+        }
     }
 
     func writePoint(sweepValue: Double, values: [Double]) async throws {
@@ -131,17 +134,9 @@ final class PSFExportSession: ExportSession, Sendable {
             sweepValue: sweepValue,
             valueCount: values.count
         )
-        let needsHeader = localState.withLock { state -> Bool in
-            if !state.headerWritten {
-                state.headerWritten = true
-                state.isComplex = false
-                return true
-            }
-            return false
-        }
-
-        if needsHeader {
+        if !headerWritten {
             try writeHeader(isComplex: false)
+            headerWritten = true
         }
 
         try writeValuePoint(sweepValue: sweepValue, values: values)
@@ -158,17 +153,9 @@ final class PSFExportSession: ExportSession, Sendable {
             sweepValue: sweepValue,
             valueCount: source.variables.count
         )
-        let needsHeader = localState.withLock { state -> Bool in
-            if !state.headerWritten {
-                state.headerWritten = true
-                state.isComplex = false
-                return true
-            }
-            return false
-        }
-
-        if needsHeader {
+        if !headerWritten {
             try writeHeader(isComplex: false)
+            headerWritten = true
         }
 
         try writeValuePoint(sweepValue: sweepValue, source: source, point: point)
@@ -193,17 +180,9 @@ final class PSFExportSession: ExportSession, Sendable {
             sweepValue: sweepValue,
             valueCount: values.count
         )
-        let needsHeader = localState.withLock { state -> Bool in
-            if !state.headerWritten {
-                state.headerWritten = true
-                state.isComplex = true
-                return true
-            }
-            return false
-        }
-
-        if needsHeader {
+        if !headerWritten {
             try writeHeader(isComplex: true)
+            headerWritten = true
         }
 
         try writeComplexValuePoint(sweepValue: sweepValue, values: values)
@@ -220,17 +199,9 @@ final class PSFExportSession: ExportSession, Sendable {
             sweepValue: sweepValue,
             valueCount: source.variables.count
         )
-        let needsHeader = localState.withLock { state -> Bool in
-            if !state.headerWritten {
-                state.headerWritten = true
-                state.isComplex = true
-                return true
-            }
-            return false
-        }
-
-        if needsHeader {
+        if !headerWritten {
             try writeHeader(isComplex: true)
+            headerWritten = true
         }
 
         try writeComplexValuePoint(sweepValue: sweepValue, source: source, point: point)
@@ -238,8 +209,13 @@ final class PSFExportSession: ExportSession, Sendable {
     }
 
     func finalize() async throws -> ExportResult {
-        try writeEndSection()
-        return try helper.finalize()
+        do {
+            try writeEndSection()
+            return try helper.finalize()
+        } catch {
+            helper.cancel()
+            throw error
+        }
     }
 
     func cancel() async {
@@ -449,6 +425,8 @@ extension AnalysisKind {
             return "dc"
         case .ac:
             return "ac"
+        case .networkParameters:
+            return "network"
         case .transient:
             return "tran"
         case .noise:

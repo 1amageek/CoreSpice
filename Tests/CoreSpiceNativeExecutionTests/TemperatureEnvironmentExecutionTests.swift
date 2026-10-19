@@ -68,7 +68,7 @@ extension PreparedNativeExecutionTests {
         .options tnom=22
         V1 d 0 1
         VG g 0 1
-        .model n NMOS level=49 version=3.3.0 vth0={.3+.001*(temper-27)} u0=500 tox=10n tnom=20
+        .model n NMOS level=1 vto={.3+.001*(temper-27)} kp=100u
         .model metal R r=1k tnom=20 tc1=.01
         R1 d 0 metal temp=60
         M1 d g 0 0 n l=1u w=10u
@@ -78,19 +78,19 @@ extension PreparedNativeExecutionTests {
         let instance = try #require(retained.circuit.instances.first { $0.name == "m1" })
         guard case .resolved(let resolved) = instance.mos else { Issue.record("Missing resolved MOS"); return }
         #expect(resolved.evaluationEnvironment == retained.circuit.evaluationEnvironment)
-        let threshold = try #require(resolved.modelCoefficients.first { resolved.symbolNames[Int($0.symbol.rawValue)] == "vth0" })
-        let nominal = try #require(resolved.modelCoefficients.first { resolved.symbolNames[Int($0.symbol.rawValue)] == "tnom" })
+        let threshold = try #require(resolved.modelCoefficients.first { resolved.symbolNames[Int($0.symbol.rawValue)] == "vto" })
         let local = try #require(retained.configuration.instanceOperatingConditions.first { $0.instanceName == "r1" })
         #expect(abs(threshold.value - 0.315) < 1e-14)
-        #expect(nominal.value == 20 && local.temperatureCelsius == 60 && local.nominalTemperatureCelsius == 20)
+        #expect(local.temperatureCelsius == 60 && local.nominalTemperatureCelsius == 20)
         let prepared = try SPICENativeSimulation().prepare(retained, limits: mosLimits(ambient: 315.15, nominal: 295.15))
         let receipt = try #require(prepared.record.circuitPreparation.mosPreparationReceipts.first)
         #expect(receipt.identity.resolved.evaluationEnvironment == retained.circuit.evaluationEnvironment)
         #expect(receipt.identity.conditions.ambientKelvin == 315.15)
+        #expect(receipt.identity.conditions.nominalKelvin == 295.15)
         #expect(throws: MOSPreparationFailure.invalidConditions) {
             _ = try MOSPreparationIdentity(resolved: resolved,
                 conditions: .init(ambientKelvin: 316.15, nominalKelvin: 295.15,
-                    analysisCapabilities: [.dc], maximumStressIterations: 128), implementationIdentity: "test")
+                    analysisCapabilities: [.dc]), implementationIdentity: "test")
         }
         let output = try await SPICENativeSimulation().execute(prepared, cancellation: .init())
         #expect(output.statistics.newtonIterations > 0)

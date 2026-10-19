@@ -320,10 +320,27 @@ struct MOSL3ConsistencyTests {
         ])
         let nodes = try #require(circuit.devices.last).instance.nodes
         let analysis = DCAnalysis(nodeInitialGuess: [nodes[0]: 1e200, nodes[1]: 1e200])
+        let variableMap = circuit.plan.topology.variableMap
+        var initial = [Double](repeating: 0, count: circuit.plan.topology.dimension)
+        for node in nodes.prefix(2) {
+            initial[try #require(variableMap[.nodeVoltage(node)])] = 1e200
+        }
+        let state = SolutionState(variables: initial, variableMap: variableMap)
+        var stamped = SparseMatrix(structure: circuit.plan.matrixStructure)
+        var stamper = MatrixStamper(variableMap: variableMap,
+            stampMatrix: { stamped.addValue(row: $0, col: $1, value: $2) },
+            stampRHS: { _, _ in },
+            stampValue: { stamped.addValueDirect(at: $0, value: $1) })
+        for device in circuit.devices { try device.stampDC(into: &stamper, state: state) }
+        #expect(stamped.values.contains { !$0.isFinite })
         do {
             _ = try await analysis.run(circuit: circuit, solver: SparseLUSolver(), observer: nil,
                                        cancellation: CancellationToken())
             Issue.record("Overflowing L3 channel produced successful DC evidence")
+        } catch SparseSolverError.nonFiniteMatrixValue(let index) {
+            // Sparse LU rejects the original nonfinite coefficient before an update or residual exists.
+            #expect(stamped.values.indices.contains(index))
+            if stamped.values.indices.contains(index) { #expect(!stamped.values[index].isFinite) }
         } catch let error as AnalysisError {
             switch error {
             case .nonFiniteSolution, .nonFiniteResidual: break

@@ -16,6 +16,7 @@ import Foundation
 /// at the DC operating point through ``BoundDevice/stampAC(into:state:omega:)``.
 public struct ACAnalysis: Analysis, Sendable {
     package var executionBudget: TransientExecutionBudget?
+    package var resultStorage: (any AnalysisResultStorageAccounting)?
 
     public typealias Result = ACResult
 
@@ -24,13 +25,23 @@ public struct ACAnalysis: Analysis, Sendable {
 
     /// Convergence configuration for the DC operating point solve.
     public let dcConfig: ConvergenceConfig
+    public let nodeInitialGuess: [Node: Double]
+    public let equationPolicy: DCEquationPolicy?
+    public let physicalResidualValidator: (any DCPhysicalResidualValidating)?
+    public let completionFinalizer: (any AnalysisCompletionFinalizing)?
 
     public init(
         sweep: FrequencySweep,
-        dcConfig: ConvergenceConfig = ConvergenceConfig()
+        dcConfig: ConvergenceConfig = ConvergenceConfig(),
+        nodeInitialGuess: [Node: Double] = [:],
+        equationPolicy: DCEquationPolicy? = nil,
+        physicalResidualValidator: (any DCPhysicalResidualValidating)? = nil,
+        completionFinalizer: (any AnalysisCompletionFinalizing)? = nil
     ) {
         self.sweep = sweep
         self.dcConfig = dcConfig
+        self.nodeInitialGuess = nodeInitialGuess; self.equationPolicy = equationPolicy
+        self.physicalResidualValidator = physicalResidualValidator; self.completionFinalizer = completionFinalizer
     }
 
     public func run(
@@ -57,8 +68,10 @@ public struct ACAnalysis: Analysis, Sendable {
 
         do {
             // Phase 1: DC operating point (includes optical steady state)
-            var dcAnalysis = DCAnalysis(config: dcConfig)
+            var dcAnalysis = DCAnalysis(config: dcConfig, nodeInitialGuess: nodeInitialGuess,
+                equationPolicy: equationPolicy, physicalResidualValidator: physicalResidualValidator)
             dcAnalysis.executionBudget = executionBudget
+            dcAnalysis.resultStorage = resultStorage
             try executionBudget?.admitSavedPoint(accepted: false)
             let dcResult = try await dcAnalysis.run(
                 plan: plan,
@@ -69,15 +82,24 @@ public struct ACAnalysis: Analysis, Sendable {
             )
             let dcState = SolutionState(
                 variables: dcResult.variables,
-                variableMap: variableMap
+                variableMap: variableMap,
+                variableLowComponents: dcResult.variableLowComponents
             )
             let dcOpticalState = dcResult.opticalState ?? OpticalState()
 
             // Phase 2: AC frequency sweep
             var complexSolver = ComplexSparseLUSolver()
+            if executionBudget != nil || resultStorage != nil {
+                try complexSolver.configureExecution(AnalysisLinearSolverControl.make(budget: executionBudget,
+                    cancellation: cancellation, storage: resultStorage))
+            }
             try executionBudget?.admitSavedScalars(TransientExecutionBudget.multiply(frequencies.count,
                 TransientExecutionBudget.add(TransientExecutionBudget.multiply(dim, 2, "AC complex output scalars"),
                     1, "AC frequency scalar"), "AC saved sweep scalars"))
+            try resultStorage?.reserveResultScalars(TransientExecutionBudget.add(dim,
+                TransientExecutionBudget.multiply(frequencies.count, TransientExecutionBudget.add(
+                    TransientExecutionBudget.multiply(dim, 2, "AC complex storage"), 1, "AC frequency storage"),
+                    "AC result storage"), "AC OP storage"))
             var solutions: [[ComplexPair]] = []
             solutions.reserveCapacity(frequencies.count)
 
@@ -86,7 +108,7 @@ public struct ACAnalysis: Analysis, Sendable {
             var solutionBuf = [ComplexPair](repeating: ComplexPair(), count: dim)
 
             for (idx, freq) in frequencies.enumerated() {
-                if cancellation.isCancelled {
+                if cancellation.isCancelled || Task.isCancelled {
                     throw AnalysisError.cancelled
                 }
 
@@ -119,6 +141,9 @@ public struct ACAnalysis: Analysis, Sendable {
                             real: rhs[row].real + re,
                             imag: rhs[row].imag + im
                         )
+                    },
+                    stampValue: { index, real, imaginary in
+                        matrix.addValueDirect(at: index, value: ComplexPair(real: real, imag: imaginary))
                     }
                 )
 
@@ -130,27 +155,21 @@ public struct ACAnalysis: Analysis, Sendable {
                     }
                 }
 
-                // Add Gmin to diagonal for numerical grounding
-                for i in 0..<dim {
-                    matrix.addValue(row: i, col: i, value: ComplexPair(real: dcConfig.gmin, imag: 0))
-                }
-
                 // Solve the complex linear system
                 do {
                     try complexSolver.factorize(matrix: matrix)
                 } catch {
-                    let message = "AC factorization failed at frequency \(freq) Hz: \(error)"
                     if case CompileError.singularMatrix = error {
                         throw AnalysisError.singularMatrix
                     }
-                    throw AnalysisError.internalError(message)
+                    throw error
                 }
 
                 do {
                     try complexSolver.solve(rhs: rhs, into: &solutionBuf)
                 } catch {
-                    let message = "Complex solve failed at frequency \(freq) Hz: \(error)"
-                    throw AnalysisError.internalError(message)
+                    if case CompileError.singularMatrix = error { throw AnalysisError.singularMatrix }
+                    throw error
                 }
 
                 var nonFiniteDiagnostic: DiagnosticCode?
@@ -195,6 +214,11 @@ public struct ACAnalysis: Analysis, Sendable {
                 )))
             }
 
+            let result = try ACResult(frequencies: frequencies, solutions: solutions,
+                variableMap: variableMap, operatingPoint: dcResult)
+            if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
+            try completionFinalizer?.finalizeCompletion()
+            if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .ac,
@@ -203,11 +227,8 @@ public struct ACAnalysis: Analysis, Sendable {
                 wallTime: Timestamp().elapsed(since: startTimestamp)
             )))
 
-            return try ACResult(
-                frequencies: frequencies,
-                solutions: solutions,
-                variableMap: variableMap
-            )
+            if let resultStorage { return result.retainingStorage(resultStorage) }
+            return result
         } catch {
             let status: AnalysisStatus
             if let analysisError = error as? AnalysisError,

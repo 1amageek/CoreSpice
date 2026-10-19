@@ -53,8 +53,7 @@ enum AnalysisMOSFixture {
             mosPreparationLimits: try .init(maximumRetainedBytes: 1_000_000, maximumTemporaryBytes: 1_000_000,
                 maximumDiagnosticBytes: 4096, maximumWorkUnits: 100_000),
             mosPreparationConditions: try .init(ambientKelvin: conditions.temperatureKelvin,
-                nominalKelvin: conditions.nominalTemperatureKelvin, analysisCapabilities: [.dc, .ac, .transient],
-                maximumStressIterations: 1))
+                nominalKelvin: conditions.nominalTemperatureKelvin, analysisCapabilities: [.dc, .ac, .transient]))
         return try NativeCircuitPreparer().prepare(ir: netlist.build(), registry: .standard(),
             operatingConditions: conditions, limits: limits, numericalLimits: numericalLimits, resources: resources)
     }

@@ -19,19 +19,19 @@ struct MetalBackendExecutionTests {
         // Buffers own POD storage; scoped borrows initialize it and never escape.
         // The production kernel consumes eight Float coefficients and three UInt32 fields.
         try backend.withMutableContents(of: state, as: Float.self) { values in
-            values.initialize(repeating: 0)
+            for index in values.indices { values[index] = 0 }
             values[0] = 1
             values[1] = 2
             values[2] = 3
             values[3] = 4
         }
         try backend.withMutableContents(of: coefficients, as: Float.self) { values in
-            values.initialize(repeating: 0)
+            for index in values.indices { values[index] = 0 }
             values[2] = 1
             values[4] = 1
         }
         try backend.withMutableContents(of: descriptor, as: UInt32.self) { values in
-            values.initialize(repeating: 0)
+            for index in values.indices { values[index] = 0 }
             values[1] = 1
         }
 

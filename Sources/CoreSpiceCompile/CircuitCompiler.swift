@@ -23,11 +23,19 @@ public struct StandardCompiler: CircuitCompiler {
             throw CompileError.emptyCircuit
         }
 
-        // FIXME(INCOMPLETE_IMPLEMENTATION): D3 publishes resolved diode input, not a numerical owner.
-        // Public compile refuses this stage until D4 supplies checked consuming preparation and binding.
-        if let diode = ir.instances.first(where: { $0.diode != nil }) {
-            throw CompileError.diodePreparationRequired(instance: diode.name)
+        for diode in ir.instances where diode.diode != nil {
+            guard case .prepared(let receipt) = diode.diode,
+                  diode.typeName == "diode", diode.name == receipt.identity.resolved.instance,
+                  diode.nodes.count == 2, diode.nodes[0].id == receipt.identity.anodeNodeID,
+                  diode.nodes[1].id == receipt.identity.cathodeNodeID,
+                  diode.ownedNodes.isEmpty, diode.ownedBranches.isEmpty else {
+                throw CompileError.diodePreparationRequired(instance: diode.name)
+            }
         }
+        for instance in ir.instances where ["nmos_l49", "pmos_l49", "nmos_l54", "pmos_l54"].contains(instance.typeName) {
+            throw CompileError.osdiPreparationRequired(instance: instance.name)
+        }
+        try admitOSDIInstances(in: ir)
         try admitMOSInstances(in: ir)
         let topology = MatrixTopology(ir: ir)
 
@@ -39,15 +47,47 @@ public struct StandardCompiler: CircuitCompiler {
         )
     }
 
-    private func admitMOSInstances(in ir: CircuitIR) throws(CompileError) {
-        var physicalNodes: Set<Node> = []
-        guard ir.instances.contains(where: { $0.mos != nil || mosType(named: $0.typeName) != nil }) else { return }
-        var ownershipCounts: [Node: Int] = [:]
-        let inventory = Set(ir.nodes)
+    private func admitOSDIInstances(in ir: CircuitIR) throws(CompileError) {
+        guard ir.instances.contains(where: { $0.osdi != nil || $0.typeName == "osdi" }) else { return }
+        let inventory = Set(ir.nodes), branchInventory = Set(ir.branches)
+        let physical = Set(ir.instances.flatMap(\.nodes))
+        var nodeOwners: [Node: Int] = [:], branchOwners: [Branch: Int] = [:]
         for instance in ir.instances {
-            for node in instance.nodes { physicalNodes.insert(node) }
-            for node in instance.ownedNodes { ownershipCounts[node, default: 0] += 1 }
+            for node in instance.ownedNodes { nodeOwners[node, default: 0] += 1 }
+            for branch in instance.ownedBranches { branchOwners[branch, default: 0] += 1 }
         }
+        for instance in ir.instances where instance.osdi != nil || instance.typeName == "osdi" {
+            guard instance.typeName == "osdi", instance.mos == nil, instance.diode == nil,
+                  case .prepared(let receipt) = instance.osdi, instance.nodes.count <= receipt.topology.nodes.count else {
+                throw .osdiPreparationRequired(instance: instance.name)
+            }
+            let topology = receipt.topology
+            let external = Set(topology.nodes.prefix(instance.nodes.count).compactMap(\.activeUnknownIndex))
+            var privateNodes = 0, privateBranches = 0
+            for coordinate in 0..<topology.activeUnknownCount where !external.contains(coordinate) {
+                guard let raw = topology.nodes.first(where: { $0.activeUnknownIndex == coordinate }) else { throw .osdiPreparationRequired(instance: instance.name) }
+                if raw.isFlow { privateBranches += 1 } else { privateNodes += 1 }
+            }
+            guard instance.ownedNodes.count == privateNodes, instance.ownedBranches.count == privateBranches else {
+                throw .osdiPreparationRequired(instance: instance.name)
+            }
+            for node in instance.nodes where node != ir.groundNode {
+                guard inventory.contains(node) else { throw .osdiPreparationRequired(instance: instance.name) }
+            }
+            for node in instance.ownedNodes {
+                guard node != ir.groundNode, inventory.contains(node), !physical.contains(node), nodeOwners[node] == 1 else {
+                    throw .osdiPreparationRequired(instance: instance.name)
+                }
+            }
+            for branch in instance.ownedBranches {
+                guard branchInventory.contains(branch), branchOwners[branch] == 1 else { throw .osdiPreparationRequired(instance: instance.name) }
+            }
+        }
+    }
+
+    private func admitMOSInstances(in ir: CircuitIR) throws(CompileError) {
+        guard ir.instances.contains(where: { $0.mos != nil || mosType(named: $0.typeName) != nil }) else { return }
+        let inventory = Set(ir.nodes)
         for instance in ir.instances {
             let expected = mosType(named: instance.typeName)
             guard let expected else {
@@ -67,20 +107,13 @@ public struct StandardCompiler: CircuitCompiler {
             guard instance.nodes.count == 4 else {
                 throw .mosPhysicalPortCount(instance: instance.name, actual: instance.nodes.count)
             }
-            let topology = receipt.topology
-            guard instance.ownedNodes.count == topology.auxiliaryNodeCount,
-                  topology.localNodeCount == 4 + instance.ownedNodes.count else {
-                throw .mosAuxiliaryNodeCount(instance: instance.name, expected: topology.auxiliaryNodeCount, actual: instance.ownedNodes.count)
+            guard instance.ownedNodes.isEmpty, instance.ownedBranches.isEmpty else {
+                throw .unexpectedMOSStage(instance: instance.name)
             }
             for node in instance.nodes {
                 guard node == ir.groundNode || inventory.contains(node) else { throw .mosNodeMissing(instance: instance.name, node: node.id) }
             }
-            for node in instance.ownedNodes {
-                guard inventory.contains(node) else { throw .mosNodeMissing(instance: instance.name, node: node.id) }
-                guard node != ir.groundNode, !physicalNodes.contains(node), ownershipCounts[node] == 1 else {
-                    throw .mosPrivateNodeAlias(instance: instance.name, node: node.id)
-                }
-            }
+
         }
     }
 
@@ -92,10 +125,6 @@ public struct StandardCompiler: CircuitCompiler {
         case "pmos_l2": return (2, .pmos)
         case "nmos_l3": return (3, .nmos)
         case "pmos_l3": return (3, .pmos)
-        case "nmos_l49": return (49, .nmos)
-        case "pmos_l49": return (49, .pmos)
-        case "nmos_l54": return (54, .nmos)
-        case "pmos_l54": return (54, .pmos)
         default: return nil
         }
     }

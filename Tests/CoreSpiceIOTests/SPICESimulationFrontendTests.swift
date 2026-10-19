@@ -98,6 +98,44 @@ struct SPICESimulationFrontendTests {
         #expect(strict.configuration.identity != pinned.configuration.identity)
     }
 
+    @Test func transientMethodIdentityBindsCheckedStartupAndLTESemantics() async throws {
+        let text = "transient semantic identity\n.options method=be\nR1 out 0 1k\nC1 out 0 1u\n.tran 1u 10u uic\n.end\n"
+        let first = try await prepare(text, resources: resources())
+        let repeated = try await prepare(text, resources: resources())
+        guard case .transient(let configuration) = first.configuration.analysis else {
+            Issue.record("Missing transient configuration"); return
+        }
+        #expect(configuration.preferredMethod == .backwardEuler)
+        #expect(first.configuration.identity == repeated.configuration.identity)
+        // Captured from this exact preparation before the transient rule marker was added.
+        // The former METHOD=be semantics used BE only initially, then switched to TRAP.
+        let legacyIdentity = "2f28659b70f1e34192399c7750e038129a0708e6ae7ed5ed1208c563a851711a"
+        #expect(first.configuration.identity.hexadecimalValue != legacyIdentity)
+        // Same source/settings under checked startup before minimum-step admission was corrected.
+        let previousCheckedIdentity = "946806ebe37c3a5da354f2f0f28645da457fc1e8d097b5106055bba3e9f0818e"
+        #expect(first.configuration.identity.hexadecimalValue != previousCheckedIdentity)
+        // Same preparation before Newton rejection was allowed to retry the exact minimum.
+        let previousMinimumProposalIdentity = "3c8f75f810c573fac69ff9d9da9fcf69dca752a23dda635a0ae23f612ba6df89"
+        #expect(first.configuration.identity.hexadecimalValue != previousMinimumProposalIdentity)
+        let previousNewtonMinimumIdentity = "aed4de28b3b0807fac3579de5616df74bdea099c679eeebed963a399cfc6eec8"
+        #expect(first.configuration.identity.hexadecimalValue != previousNewtonMinimumIdentity)
+        print("TRANSIENT_EFFECTIVE_RULE_DIGEST \(first.configuration.identity)")
+    }
+
+    @Test(arguments: ["op", "dc", "tran"])
+    func newtonNumericalRuleIdentity(_ kind: String) async throws {
+        let directive = kind == "op" ? ".op" : kind == "dc" ? ".dc V1 0 1 .5" : ".tran 1u 10u uic"
+        let text = "Newton numerical identity\nV1 in 0 1\nR1 in out 1k\nC1 out 0 1u\n\(directive)\n.end\n"
+        let first = try await prepare(text, resources: resources())
+        let repeated = try await prepare(text, resources: resources())
+        #expect(first.configuration.identity == repeated.configuration.identity)
+        let previous = ["op": "ecfad889d8f57a79edfd4a0c2a902c6fd9d02ed5665d73855085f70a3ecdf514",
+            "dc": "1cdbb33afb1e350342f31ef8166f46ddba66b9ef1a488f9501af167b70e15fc6",
+            "tran": "7257ca9b71b16c7076958a44e60a190455108a8d821a133c57587ca6f3f01efa"]
+        #expect(first.configuration.identity.hexadecimalValue != previous[kind])
+        print("NEWTON_RULE_IDENTITY kind=\(kind) digest=\(first.configuration.identity.hexadecimalValue)")
+    }
+
     @Test func finalPreparedCopyOwnsFrontendCapacityUntilRelease() async throws {
         let owner = try resources()
         var first: PreparedSPICESimulation? = try await prepare("retention\nR1 out 0 1k\n.op\n.end\n", resources: owner)
@@ -211,4 +249,53 @@ struct SPICESimulationFrontendTests {
             withExtendedLifetime((live, temporary)) {}
         }
     }
+    @Test func sharedDCScheduleIncludesDecimalEndpointsWithoutNongridOvershoot() async throws {
+        let cases: [(String, [Double])] = [
+            (".5 .6 .1", [0.5, 0.6]),
+            (".6 .5 -.1", [0.6, 0.5]),
+            ("0 .9 .3", [0, 0.3, 0.6, 0.9]),
+            ("0 -.9 -.3", [0, -0.3, -0.6, -0.9]),
+            ("0 1 .3", [0, 0.3, 0.6, 3 * 0.3]),
+            ("0 1 .6", [0, 0.6]),
+            ("0 .3 .1", [0, 0.1, 0.2, 0.3])
+        ]
+        for (schedule, expected) in cases {
+            let input = try await prepare("fractional sweep\nV1 out 0 0\nR1 out 0 1k\n.dc V1 \(schedule)\n.end\n", resources: resources())
+            guard case .dc(_, let values, _) = input.configuration.analysis else {
+                Issue.record("Missing prepared DC schedule"); continue
+            }
+            #expect(values.map(\.bitPattern) == expected.map(\.bitPattern))
+        }
+        for (schedule, reason) in [("0 1 -.1", "DC sweep direction"), ("0 10000 1", "DC sweep point ceiling")] {
+            do {
+                _ = try await prepare("invalid schedule\nV1 out 0 0\nR1 out 0 1k\n.dc V1 \(schedule)\n.end\n", resources: resources())
+                Issue.record("Invalid prepared DC schedule succeeded")
+            } catch let error as SPICESimulationPreparationError {
+                guard case .unsupportedCapability(let actual) = error else { throw error }
+                #expect(actual == reason)
+            }
+        }
+        var callbacks = 0
+        #expect(throws: SPICEDCSweepSchedule.Failure.self) {
+            _ = try SPICEDCSweepSchedule.values(from: 0.5, through: 0.6, by: 0.1, maximumCount: 1) { callbacks += 1 }
+        }
+        #expect(callbacks == 0)
+        #expect(throws: SPICEDCSweepSchedule.Failure.self) {
+            _ = try SPICEDCSweepSchedule.values(from: 0, through: 1, by: -0.1, maximumCount: 10)
+        }
+        #expect(throws: SPICEDCSweepSchedule.Failure.self) {
+            _ = try SPICEDCSweepSchedule.values(from: 0, through: .infinity, by: 0.1, maximumCount: 10)
+        }
+        let adjacentStart = (0.9).nextDown
+        let startOnly = try SPICEDCSweepSchedule.values(from: adjacentStart, through: 0.9, by: 1, maximumCount: 2)
+        #expect(startOnly.map(\.bitPattern) == [adjacentStart.bitPattern])
+        do {
+            _ = try SPICEDCSweepSchedule.values(from: 1, through: (1.0).nextUp,
+                by: Double.ulpOfOne / 2, maximumCount: 4)
+            Issue.record("Repeated DC grid coordinate succeeded")
+        } catch let failure as SPICEDCSweepSchedule.Failure {
+            guard case .nonAdvancingPoint = failure else { throw failure }
+        }
+    }
+
 }

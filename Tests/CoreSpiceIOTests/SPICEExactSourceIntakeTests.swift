@@ -226,12 +226,14 @@ struct SPICEExactSourceIntakeTests {
         }
     }
     @Test func exactSourceIntakeRetainsUnusedUnsupportedDefinitions() async throws {
-        let text = "exact unused\nV1 out 0 1\nR1 out 0 1k\n.model cm C cap={missing}\n.subckt cell a\nCq a 0 q={missing*v(a)}\n.ends\n.op\n.end\n"
+        let text = "exact unused\nV1 out 0 1\nR1 out 0 1k\n.model cm C level=2 cap={missing}\n.subckt cell a\n.model jm NJF beta=1m vto=-1\nJ1 a 0 0 jm unsupported={missing}\n.ends\n.op\n.end\n"
         let source = try binding("root", text)
         let loaded = try await SPICEExactDeckLoader().load(request: request([source]),
             provider: ExactTestProvider(bytes: ["root": Data(text.utf8)]),
             work: SPICEBoundedSourceWork(limits: limits()))
         #expect(loaded.coverage.hasBlockedItems)
+        #expect(loaded.coverage.items.contains { $0.name == "model:cm" && $0.status == .blocked })
+        #expect(loaded.coverage.items.contains { $0.name == "subckt:cell/component:j1" && $0.status == .blocked })
         #expect(loaded.inputReferences == [source.reference])
         #expect(loaded.captures.first?.bytes == Data(text.utf8))
         #expect(try IOTestFrontend.lower(loaded.netlist).instances.count == 2)
@@ -240,7 +242,14 @@ struct SPICEExactSourceIntakeTests {
         let selectedDeck = try await SPICEExactDeckLoader().load(request: request([selectedBinding]),
             provider: ExactTestProvider(bytes: ["root": Data(selected.utf8)]),
             work: SPICEBoundedSourceWork(limits: limits()))
-        #expect(throws: LoweringError.self) { _ = try IOTestFrontend.lower(selectedDeck.netlist) }
+        do {
+            _ = try IOTestFrontend.lower(selectedDeck.netlist)
+            Issue.record("Selected unsupported field bypassed actual lowering")
+        } catch let error as LoweringError {
+            guard case .invalidComponent(let name, let reason) = error else { throw error }
+            #expect(name == "x1.j1")
+            #expect(reason.contains("unsupported"))
+        }
     }
 
     @Test func exactModelBracedQuotesRetainCapturedSourceAndFlatPrecedence() async throws {

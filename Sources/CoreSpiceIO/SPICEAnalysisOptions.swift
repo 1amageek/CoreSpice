@@ -16,8 +16,6 @@ public struct SPICEAnalysisOptions: Sendable {
 
     public private(set) var evaluationEnvironment: EvaluationEnvironment?
     public private(set) var temperatureProvenance: NetlistTemperatureProvenance?
-    public var bsim4NoisePreparationRequested: Bool
-    public var bsim4PreparationPolicy: BSIM4PreparationPolicy?
     public var executionLimits: TransientExecutionLimits?
     /// Whether the source deck declares any execution-limit option, including a partial policy.
     public private(set) var executionLimitOptionsPresent: Bool = false
@@ -30,8 +28,6 @@ public struct SPICEAnalysisOptions: Sendable {
 
     public init(
         executionLimits: TransientExecutionLimits? = nil,
-        bsim4PreparationPolicy: BSIM4PreparationPolicy? = nil,
-        bsim4NoisePreparationRequested: Bool = false,
         convergence: ConvergenceConfig = ConvergenceConfig(),
         transient: SPICETransientOptions = SPICETransientOptions(),
         temperatureCelsius: Double? = nil,
@@ -39,8 +35,6 @@ public struct SPICEAnalysisOptions: Sendable {
         geometryScale: Double? = nil,
         diagnostics: [SPICEAnalysisOptionDiagnostic] = []
     ) {
-        self.bsim4NoisePreparationRequested = bsim4NoisePreparationRequested
-        self.bsim4PreparationPolicy = bsim4PreparationPolicy
         self.executionLimits = executionLimits
         self.convergence = convergence
         self.transient = transient
@@ -69,7 +63,7 @@ public struct SPICEAnalysisOptions: Sendable {
     private static func checkedResolve(from compiled: CompiledNetlist,
                                        session: inout NetlistLoweringSession) throws -> SPICEAnalysisOptions {
         let netlist = compiled.source
-        var options = SPICEAnalysisOptions(bsim4NoisePreparationRequested: netlist.analyses.contains(where: requestsNoise))
+        var options = SPICEAnalysisOptions()
         var diagnostics: [SPICEAnalysisOptionDiagnostic] = []
         let budgetKeys = ["tranmaxaccepted", "tranmaxattempts", "tranmaxiterations", "tranmaxscalars", "tranmaxdimension", "tranmaxwork", "tranmaxbreakpoints"]
         var budgetValues: [String: Int] = [:]
@@ -89,19 +83,9 @@ public struct SPICEAnalysisOptions: Sendable {
                     value = .numeric(try session.evaluateScalar(slot))
                 }
                 if key == "bsim4stressiterations" {
-                    let count: Double
-                    do { count = try positiveNumericOption(value, name: name) }
-                    catch let error as SPICEAnalysisOptionError { throw error }
-                    catch {
-                        throw SPICEAnalysisOptionError.invalidOptionValue(name: name, value: String(describing: value),
-                            reason: "Preparation budget could not be resolved: \(error)")
-                    }
-                    guard let bounded = UInt32(exactly: count) else {
-                        throw SPICEAnalysisOptionError.invalidAnalysisValue(name: name, value: String(count),
-                            reason: "BSIM4 preparation budget must fit positive UInt32")
-                    }
-                    options.bsim4PreparationPolicy = try BSIM4PreparationPolicy(maximumStressIterations: bounded)
-                    continue
+                    throw SPICEAnalysisOptionError.unsupportedOptionValue(name: name,
+                        value: sourceValue?.description ?? "",
+                        reason: "Native BSIM preparation was removed; use an explicit OSDI model binding")
                 }
                 if budgetKeys.contains(key) {
                     budgetValues[key] = try positiveIntegerOption(value, name: name)
@@ -140,14 +124,6 @@ public struct SPICEAnalysisOptions: Sendable {
 
     /// Returns the standard descriptor inventory; MOS preparation consumes explicit conditions separately.
     public func deviceRegistry() -> DeviceRegistry { .standard() }
-
-    private static func requestsNoise(_ analysis: ParsedAnalysisCommand) -> Bool {
-        switch analysis {
-        case .noise: true
-        case .monteCarlo(let specification): requestsNoise(specification.analysis)
-        default: false
-        }
-    }
 
     /// Resolves validated device operating conditions for binding.
     public func operatingConditions() throws -> OperatingConditions {
@@ -284,7 +260,7 @@ public struct SPICEAnalysisOptions: Sendable {
             maxTimeStep: selectedMaxStep,
             initialTimeStep: selectedInitialStep,
             minTimeStep: selectedMinTimeStep,
-            initialMethod: transient.initialMethod ?? .backwardEuler,
+            preferredMethod: transient.preferredMethod ?? .trapezoidal,
             lteTolerance: selectedLTETolerance,
             maxTimeStepReductions: selectedMaxTimeStepReductions,
             shrinkFactor: selectedShrinkFactor,
@@ -358,7 +334,7 @@ public struct SPICEAnalysisOptions: Sendable {
             try validateFinite(temperature, optionName: name)
             options.temperatureCelsius = temperature
         case "method":
-            options.transient.initialMethod = try integrationMethodOption(value, name: name)
+            options.transient.preferredMethod = try integrationMethodOption(value, name: name)
         case "maxstep", "delmax":
             options.transient.maxTimeStep = try positiveNumericOption(value, name: name)
         case "initstep", "initialstep", "tstep":
@@ -437,7 +413,7 @@ public struct SPICEAnalysisOptions: Sendable {
              "mindamping", "dampmin", "opttol", "opticalpowertol", "opticalpowertolerance", "temp",
              "maxstep", "delmax", "initstep", "initialstep", "tstep", "minstep", "delmin", "ltetol", "ltetolerance",
              "maxstepreductions", "shrink", "shrinkfactor", "gminsteppingthreshold", "gmininitial", "gminfinal", "gminsteps",
-             "bsim4stressiterations", "tranmaxaccepted", "tranmaxattempts", "tranmaxiterations", "tranmaxscalars",
+             "tranmaxaccepted", "tranmaxattempts", "tranmaxiterations", "tranmaxscalars",
              "tranmaxdimension", "tranmaxwork", "tranmaxbreakpoints": true
         default: false
         }

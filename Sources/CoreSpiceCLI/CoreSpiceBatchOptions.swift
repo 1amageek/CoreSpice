@@ -1,33 +1,81 @@
 import CoreSpiceAnalysis
 import CoreSpiceMOSContracts
+import CoreSpiceDiodeContracts
 
 struct CoreSpiceBatchOptions {
+  let network: CoreSpiceCLINetworkOptions?
+  let touchstonePath: String?
+  let networkDirectory: String?
+  let executionProfilePath: String?
+  let osdiCatalogPath: String?
+  let pairedCSVPath: String?
   let deckPath: String
   let outputs: OutputTargets
   let overrideAnalysis: AnalysisCommand?
   let jsonOutput: Bool
   let profile: MOSInputProfile
+  let diodeProfile: DiodeInputProfile
   let randomSeed: UInt64?
   let caseOutput: String?
   let caseID: String?
 
   init(arguments: [String]) throws {
     var cursor = CoreSpiceCLIArgumentCursor(arguments: arguments)
+    var osdiCatalogPath: String?
+    var executionProfilePath: String?
+    var pairedCSVPath: String?
     var deckPath: String?
     var outputs = OutputTargets()
     var overrideAnalysis: AnalysisCommand?
     var jsonOutput: Bool?
     var profile: MOSInputProfile?
+    var diodeProfile: DiodeInputProfile?
     var randomSeed: UInt64?
     var caseOutput: String?
     var caseID: String?
+    var analysisIndex: Int?
+    var networkPorts: [NetworkPort] = []
+    var networkTolerance: Double?
+    var touchstonePath: String?
+    var networkDirectory: String?
 
     while !cursor.isAtEnd {
       let argument = cursor.current
       switch argument {
+      case "--analysis-index":
+        try Self.rejectDuplicate(analysisIndex, argument: argument)
+        let raw = try cursor.nonOptionValue(after: argument)
+        guard let value = Int(raw), value >= 0 else { throw CLIError.invalidArguments("--analysis-index requires a nonnegative source index") }
+        analysisIndex = value
+      case "--network-port":
+        cursor.advance()
+        let source = try cursor.nextNonOptionValue(for: argument)
+        let raw = try cursor.nextNonOptionValue(for: argument)
+        guard let reference = Double(raw) else { throw CLIError.invalidArguments("--network-port requires a source and positive finite resistance") }
+        networkPorts.append(try .init(voltageSourceName: source, referenceImpedance: reference))
+      case "--network-residual-tolerance":
+        try Self.rejectDuplicate(networkTolerance, argument: argument)
+        let raw = try cursor.nonOptionValue(after: argument)
+        guard let value = Double(raw) else { throw CLIError.invalidArguments("Invalid network residual tolerance") }
+        networkTolerance = value
+      case "--touchstone":
+        try Self.rejectDuplicate(touchstonePath, argument: argument)
+        touchstonePath = try cursor.nonOptionValue(after: argument)
+      case "--network-output-directory":
+        try Self.rejectDuplicate(networkDirectory, argument: argument)
+        networkDirectory = try cursor.nonOptionValue(after: argument)
+      case "--execution-profile":
+        try Self.rejectDuplicate(executionProfilePath, argument: argument)
+        executionProfilePath = try cursor.nonOptionValue(after: argument)
       case "-b", "--batch":
         try Self.rejectDuplicate(deckPath, argument: argument)
         deckPath = try cursor.nonOptionValue(after: argument)
+      case "--osdi-catalog":
+        try Self.rejectDuplicate(osdiCatalogPath, argument: argument)
+        osdiCatalogPath = try cursor.nonOptionValue(after: argument)
+      case "--paired-csv":
+        try Self.rejectDuplicate(pairedCSVPath, argument: argument)
+        pairedCSVPath = try cursor.nonOptionValue(after: argument)
       case "-r":
         try Self.rejectDuplicate(outputs.raw, argument: argument)
         outputs.raw = try cursor.nonOptionValue(after: argument)
@@ -70,6 +118,13 @@ struct CoreSpiceBatchOptions {
           throw CLIError.invalidArguments("--mos-profile expects coreStrictV1 or pinnedNgspiceNormalV1")
         }
         profile = parsed
+      case "--diode-profile":
+        try Self.rejectDuplicate(diodeProfile, argument: argument)
+        let raw = try cursor.nonOptionValue(after: argument)
+        guard let parsed = CoreSpiceCLIDiodeRecord.profile(named: raw) else {
+          throw CLIError.invalidArguments("--diode-profile expects coreDiodeV1 or genericDiodeV1")
+        }
+        diodeProfile = parsed
       case "--seed":
         try Self.rejectDuplicate(randomSeed, argument: argument)
         let rawSeed = try cursor.nonOptionValue(after: argument)
@@ -91,9 +146,20 @@ struct CoreSpiceBatchOptions {
     guard (caseOutput == nil) == (caseID == nil) else {
       throw CLIError.invalidArguments("--case-output and --case-id must be supplied together")
     }
+    network = try networkPorts.isEmpty && networkTolerance == nil ? nil
+        : CoreSpiceCLINetworkOptions(analysisIndex: analysisIndex, ports: networkPorts, residualTolerance: networkTolerance)
+    guard network != nil || (analysisIndex == nil && touchstonePath == nil && networkDirectory == nil) else {
+      throw CLIError.invalidArguments("Network outputs and source index require explicit network ports/tolerance")
+    }
+    guard network == nil || overrideAnalysis == nil else { throw CLIError.invalidArguments("Network extraction requires the selected source AC; analysis override is incompatible") }
+    self.touchstonePath = touchstonePath; self.networkDirectory = networkDirectory
     self.profile = profile ?? .pinnedNgspiceNormalV1
+    self.diodeProfile = diodeProfile ?? .genericDiodeV1
     self.caseOutput = caseOutput
     self.caseID = caseID
+    self.osdiCatalogPath = osdiCatalogPath
+    self.executionProfilePath = executionProfilePath
+    self.pairedCSVPath = pairedCSVPath
     self.deckPath = deckPath
     self.outputs = outputs
     self.overrideAnalysis = overrideAnalysis

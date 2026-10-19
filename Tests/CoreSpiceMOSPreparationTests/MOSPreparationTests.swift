@@ -1,4 +1,3 @@
-import CoreSpiceCompactModels
 import CoreSpiceCompile
 import CoreSpiceDevices
 import CoreSpiceIR
@@ -26,7 +25,7 @@ struct MOSPreparationTests {
     }
 
     @Test func supportedReleasesPrepareOnceAndBindActualPhysicalStamps() throws {
-        for release in [MOSModelRelease.level1, .level2, .level3, .bsim3_3_3_0, .bsim4_4_8_3, .bsim4_4_5] {
+        for release in [MOSModelRelease.level1, .level2, .level3] {
             for polarity in [MOSPolarity.nmos, .pmos] {
                 let resolved = try MOSPreparationFixture.resolve(release, polarity: polarity,
                     instance: [("l", 1e-6), ("w", 10e-6)])
@@ -36,9 +35,10 @@ struct MOSPreparationTests {
                 let receipt = prepared.receipt
                 #expect(receipt.coldSetupCount == 1)
                 #expect(receipt.identity.resolved == resolved)
-                #expect(receipt.identity.implementationIdentity == (release == .bsim4_4_5
-                    ? NativeMOSDevicePreparer.implementationIdentity + ".BSIM45-4.5.0." + BSIM45Evaluator.adaptationIdentity
-                    : NativeMOSDevicePreparer.implementationIdentity))
+                #expect(receipt.identity.implementationIdentity == NativeMOSDevicePreparer.implementationIdentity)
+                #expect(receipt.topology.localNodeCount == 4)
+                #expect(receipt.topology.auxiliaryNodeCount == 0)
+                #expect(receipt.peakTemporaryBytes == 0)
                 let instance = MOSPreparationFixture.instance(receipt)
                 var context = try MOSPreparationFixture.context(instance)
                 let bound = try prepared.bind(instance: instance, context: &context)
@@ -66,17 +66,22 @@ struct MOSPreparationTests {
         }
     }
 
-    @Test func lowStorageAndCancellationNeverPublishOwner() throws {
-        let resolved = try MOSPreparationFixture.resolve(.bsim4_4_8_3)
-        for limits in [try MOSPreparationFixture.limits(bytes: 1), try MOSPreparationFixture.limits(temporary: 1)] {
-            #expect(throws: MOSPreparationFailure.capacityExceeded) {
-                _ = try NativeMOSDevicePreparer().prepare(.init(resolved: resolved,
-                    conditions: MOSPreparationFixture.conditions()), limits: limits, control: MOSPreparationTestControl())
-            }
+    @Test func lowStorageWorkAndCancellationNeverPublishOwner() throws {
+        let resolved = try MOSPreparationFixture.resolve(.level1, instance: [("w", 1e-5), ("l", 1e-6)])
+        #expect(throws: MOSPreparationFailure.capacityExceeded) {
+            _ = try NativeMOSDevicePreparer().prepare(.init(resolved: resolved,
+                conditions: MOSPreparationFixture.conditions()), limits: MOSPreparationFixture.limits(bytes: 1),
+                control: MOSPreparationTestControl())
+        }
+        #expect(throws: MOSPreparationFailure.workLimitExceeded) {
+            _ = try NativeMOSDevicePreparer().prepare(.init(resolved: resolved,
+                conditions: MOSPreparationFixture.conditions()), limits: MOSPreparationFixture.limits(work: 1),
+                control: MOSPreparationTestControl())
         }
         #expect(throws: MOSPreparationFailure.cancelled) {
             _ = try NativeMOSDevicePreparer().prepare(.init(resolved: resolved,
-                conditions: MOSPreparationFixture.conditions()), limits: MOSPreparationFixture.limits(), control: MOSPreparationTestControl(cancelAfter: 4))
+                conditions: MOSPreparationFixture.conditions()), limits: MOSPreparationFixture.limits(),
+                control: MOSPreparationTestControl(cancelAfter: 1))
         }
     }
 
@@ -106,31 +111,19 @@ struct MOSPreparationTests {
         catch { #expect(error == .identityMismatch) }
     }
 
-    @Test func failedCsrBindingLeavesPrivateNodesUnclaimed() throws {
-        let resolved = try MOSPreparationFixture.resolve(.bsim3_3_3_0, model: [("rsh", 10)],
-            instance: [("l", 1e-6), ("w", 10e-6), ("nrd", 1), ("nrs", 1)])
+    @Test func classicBindingRequiresEveryCompiledCsrPair() throws {
+        let resolved = try MOSPreparationFixture.resolve(.level3)
         let prepared = try NativeMOSDevicePreparer().prepare(.init(resolved: resolved,
             conditions: MOSPreparationFixture.conditions()), limits: MOSPreparationFixture.limits(), control: MOSPreparationTestControl())
         let instance = MOSPreparationFixture.instance(prepared.receipt)
-        #expect(instance.ownedNodes.count >= 2)
+        #expect(instance.ownedNodes.isEmpty)
         var context = try MOSPreparationFixture.context(instance, csr: false)
         do { _ = try prepared.bind(instance: instance, context: &context); Issue.record("Missing CSR admitted") }
         catch { #expect(error == .invalidMatrixMapping) }
-        try context.claimOwnedNodes(for: instance)
     }
 
-    @Test func invalidLaterPrivateNodeDoesNotClaimEarlierValidNode() throws {
-        let ports = (1...4).map { Node(id: $0) }, privateNode = Node(id: 5)
-        let invalid = Instance(name: "bad", typeName: "nmos_l49", nodes: ports, parameters: [:], ownedNodes: [privateNode, .ground])
-        var context = try MOSPreparationFixture.context(invalid)
-        #expect(throws: DeviceBindingError.self) { try context.claimOwnedNodes(for: invalid) }
-        let valid = Instance(name: "good", typeName: "nmos_l49", nodes: ports, parameters: [:], ownedNodes: [privateNode])
-        try context.claimOwnedNodes(for: valid)
-        #expect(throws: DeviceBindingError.self) { try context.claimOwnedNodes(for: valid) }
-    }
-
-    @Test func cancelledPreparedBindLeavesPrivateNodesUnclaimed() throws {
-        let resolved = try MOSPreparationFixture.resolve(.bsim4_4_8_3, model: [("rsh", 10)], instance: [("nrd", 1), ("nrs", 1)])
+    @Test func cancelledClassicPreparedBindFailsBeforePublication() throws {
+        let resolved = try MOSPreparationFixture.resolve(.level2)
         let control = MOSPreparationTestControl()
         let prepared = try NativeMOSDevicePreparer().prepare(.init(resolved: resolved,
             conditions: MOSPreparationFixture.conditions()), limits: MOSPreparationFixture.limits(), control: control)
@@ -139,36 +132,10 @@ struct MOSPreparationTests {
         control.cancel()
         do { _ = try prepared.bind(instance: instance, context: &context); Issue.record("Cancelled binding admitted") }
         catch { #expect(error == .cancelled) }
-        try context.claimOwnedNodes(for: instance)
-    }
-
-    @Test func conflictingTerminalIcBindingLeavesPrivateNodesUnclaimed() throws {
-        for release in [MOSModelRelease.bsim3_3_3_0, .bsim4_4_8_3, .bsim4_4_5] {
-            let resolved = try MOSPreparationFixture.resolve(release, model: [("rsh", 10)],
-                instance: [("nrd", 1), ("nrs", 1), ("ic_vds", 1)])
-            let prepared = try NativeMOSDevicePreparer().prepare(.init(resolved: resolved,
-                conditions: MOSPreparationFixture.conditions()), limits: MOSPreparationFixture.limits(), control: MOSPreparationTestControl())
-            let instance = MOSPreparationFixture.instance(prepared.receipt,
-                ports: [.ground, Node(id: 1), .ground, Node(id: 2)])
-            #expect(!instance.ownedNodes.isEmpty)
-            var context = try MOSPreparationFixture.context(instance)
-            do { _ = try prepared.bind(instance: instance, context: &context); Issue.record("Conflicting terminal IC admitted") }
-            catch { #expect(error == .terminalInitialConditionsConflict) }
-            try context.claimOwnedNodes(for: instance)
-        }
-    }
-
-    @Test func allocationMetadataUsesLinkedOwnersAndSafeStorageBudgetsRefuse() throws {
-        #expect(BSIM3Evaluator.ownerAllocationBytes > 32768)
-        #expect(BSIM4Evaluator.ownerAllocationBytes > 32768)
-        let limits = try MOSPreparationFixture.limits(temporary: 1)
-        #expect(throws: MOSPreparationFailure.capacityExceeded) {
-            _ = try BSIM3Evaluator(configuration: .init(), preparationLimits: limits, preparationControl: MOSPreparationTestControl())
-        }
     }
 
     @Test func retainedReceiptBytesAreAnEnforcedBoundary() throws {
-        for release in [MOSModelRelease.bsim3_3_3_0, .bsim4_4_8_3, .bsim4_4_5] {
+        for release in [MOSModelRelease.level1, .level2, .level3] {
             let resolved = try MOSPreparationFixture.resolve(release)
             let prepared = try NativeMOSDevicePreparer().prepare(.init(resolved: resolved,
                 conditions: MOSPreparationFixture.conditions()), limits: MOSPreparationFixture.limits(), control: MOSPreparationTestControl())
@@ -185,18 +152,13 @@ struct MOSPreparationTests {
         }
     }
 
-    @Test func nonemptyDiagnosticPayloadIsMeasuredAndLimited() throws {
-        let configuration = BSIM3Configuration(modelParameters: ["pb": 0.01, "a2": 0, "paramchk": 1])
-        let evaluator = try BSIM3Evaluator(configuration: configuration,
-            preparationLimits: MOSPreparationFixture.limits(), preparationControl: MOSPreparationTestControl())
-        #expect(!evaluator.diagnostics.isEmpty)
-        #expect(evaluator.diagnosticStorageBytes > 0)
-        #expect(evaluator.preparationTemporaryBytes >= evaluator.diagnosticStorageBytes)
-        let tight = try MOSPreparationLimits(maximumRetainedBytes: 8_000_000, maximumTemporaryBytes: 8_000_000,
-            maximumDiagnosticBytes: evaluator.diagnosticStorageBytes - 1, maximumWorkUnits: 100_000)
-        #expect(throws: MOSPreparationFailure.capacityExceeded) {
-            _ = try BSIM3Evaluator(configuration: configuration, preparationLimits: tight,
-                preparationControl: MOSPreparationTestControl())
+    @Test func standardRegistryContainsOnlyClassicNativeMosDescriptors() {
+        let registry = DeviceRegistry.standard()
+        for type in ["nmos_l1", "pmos_l1", "nmos_l2", "pmos_l2", "nmos_l3", "pmos_l3"] {
+            #expect(registry.descriptor(for: type) != nil)
+        }
+        for type in ["nmos_l49", "pmos_l49", "nmos_l54", "pmos_l54"] {
+            #expect(registry.descriptor(for: type) == nil)
         }
     }
 }

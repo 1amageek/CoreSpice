@@ -116,7 +116,7 @@ struct RunRecordTests {
   func versionedBatchRunFixtureDecodesFoundationArtifactReferences() throws {
     let fixtureURL = try #require(
       Bundle.module.url(
-        forResource: "cli-batch-run-v2",
+        forResource: "cli-batch-run-v3",
         withExtension: "json",
         subdirectory: "Fixtures"
       )
@@ -126,7 +126,9 @@ struct RunRecordTests {
       from: Data(contentsOf: fixtureURL)
     )
 
-    #expect(record.schemaVersion == .v2)
+    #expect(record.schemaVersion == .v3)
+    #expect(record.solverIdentity == nil)
+    #expect(record.executionProfile == nil && record.executionProfileReference == nil)
     #expect(record.resolutionProfile == "pinnedNgspiceNormalV1")
     #expect(record.resolutionSeed == 1)
     #expect(record.resolutionPolicy == "corespice-cli-developer-v1")
@@ -139,9 +141,43 @@ struct RunRecordTests {
     #expect(record.outputArtifacts.first?.descriptor.kind == .waveform)
     #expect(record.outputArtifacts.first?.descriptor.format == .raw)
     #expect(record.producer.identifier == "CoreSpiceCLI")
-    #expect(record.bsim45Models.isEmpty)
+    let encoded = try JSONEncoder().encode(record)
+    let current = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+    for key in ["bsim4Models", "bsim45Models", "bsim4NoisePreparationRequested", "bsim4PreparationPolicy"] {
+      #expect(current[key] == nil)
+    }
+    #expect(try JSONDecoder().decode(CoreSpiceCLIBatchRunRecord.self, from: encoded) == record)
+    var nullable = current
+    nullable["bsim4Models"] = []; nullable["bsim45Models"] = []
+    nullable["bsim4NoisePreparationRequested"] = false; nullable["bsim4PreparationPolicy"] = NSNull()
+    #expect(try JSONDecoder().decode(CoreSpiceCLIBatchRunRecord.self,
+      from: JSONSerialization.data(withJSONObject: nullable)) == record)
+    nullable["bsim4NoisePreparationRequested"] = true
+    #expect(try JSONDecoder().decode(CoreSpiceCLIBatchRunRecord.self,
+      from: JSONSerialization.data(withJSONObject: nullable)) == record)
+    for (key, value) in [("bsim4Models", [["device": "m1"]] as Any),
+                         ("bsim45Models", [["device": "m1"]] as Any),
+                         ("bsim4PreparationPolicy", [:] as [String: Any]),
+                         ("bsim4Models", NSNull() as Any),
+                         ("bsim45Models", false as Any),
+                         ("bsim4NoisePreparationRequested", 0 as Any)] {
+      var forged = current; forged[key] = value
+      do {
+        _ = try JSONDecoder().decode(CoreSpiceCLIBatchRunRecord.self,
+          from: JSONSerialization.data(withJSONObject: forged))
+        Issue.record("Removed native evidence accepted: \(key)")
+      } catch DecodingError.dataCorrupted(let context) {
+        #expect(context.debugDescription.contains("Removed native BSIM"))
+      }
+    }
     var incomplete = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL)) as? [String: Any])
-    incomplete.removeValue(forKey: "bsim45Models")
+    var legacySolver = incomplete
+    legacySolver["solverIdentity"] = "CoreSpice.SparseLU.Accelerate.v1"
+    let legacySolverData = try JSONSerialization.data(withJSONObject: legacySolver)
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(CoreSpiceCLIBatchRunRecord.self, from: legacySolverData)
+    }
+    incomplete.removeValue(forKey: "diodeModels")
     let missingEvidence = try JSONSerialization.data(withJSONObject: incomplete)
     #expect(throws: DecodingError.self) {
       try JSONDecoder().decode(CoreSpiceCLIBatchRunRecord.self, from: missingEvidence)
@@ -181,6 +217,7 @@ struct RunRecordTests {
     let summary = try await cli.executeBatch(options: options, session: &session)
 
     #expect(summary.status == "succeeded")
+    #expect(summary.solverIdentity == "CoreSpice.SparseLU.SwiftCSC.v2")
     #expect(summary.invocation.mode == .externalProcess)
     #expect(summary.invocation.executable == "corespice")
     #expect(summary.invocation.arguments == arguments)

@@ -8,6 +8,9 @@ public protocol BoundDevice: Sendable {
     /// The original instance this device was created from.
     var instance: Instance { get }
 
+    /// Whether the complete fixed-operating-point AC matrix is an affine G+sC pencil.
+    var poleZeroStampApplicability: PoleZeroStampApplicability { get }
+
     /// Stamp the device's DC operating-point equations.
     func stampDC(into stamper: inout MatrixStamper, state: SolutionState) throws
 
@@ -27,8 +30,12 @@ public protocol BoundDevice: Sendable {
     func breakpoints(in interval: ClosedRange<Double>, maximumCount: Int) throws -> [Double]
 }
 
-// Default implementation for devices without time-varying waveforms
+// Devices opt into finite-pencil applicability; stationary waveforms need no breakpoints.
 extension BoundDevice {
+    public var poleZeroStampApplicability: PoleZeroStampApplicability {
+        .unsupported(reason: "The device has not established an affine G+sC realization")
+    }
+
     public func breakpoints(in interval: ClosedRange<Double>, maximumCount: Int) throws -> [Double] {
         return []
     }

@@ -148,7 +148,7 @@ public enum SPICEOutputProjector {
             .op
         case .dc:
             .dc
-        case .ac:
+        case .ac, .networkParameters:
             .ac
         case .transient, .fourier:
             .transient

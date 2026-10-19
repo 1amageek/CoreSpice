@@ -18,6 +18,8 @@ public enum WaveformValidationError: Error, Equatable, Sendable, CustomStringCon
     case variableLayoutWidthMismatch(expected: Int, actual: Int)
     case mnaVariableIndexOutOfRange(index: Int, variableCount: Int)
     case mnaVariableIndicesNotContiguous(missingIndex: Int)
+    case unknownTemperatureRiseNode(nodeID: Int)
+    case variableLayoutMapMismatch
 
     public var description: String {
         switch self {
@@ -57,6 +59,10 @@ public enum WaveformValidationError: Error, Equatable, Sendable, CustomStringCon
             return "MNA variable index \(index) is outside 0..<\(variableCount)."
         case .mnaVariableIndicesNotContiguous(let missingIndex):
             return "MNA variable indices are not contiguous; missing index \(missingIndex)."
+        case .unknownTemperatureRiseNode(let nodeID):
+            return "Temperature-rise node \(nodeID) is not a non-ground MNA node unknown."
+        case .variableLayoutMapMismatch:
+            return "Waveform variable layout does not match the result's exact MNA variable map."
         }
     }
 }

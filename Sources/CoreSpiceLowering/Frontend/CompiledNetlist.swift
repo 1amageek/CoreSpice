@@ -1,3 +1,4 @@
+import CoreSpiceDiodeContracts
 import CoreSpiceMOSContracts
 import CoreSpiceMOSResolution
 import CoreSpiceParsedIR
@@ -5,6 +6,11 @@ import CoreSpiceParsedIR
 /// Immutable frontend source/program owner reusable across seeded evaluation runs.
 public final class CompiledNetlist: Sendable {
     public let source: ParsedNetlist
+    public let sourceOverrides: [NetlistSourceScalarOverride]
+    public let temperatureSelection: NetlistSourceTemperature?
+    /// Opt-in evaluated scalar evidence for source perturbation inventories.
+    public let captureSourceScalars: Bool
+    let scalarOverrides: [String: [FrontendScalarOverride]]
     public let snapshot: MOSDeclarationSnapshot
     public let retainedBytes: UInt64
     let hierarchicalMultiplier: MOSExpressionBinding?
@@ -19,7 +25,11 @@ public final class CompiledNetlist: Sendable {
     init(source: ParsedNetlist, snapshot: MOSDeclarationSnapshot, retainedBytes: UInt64,
          identity: MOSIdentitySpace, scopes: [FrontendScopeTemplate], models: [FrontendModelTemplate],
          slots: [NetlistScalarAddress: NetlistScalarSlot], modelOrigins: [ParsedModelOrigin?],
-         hierarchicalMultiplier: MOSExpressionBinding?, diodeIndex: [DiodeLookupKey: Range<Int>], diodeCandidates: [Int]) {
+         hierarchicalMultiplier: MOSExpressionBinding?, diodeIndex: [DiodeLookupKey: Range<Int>], diodeCandidates: [Int],
+         sourceOverrides: [NetlistSourceScalarOverride], scalarOverrides: [String: [FrontendScalarOverride]],
+         temperatureSelection: NetlistSourceTemperature?, captureSourceScalars: Bool) {
+        self.sourceOverrides = sourceOverrides; self.scalarOverrides = scalarOverrides
+        self.temperatureSelection = temperatureSelection; self.captureSourceScalars = captureSourceScalars
         self.diodeIndex = diodeIndex; self.diodeCandidates = diodeCandidates
         self.source = source; self.snapshot = snapshot; self.retainedBytes = retainedBytes
         self.hierarchicalMultiplier = hierarchicalMultiplier
@@ -46,6 +56,26 @@ public final class CompiledNetlist: Sendable {
             throw MOSResolutionFailure.conditionMismatch
         }
         return modelOrigins[Int(result.declaration.rawValue)]
+    }
+    /// Checked selected diode declaration; indices are frontend model coordinates, not MOS IDs.
+    public func modelOrigin(for result: ResolvedDiodeInstance) throws -> ParsedModelOrigin? {
+        try checkedDiodeModel(result).origin
+    }
+    public func modelName(for result: ResolvedDiodeInstance) throws -> String {
+        try checkedDiodeModel(result).name
+    }
+    private func checkedDiodeModel(_ result: ResolvedDiodeInstance) throws -> ParsedModel {
+        guard let index = Int(exactly: result.model.declaration.declaration), models.indices.contains(index) else {
+            throw MOSResolutionFailure.conditionMismatch
+        }
+        let template = models[index], identity = result.model.declaration
+        let source = frontendModelSource(template.model)
+        guard template.model.type == .diode, template.scope.rawValue == identity.scope,
+              source.captureID == identity.captureID, source.occurrenceID == identity.occurrence,
+              source.line == identity.line, source.statementOrdinal == identity.statementOrdinal else {
+            throw MOSResolutionFailure.conditionMismatch
+        }
+        return template.model
     }
     func model(named name: String, scope: MOSScopeID) -> FrontendModelTemplate? {
         var current: MOSScopeID? = scope

@@ -1,0 +1,1373 @@
+{
+  "schema": "corespice.osdi.dc-inputs.v1",
+  "cases": [
+    {
+      "id": "linear-current",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "linear_dc",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 2,
+          "terminals": {
+            "p": "p",
+            "n": "n"
+          },
+          "parameters": [],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VREF",
+          "positive": "n",
+          "negative": "0",
+          "value": 0.2
+        }
+      ],
+      "currentSources": [
+        {
+          "id": "IIN",
+          "positive": "0",
+          "negative": "p",
+          "value": 0.0001
+        }
+      ],
+      "initialUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {
+        "net:p": 0.3,
+        "net:n": 0.2,
+        "branch:VREF": 0.0001
+      }
+    },
+    {
+      "id": "mixed-collapse-private",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "collapsible_dc",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 2,
+          "terminals": {
+            "p": "p1",
+            "n": "n"
+          },
+          "parameters": [
+            {
+              "name": "collapse",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        },
+        {
+          "id": "N2",
+          "library": "collapsible_dc",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 2,
+          "terminals": {
+            "p": "p2",
+            "n": "n"
+          },
+          "parameters": [
+            {
+              "name": "collapse",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VREF",
+          "positive": "n",
+          "negative": "0",
+          "value": 0.2
+        }
+      ],
+      "currentSources": [
+        {
+          "id": "I1",
+          "positive": "0",
+          "negative": "p1",
+          "value": 0.001
+        },
+        {
+          "id": "I2",
+          "positive": "0",
+          "negative": "p2",
+          "value": 0.0004
+        }
+      ],
+      "initialUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {
+        "net:p1": 1.7,
+        "net:p2": 0.6,
+        "net:n": 0.2,
+        "device:N1:node:x": 0.7,
+        "branch:VREF": 0.0014
+      }
+    },
+    {
+      "id": "driven-auxiliary",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "driven_auxiliary_dc",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 2,
+          "terminals": {
+            "p": "p",
+            "n": "n"
+          },
+          "parameters": [],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VREF",
+          "positive": "n",
+          "negative": "0",
+          "value": 0.2
+        }
+      ],
+      "currentSources": [
+        {
+          "id": "IIN",
+          "positive": "0",
+          "negative": "p",
+          "value": 0.0086
+        }
+      ],
+      "initialUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {
+        "net:p": 1.0,
+        "net:n": 0.2,
+        "device:N1:node:aux": 0.03,
+        "branch:VREF": 0.0086
+      }
+    },
+    {
+      "id": "flow-current",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "flow_dc",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 2,
+          "terminals": {
+            "p": "p",
+            "n": "n"
+          },
+          "parameters": [],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VREF",
+          "positive": "n",
+          "negative": "0",
+          "value": 0.2
+        }
+      ],
+      "currentSources": [
+        {
+          "id": "IIN",
+          "positive": "0",
+          "negative": "p",
+          "value": 0.002
+        }
+      ],
+      "initialUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {
+        "net:p": 0.7,
+        "net:n": 0.2,
+        "device:N1:node:flow(drive)": 0.002,
+        "branch:VREF": 0.002
+      }
+    },
+    {
+      "id": "cubic-current",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "cubic_dc",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 2,
+          "terminals": {
+            "p": "p",
+            "n": "n"
+          },
+          "parameters": [],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VREF",
+          "positive": "n",
+          "negative": "0",
+          "value": 0.2
+        }
+      ],
+      "currentSources": [
+        {
+          "id": "IIN",
+          "positive": "0",
+          "negative": "p",
+          "value": 0.0013
+        }
+      ],
+      "initialUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {
+        "net:p": 1.2,
+        "net:n": 0.2,
+        "branch:VREF": 0.0013
+      }
+    },
+    {
+      "id": "no-root",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "no_root_dc",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 2,
+          "terminals": {
+            "p": "p",
+            "n": "n"
+          },
+          "parameters": [],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VREF",
+          "positive": "n",
+          "negative": "0",
+          "value": 0.2
+        }
+      ],
+      "currentSources": [
+        {
+          "id": "IIN",
+          "positive": "0",
+          "negative": "p",
+          "value": 0.0005
+        }
+      ],
+      "initialUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "singular",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "cubic-iteration-limit",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "cubic_dc",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 2,
+          "terminals": {
+            "p": "p",
+            "n": "n"
+          },
+          "parameters": [],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VREF",
+          "positive": "n",
+          "negative": "0",
+          "value": 0.2
+        }
+      ],
+      "currentSources": [
+        {
+          "id": "IIN",
+          "positive": "0",
+          "negative": "p",
+          "value": 0.0013
+        }
+      ],
+      "initialUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 1,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "nonconvergent",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "bsim-n-clamped",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "bsim",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "name": "L",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "W",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "TYPE",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "name": "RDSMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "name": "TNOIMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 1.2
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": -0.2
+        },
+        {
+          "id": "VD",
+          "positive": "d",
+          "negative": "0",
+          "value": 1.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": 1.2,
+        "net:b": -0.2,
+        "net:d": 1.0
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "bsim-p-clamped",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "bsim",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "name": "L",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "W",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "TYPE",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "name": "RDSMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "name": "TNOIMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -1.2
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": 0.2
+        },
+        {
+          "id": "VD",
+          "positive": "d",
+          "negative": "0",
+          "value": -1.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": -1.2,
+        "net:b": 0.2,
+        "net:d": -1.0
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "bsim-n-loaded",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "bsim",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "name": "L",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "W",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "TYPE",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "name": "RDSMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "name": "TNOIMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 1.2
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": -0.2
+        },
+        {
+          "id": "VD",
+          "positive": "supply",
+          "negative": "0",
+          "value": 1.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": 1.2,
+        "net:b": -0.2,
+        "net:d": 1.0,
+        "net:supply": 1.0
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "bsim-p-loaded",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "bsim",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "name": "L",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "W",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "TYPE",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "name": "RDSMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "name": "TNOIMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -1.2
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": 0.2
+        },
+        {
+          "id": "VD",
+          "positive": "supply",
+          "negative": "0",
+          "value": -1.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": -1.2,
+        "net:b": 0.2,
+        "net:d": -1.0,
+        "net:supply": -1.0
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "bsim-n-reverse-loaded",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "bsim",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "name": "L",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "W",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "TYPE",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "name": "RDSMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "name": "TNOIMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 1.2
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": -0.7
+        },
+        {
+          "id": "VD",
+          "positive": "supply",
+          "negative": "0",
+          "value": -0.5
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": 1.2,
+        "net:b": -0.7,
+        "net:d": -0.5,
+        "net:supply": -0.5
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "bsim-p-reverse-loaded",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "bsim",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "name": "L",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "W",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "TYPE",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "name": "RDSMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "name": "TNOIMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -1.2
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": 0.7
+        },
+        {
+          "id": "VD",
+          "positive": "supply",
+          "negative": "0",
+          "value": 0.5
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": -1.2,
+        "net:b": 0.7,
+        "net:d": 0.5,
+        "net:supply": 0.5
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "bsim-n-series-loaded",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "bsim",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "name": "L",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "W",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "TYPE",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "name": "RDSMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "name": "TNOIMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "name": "RSH",
+              "scope": "model",
+              "value": {
+                "kind": "real",
+                "real": 10.0
+              }
+            },
+            {
+              "name": "NRS",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1.0
+              }
+            },
+            {
+              "name": "NRD",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1.0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 1.2
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": -0.2
+        },
+        {
+          "id": "VD",
+          "positive": "supply",
+          "negative": "0",
+          "value": 1.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": 1.2,
+        "net:b": -0.2,
+        "net:d": 1.0,
+        "net:supply": 1.0
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "bsim-p-selfheat-loaded",
+      "devices": [
+        {
+          "id": "N1",
+          "library": "bsim",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 330,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "name": "L",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "W",
+              "scope": "instance",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "name": "TYPE",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "name": "RDSMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "name": "TNOIMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "name": "SHMOD",
+              "scope": "model",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "name": "RTH0",
+              "scope": "model",
+              "value": {
+                "kind": "real",
+                "real": 0.01
+              }
+            },
+            {
+              "name": "CTH0",
+              "scope": "model",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -1.2
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": 0.2
+        },
+        {
+          "id": "VD",
+          "positive": "supply",
+          "negative": "0",
+          "value": -1.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": -1.2,
+        "net:b": 0.2,
+        "net:d": -1.0,
+        "net:supply": -1.0
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-07
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-10,
+        "maximumIterations": 80,
+        "maximumBacktracks": 24
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    }
+  ]
+}

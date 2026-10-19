@@ -1,0 +1,14 @@
+OpenVAF / OpenVAF-Reloaded OSDI ABI header
+
+The unmodified header at tools/OSDIDCVerification/osdi_0_4.h is reused from
+OpenVAF/OpenVAF-Reloaded commit fdf2522b70f42793f64b1c72f0195c96dea0cc19,
+path openvaf/osdi/header/osdi_0_4.h.
+
+Header SHA-256:
+0f3eeb9ef3c9f0bea9b3c59f34c632555e2367f6e28722e219d8c3f1d655a16f
+
+The upstream GPL license is retained verbatim in LICENSE. Source.json records
+the original source/license URLs and hashes, copied unchanged from swift-osdi's
+ThirdParty/OpenVAF-Reloaded provenance. The header is not relicensed by
+CoreSpice's MIT grant. This attribution covers the copied ABI declaration;
+compiler implementations and external model sources are separate artifacts.

@@ -28,6 +28,9 @@ public enum AnalysisError: Error, Sendable {
     /// - Parameter message: A description of what is wrong with the configuration.
     case invalidConfiguration(String)
 
+    /// A device cannot be represented by this finite affine pole-zero pencil.
+    case unsupportedPoleZeroDevice(instance: String, reason: String)
+
     /// Generic IR perturbation cannot reinterpret or reprepare a resolved MOS.
     case requiresFreshMOSResolution(instance: String)
 

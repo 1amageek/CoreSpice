@@ -1,7 +1,6 @@
 import CoreSpiceWaveform
 import CoreSpiceExporter
 import Foundation
-import Synchronization
 
 /// Exports waveform data in Berkeley SPICE RAW format.
 ///
@@ -26,6 +25,7 @@ public struct RAWExporter: WaveformExporter, StreamingWaveformExporter {
         to destination: ExportDestination,
         configuration: ExportConfiguration
     ) async throws -> ExportResult {
+        try Task.checkCancellation()
         let exportData = configuration.applyFilters(to: data)
         let session = try RAWExportSession(
             destination: destination,
@@ -37,29 +37,7 @@ public struct RAWExporter: WaveformExporter, StreamingWaveformExporter {
         )
 
         do {
-            if exportData.isComplex {
-                for point in 0..<exportData.pointCount {
-                    guard let sweepValue = exportData.sweepValue(at: point) else {
-                        throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
-                    }
-                    try session.writeComplexPointValues(
-                        sweepValue: sweepValue,
-                        source: exportData,
-                        point: point
-                    )
-                }
-            } else {
-                for point in 0..<exportData.pointCount {
-                    guard let sweepValue = exportData.sweepValue(at: point) else {
-                        throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
-                    }
-                    try session.writePointValues(
-                        sweepValue: sweepValue,
-                        source: exportData,
-                        point: point
-                    )
-                }
-            }
+            try await session.writeWaveform(exportData)
             return try await session.finalize()
         } catch {
             await session.cancel()
@@ -86,20 +64,16 @@ public struct RAWExporter: WaveformExporter, StreamingWaveformExporter {
 }
 
 /// Export session for RAW format.
-final class RAWExportSession: ExportSession, Sendable {
+actor RAWExportSession: ExportSession {
 
-    /// Local mutable state protected by Mutex.
-    private struct LocalState {
-        var headerWritten = false
-    }
-
-    private let localState: Mutex<LocalState>
+    private var headerWritten = false
+    private nonisolated let progress: ExportSessionProgress
     private let helper: ExportSessionHelper
     private let useBinaryFormat: Bool
     private let byteOrder: ByteOrder
 
-    var pointsWritten: Int {
-        helper.pointsWritten
+    nonisolated var pointsWritten: Int {
+        progress.pointsWritten
     }
 
     init(
@@ -117,14 +91,44 @@ final class RAWExportSession: ExportSession, Sendable {
         }
         self.useBinaryFormat = useBinaryFormat
         self.byteOrder = configuration.byteOrder
-        self.localState = Mutex(LocalState())
-        self.helper = try ExportSessionHelper(
+        let helper = try ExportSessionHelper(
             metadata: metadata,
             sweepVariable: sweepVariable,
             variables: variables,
             configuration: configuration,
             destination: destination
         )
+        self.progress = helper.progress
+        self.helper = helper
+    }
+
+    /// Keep full-waveform export on one executor while retaining per-point cancellation checks.
+    func writeWaveform(_ exportData: any WaveformReadable) throws {
+        if exportData.isComplex {
+            for point in 0..<exportData.pointCount {
+                try Task.checkCancellation()
+                guard let sweepValue = exportData.sweepValue(at: point) else {
+                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
+                }
+                try writeComplexPointValues(
+                    sweepValue: sweepValue,
+                    source: exportData,
+                    point: point
+                )
+            }
+        } else {
+            for point in 0..<exportData.pointCount {
+                try Task.checkCancellation()
+                guard let sweepValue = exportData.sweepValue(at: point) else {
+                    throw ExporterError.unsupportedDataFormat(reason: "Sweep point unavailable")
+                }
+                try writePointValues(
+                    sweepValue: sweepValue,
+                    source: exportData,
+                    point: point
+                )
+            }
+        }
     }
 
     func writePoint(sweepValue: Double, values: [Double]) async throws {
@@ -142,16 +146,9 @@ final class RAWExportSession: ExportSession, Sendable {
             sweepValue: sweepValue,
             valueCount: values.count
         )
-        let needsHeader = localState.withLock { state -> Bool in
-            if !state.headerWritten {
-                state.headerWritten = true
-                return true
-            }
-            return false
-        }
-
-        if needsHeader {
+        if !headerWritten {
             try writeHeader(isComplex: false)
+            headerWritten = true
         }
 
         if useBinaryFormat {
@@ -173,16 +170,9 @@ final class RAWExportSession: ExportSession, Sendable {
             sweepValue: sweepValue,
             valueCount: source.variables.count
         )
-        let needsHeader = localState.withLock { state -> Bool in
-            if !state.headerWritten {
-                state.headerWritten = true
-                return true
-            }
-            return false
-        }
-
-        if needsHeader {
+        if !headerWritten {
             try writeHeader(isComplex: false)
+            headerWritten = true
         }
 
         if useBinaryFormat {
@@ -212,16 +202,9 @@ final class RAWExportSession: ExportSession, Sendable {
             sweepValue: sweepValue,
             valueCount: values.count
         )
-        let needsHeader = localState.withLock { state -> Bool in
-            if !state.headerWritten {
-                state.headerWritten = true
-                return true
-            }
-            return false
-        }
-
-        if needsHeader {
+        if !headerWritten {
             try writeHeader(isComplex: true)
+            headerWritten = true
         }
 
         if useBinaryFormat {
@@ -243,16 +226,9 @@ final class RAWExportSession: ExportSession, Sendable {
             sweepValue: sweepValue,
             valueCount: source.variables.count
         )
-        let needsHeader = localState.withLock { state -> Bool in
-            if !state.headerWritten {
-                state.headerWritten = true
-                return true
-            }
-            return false
-        }
-
-        if needsHeader {
+        if !headerWritten {
             try writeHeader(isComplex: true)
+            headerWritten = true
         }
 
         if useBinaryFormat {

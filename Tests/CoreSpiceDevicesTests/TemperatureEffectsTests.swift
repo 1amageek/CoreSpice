@@ -99,7 +99,8 @@ struct TemperatureEffectsTests {
         let params = BJTModelParameters(nominalTemperature: temp)
         let vt = params.thermalVoltage
 
-        let expected = Self.k * temp / Self.q
+        // The BJT compatibility profile pins ngspice46 constants independently of other device families.
+        let expected = 1.38064852e-23 * temp / 1.6021766208e-19
 
         #expect(abs(vt - expected) / expected < 1e-10,
                 "BJT Vt at \(temp)K: expected \(expected), got \(vt)")
@@ -171,7 +172,9 @@ struct TemperatureEffectsTests {
             var devices: [any BoundDevice] = []
             for instance in ir.instances {
                 guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-                let bound = try desc.bind(instance: instance, context: &context)
+                let bound = try (instance.typeName == "diode"
+                    ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                    : desc.bind(instance: instance, context: &context))
                 devices.append(bound)
             }
 

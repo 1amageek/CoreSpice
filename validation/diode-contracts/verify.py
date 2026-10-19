@@ -17,7 +17,7 @@ args = parser.parse_args()
 out = args.output.resolve()
 out.mkdir(parents=True, exist_ok=True)
 fixture = out / 'component'
-env = dict(os.environ, TOOLCHAINS='org.swift.640202609131a')
+env = dict(os.environ)
 records = []
 
 

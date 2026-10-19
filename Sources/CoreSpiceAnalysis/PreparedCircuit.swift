@@ -13,14 +13,17 @@ import Foundation
 public struct PreparedCircuit: Sendable {
     public let plan: ExecutionPlan
     public let devices: [any BoundDevice]
+    private let retainedStorage: (any Sendable)?
 
     public init(
         plan: ExecutionPlan,
-        devices: [any BoundDevice]
+        devices: [any BoundDevice],
+        retainingStorage: (any Sendable)? = nil
     ) throws {
         try Self.validate(plan: plan, devices: devices)
         self.plan = plan
         self.devices = devices
+        self.retainedStorage = retainingStorage
     }
 
     /// Validates legacy split arguments at every existing analysis entry point.

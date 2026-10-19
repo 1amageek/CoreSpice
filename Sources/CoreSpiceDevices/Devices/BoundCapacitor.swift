@@ -1,19 +1,4 @@
 import CoreSpiceIR
-import Synchronization
-
-/// Thread-safe mutable storage for a single Double value.
-///
-/// Used by BoundCapacitor to track the capacitor current across
-/// timesteps. Wraps `Mutex<Double>` in a reference type so it can
-/// be stored in a Copyable struct.
-private final class MutableDouble: Sendable {
-    private let storage: Mutex<Double>
-    init(_ value: Double) { storage = Mutex(value) }
-    var value: Double {
-        get { storage.withLock { $0 } }
-        set { storage.withLock { $0 = newValue } }
-    }
-}
 
 /// A capacitor bound to specific circuit nodes.
 ///
@@ -26,7 +11,7 @@ private final class MutableDouble: Sendable {
 /// from the previous accepted timestep. This is stored in
 /// `committedCapCurrent` and updated after each step acceptance
 /// via `commitTransientStep(state:integration:)`.
-public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, TransientStateCommittingDevice, Sendable {
+public struct BoundCapacitor: BoundDevice, DCPhysicalResidualContributing, TransientPhysicalResidualContributing, TransientPhysicalResidualEnclosureContributing, VoltageInitialConditionDevice, TransientSessionDevice, Sendable {
 
     public let instance: Instance
     private let posNode: Node
@@ -48,9 +33,8 @@ public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, Transi
     public let initialVoltage: Double
 
     /// Whether this capacitor has an explicit initial voltage set.
-    public var hasInitialCondition: Bool {
-        initialVoltage != 0.0
-    }
+    public var hasInitialCondition: Bool { hasExplicitInitialCondition || initialVoltage != 0.0 }
+    private let hasExplicitInitialCondition: Bool
 
     public var positiveNode: Node { posNode }
     public var negativeNode: Node { negNode }
@@ -63,7 +47,7 @@ public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, Transi
     /// Without tracking i_{n-1} recursively, approximating it as
     /// C*(V_{n-1}-V_{n-2})/h is only 1st-order accurate, which
     /// degrades the trapezoidal method from O(h²) to O(h).
-    private let committedCapCurrent: MutableDouble
+    private let committedCapCurrent: ReactiveResidualHistory
 
     init(
         instance: Instance,
@@ -71,6 +55,7 @@ public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, Transi
         negNode: Node,
         capacitance: Double,
         initialVoltage: Double,
+        hasExplicitInitialCondition: Bool = false,
         posIdx: Int?,
         negIdx: Int?,
         stampPP: Int? = nil,
@@ -83,14 +68,58 @@ public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, Transi
         self.negNode = negNode
         self.capacitance = capacitance
         self.initialVoltage = initialVoltage
+        self.hasExplicitInitialCondition = hasExplicitInitialCondition
         self.posIdx = posIdx
         self.negIdx = negIdx
         self.stampPP = stampPP
         self.stampNN = stampNN
         self.stampPN = stampPN
         self.stampNP = stampNP
-        self.committedCapCurrent = MutableDouble(0.0)
+        self.committedCapCurrent = ReactiveResidualHistory()
     }
+
+    public func accumulatePhysicalResidual(state: SolutionState, add: (Int, Double) -> Void) throws {
+        if let index = posIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(posNode)) }
+        if let index = negIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(negNode)) }
+        try PhysicalResidualState.validate(try state.checkedVoltage(at: posNode), try state.checkedVoltage(at: negNode))
+    }
+
+    public func accumulateTransientPhysicalResidual(state: SolutionState, integration: IntegrationState, add: (Int, Double) -> Void) throws {
+        try accumulatePhysicalResidual(state: state, add: add)
+        let history = integration.method == .trapezoidal ? committedCapCurrent.snapshot.ordinary : 0
+        let current = try unadjustedOrdinaryDerivative(state: state, integration: integration) - history
+        try PhysicalResidualState.validate(current, history, integration.timeStep)
+        guard integration.timeStep > 0 else { throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "timeStep", message: "Physical equation requires a positive timestep") }
+        if let index = posIdx { add(index, current) }; if let index = negIdx { add(index, -current) }
+    }
+
+    public func accumulateTransientPhysicalResidualEnclosure(
+        state: SolutionState, integration: IntegrationState, add: (Int, CompensatedValue, Double) -> Void
+    ) throws {
+        let derivative = try unadjustedDerivative(state: state, integration: integration)
+        let current = try integration.method == .trapezoidal
+            ? derivative.subtracting(committedCapCurrent.snapshot.enclosure) : derivative
+        if let index = posIdx { add(index, current.center, current.radius) }
+        if let index = negIdx { add(index, current.center.negated(), current.radius) }
+    }
+
+    private func unadjustedDerivative(state: SolutionState, integration: IntegrationState) throws -> CompensatedEnclosure {
+        let voltage = try PhysicalResidualState.voltageDifference(state, positive: posNode, negative: negNode,
+            positiveIndex: posIdx, negativeIndex: negIdx)
+        let previous = try PhysicalResidualState.previous(state)
+        let oldVoltage = try PhysicalResidualState.voltageDifference(previous, positive: posNode, negative: negNode,
+            positiveIndex: posIdx, negativeIndex: negIdx)
+        return try PhysicalResidualState.derivative(voltage.subtracting(oldVoltage),
+            coefficient: capacitance, integration: integration)
+    }
+
+    public func beginTransientSession(initialState: SolutionState) throws {
+        _ = try PhysicalResidualState.voltageDifference(initialState, positive: posNode, negative: negNode,
+            positiveIndex: posIdx, negativeIndex: negIdx)
+        try committedCapCurrent.begin(device: instance.name)
+    }
+
+    public func endTransientSession() { committedCapCurrent.end() }
 
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
         // A capacitor is an open circuit at DC; no stamp needed.
@@ -137,7 +166,7 @@ public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, Transi
             // where i_cap_prev is the actual capacitor current at the
             // previous accepted timestep, tracked recursively to maintain
             // 2nd-order accuracy.
-            let iCapPrev = committedCapCurrent.value
+            let iCapPrev = committedCapCurrent.snapshot.ordinary
             ieq = geq * vPrev + iCapPrev
         }
 
@@ -158,7 +187,8 @@ public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, Transi
     /// The capacitor current at step n is:
     ///   BE:   i_n = (C/h)(V_n - V_{n-1})
     ///   Trap: i_n = (2C/h)(V_n - V_{n-1}) - i_{n-1}
-    public func commitTransientStep(state: SolutionState, integration: IntegrationState) {
+    public func commitTransientStep(state: SolutionState, integration: IntegrationState) throws {
+        let derivative = try unadjustedDerivative(state: state, integration: integration)
         let vPos = posIdx.map { state.value(at: $0) } ?? 0.0
         let vNeg = negIdx.map { state.value(at: $0) } ?? 0.0
         let v = vPos - vNeg
@@ -167,20 +197,89 @@ public struct BoundCapacitor: BoundDevice, VoltageInitialConditionDevice, Transi
         let vPrevNeg = negIdx.map { state.previousValue(at: $0) } ?? 0.0
         let vPrev = vPrevPos - vPrevNeg
 
-        let newCurrent: Double
-        switch integration.method {
-        case .backwardEuler:
-            newCurrent = (capacitance / integration.timeStep) * (v - vPrev)
-        case .trapezoidal:
-            let geq = integration.coefficient * capacitance
-            let iCapPrev = committedCapCurrent.value
-            newCurrent = geq * (v - vPrev) - iCapPrev
+        try committedCapCurrent.update { history in
+            let newCurrent: Double
+            let precise: CompensatedEnclosure
+            switch integration.method {
+            case .backwardEuler:
+                newCurrent = (capacitance / integration.timeStep) * (v - vPrev)
+                precise = derivative
+            case .trapezoidal:
+                let geq = integration.coefficient * capacitance
+                newCurrent = geq * (v - vPrev) - history.ordinary
+                precise = try derivative.subtracting(history.enclosure)
+            }
+            try PhysicalResidualState.validate(newCurrent)
+            history.ordinary = newCurrent
+            history.center = precise.center
+            history.radius = precise.radius
         }
-        committedCapCurrent.value = newCurrent
     }
 
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
         // Linear device always converges.
         .converged
+    }
+}
+
+extension BoundCapacitor: TransientPhysicalEquationDecomposing, TransientPhysicalEquationEnclosureDecomposing {
+    public var transientPhysicalEquationForm: TransientPhysicalEquationForm { .chargeDifference }
+    public func validateTransientPhysicalEquationDecomposition() throws {
+        try PhysicalResidualState.validate(capacitance)
+    }
+    public func accumulateTransientStaticResidual(state: SolutionState, time: Double,
+        add: (Int, Double) -> Void) throws {
+        try PhysicalResidualState.validate(time)
+        // The admitted capacitor has identically zero static F.
+        try accumulatePhysicalResidual(state: state, add: add)
+    }
+    public func accumulateTransientPhysicalEquation(state: SolutionState, integration: IntegrationState,
+        add: (Int, TransientPhysicalEquationTerm, Double) -> Void) throws {
+        try accumulateTransientStaticResidual(state: state, time: integration.currentTime) { add($0, .staticResidual, $1) }
+        let difference = try unadjustedOrdinaryDerivative(state: state, integration: integration)
+        if let posIdx { add(posIdx, .chargeDifference, difference) }
+        if let negIdx { add(negIdx, .chargeDifference, -difference) }
+    }
+    private func unadjustedOrdinaryDerivative(state: SolutionState, integration: IntegrationState) throws -> Double {
+        let previous = try PhysicalResidualState.previous(state)
+        let voltage = try state.checkedVoltage(at: posNode) - state.checkedVoltage(at: negNode)
+        let oldVoltage = try previous.checkedVoltage(at: posNode) - previous.checkedVoltage(at: negNode)
+        let difference = capacitance * integration.coefficient * (voltage - oldVoltage)
+        try PhysicalResidualState.validate(difference, integration.timeStep)
+        guard integration.timeStep > 0 else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "timeStep",
+                message: "Original capacitor decomposition requires a positive timestep")
+        }
+        return difference
+    }
+    public func accumulateTransientStaticResidualEnclosure(state: SolutionState, time: Double,
+        add: (Int, CompensatedValue, Double) -> Void) throws {
+        try PhysicalResidualState.validate(time)
+        _ = try PhysicalResidualState.voltageDifference(state, positive: posNode, negative: negNode,
+            positiveIndex: posIdx, negativeIndex: negIdx)
+    }
+    public func accumulateTransientPhysicalEquationEnclosure(state: SolutionState, integration: IntegrationState,
+        add: (Int, TransientPhysicalEquationTerm, CompensatedValue, Double) -> Void) throws {
+        try PhysicalResidualState.validate(integration.currentTime)
+        let difference = try unadjustedDerivative(state: state, integration: integration)
+        if let posIdx { add(posIdx, .chargeDifference, difference.center, difference.radius) }
+        if let negIdx { add(negIdx, .chargeDifference, difference.center.negated(), difference.radius) }
+    }
+}
+
+extension BoundCapacitor: ContinuousEquationLinearLawProviding {
+    package func visitContinuousEquationLinearLaw(checkpoint: () throws -> Void,
+        _ visit: (ContinuousEquationLinearTerm) throws -> Void) throws {
+        try visitContinuousEquationTwoTerminalLaw(positive: posNode, negative: negNode,
+            positiveIndex: posIdx, negativeIndex: negIdx, plane: .charge,
+            coefficient: capacitance, device: instance.name, checkpoint: checkpoint, visit: visit)
+    }
+    package func visitContinuousEquationStructure(checkpoint: () throws -> Void,
+        _ visit: (ContinuousEquationAccess, MNAVariable, Int) throws -> Void
+    ) throws {
+        try visitContinuousEquationNode(posNode, index: posIdx, device: instance.name, access: .readCoordinate, checkpoint: checkpoint, visit: visit)
+        try visitContinuousEquationNode(negNode, index: negIdx, device: instance.name, access: .readCoordinate, checkpoint: checkpoint, visit: visit)
+        try visitContinuousEquationNode(posNode, index: posIdx, device: instance.name, access: .writeCharge, checkpoint: checkpoint, visit: visit)
+        try visitContinuousEquationNode(negNode, index: negIdx, device: instance.name, access: .writeCharge, checkpoint: checkpoint, visit: visit)
     }
 }

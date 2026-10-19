@@ -76,16 +76,15 @@ struct SPICEQuotedValueExecutionTests {
                 return
             }
             #expect(version == "4.5")
-            let lowered = try SPICEIO.lower(netlist, profile: .coreStrictV1, seed: 42, limits: IOTestFrontend.limits)
-            let mos = try #require(lowered.circuit.instances.first { $0.name == "m1" })
-            guard case .resolved(let resolved) = mos.mos else { Issue.record("Missing exact resolved release"); return }
-            #expect(resolved.release == .bsim4_4_5)
-            _ = try inspectResolvedMOS(resolved, from: lowered.snapshot, limits: IOTestFrontend.limits)
             do {
-                _ = try StandardCompiler().compile(ir: lowered.circuit)
-                Issue.record("Resolution was incorrectly admitted as numerical preparation")
-            } catch let error as CompileError {
-                #expect(error == .mosNotPrepared(instance: "m1"))
+                _ = try SPICEIO.lower(netlist, profile: .coreStrictV1, seed: 42, limits: IOTestFrontend.limits)
+                Issue.record("Legacy native compact model published a circuit")
+            } catch let error as MOSResolutionFailure {
+                guard case .osdiBindingRequired(let level, let exact, let source) = error else {
+                    Issue.record("Missing OSDI migration refusal: \(error)"); continue
+                }
+                #expect(level == 54 && exact == "4.5")
+                #expect(source.line == model.location?.line)
             }
         }
     }

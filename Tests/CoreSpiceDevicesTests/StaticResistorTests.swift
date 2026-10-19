@@ -134,4 +134,50 @@ struct StaticResistorTests {
             _ = try noisy.noiseContributions(state: SolutionState(variables: [1], variableMap: [.nodeVoltage(node): 0]), frequency: 0)
         }
     }
+
+    @Test func pairedNearshortCurrentReachesFlickerNoise() throws {
+        let negative = Node(id: 2)
+        let map: [MNAVariable: Int] = [.nodeVoltage(node): 0, .nodeVoltage(negative): 1]
+        let instance = Instance(name: "Rpaired", typeName: "resistor", nodes: [node, negative],
+            parameters: ["r": .real(0x1p-20), "m": .real(4), "scale": .real(2)],
+            model: ResolvedDeviceModel(name: "flicker", typeName: "resistor",
+                parameters: ["kf": .real(0x1p-20), "af": .real(2)]))
+        var context = BindingContext(variableMap: map, matrixDimension: 2)
+        let bound = try ResistorDescriptor().bind(instance: instance, context: &context)
+        let noisy = try #require(bound as? any NoisyDevice)
+        let paired = SolutionState(variables: [0.5, 0.5], variableMap: map,
+            variableLowComponents: [0x1p-56, 0])
+        #expect(paired.variables[0] - paired.variables[1] == 0)
+
+        var physicalCurrent = 0.0
+        try #require(bound as? any DCPhysicalResidualContributing).accumulatePhysicalResidual(state: paired) { row, current in
+            if row == 0 { physicalCurrent = current }
+        }
+        #expect(physicalCurrent == 0x1p-35)
+        let pairedNoise = try noisy.noiseContributions(state: paired, frequency: 4)
+        let pairedFlicker = try #require(pairedNoise.first { $0.name.hasSuffix("_1overf") })
+        // m*kf*(I/m)^af/f = 4*2^-20*(2^-35/4)^2/4 = 2^-94.
+        #expect(pairedFlicker.currentSpectralDensity > 0)
+        #expect(abs(pairedFlicker.currentSpectralDensity / 0x1p-94 - 1) < 1e-14)
+
+        let ordinary = SolutionState(variables: [0x1p-56, 0], variableMap: map)
+        let ordinaryNoise = try noisy.noiseContributions(state: ordinary, frequency: 4)
+        #expect(pairedNoise.map(\.currentSpectralDensity) == ordinaryNoise.map(\.currentSpectralDensity))
+    }
+
+    @Test func pairedFlickerNoiseRejectsInvalidStateAndOverflow() throws {
+        let bound = try bind(["r": .real(0x1p-20)], model: ["kf": .real(1), "af": .real(2)])
+        let noisy = try #require(bound as? any NoisyDevice)
+        let map: [MNAVariable: Int] = [.nodeVoltage(node): 0]
+        let invalid = [
+            SolutionState(variables: [0.5], variableMap: map, variableLowComponents: []),
+            SolutionState(variables: [0.5], variableMap: map, variableLowComponents: [1]),
+            SolutionState(variables: [.greatestFiniteMagnitude], variableMap: map, variableLowComponents: [0]),
+        ]
+        for state in invalid {
+            #expect(throws: NumericalStateError.self) {
+                _ = try noisy.noiseContributions(state: state, frequency: 4)
+            }
+        }
+    }
 }

@@ -31,9 +31,17 @@ public struct PhotonicGPUResources<Backend: PhotonicComputeBackend>: Sendable {
     /// - Parameter batchSize: Number of state vectors in the batch.
     /// - Returns: A buffer handle suitable for GPU dispatch.
     public func allocateStateBuffer(batchSize: Int) throws -> Backend.BufferHandle {
-        try backend.allocateBuffer(
+        guard maxBatchSize > 0, portCount > 0, batchSize > 0, batchSize <= maxBatchSize else {
+            throw PhotonicExecutionError.invalidGPUResourceRequest("batch or port limit is invalid")
+        }
+        let (ports, portOverflow) = batchSize.multipliedReportingOverflow(by: portCount)
+        let (count, complexOverflow) = ports.multipliedReportingOverflow(by: 2)
+        guard !portOverflow, !complexOverflow else {
+            throw PhotonicExecutionError.sizeOverflow("GPU state elements")
+        }
+        return try backend.allocateBuffer(
             type: Float.self,
-            count: batchSize * portCount * 2,
+            count: count,
             label: "photonic_state_\(batchSize)"
         )
     }
@@ -41,11 +49,14 @@ public struct PhotonicGPUResources<Backend: PhotonicComputeBackend>: Sendable {
     /// Allocate a coefficient buffer for a mesh layer.
     ///
     /// - Parameter pairCount: Number of MZI pairs in the layer.
-    /// - Returns: A buffer handle for `MZICoefficients` data.
+    /// - Returns: A buffer handle containing eight contiguous Float fields per matrix.
     public func allocateCoefficientsBuffer(pairCount: Int) throws -> Backend.BufferHandle {
-        try backend.allocateBuffer(
-            type: MZICoefficients.self,
-            count: pairCount,
+        guard (1...256).contains(pairCount) else {
+            throw PhotonicExecutionError.invalidGPUResourceRequest("pairCount must be in 1...256")
+        }
+        return try backend.allocateBuffer(
+            type: Float.self,
+            count: pairCount * 8,
             label: "photonic_coefficients_\(pairCount)"
         )
     }

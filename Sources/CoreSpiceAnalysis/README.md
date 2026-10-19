@@ -155,7 +155,7 @@ public struct TransientConfig: Sendable {
     public var maxTimeStep: Double
     public var initialTimeStep: Double?
     public var minTimeStep: Double           // Default: 1e-18
-    public var initialMethod: IntegrationMethod  // Default: .backwardEuler
+    public var preferredMethod: IntegrationMethod  // Default: .trapezoidal after checked BE startup
     public var lteTolerance: Double          // Default: 1e-4
     public var maxTimeStepReductions: Int    // Default: 10
     public var shrinkFactor: Double          // Default: 0.5

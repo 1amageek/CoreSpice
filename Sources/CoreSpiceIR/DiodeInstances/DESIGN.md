@@ -36,3 +36,12 @@ an executable device by merely compiling topology or looking up a registry entry
 DiodeIntegrationTests verifies public parse/lower, Netlist transport and compiler/
 direct binding refusal. DiodeResolutionExecutionTests verifies native refusal before
 allocation. D4 must extend this exact stage and consuming owner contract together.
+
+## D4 Prepared Transport
+
+DiodeInstanceStage adds a prepared inspection receipt. Both stages retain the
+same resolved value. Compiler admits only a receipt matching the instance name,
+law/schema, two terminals and no private topology for the initial law. Native
+execution must still consume the prepared numerical owner; registry metadata
+cannot bind a receipt or a raw dictionary. Source/IR clone paths preserve the
+stage unchanged.

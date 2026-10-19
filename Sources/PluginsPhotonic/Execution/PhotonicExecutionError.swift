@@ -12,6 +12,8 @@ public enum PhotonicExecutionError: Error, Sendable, LocalizedError {
     /// A GPU kernel dispatch failed.
     case dispatchFailed(String)
 
+    case invalidGPUResourceRequest(String)
+    case nonFiniteOutput(wavelength: Int, port: Int)
     case emptyWavelengthSweep
     case invalidWavelength(index: Int, value: Double)
     case invalidRepetitionCount(Int)
@@ -31,6 +33,10 @@ public enum PhotonicExecutionError: Error, Sendable, LocalizedError {
             "Photonic buffer allocation failed: \(reason)"
         case .dispatchFailed(let reason):
             "Photonic dispatch failed: \(reason)"
+        case .invalidGPUResourceRequest(let reason):
+            "Photonic GPU resource request is invalid: \(reason)"
+        case .nonFiniteOutput(let wavelength, let port):
+            "Photonic output is non-finite at wavelength \(wavelength), port \(port)."
         case .emptyWavelengthSweep:
             "Photonic wavelength sweep must contain at least one point."
         case .invalidWavelength(let index, let value):

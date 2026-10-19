@@ -24,16 +24,20 @@ public struct ComplexMatrixStamper {
 
     public var stampMatrix: (_ row: Int, _ col: Int, _ real: Double, _ imag: Double) -> Void
     public var stampRHS: (_ row: Int, _ real: Double, _ imag: Double) -> Void
+    /// Optional pre-resolved CSR accumulation, valid only for this compiled structure.
+    public var stampValue: ((_ valueIndex: Int, _ real: Double, _ imag: Double) -> Void)?
     private let variableMap: [MNAVariable: Int]
 
     public init(
         variableMap: [MNAVariable: Int],
         stampMatrix: @escaping (_ row: Int, _ col: Int, _ real: Double, _ imag: Double) -> Void,
-        stampRHS: @escaping (_ row: Int, _ real: Double, _ imag: Double) -> Void
+        stampRHS: @escaping (_ row: Int, _ real: Double, _ imag: Double) -> Void,
+        stampValue: ((_ valueIndex: Int, _ real: Double, _ imag: Double) -> Void)? = nil
     ) {
         self.variableMap = variableMap
         self.stampMatrix = stampMatrix
         self.stampRHS = stampRHS
+        self.stampValue = stampValue
     }
 
     // MARK: - Helpers

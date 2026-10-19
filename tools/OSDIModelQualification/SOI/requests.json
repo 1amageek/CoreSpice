@@ -1,0 +1,1055 @@
+{
+  "schema": "corespice.osdi.dc-inputs.v1",
+  "cases": [
+    {
+      "id": "soi-n-forward",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 5,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "p": "p"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 5e-06
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 1.2
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VP",
+          "positive": "p",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VD",
+          "positive": "d",
+          "negative": "0",
+          "value": 0.5
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": 1.2,
+        "net:e": 0,
+        "net:p": 0,
+        "net:d": 0.5
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "soi-n-reverse",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 5,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "p": "p"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 5e-06
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 1.2
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VP",
+          "positive": "p",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VD",
+          "positive": "d",
+          "negative": "0",
+          "value": -0.2
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": 1.2,
+        "net:e": 0,
+        "net:p": 0,
+        "net:d": -0.2
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "soi-n-floating",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 5e-06
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 1.2
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VD",
+          "positive": "d",
+          "negative": "0",
+          "value": 0.5
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": 1.2,
+        "net:e": 0,
+        "net:d": 0.5
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "soi-p-forward",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 5,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "p": "p"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 5e-06
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -1.2
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VP",
+          "positive": "p",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VD",
+          "positive": "d",
+          "negative": "0",
+          "value": -0.5
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": -1.2,
+        "net:e": 0,
+        "net:p": 0,
+        "net:d": -0.5
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "soi-p-reverse",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 5,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "p": "p"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 5e-06
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -1.2
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VP",
+          "positive": "p",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VD",
+          "positive": "d",
+          "negative": "0",
+          "value": 0.2
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": -1.2,
+        "net:e": 0,
+        "net:p": 0,
+        "net:d": 0.2
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "soi-p-floating",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 5e-06
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -1.2
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VD",
+          "positive": "d",
+          "negative": "0",
+          "value": -0.5
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": -1.2,
+        "net:e": 0,
+        "net:d": -0.5
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "soi-n-body-backgate",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 6,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "p": "p",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 5e-06
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RBODY",
+              "value": {
+                "kind": "real",
+                "real": 100.0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 1.2
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": -0.4
+        },
+        {
+          "id": "VP",
+          "positive": "p",
+          "negative": "0",
+          "value": -0.1
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": -0.09000000000000001
+        },
+        {
+          "id": "VD",
+          "positive": "d",
+          "negative": "0",
+          "value": 0.5
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": 1.2,
+        "net:e": -0.4,
+        "net:p": -0.1,
+        "net:b": -0.09000000000000001,
+        "net:d": 0.5
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "soi-p-body-backgate",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 6,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "p": "p",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 5e-06
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RBODY",
+              "value": {
+                "kind": "real",
+                "real": 100.0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -1.2
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0.4
+        },
+        {
+          "id": "VP",
+          "positive": "p",
+          "negative": "0",
+          "value": 0.1
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": 0.09000000000000001
+        },
+        {
+          "id": "VD",
+          "positive": "d",
+          "negative": "0",
+          "value": -0.5
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": -1.2,
+        "net:e": 0.4,
+        "net:p": 0.1,
+        "net:b": 0.09000000000000001,
+        "net:d": -0.5
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "soi-n-hot",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 350.15,
+          "connectedTerminalCount": 5,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "p": "p"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 5e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "DTEMP",
+              "value": {
+                "kind": "real",
+                "real": 10.0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 1.2
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VP",
+          "positive": "p",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VD",
+          "positive": "d",
+          "negative": "0",
+          "value": 0.5
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": 1.2,
+        "net:e": 0,
+        "net:p": 0,
+        "net:d": 0.5
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    },
+    {
+      "id": "soi-n-series-thermal",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 5,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "p": "p"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 5e-06
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RSH",
+              "value": {
+                "kind": "real",
+                "real": 100.0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 3
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RBODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RBODY",
+              "value": {
+                "kind": "real",
+                "real": 100.0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RTH0",
+              "value": {
+                "kind": "real",
+                "real": 0.01
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RL",
+          "positive": "vdd",
+          "negative": "d",
+          "value": 10000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 1.2
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VP",
+          "positive": "p",
+          "negative": "0",
+          "value": 0
+        },
+        {
+          "id": "VDD",
+          "positive": "vdd",
+          "negative": "0",
+          "value": 1.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:g": 1.2,
+        "net:e": 0,
+        "net:p": 0,
+        "net:vdd": 1.0,
+        "net:d": 0.5
+      },
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {}
+    }
+  ]
+}

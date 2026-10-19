@@ -244,3 +244,20 @@ Condition source is admitted into the already reserved diagnostic capacity befor
 executing its root. It is cleared after successful freeze. Oversized path/capture
 text sets truncation and cannot increase the diagnostic budget. Source location and
 active binding path remain separate fields.
+
+## Immutable Provenance Payload Capacity
+
+The completed `MOSEvaluationProvenance` retains only inline environment/seed/counters,
+version text and the actual-capacity ordered root-visit buffer. Its package-only
+`retainedPayloadByteCount()` reports that dynamic payload using the shared checked
+buffer-capacity and UTF-8 accounting convention. It does not inherit the consumed
+session's snapshot/graph, memo caches, candidate/condition diagnostic reserve, or
+interpreter storage. Existing session `retainedBytes` remains an execution-ledger
+statistic and is not the capacity of this immutable result.
+
+This measurement performs no allocation or copy. A caller retaining the value
+outside the active session admits its inline header separately and owns the
+reported buffer/text payload for the result's lifetime. Session construction,
+source evaluation and failure diagnostics retain their existing complete admission.
+`ImmutableProvenanceStorageTests` in Lowering verifies actual root capacity and
+independence from diagnostic policy through real session completion.

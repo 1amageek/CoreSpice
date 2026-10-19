@@ -219,6 +219,10 @@ public struct MOSEvaluationSession: ~Copyable {
             try spend(.evaluationSteps)
             _ = try snapshot.name(of: binding.symbol); _ = try snapshot.program(binding.program)
         }
+        for binding in request.modelOverrides {
+            try spend(.evaluationSteps)
+            _ = try snapshot.name(of: binding.symbol); _ = try snapshot.program(binding.program)
+        }
     }
 
     package mutating func cachedInstance(for request: MOSResolutionRequest)

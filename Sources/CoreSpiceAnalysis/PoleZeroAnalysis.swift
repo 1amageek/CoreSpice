@@ -3,7 +3,6 @@ import CoreSpiceDevices
 import CoreSpiceIR
 import CoreSpiceEvent
 import Foundation
-import CoreSpiceLAPACK
 
 /// Pole-zero (.pz) analysis.
 ///
@@ -12,16 +11,17 @@ import CoreSpiceLAPACK
 /// The analysis proceeds as follows:
 ///
 /// 1. **DC operating point**: Finds the linearization point.
-/// 2. **Matrix extraction**: Stamps the AC model at `ω = 1` to obtain
+/// 2. **Matrix extraction**: For explicitly affine devices, stamps at `ω = 1` to obtain
 ///    the conductance matrix `G` (real parts) and susceptance matrix `C`
 ///    (imaginary parts) from the complex MNA equation `(G + sC)x = 0`.
 /// 3. **Pole computation**: Solves the generalized eigenvalue problem
-///    `G·v = λ·C·v` using LAPACK's QZ algorithm. Poles are `s = −λ`.
+///    `G·v = λ·C·v` using the Pure Swift generalized Schur algorithm. Poles are `s = −λ`.
 /// 4. **Zero computation**: Builds the Rosenbrock system pencil from
 ///    `G`, `C`, the input vector, and the output vector.
 /// 5. **DC gain**: Solves the linearized DC system with the unit excitation.
 public struct PoleZeroAnalysis: Analysis, Sendable {
     package var executionBudget: TransientExecutionBudget?
+    package var resultStorage: (any AnalysisResultStorageAccounting)?
 
     public typealias Result = PoleZeroResult
 
@@ -36,28 +36,43 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
 
     /// DC convergence configuration.
     public let dcConfig: ConvergenceConfig
+    public let equationPolicy: DCEquationPolicy?
+    public let physicalResidualValidator: (any DCPhysicalResidualValidating)?
+    public let completionFinalizer: (any AnalysisCompletionFinalizing)?
 
     public init(
         outputNode: Node,
         inputSourceName: String,
-        dcConfig: ConvergenceConfig = ConvergenceConfig()
+        dcConfig: ConvergenceConfig = ConvergenceConfig(),
+        equationPolicy: DCEquationPolicy? = nil,
+        physicalResidualValidator: (any DCPhysicalResidualValidating)? = nil,
+        completionFinalizer: (any AnalysisCompletionFinalizing)? = nil
     ) {
         self.input = .voltageSource(name: inputSourceName)
         self.outputPositiveNode = outputNode
         self.outputReferenceNode = .ground
         self.dcConfig = dcConfig
+        self.equationPolicy = equationPolicy
+        self.physicalResidualValidator = physicalResidualValidator
+        self.completionFinalizer = completionFinalizer
     }
 
     public init(
         input: PoleZeroInput,
         outputPositiveNode: Node,
         outputReferenceNode: Node = .ground,
-        dcConfig: ConvergenceConfig = ConvergenceConfig()
+        dcConfig: ConvergenceConfig = ConvergenceConfig(),
+        equationPolicy: DCEquationPolicy? = nil,
+        physicalResidualValidator: (any DCPhysicalResidualValidating)? = nil,
+        completionFinalizer: (any AnalysisCompletionFinalizing)? = nil
     ) {
         self.input = input
         self.outputPositiveNode = outputPositiveNode
         self.outputReferenceNode = outputReferenceNode
         self.dcConfig = dcConfig
+        self.equationPolicy = equationPolicy
+        self.physicalResidualValidator = physicalResidualValidator
+        self.completionFinalizer = completionFinalizer
     }
 
     public func run(
@@ -82,9 +97,17 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
         )))
 
         do {
+            for device in devices {
+                if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
+                if case .unsupported(let reason) = device.poleZeroStampApplicability {
+                    throw AnalysisError.unsupportedPoleZeroDevice(instance: device.instance.name, reason: reason)
+                }
+            }
             // Phase 1: DC operating point
-            var dcAnalysis = DCAnalysis(config: dcConfig)
+            var dcAnalysis = DCAnalysis(config: dcConfig, equationPolicy: equationPolicy,
+                physicalResidualValidator: physicalResidualValidator)
             dcAnalysis.executionBudget = executionBudget
+            dcAnalysis.resultStorage = resultStorage
             try executionBudget?.admitSavedPoint(accepted: false)
             let dcResult = try await dcAnalysis.run(
                 plan: plan,
@@ -96,13 +119,53 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
 
             let dcState = SolutionState(
                 variables: dcResult.variables,
-                variableMap: variableMap
+                variableMap: variableMap,
+                variableLowComponents: dcResult.variableLowComponents
             )
 
+            if let equationPolicy {
+                var endpoints = [outputPositiveNode, outputReferenceNode]
+                switch input {
+                case .current(let positive, let reference), .voltage(let positive, let reference):
+                    endpoints.append(contentsOf: [positive, reference])
+                case .voltageSource(let name):
+                    if let source = plan.ir.instances.first(where: {
+                        $0.name.caseInsensitiveCompare(name) == .orderedSame && $0.typeName == "vsource"
+                    }) { endpoints.append(contentsOf: source.nodes) }
+                }
+                for node in endpoints {
+                    try equationPolicy.requireElectricalEndpoint(node, variableMap: variableMap,
+                        context: "Pole-zero electrical port")
+                }
+            }
+
+            let control = AnalysisLinearSolverControl(budget: executionBudget, cancellation: cancellation, storage: resultStorage)
+            try control.checkpoint(workUnits: 0)
+            let augmentedDimension = try TransientExecutionBudget.add(dim, 1, "zero pencil dimension")
+            // Caller planes coexist with the separately admitted QZ/LU workspaces.
+            let square = try TransientExecutionBudget.multiply(dim, dim, "pole-zero caller square")
+            let augmentedSquare = try TransientExecutionBudget.multiply(augmentedDimension, augmentedDimension,
+                                                                        "pole-zero augmented square")
+            var scalarCount = try TransientExecutionBudget.add(
+                TransientExecutionBudget.multiply(square, 4, "pole-zero G/C planes"),
+                TransientExecutionBudget.multiply(augmentedSquare, 2, "pole-zero Rosenbrock planes"),
+                "pole-zero caller planes")
+            scalarCount = try TransientExecutionBudget.add(scalarCount,
+                TransientExecutionBudget.multiply(plan.matrixStructure.nonZeroCount, 2, "pole-zero complex CSR"),
+                "pole-zero caller scalars")
+            scalarCount = try TransientExecutionBudget.add(scalarCount,
+                TransientExecutionBudget.multiply(dim, 2, "pole-zero port vectors"), "pole-zero caller scalars")
+            let arrayValues = try TransientExecutionBudget.add(
+                TransientExecutionBudget.multiply(dim, 2, "pole-zero row array values"), 12, "pole-zero array values")
+            let callerBytes = try TransientExecutionBudget.add(
+                TransientExecutionBudget.multiply(scalarCount, MemoryLayout<Double>.stride, "pole-zero caller bytes"),
+                TransientExecutionBudget.multiply(arrayValues, MemoryLayout<Array<Double>>.stride, "pole-zero array value bytes"),
+                "pole-zero caller storage")
+            let callerStorage = try control.reserveStorage(byteCount: callerBytes)
+            defer { withExtendedLifetime(callerStorage) {} }
+            try executionBudget?.beginLinearSolve()
             let inputVector = try makeInputVector(plan: plan, dimension: dim)
             let outputVector = try makeOutputVector(plan: plan, dimension: dim)
-
-            try executionBudget?.beginLinearSolve()
 
             // Phase 2: Extract G and C dense matrices from AC stamps at ω = 1
             let (gDense, cDense) = try extractGCMatrices(
@@ -110,7 +173,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 devices: devices,
                 dcState: dcState,
                 dim: dim,
-                variableMap: variableMap
+                variableMap: variableMap, control: control
             )
 
             // Phase 3: DC gain from the G matrix (s=0 response)
@@ -118,7 +181,10 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 gDense: gDense,
                 dim: dim,
                 inputVector: inputVector,
-                outputVector: outputVector
+                outputVector: outputVector,
+                structure: plan.matrixStructure,
+                solver: solver,
+                control: control
             )
 
             await observer?.emit(.progressUpdate(try ProgressInfo(
@@ -129,16 +195,19 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
 
             // Phase 4: Poles — solve G·v = λ·C·v, then s = −λ
             try executionBudget?.beginLinearSolve()
-            let gColMajor = toColumnMajor(gDense, dim: dim)
-            let cColMajor = toColumnMajor(cDense, dim: dim)
+            let gColMajor = try toColumnMajor(gDense, dim: dim, control: control)
+            let cColMajor = try toColumnMajor(cDense, dim: dim, control: control)
 
             let poleResult = try GeneralizedEigenSolver.solve(
                 matrixA: gColMajor,
                 matrixB: cColMajor,
-                dimension: dim
+                dimension: dim, control: control
             )
 
             try executionBudget?.admitSavedScalars(TransientExecutionBudget.multiply(poleResult.eigenvalues.count, 2, "pole complex scalars"))
+            try resultStorage?.reserveResultScalars(TransientExecutionBudget.add(dim,
+                TransientExecutionBudget.add(TransientExecutionBudget.multiply(poleResult.eigenvalues.count, 2,
+                    "pole output storage"), 1, "pole gain storage"), "pole OP coexistence"))
             let poles = poleResult.eigenvalues.map { lambda in
                 ComplexPair(real: -lambda.real, imag: -lambda.imag)
             }
@@ -149,26 +218,39 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 message: "Computing zeros"
             )))
 
-            let augmentedDimension = try TransientExecutionBudget.add(dim, 1, "zero pencil dimension")
             try executionBudget?.beginLinearSolve(dimension: augmentedDimension)
-            let zeroPencil = makeZeroPencil(
+            let zeroPencil = try makeZeroPencil(
                 gDense: gDense,
                 cDense: cDense,
                 inputVector: inputVector,
                 outputVector: outputVector,
-                dimension: dim
+                dimension: dim, control: control
             )
             let zeroResult = try GeneralizedEigenSolver.solve(
                 matrixA: zeroPencil.a,
                 matrixB: zeroPencil.b,
-                dimension: dim + 1
+                dimension: augmentedDimension, control: control
             )
             try executionBudget?.admitSavedScalars(TransientExecutionBudget.add(
                 TransientExecutionBudget.multiply(zeroResult.eigenvalues.count, 2, "zero complex scalars"), 1, "DC gain scalar"))
+            let complexOutputs = try TransientExecutionBudget.add(poles.count, zeroResult.eigenvalues.count,
+                                                                  "pole-zero output entries")
+            try resultStorage?.reserveResultScalars(TransientExecutionBudget.add(dim,
+                TransientExecutionBudget.add(TransientExecutionBudget.multiply(complexOutputs, 2,
+                    "pole-zero output storage"), 1, "pole-zero gain storage"), "pole-zero OP coexistence"))
             let zeros = zeroResult.eigenvalues.map { lambda in
                 ComplexPair(real: -lambda.real, imag: -lambda.imag)
             }
 
+            let result = try PoleZeroResult(
+                poles: poles,
+                zeros: zeros,
+                dcGain: dcGain,
+                variableMap: variableMap
+            )
+            if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
+            try completionFinalizer?.finalizeCompletion()
+            if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .pz,
@@ -177,12 +259,7 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
                 wallTime: Timestamp().elapsed(since: startTimestamp)
             )))
 
-            return try PoleZeroResult(
-                poles: poles,
-                zeros: zeros,
-                dcGain: dcGain,
-                variableMap: variableMap
-            )
+            return result
         } catch {
             let status: AnalysisStatus
             if let analysisError = error as? AnalysisError,
@@ -215,8 +292,10 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
         devices: [any BoundDevice],
         dcState: SolutionState,
         dim: Int,
-        variableMap: [MNAVariable: Int]
+        variableMap: [MNAVariable: Int],
+        control: AnalysisLinearSolverControl
     ) throws -> (g: [[Double]], c: [[Double]]) {
+        try control.checkpoint(workUnits: TransientExecutionBudget.multiply(plan.matrixStructure.nonZeroCount, 2, "pole-zero CSR initialization"))
         var matrix = ComplexSparseMatrix(structure: plan.matrixStructure)
 
         var stamper = ComplexMatrixStamper(
@@ -226,14 +305,19 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
             },
             stampRHS: { _, _, _ in
                 // RHS not needed for G/C extraction
+            },
+            stampValue: { index, real, imag in
+                matrix.addValueDirect(at: index, value: ComplexPair(real: real, imag: imag))
             }
         )
 
         // Stamp at ω = 1 so that imaginary parts equal the C coefficients
         let omega = 1.0
         for device in devices {
+            try control.checkpoint(workUnits: 4)
             try device.stampAC(into: &stamper, state: dcState, omega: omega)
         }
+        try control.checkpoint(workUnits: 0)
         guard matrix.structuralMisses.isEmpty else {
             let first = matrix.structuralMisses[0]
             throw AnalysisError.internalError(
@@ -241,73 +325,95 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
             )
         }
 
-        let dense = matrix.toDense()
-
-        // Separate real (G) and imaginary (C) parts
+        let square = try TransientExecutionBudget.multiply(dim, dim, "pole-zero G/C initialization")
+        try control.checkpoint(workUnits: TransientExecutionBudget.multiply(square, 2, "pole-zero G/C initialization"))
         var g = Array(repeating: Array(repeating: 0.0, count: dim), count: dim)
         var c = Array(repeating: Array(repeating: 0.0, count: dim), count: dim)
-
-        for i in 0..<dim {
-            for j in 0..<dim {
-                g[i][j] = dense[i][j].real
-                c[i][j] = dense[i][j].imag
-                guard g[i][j].isFinite, c[i][j].isFinite else {
-                    throw AnalysisError.internalError(
-                        "Pole-zero matrix contains a non-finite value at (\(i), \(j))"
-                    )
+        // Read the original compiled CSR directly; no intermediate dense complex plane.
+        for row in 0..<dim {
+            try control.checkpoint(workUnits: 1)
+            let first = matrix.structure.rowPointers[row], last = matrix.structure.rowPointers[row + 1]
+            for slot in first..<last {
+                if (slot - first) % 32 == 0 { try control.checkpoint(workUnits: min(32, last - slot) * 4) }
+                let column = matrix.structure.columnIndices[slot], value = matrix.values[slot]
+                guard value.real.isFinite, value.imag.isFinite else {
+                    throw AnalysisError.internalError("Pole-zero AC matrix contains a non-finite value")
                 }
+                g[row][column] = value.real
+                c[row][column] = value.imag
             }
         }
 
         return (g, c)
     }
 
-    /// Computes the DC gain by solving `G * x = b` using LAPACK's `dgesv`.
-    ///
-    /// At DC (`s = 0`) the system reduces to `G * x = b` where `b` has a
-    /// unit voltage excitation at the input source branch row. The DC gain
-    /// is the output node voltage from the resulting solution vector.
+    private enum LinearResponseError: Error {
+        case invalidResidual(row: Int)
+        case nonFiniteArithmetic
+    }
+
+    /// Solves the same original G using the existing controlled Swift sparse LU.
     private func computeDCGainFromG(
-        gDense: [[Double]],
-        dim: Int,
-        inputVector: [Double],
-        outputVector: [Double]
+        gDense: [[Double]], dim: Int, inputVector: [Double], outputVector: [Double],
+        structure: SparseStructure, solver: any LinearSolver,
+        control: AnalysisLinearSolverControl
     ) throws -> Double {
         guard dim > 0 else {
-            throw AnalysisError.invalidConfiguration(
-                "Pole-zero analysis requires a non-empty MNA system"
-            )
+            throw AnalysisError.invalidConfiguration("Pole-zero analysis requires a non-empty MNA system")
         }
-
-        // Convert G to column-major flat array for LAPACK
-        var a = toColumnMajor(gDense, dim: dim)
-
-        var b = inputVector
-
-        let dimension = CoreSpiceLAPACKInteger(dim)
-        var ipiv = [CoreSpiceLAPACKInteger](repeating: 0, count: dim)
-        let info = coreSpiceLAPACKSolve(
-            dimension,
-            1,
-            &a,
-            dimension,
-            &ipiv,
-            &b,
-            dimension
-        )
-
-        if info > 0 {
-            throw AnalysisError.singularMatrix
+        let sparseBytes = try TransientExecutionBudget.multiply(structure.nonZeroCount, MemoryLayout<Double>.stride,
+                                                                 "pole-zero G sparse values")
+        let vectorBytes = try TransientExecutionBudget.multiply(dim, MemoryLayout<Double>.stride,
+                                                                 "pole-zero gain vectors")
+        let storage = try control.reserveStorage(byteCount: TransientExecutionBudget.add(sparseBytes, vectorBytes,
+                                                                                       "pole-zero gain storage"))
+        defer { withExtendedLifetime(storage) {} }
+        var matrix = SparseMatrix(structure: structure)
+        for row in 0..<dim {
+            for slot in structure.rowPointers[row]..<structure.rowPointers[row + 1] {
+                if slot % 32 == 0 { try control.checkpoint(workUnits: min(32, structure.nonZeroCount - slot) * 2) }
+                matrix.addValueDirect(at: slot, value: gDense[row][structure.columnIndices[slot]])
+            }
         }
-        if info < 0 {
-            throw AnalysisError.internalError(
-                "LAPACK dgesv rejected argument \(-info) while computing pole-zero DC gain"
-            )
+        var gainSolver = solver
+        if executionBudget != nil || resultStorage != nil { try gainSolver.configureExecution(control) }
+        let solution: [Double]
+        do {
+            try gainSolver.factorize(matrix: matrix)
+            solution = try gainSolver.solve(rhs: inputVector)
+        } catch CompileError.singularMatrix { throw AnalysisError.singularMatrix }
+        try control.checkpoint(workUnits: 0)
+        // Componentwise backward error in the original G, with compensated products/sums.
+        // This is a numerical linear-response check, independent of source/OP tolerances.
+        for row in 0..<dim {
+            var sum = -inputVector[row], correction = 0.0, magnitude = abs(inputVector[row])
+            let first = structure.rowPointers[row], last = structure.rowPointers[row + 1]
+            for slot in first..<last {
+                if (slot - first) % 32 == 0 { try control.checkpoint(workUnits: min(32, last - slot) * 24) }
+                let coefficient = matrix.values[slot], x = solution[structure.columnIndices[slot]]
+                let product = coefficient * x
+                let productError = (-product).addingProduct(coefficient, x)
+                let next = sum + product
+                correction += abs(sum) >= abs(product) ? (sum - next) + product : (product - next) + sum
+                correction += productError
+                sum = next; magnitude += abs(product)
+                guard product.isFinite, correction.isFinite, sum.isFinite, magnitude.isFinite else {
+                    throw LinearResponseError.nonFiniteArithmetic
+                }
+            }
+            let residual = sum + correction
+            let bound = 128 * Double(max(1, last - first)) * Double.ulpOfOne * magnitude
+            guard residual.isFinite, abs(residual) <= bound else {
+                throw LinearResponseError.invalidResidual(row: row)
+            }
         }
-
-        return zip(outputVector, b).reduce(into: 0.0) {
-            $0 += $1.0 * $1.1
+        var gain = 0.0
+        for index in 0..<dim {
+            if index % 32 == 0 { try control.checkpoint(workUnits: min(32, dim - index) * 2) }
+            gain = gain.addingProduct(outputVector[index], solution[index])
         }
+        guard gain.isFinite else { throw LinearResponseError.nonFiniteArithmetic }
+        return gain
     }
 
     private func makeInputVector(
@@ -417,6 +523,16 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
             )
         }
 
+        if let branch = source.ownedBranches.first {
+            guard source.ownedBranches.count == 1,
+                  let index = variableMap[.branchCurrent(branch)] else {
+                throw AnalysisError.invalidConfiguration(
+                    "Owned branch for input source '\(sourceName)' is invalid"
+                )
+            }
+            return index
+        }
+
         if let namedBranch = plan.ir.branchNames.first(where: {
             $0.value.caseInsensitiveCompare(source.name) == .orderedSame
         })?.key,
@@ -454,11 +570,14 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
         )
     }
 
-    /// Converts a row-major 2D array to a column-major flat array for LAPACK.
-    private func toColumnMajor(_ matrix: [[Double]], dim: Int) -> [Double] {
-        var colMajor = [Double](repeating: 0, count: dim * dim)
+    /// Converts the existing dense extraction to the Schur component layout.
+    private func toColumnMajor(_ matrix: [[Double]], dim: Int, control: AnalysisLinearSolverControl) throws -> [Double] {
+        let square = try TransientExecutionBudget.multiply(dim, dim, "pole-zero column-major size")
+        try control.checkpoint(workUnits: square)
+        var colMajor = [Double](repeating: 0, count: square)
         for row in 0..<dim {
             for col in 0..<dim {
+                if col % 32 == 0 { try control.checkpoint(workUnits: min(32, dim - col)) }
                 colMajor[col * dim + row] = matrix[row][col]
             }
         }
@@ -470,16 +589,20 @@ public struct PoleZeroAnalysis: Analysis, Sendable {
         cDense: [[Double]],
         inputVector: [Double],
         outputVector: [Double],
-        dimension: Int
-    ) -> (a: [Double], b: [Double]) {
-        let augmentedDimension = dimension + 1
+        dimension: Int,
+        control: AnalysisLinearSolverControl
+    ) throws -> (a: [Double], b: [Double]) {
+        let augmentedDimension = try TransientExecutionBudget.add(dimension, 1, "pole-zero augmented dimension")
+        let square = try TransientExecutionBudget.multiply(augmentedDimension, augmentedDimension, "pole-zero augmented square")
+        try control.checkpoint(workUnits: TransientExecutionBudget.multiply(square, 2, "pole-zero pencil initialization"))
         var a = [Double](
             repeating: 0.0,
-            count: augmentedDimension * augmentedDimension
+            count: square
         )
         var b = a
         for row in 0..<dimension {
             for column in 0..<dimension {
+                if column % 32 == 0 { try control.checkpoint(workUnits: min(32, dimension - column) * 2) }
                 a[column * augmentedDimension + row] = gDense[row][column]
                 b[column * augmentedDimension + row] = cDense[row][column]
             }

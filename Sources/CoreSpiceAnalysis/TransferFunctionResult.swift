@@ -11,10 +11,12 @@ public struct TransferFunctionResult: Sendable, AnalysisResultStorageRetaining {
     public let gain: Double
 
     /// The input impedance in ohms, seen at the input source terminals.
-    public let inputImpedance: Double
+    public var inputImpedance: Double { inputPortImpedance.ohms }
+    public let inputPortImpedance: PortImpedance
 
     /// The output impedance in ohms, seen at the output node.
-    public let outputImpedance: Double
+    public var outputImpedance: Double { outputPortImpedance.ohms }
+    public let outputPortImpedance: PortImpedance
 
     /// The DC operating point result used as the linearization point.
     public let dcOperatingPoint: DCResult
@@ -29,6 +31,18 @@ public struct TransferFunctionResult: Sendable, AnalysisResultStorageRetaining {
         dcOperatingPoint: DCResult,
         variableMap: [MNAVariable: Int]
     ) throws {
+        try self.init(gain: gain, inputPortImpedance: PortImpedance(ohms: inputImpedance),
+            outputPortImpedance: PortImpedance(ohms: outputImpedance),
+            dcOperatingPoint: dcOperatingPoint, variableMap: variableMap)
+    }
+
+    public init(
+        gain: Double,
+        inputPortImpedance: PortImpedance,
+        outputPortImpedance: PortImpedance,
+        dcOperatingPoint: DCResult,
+        variableMap: [MNAVariable: Int]
+    ) throws {
         guard gain.isFinite else {
             throw AnalysisResultValidationError.nonFiniteValue(
                 field: "gain",
@@ -36,26 +50,14 @@ public struct TransferFunctionResult: Sendable, AnalysisResultStorageRetaining {
                 value: gain
             )
         }
-        guard !inputImpedance.isNaN else {
-            throw AnalysisResultValidationError.nonFiniteValue(
-                field: "inputImpedance",
-                index: 0,
-                value: inputImpedance
-            )
-        }
-        guard !outputImpedance.isNaN else {
-            throw AnalysisResultValidationError.nonFiniteValue(
-                field: "outputImpedance",
-                index: 0,
-                value: outputImpedance
-            )
-        }
+        try inputPortImpedance.validate(field: "inputImpedance")
+        try outputPortImpedance.validate(field: "outputImpedance")
         guard variableMap == dcOperatingPoint.variableMap else {
             throw AnalysisResultValidationError.variableMapMismatch
         }
         self.gain = gain
-        self.inputImpedance = inputImpedance
-        self.outputImpedance = outputImpedance
+        self.inputPortImpedance = inputPortImpedance
+        self.outputPortImpedance = outputPortImpedance
         self.dcOperatingPoint = dcOperatingPoint
         self.variableMap = variableMap
         self.retainedStorage = nil
@@ -68,8 +70,8 @@ public struct TransferFunctionResult: Sendable, AnalysisResultStorageRetaining {
 
     private init(retaining result: Self, owner: any Sendable) {
         self.gain = result.gain
-        self.inputImpedance = result.inputImpedance
-        self.outputImpedance = result.outputImpedance
+        self.inputPortImpedance = result.inputPortImpedance
+        self.outputPortImpedance = result.outputPortImpedance
         self.dcOperatingPoint = result.dcOperatingPoint.retainingStorage(owner)
         self.variableMap = result.variableMap
         self.retainedStorage = owner

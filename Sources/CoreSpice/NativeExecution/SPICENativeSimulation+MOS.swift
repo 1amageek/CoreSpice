@@ -10,29 +10,25 @@ extension SPICENativeSimulation {
         }
         let configuration = input.configuration
         var capabilities: MOSAnalysisCapabilities = [.dc]
-        if case .transient = configuration.analysis { capabilities.insert(.transient) }
-        if configuration.options.bsim4NoisePreparationRequested { capabilities.insert(.noise) }
+        switch configuration.analysis {
+        case .transient, .fourier: capabilities.insert(.transient)
+        case .ac, .poleZero, .network: capabilities.insert(.ac)
+        case .noise: capabilities.formUnion([.ac, .noise])
+        case .sensitivity(_, let sweep): if sweep != nil { capabilities.insert(.ac) }
+        case .op, .dc, .transferFunction: break
+        }
         let operating = try configuration.options.operatingConditions()
         guard conditions.ambientKelvin == operating.temperatureKelvin,
               conditions.nominalKelvin == operating.nominalTemperatureKelvin,
               conditions.analysisCapabilities == capabilities else {
             throw SPICENativePreparationError.mosPreparation(.invalidConditions)
         }
-        for instance in input.circuit.instances {
-            guard case .resolved(let resolved) = instance.mos else { continue }
-            if resolved.release == .bsim4_4_8_3 || resolved.release == .bsim4_4_5 {
-                guard let policy = configuration.options.bsim4PreparationPolicy,
-                      policy.maximumStressIterations == conditions.maximumStressIterations else {
-                    throw SPICENativePreparationError.mosPreparation(.invalidConditions)
-                }
-            }
-        }
     }
 
     internal func encodeMOS(_ receipt: MOSPreparationReceipt, input: PreparedSPICESimulation,
                             encoding: inout SPICEPreparationEncoding) throws {
         let resolved = receipt.identity.resolved
-        try encoding.field("mos-preparation.v1")
+        try encoding.field("mos-preparation.v2")
         try encodeSource(resolved.source, input: input, encoding: &encoding)
         if let source = resolved.instanceSource {
             try encoding.integer(1); try encodeSource(source, input: input, encoding: &encoding)
@@ -55,13 +51,9 @@ extension SPICENativeSimulation {
         let conditions = receipt.identity.conditions
         try encoding.number(conditions.ambientKelvin); try encoding.number(conditions.nominalKelvin)
         try encoding.integer(UInt64(conditions.analysisCapabilities.rawValue))
-        try encoding.integer(UInt64(conditions.maximumStressIterations))
         try encoding.field(receipt.identity.implementationIdentity)
-        let topology = receipt.topology
-        for slot in [topology.localNodeCount, topology.drainPrime, topology.sourcePrime, topology.gatePrime,
-                     topology.gateMid, topology.bodyPrime, topology.drainBody, topology.sourceBody, topology.chargeNode] {
-            try encoding.integer(UInt64(slot))
-        }
+        // The v2 classic topology is the fixed D/G/S/B four-port value.
+        try encoding.integer(UInt64(receipt.topology.localNodeCount))
     }
 
     private func encodeSource(_ origin: MOSSourceOccurrence, input: PreparedSPICESimulation,

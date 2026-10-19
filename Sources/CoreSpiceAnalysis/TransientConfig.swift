@@ -19,13 +19,14 @@ public struct TransientConfig: Sendable {
     /// Initial timestep, or `nil` to auto-compute from `maxTimeStep`.
     public var initialTimeStep: Double?
 
-    /// Minimum allowed timestep (seconds). The simulation fails if the
-    /// adaptive controller tries to go below this value.
+    /// Minimum adaptive timestep proposal (seconds).
+    /// Accepted steps clamp their next proposal to this value; a rejected trial
+    /// that requires a smaller step fails. Exact stop-time or breakpoint
+    /// intervals may be shorter.
     public var minTimeStep: Double
 
-    /// Integration method to use for the first step.
-    /// Subsequent steps may switch to a higher-order method.
-    public var initialMethod: IntegrationMethod
+    /// Integration method after checked backward-Euler startup and smooth history formation.
+    public var preferredMethod: IntegrationMethod
 
     /// Normalized LTE tolerance (dimensionless).
     /// After normalization, 1.0 means every variable is at its tolerance boundary.
@@ -60,7 +61,7 @@ public struct TransientConfig: Sendable {
         maxTimeStep: Double? = nil,
         initialTimeStep: Double? = nil,
         minTimeStep: Double = 1e-18,
-        initialMethod: IntegrationMethod = .backwardEuler,
+        preferredMethod: IntegrationMethod = .trapezoidal,
         lteTolerance: Double = 1.0,
         maxTimeStepReductions: Int = 30,
         shrinkFactor: Double = 0.5,
@@ -80,7 +81,7 @@ public struct TransientConfig: Sendable {
         self.maxTimeStep = maxTimeStep ?? stopTime / 50.0
         self.initialTimeStep = initialTimeStep
         self.minTimeStep = minTimeStep
-        self.initialMethod = initialMethod
+        self.preferredMethod = preferredMethod
         self.lteTolerance = lteTolerance
         self.maxTimeStepReductions = maxTimeStepReductions
         self.shrinkFactor = shrinkFactor

@@ -41,10 +41,13 @@ extension PreparedNativeExecutionTests {
         do {
             let owner = try storageCircuit(input, limits: storageLimits(saved: 64), resources: resources)
             preparationBytes = resources.used(.liveOwnedBytes)
+            #expect(owner.record.reservations.count == 2)
             let scalarBytes = UInt64(owner.plan.topology.dimension + 1) * 32
+            let executionHeaderBytes = UInt64(MemoryLayout<UInt64>.stride)
             let factBytes = UInt64(owner.plan.ir.instances.count * MemoryLayout<Instance>.stride)
+            let dcBytes = try NativeCircuitExecution.dcOutputCapacity(owner.record, points: 1) + NativeCircuitExecution.dcWorkingCapacity(owner.record)
             let run = try await DCAnalysis().run(circuit: owner, solver: SparseLUSolver(), observer: nil, cancellation: .init())
-            #expect(resources.used(.liveOwnedBytes) == preparationBytes + scalarBytes + factBytes)
+            #expect(resources.used(.liveOwnedBytes) == preparationBytes + executionHeaderBytes + scalarBytes + factBytes + dcBytes)
             result = run.result
         }
         #expect(resources.used(.liveOwnedBytes) > preparationBytes)
@@ -62,14 +65,52 @@ extension PreparedNativeExecutionTests {
         let probeResources = SourceBoundaryTestResources()
         let probe = try storageCircuit(input, limits: storageLimits(saved: 64), resources: probeResources)
         let dimension = probe.plan.topology.dimension
-        let compileBytes = probeResources.used(.liveOwnedBytes)
+        let compileBytes = probe.record.compileCapacity
+        let preparationLiveBytes = probeResources.used(.liveOwnedBytes)
         let factBytes = UInt64(probe.plan.ir.instances.count * MemoryLayout<Instance>.stride)
-        let scalarBytes = UInt64(dimension + 1) * 32
-        let bytes = nativeCeiling ? compileBytes * 2 + factBytes + scalarBytes * 3 : 64 * 1024 * 1024
-        let resources = SourceBoundaryTestResources(liveLimit: nativeCeiling ? .max : compileBytes + factBytes + scalarBytes * 3)
-        let allowedPoints = nativeCeiling ? (bytes - compileBytes - factBytes) / scalarBytes : 3
-        var admittedPoints: UInt64 = 1
-        while admittedPoints <= allowedPoints / 2 { admittedPoints *= 2 }
+        // Non-OSDI execution retains one immutable original-allocation-floor scalar.
+        let executionHeaderBytes = UInt64(MemoryLayout<UInt64>.stride)
+        // Each geometric point slot retains time, the full solution and one audit
+        // record. The initial DC vector is retained once; execution scratch and
+        // sparse factors participate in the combined native peak ceiling.
+        let auditScalars = (MemoryLayout<TransientAcceptedStep>.stride + MemoryLayout<Double>.stride - 1) / MemoryLayout<Double>.stride
+        let pointScalars = UInt64(dimension + 1 + auditScalars)
+        let operatingPointScalars = UInt64(dimension)
+        let dcWorkingBytes = try NativeCircuitExecution.dcWorkingCapacity(probe.record)
+        func resultBytes(points: UInt64) -> UInt64 { (points * pointScalars + operatingPointScalars) * 32 }
+        var executionTemporaryPeak: UInt64 = 0
+        var calibratedPoints = 0
+        if nativeCeiling {
+            let calibrationResources = SourceBoundaryTestResources()
+            do {
+                let owner = try storageCircuit(input, limits: limits, resources: calibrationResources)
+                calibrationResources.resetTemporaryPeak()
+                let run = try await TransientAnalysis(config: config).run(circuit: owner,
+                    solver: SparseLUSolver(), observer: nil, cancellation: .init())
+                #expect(run.result.timePoints.last == config.stopTime)
+                calibratedPoints = run.result.timePoints.count
+                executionTemporaryPeak = calibrationResources.peakTemporaryBytes
+                withExtendedLifetime(run) {}
+            }
+            #expect(calibrationResources.used(.liveOwnedBytes) == 0)
+            #expect(calibrationResources.used(.temporaryBytes) == 0)
+            #expect(calibrationResources.releaseCount == calibrationResources.reservationCount)
+        }
+        func retainedNativeBytes(points: UInt64) -> UInt64 {
+            compileBytes + executionHeaderBytes + factBytes + resultBytes(points: points) + dcWorkingBytes
+        }
+        var admittedPoints: UInt64 = 4
+        // Admit every measured numerical workspace at this point boundary, while
+        // the next trace doubling alone exceeds that entire scratch allowance.
+        while nativeCeiling && (admittedPoints * pointScalars * 32 <= executionTemporaryPeak ||
+            retainedNativeBytes(points: admittedPoints) + executionTemporaryPeak < compileBytes * 2) {
+            admittedPoints *= 2
+        }
+        if nativeCeiling { try #require(Int(admittedPoints) < calibratedPoints) }
+        let bytes = nativeCeiling
+            ? retainedNativeBytes(points: admittedPoints) + executionTemporaryPeak : 64 * 1024 * 1024
+        let liveBoundary = preparationLiveBytes + executionHeaderBytes + factBytes + resultBytes(points: admittedPoints) + dcWorkingBytes
+        let resources = SourceBoundaryTestResources(liveLimit: nativeCeiling ? .max : liveBoundary)
         let accepted = Mutex(0)
         do {
             let owner = try storageCircuit(input, limits: limits, bytes: bytes, resources: resources)
@@ -80,14 +121,21 @@ extension PreparedNativeExecutionTests {
                 Issue.record("Trace growth exceeded the byte ceiling")
             } catch SPICENativeExecutionError.resource(let cause) {
                 if nativeCeiling {
-                    guard case TransientExecutionError.limitExceeded(let resource, _, _) = cause else { throw cause }
+                    guard case TransientExecutionError.limitExceeded(let resource, let limit, let requested) = cause else { throw cause }
                     #expect(resource == "allocationBytes")
+                    #expect(limit == Int(bytes))
+                    #expect(requested > Int(bytes))
+                    let nextTraceBytes = retainedNativeBytes(points: admittedPoints * 2)
+                    #expect(requested >= Int(nextTraceBytes))
+                    #expect(requested <= Int(nextTraceBytes + executionTemporaryPeak))
                 } else { #expect(cause as? SourceBoundaryTestError == .limit(.liveOwnedBytes)) }
             }
         }
         #expect(accepted.withLock { $0 } == Int(admittedPoints) - 1)
+        #expect(resources.peakLiveBytes == liveBoundary)
         #expect(resources.used(.liveOwnedBytes) == 0)
         #expect(resources.used(.temporaryBytes) == 0)
+        #expect(resources.releaseCount == resources.reservationCount)
     }
 
     @Test func transientAndFourierUseCompletedCapacityUnderPermissivePolicy() async throws {
@@ -112,6 +160,47 @@ extension PreparedNativeExecutionTests {
         nested = nil
         #expect(resources.used(.liveOwnedBytes) == 0)
     }
+    private struct CancelFourierAfterTransient: AnalysisObserver {
+        let cancellation: CancellationToken
+
+        func onEvent(_ event: AnalysisEvent) {
+            if case .analysisFinished(let info) = event,
+               info.type == .tran, info.status == .completed {
+                cancellation.cancel()
+            }
+        }
+    }
+
+    @Test func fourierCancellationAfterTransientReleasesAllNativeStorage() async throws {
+        let input = try await input("Fourier cancelled boundary\nV1 out 0 1\nR1 out 0 1k\n.tran 10u 100u\n.end\n")
+        guard case .transient(var config) = input.configuration.analysis else {
+            Issue.record("Missing transient"); return
+        }
+        config.executionLimits = storageLimits()
+        let resources = SourceBoundaryTestResources(liveLimit: 1_000_000, temporaryLimit: 1_000_000)
+        let cancellation = CancellationToken()
+        let buffered = try BufferingObserver(capacity: 10_000)
+        let dispatcher = EventDispatcher(observers: [CancelFourierAfterTransient(cancellation: cancellation), buffered])
+        do {
+            let owner = try storageCircuit(input, limits: config.requiredExecutionLimits(), resources: resources)
+            let out = try #require(owner.plan.ir.nodeNames.first { $0.value == "out" }?.key)
+            do {
+                _ = try await FourierAnalysis(fundamentalFrequency: 20_000, harmonicCount: 3,
+                    outputNodes: [out], transientConfig: config).run(circuit: owner,
+                        solver: SparseLUSolver(), observer: dispatcher, cancellation: cancellation)
+                Issue.record("Cancelled Fourier published a Native result")
+            } catch SPICENativeExecutionError.cancelled {}
+        }
+        #expect(resources.used(.liveOwnedBytes) == 0)
+        #expect(resources.used(.temporaryBytes) == 0)
+        let terminal = buffered.events.compactMap { event -> AnalysisFinishedInfo? in
+            if case .analysisFinished(let info) = event, info.type == .fourier { return info }
+            return nil
+        }
+        #expect(terminal.count == 1)
+        #expect(terminal.first?.status == .cancelled)
+    }
+
     @Test func storageFailurePoisonsTheOwnerAndLeavesNoPendingLease() async throws {
         let input = try await input("Failed capacity owner\nV1 out 0 1\nR1 out 0 1k\n.op\n.end\n")
         let resources = SourceBoundaryTestResources()
@@ -170,6 +259,63 @@ extension PreparedNativeExecutionTests {
         #expect(resources.used(.liveOwnedBytes) > 0)
         withExtendedLifetime(copied) {}
         copied = nil
+        #expect(resources.used(.liveOwnedBytes) == 0)
+    }
+
+    @Test func retainedDCMaterializationsAdmitIndependentlyAndRefundBeforeRetry() async throws {
+        let input = try await input("Materialization leases\nV1 out 0 .5\nR1 out 0 1k\n.op\n.end\n")
+        let resources = SourceBoundaryTestResources()
+        do {
+            let owner = try storageCircuit(input, limits: storageLimits(), bytes: 500_000, resources: resources)
+            let run = try await DCAnalysis().run(circuit: owner, solver: SparseLUSolver(), observer: nil, cancellation: .init())
+            let stored = try SPICENativeStoredDCResult(operatingPoint: run.result)
+            let baseline = resources.used(.liveOwnedBytes)
+            var retained: [DCResult] = []
+            var refused = false
+            for _ in 0..<4096 {
+                do { retained.append(try stored.result(at: 0)) }
+                catch SPICENativeExecutionError.resource(let cause) {
+                    guard case TransientExecutionError.limitExceeded(let resource, _, _) = cause else { throw cause }
+                    #expect(resource == "allocationBytes")
+                    refused = true
+                    break
+                }
+            }
+            #expect(refused && !retained.isEmpty)
+            let full = resources.used(.liveOwnedBytes)
+            retained.removeLast()
+            #expect(resources.used(.liveOwnedBytes) < full)
+            retained.append(try stored.result(at: 0))
+            #expect(resources.used(.liveOwnedBytes) == full)
+            retained.removeAll()
+            #expect(resources.used(.liveOwnedBytes) == baseline)
+            var copies: [SPICENativeStoredDCResult] = []
+            var constructorsRefused = false
+            for _ in 0..<4096 {
+                do { copies.append(try .init(operatingPoint: run.result)) }
+                catch SPICENativeExecutionError.resource { constructorsRefused = true; break }
+            }
+            #expect(constructorsRefused && !copies.isEmpty)
+            let copiesFull = resources.used(.liveOwnedBytes)
+            copies.removeLast()
+            copies.append(try .init(operatingPoint: run.result))
+            #expect(resources.used(.liveOwnedBytes) == copiesFull)
+            copies.removeAll()
+            #expect(resources.used(.liveOwnedBytes) == baseline)
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for _ in 0..<8 {
+                    group.addTask {
+                        for _ in 0..<32 {
+                            let restored = try stored.result(at: 0)
+                            #expect(restored.variableLowComponents != nil)
+                            #expect(restored.variables == run.result.variables)
+                        }
+                    }
+                }
+                try await group.waitForAll()
+            }
+            #expect(resources.used(.liveOwnedBytes) == baseline)
+        }
         #expect(resources.used(.liveOwnedBytes) == 0)
     }
 

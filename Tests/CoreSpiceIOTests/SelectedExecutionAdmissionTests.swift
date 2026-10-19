@@ -8,10 +8,11 @@ struct SelectedExecutionAdmissionTests {
         unused source definitions
         V1 out 0 1
         R1 out 0 1k
-        .model unused C cox={missing}
+        .model unused C level=2 cox={missing}
         .subckt unused_body a
         .param impossible=undefined
-        Cq a 0 q={also_missing*v(a)}
+        .model jm NJF beta=1m vto=-1
+        J1 a 0 0 jm unsupported={also_missing}
         .ends
         .op
         .end
@@ -19,17 +20,29 @@ struct SelectedExecutionAdmissionTests {
         #expect(loaded.coverage.hasBlockedItems)
         #expect(loaded.coverage.items.contains { $0.kind == .model && $0.status == .blocked })
         #expect(loaded.coverage.items.contains { $0.kind == .component && $0.status == .blocked })
+        #expect(loaded.coverage.items.contains { $0.name == "model:unused" && $0.status == .blocked })
+        #expect(loaded.coverage.items.contains { $0.name == "subckt:unused_body/component:j1" && $0.status == .blocked })
         let ir = try IOTestFrontend.lower(loaded.netlist)
         #expect(Set(ir.instances.map(\.name)) == Set(["v1", "r1"]))
         #expect(ir.instances.allSatisfy { $0.model == nil })
     }
 
     @Test func selectedUnsupportedDefinitionsFailInActualLowering() async throws {
-        for declaration in ["Cq out 0 q={missing*v(out)}", "C1 out 0 cm\n.model cm C cap=1n",
-                            ".subckt cell a\nCq a 0 q={missing*v(a)}\n.ends\nX1 out cell"] {
+        for (declaration, expectedName, reasonMarker) in [
+            ("J1 out 0 0 jm unsupported={missing}\n.model jm NJF beta=1m vto=-1", "j1", "unsupported"),
+            ("C1 out 0 cm\n.model cm C level=2 cap=1n", "c1", "level"),
+            (".subckt cell a\n.model jm NJF beta=1m vto=-1\nJ1 a 0 0 jm unsupported={missing}\n.ends\nX1 out cell", "x1.j1", "unsupported"),
+        ] {
             let loaded = try await SPICEDeckLoader.load(source: "selected unsupported\n\(declaration)\n.op\n.end\n")
             #expect(loaded.coverage.hasBlockedItems)
-            #expect(throws: LoweringError.self) { _ = try IOTestFrontend.lower(loaded.netlist) }
+            do {
+                _ = try IOTestFrontend.lower(loaded.netlist)
+                Issue.record("Selected unsupported definition bypassed actual lowering")
+            } catch let error as LoweringError {
+                guard case .invalidComponent(let name, let reason) = error else { throw error }
+                #expect(name == expectedName)
+                #expect(reason.contains(reasonMarker))
+            }
         }
     }
 

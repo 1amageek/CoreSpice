@@ -11,21 +11,22 @@ extension TransientAnalysis {
             guard try config.requiredExecutionLimits() == record.numericalLimits else {
                 throw SPICENativeExecutionError.unsupportedCapability("Transient numerical limits changed after preparation")
             }
-            let reservation = try await NativeCircuitExecution.admit(record, capabilities: [.dc, .transient], points: 1, cancellation: cancellation, observer: observer, analysis: .tran)
+            let reservation = try await NativeCircuitExecution.admit(record, capabilities: [.dc, .transient], points: 1, cancellation: cancellation, observer: observer, analysis: .tran, additionalRetainedBytes: NativeCircuitExecution.physicalValidationCapacity(record), allowOSDIOperatingPoint: true)
             return try await withTaskCancellationHandler {
-                var analysis = self
+                let budget = try NativeCircuitExecution.budget(record)
+                var analysis = try NativeCircuitExecution.configuredTransientAnalysis(self,
+                    record: record, devices: devices, cancellation: cancellation, budget: budget)
+                analysis.executionBudget = budget
                 analysis.resultStorage = reservation
                 let result = try await analysis.run(plan: record.plan, devices: devices, solver: solver,
                     observer: observer, cancellation: cancellation)
                 try NativeCircuitExecution.check(cancellation)
-                guard result.timePoints.last == config.stopTime, result.executionStatistics != nil,
-                      result.solutionTrace.rowMajorValues.allSatisfy({ $0.isFinite }) else {
-                    throw SPICENativeExecutionError.invalidOutput
-                }
-                return NativeCircuitRun(result: result, phases: [.init(record: record,
-                    instances: record.plan.ir.instances, analysis: "tran", completedPointCount: result.timePoints.count, reservation: reservation)],
+                try NativeCircuitExecution.validateTransientResult(result, config: config,
+                    precision: analysis.physicalResidualEncloser != nil)
+                return NativeCircuitRun(result: result, phases: NativeCircuitExecution.phases(record: record, operatingPoint: result.operatingPoint,
+                    analysis: "tran", points: result.timePoints.count, reservation: reservation, equationPolicy: analysis.equationPolicy),
                     reservation: reservation, statistics: result.executionStatistics)
             } onCancel: { cancellation.cancel() }
-        } catch { throw NativeCircuitExecution.failure(error) }
+        } catch { throw NativeCircuitExecution.failure(error, closing: record) }
     }
 }

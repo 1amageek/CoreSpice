@@ -1,0 +1,9 @@
+`include "dc_disciplines.vams"
+module driven_auxiliary_dc(p, n);
+    inout p, n;
+    electrical p, n, aux;
+    analog begin
+        I(aux) <+ 0.002 * V(aux) - 0.00006;
+        I(p, n) <+ 0.001 * V(p, n) + (0.1 + 0.2 * V(p, n)) * V(aux);
+    end
+endmodule

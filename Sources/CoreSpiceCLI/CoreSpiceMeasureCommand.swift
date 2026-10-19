@@ -3,6 +3,7 @@ import CoreSpiceIO
 import CoreSpiceParsedIR
 import CoreSpiceWaveform
 import CircuiteFoundation
+import CircuiteFoundationCrypto
 import Foundation
 
 /// Executes the `corespice measure` subcommand: evaluates `.measure`-grammar
@@ -34,14 +35,23 @@ struct CoreSpiceMeasureCommand: Sendable {
   /// summary. Internal so tests can exercise it without capturing process
   /// output. Any failing spec or measurement throws a typed error; nothing
   /// is skipped.
-  func execute() async throws -> CoreSpiceCLIMeasurementRunRecord {
-    let waveform = try CSVWaveformReader().read(contentsOfFile: options.waveformPath)
+  func execute(afterCapture: @Sendable () throws -> Void = {}) async throws -> CoreSpiceCLIMeasurementRunRecord {
+    let maximumBytes: UInt64 = 64 * 1024 * 1024
+    let bytes = try LocalSPICESourceReader().read(at: options.waveformPath,
+      maximumByteCount: maximumBytes, maximumPageByteCount: 4096)
+    try afterCapture()
+    guard let text = String(data: bytes, encoding: .utf8) else {
+      throw CoreSpiceMeasureCommandError.specParseFailed(spec: options.waveformPath, reason: "CSV input is not UTF-8")
+    }
+    let waveform = try CSVWaveformReader().read(text)
     let artifactReferencer = try CoreSpiceCLIArtifactReferencer()
-    let inputArtifact = try artifactReferencer.input(
-      path: options.waveformPath,
-      kind: .waveform,
-      format: .csv
-    )
+    let digest = try SHA256ContentDigester().digest(using: .sha256,
+      limits: .init(maximumChunkByteCount: maximumBytes, maximumTotalByteCount: maximumBytes, maximumUpdateCount: 1)) {
+        (lease: borrowing ContentDigestUpdateLease) throws(ContentDigestError) in
+        try lease.update(Array(bytes))
+      }
+    let inputArtifact = try ArtifactReference(digest: digest.digest, byteCount: UInt64(bytes.count),
+      descriptor: .init(role: .input, kind: .waveform, format: .csv))
     let evaluator = SPICEMeasureEvaluator()
     var measurements: [CoreSpiceCLIMeasurement] = []
     measurements.reserveCapacity(options.specs.count)
@@ -154,8 +164,10 @@ struct CoreSpiceMeasureCommand: Sendable {
     switch measure.analysisType {
     case .transient:
       compatible = waveform.metadata.analysisType == .transient
-    case .ac, .noise:
+    case .ac:
       compatible = waveform.metadata.analysisType == .ac
+    case .noise:
+      compatible = waveform.metadata.analysisType == .noise
     case .dc, .op:
       compatible = waveform.metadata.analysisType == .dc
     }

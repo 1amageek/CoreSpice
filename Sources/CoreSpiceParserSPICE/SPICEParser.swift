@@ -77,7 +77,7 @@ public struct SPICEParser: NetlistParser, SPICEProfileSourceParsing {
             }
 
             // Look for component lines (R1, C1, M1, etc.)
-            if let first = trimmed.first, "rcldqmjvixef".contains(first.lowercased()) {
+            if let first = trimmed.first, "rcldqmjvixefn".contains(first.lowercased()) {
                 return true
             }
 
@@ -448,8 +448,8 @@ private struct SPICEParserImpl {
         case .directive(let name):
             try await parseDirective(name)
 
-        case .identifier(let name):
-            try parseComponent(name: name)
+        case .identifier:
+            try parseComponent()
 
         case .comment:
             try advance()
@@ -573,10 +573,10 @@ private struct SPICEParserImpl {
         try skipToEndOfLine()
     }
 
-    private mutating func parseComponent(name: String) throws {
+    private mutating func parseComponent() throws {
         let loc = currentLocation
         let origin = try statementOrigin(loc)
-        try advance() // skip name
+        let name = try parseCardSymbol(message: "Expected component name")
 
         try checkASCIIText(name, capability: "Cooperative Unicode component prefix")
         guard let firstChar = name.first else {
@@ -599,30 +599,36 @@ private struct SPICEParserImpl {
         // For subcircuit instances, collect all node tokens until the parameter
         // section; the final identifier is the subcircuit name. Node names may be
         // numeric (e.g. ground "0"), so numbers are collected as nodes too.
-        if type == .subcircuitInstance {
-            var tokens = SPICEParserBuffer<String>(resources: profileResources)
-            while try !isAtEnd && !isNewline && !currentParameterStart() {
-                if case .identifier(let id) = currentToken {
-                    try tokens.append(id)
-                    try advance()
-                } else if case .number(let n) = currentToken {
-                    try tokens.append(try integerText(n))
-                    try advance()
-                } else if case .invalidNumericLiteral(let text) = currentToken {
-                    throw ParserDiagnostic.error((profileResources == nil ? "Invalid numeric literal '\(text)'" : "Invalid numeric literal ''"), at: currentLocation)
-                } else if case .invalidNumericSuffix(let suffix) = currentToken {
-                    throw ParserDiagnostic.error((profileResources == nil ? "Unknown numeric suffix '\(suffix)'" : "Unknown numeric suffix ''"), at: currentLocation)
-                } else {
-                    break
+        if type == .osdi {
+            var terminals = SPICEParserBuffer<ParsedNodeRef>(resources: profileResources)
+            var finalIsIdentifier = false
+            while !isAtEnd && !isNewline {
+                guard try !currentParameterStart() else {
+                    throw ParserDiagnostic.error("OSDI source assignments are unsupported; use the typed catalog", at: currentLocation)
                 }
+                switch currentToken {
+                case .identifier: finalIsIdentifier = true
+                case .number: finalIsIdentifier = false
+                default:
+                    throw ParserDiagnostic.error("OSDI requires ordered terminals followed by a model symbol", at: currentLocation)
+                }
+                try terminals.append(try parseRequiredNodeRef())
             }
-            // The last token is the subcircuit name; the rest are connection nodes.
-            if let subcktName = tokens.last {
-                modelName = subcktName
+            guard terminals.count >= 2, finalIsIdentifier else {
+                throw ParserDiagnostic.error("OSDI requires at least one terminal and a final model symbol", at: loc)
             }
-            for index in 0..<max(0, tokens.count - 1) {
-                try nodes.append(ParsedNodeRef(name: tokens[index], location: loc))
+            modelName = terminals[terminals.count - 1].name
+            for index in 0..<(terminals.count - 1) { try nodes.append(terminals[index]) }
+        } else if type == .subcircuitInstance {
+            var terminals = SPICEParserBuffer<ParsedNodeRef>(resources: profileResources)
+            while try !isCardLineEnd && !currentParameterStart() {
+                try terminals.append(try parseRequiredNodeRef())
             }
+            guard let final = terminals.last else {
+                throw ParserDiagnostic.error("Expected subcircuit reference", at: currentLocation)
+            }
+            modelName = final.name
+            for index in 0..<(terminals.count - 1) { try nodes.append(terminals[index]) }
         } else if type == .cccs || type == .ccvs {
             try parseCurrentControlledSourceComponent(
                 type: type,
@@ -636,29 +642,13 @@ private struct SPICEParserImpl {
                 params: &params
             )
         } else {
-            // Parse fixed number of nodes
-            for _ in 0..<nodeCount {
-                if case .identifier(let nodeName) = currentToken {
-                    try nodes.append(ParsedNodeRef(name: nodeName, location: currentLocation))
-                    try advance()
-                } else if case .number(let n) = currentToken {
-                    try nodes.append(ParsedNodeRef(name: try integerText(n), location: currentLocation))
-                    try advance()
-                } else if case .invalidNumericLiteral(let text) = currentToken {
-                    throw ParserDiagnostic.error((profileResources == nil ? "Invalid numeric literal '\(text)'" : "Invalid numeric literal ''"), at: currentLocation)
-                } else if case .invalidNumericSuffix(let suffix) = currentToken {
-                    throw ParserDiagnostic.error((profileResources == nil ? "Unknown numeric suffix '\(suffix)'" : "Unknown numeric suffix ''"), at: currentLocation)
-                }
-            }
+            // Card-symbol roles consume one physical field, never expression operators.
+            for _ in 0..<nodeCount { try nodes.append(try parseRequiredNodeRef()) }
 
-            // For model-backed devices, parse model name
             if type == .mosfet || type == .bjt || type == .jfet || type == .mesfet
                 || type == .diode || type == .uniformRC
                 || type == .switch_ || type == .currentSwitch {
-                if case .identifier(let model) = currentToken {
-                    modelName = model
-                    try advance()
-                }
+                modelName = try parseRequiredIdentifier(message: "Expected model reference")
             }
         }
 
@@ -668,6 +658,7 @@ private struct SPICEParserImpl {
 
         // Parse parameters
         while type != .capacitor && !isAtEnd && !isNewline {
+            if type == .subcircuitInstance, isCardLineEnd { break }
             if type == .resistor, modelName == nil,
                let candidate = passiveModelCandidate {
                 switch currentToken {
@@ -686,10 +677,13 @@ private struct SPICEParserImpl {
             if case .dottedLiteral(let text) = currentToken {
                 throw ParserDiagnostic.error((profileResources == nil ? "Version literal '\(text)' is not a numerical component value" : "Version literal '' is not a numerical component value"), at: currentLocation)
             }
-            if case .identifier(let paramName) = currentToken {
+            if case .identifier(let firstName) = currentToken {
                 let assignmentLocation = currentLocation
+                let paramName: String
+                if type == .resistor, try !currentParameterStart() {
+                    paramName = try parseCardSymbol(message: "Expected resistor model or value")
+                } else { paramName = firstName; try advance() }
                 let lower = try normalized(paramName)
-                try advance()
                 if case .equals = currentToken {
                     try advance()
                     if type == .resistor, lower == "r" || lower == "resistance",
@@ -725,6 +719,11 @@ private struct SPICEParserImpl {
                         try parameterAssignments.append(.init(name: paramName, value: value,
                             location: assignmentLocation, origin: origin))
                     }
+                } else if type == .subcircuitInstance {
+                    guard try isParamsKeyword(paramName) else {
+                        throw ParserDiagnostic.error("Expected '=' after subcircuit instance parameter", at: assignmentLocation)
+                    }
+                    if case .colon = currentToken { try advance() }
                 } else if type == .diode {
                     throw ParserDiagnostic.error("Diode flags and positional inputs are unsupported", at: assignmentLocation)
                 } else if type == .mosfet && lower == "off" {
@@ -772,6 +771,8 @@ private struct SPICEParserImpl {
                         passiveModelCandidate = nil
                     }
                 }
+            } else if type == .subcircuitInstance {
+                throw ParserDiagnostic.error("Expected subcircuit instance parameter assignment", at: currentLocation)
             } else if case .quotedExpression = currentToken {
                 if (type == .voltageSource || type == .currentSource), !params.isEmpty {
                     throw ParserDiagnostic.error("Unexpected extra numeric source value", at: currentLocation)
@@ -851,10 +852,12 @@ private struct SPICEParserImpl {
         var hasNamedCapacitance = false
         var hasPostModelValue = false
         while !isAtEnd && !isNewline {
-            if case .identifier(let name) = currentToken {
+            if case .identifier(let firstName) = currentToken {
                 let location = currentLocation
+                let name: String
+                if try currentParameterStart() { name = firstName; try advance() }
+                else { name = try parseCardSymbol(message: "Expected capacitor model or value") }
                 let lower = try normalized(name)
-                try advance()
                 if case .equals = currentToken {
                     try advance()
                     if lower == "q" {
@@ -944,10 +947,7 @@ private struct SPICEParserImpl {
             try parseControlledGainParameter(into: &params, key: gainKey)
             return
         }
-        guard case .identifier(let controlName) = currentToken else {
-            throw ParserDiagnostic.error("Expected controlling source or sense node", at: currentLocation)
-        }
-        try advance()
+        let controlName = try parseRequiredIdentifier(message: "Expected controlling source or sense node")
 
         let gainKey = type == .cccs ? "f" : "h"
         if try currentControlledElementUsesExplicitSenseTerminals() {
@@ -974,10 +974,7 @@ private struct SPICEParserImpl {
             modelName = try parseRequiredIdentifier(message: "Expected current switch model name")
             return
         }
-        guard case .identifier(let controlName) = currentToken else {
-            throw ParserDiagnostic.error("Expected controlling source or sense node", at: currentLocation)
-        }
-        try advance()
+        let controlName = try parseRequiredIdentifier(message: "Expected controlling source or sense node")
 
         if try currentControlledElementUsesExplicitSenseTerminals() {
             try nodes.append(ParsedNodeRef(name: controlName, location: controlLocation))
@@ -989,31 +986,105 @@ private struct SPICEParserImpl {
         modelName = try parseRequiredIdentifier(message: "Expected current switch model name")
     }
 
+    /// Joins only one card-role physical field from the existing located stream.
+    /// The source and token owners remain immutable; no pointer or view escapes.
+    private mutating func cardSymbolSpan(startingAt start: Int) throws
+        -> (range: Range<String.Index>, tokenEnd: Int, byteCount: Int) {
+        guard start < tokens.count else { throw ParserDiagnostic.error("Expected card symbol", at: currentLocation) }
+        let location = tokens[start].location
+        switch tokens[start].token {
+        case .identifier, .number: break
+        case .invalidNumericLiteral:
+            throw ParserDiagnostic.error("Invalid numeric literal", at: location)
+        case .invalidNumericSuffix:
+            throw ParserDiagnostic.error("Unknown numeric suffix", at: location)
+        default: throw ParserDiagnostic.error("Expected card symbol", at: location)
+        }
+        let numericTokenBoundary: SourceLocation?
+        if case .number = tokens[start].token, start + 1 < tokens.count {
+            numericTokenBoundary = tokens[start + 1].location
+        } else { numericTokenBoundary = nil }
+        let lower = try modelSourceIndex(at: location)
+        var upper = lower, column = location.column, bytes = 0
+        while upper < modelExpressionSource.endIndex {
+            try work?.checkCancellation()
+            let character = modelExpressionSource[upper]
+            if character.isWhitespace || character == "=" || character == "(" || character == ")"
+                || character == "{" || character == "}" || character == "," || character == "$" || character == ";" { break }
+            // A numeric exponent sign belongs to the validated original token,
+            // bounded by the next token and this physical field's whitespace.
+            var numericPlus = false
+            if character == "+", let boundary = numericTokenBoundary {
+                numericPlus = boundary.line > location.line ||
+                    (boundary.line == location.line && column < boundary.column)
+            }
+            guard character.isLetter || character.isNumber || character == "_" || character == ":"
+                    || character == "." || character == "#" || character == "-" || character == "/" || numericPlus else {
+                throw ParserDiagnostic.error("Invalid character in card symbol",
+                    at: SourceLocation(file: location.file, line: location.line, column: column))
+            }
+            try work?.charge(.lexicalBytes, units: UInt64(character.utf8.count))
+            let (nextBytes, overflow) = bytes.addingReportingOverflow(character.utf8.count)
+            let (nextColumn, columnOverflow) = column.addingReportingOverflow(1)
+            guard !overflow, !columnOverflow else { throw SPICESourceStorageError.arithmeticOverflow }
+            bytes = nextBytes; column = nextColumn
+            upper = modelExpressionSource.index(after: upper)
+        }
+        var end = start
+        while end < tokens.count, tokens[end].location.line == location.line, tokens[end].location.column < column {
+            try work?.checkCancellation(); try work?.charge(.tokens, units: 1)
+            end += 1
+        }
+        guard lower < upper, end > start else { throw ParserDiagnostic.error("Expected card symbol", at: location) }
+        return (lower..<upper, end, bytes)
+    }
+
+    private mutating func parseCardSymbol(allowNumber: Bool = false, strictNumericNode: Bool = false,
+                                          message: String) throws -> String {
+        let first = currentToken, location = currentLocation
+        if !allowNumber, case .number = first { throw ParserDiagnostic.error(message, at: location) }
+        let span = try cardSymbolSpan(startingAt: current)
+        if span.tokenEnd == current + 1 {
+            if case .identifier(let value) = first { try advance(); return value }
+            if case .number(let value) = first {
+                let name = strictNumericNode ? try parseNumericNodeName(value) : try integerText(value)
+                try advance(); return name
+            }
+        }
+        let value: String
+        if let resources = profileResources {
+            let reservation = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: UInt64(span.byteCount))
+            try resources.charge(.projectedBytes, units: UInt64(span.byteCount))
+            var output = ""; output.reserveCapacity(span.byteCount)
+            for byte in modelExpressionSource[span.range].utf8 {
+                try resources.checkCancellation(); try resources.charge(.lexicalBytes, units: 1)
+                guard byte < 128 else { throw SPICEBoundedSourceError.unsupportedBudgetCapability("Cooperative Unicode card symbol") }
+                let mapped = configuration.caseInsensitive && byte >= 65 && byte <= 90 ? byte + 32 : byte
+                output.append(Character(UnicodeScalar(mapped)))
+            }
+            try profileStorage!.retain(output, reservation: reservation)
+            value = output
+        } else {
+            let text = String(modelExpressionSource[span.range])
+            value = configuration.caseInsensitive ? text.lowercased() : text
+        }
+        while current < span.tokenEnd { try advance() }
+        return value
+    }
+
+    private var isCardLineEnd: Bool {
+        if isAtEnd || isNewline { return true }
+        if case .comment = currentToken { return true }
+        return false
+    }
+
     private mutating func parseRequiredNodeRef() throws -> ParsedNodeRef {
         let location = currentLocation
-        if case .identifier(let nodeName) = currentToken {
-            try advance()
-            return ParsedNodeRef(name: nodeName, location: location)
-        }
-        if case .number(let n) = currentToken {
-            try advance()
-            return ParsedNodeRef(name: try integerText(n), location: location)
-        }
-        if case .invalidNumericLiteral(let text) = currentToken {
-            throw ParserDiagnostic.error((profileResources == nil ? "Invalid numeric literal '\(text)'" : "Invalid numeric literal ''"), at: currentLocation)
-        }
-        if case .invalidNumericSuffix(let suffix) = currentToken {
-            throw ParserDiagnostic.error((profileResources == nil ? "Unknown numeric suffix '\(suffix)'" : "Unknown numeric suffix ''"), at: currentLocation)
-        }
-        throw ParserDiagnostic.error("Expected node name", at: currentLocation)
+        return ParsedNodeRef(name: try parseCardSymbol(allowNumber: true, message: "Expected node name"), location: location)
     }
 
     private mutating func parseRequiredIdentifier(message: String) throws -> String {
-        guard case .identifier(let value) = currentToken else {
-            throw ParserDiagnostic.error(message, at: currentLocation)
-        }
-        try advance()
-        return value
+        try parseCardSymbol(message: message)
     }
 
     private mutating func parseControlledGainParameter(
@@ -1385,27 +1456,12 @@ private struct SPICEParserImpl {
         let declarationOrdinal = activeStatementOrdinal
         let declarationOffset = try originalStatementOffset(location)
         let origin = try statementOrigin(location)
-        guard case .identifier(let name) = currentToken else {
-            throw ParserDiagnostic.error("Expected subcircuit name", at: currentLocation)
-        }
-        try advance()
+        let name = try parseRequiredIdentifier(message: "Expected subcircuit name")
 
         // Parse ports
         var ports = SPICEParserBuffer<String>(resources: profileResources)
-        while try !isAtEnd && !isNewline && !currentParameterStart() {
-            if case .identifier(let port) = currentToken {
-                try ports.append(port)
-                try advance()
-            } else if case .number(let n) = currentToken {
-                try ports.append(try integerText(n))
-                try advance()
-            } else if case .invalidNumericLiteral(let text) = currentToken {
-                throw ParserDiagnostic.error((profileResources == nil ? "Invalid numeric literal '\(text)'" : "Invalid numeric literal ''"), at: currentLocation)
-            } else if case .invalidNumericSuffix(let suffix) = currentToken {
-                throw ParserDiagnostic.error((profileResources == nil ? "Unknown numeric suffix '\(suffix)'" : "Unknown numeric suffix ''"), at: currentLocation)
-            } else {
-                break
-            }
+        while try !isCardLineEnd && !currentParameterStart() {
+            try ports.append(try parseCardSymbol(allowNumber: true, message: "Expected subcircuit port"))
         }
 
         // Parse parameters
@@ -1527,10 +1583,7 @@ private struct SPICEParserImpl {
 
     private mutating func parseModel(location: SourceLocation?) throws {
         let origin = try statementOrigin(location)
-        guard case .identifier(let name) = currentToken else {
-            throw ParserDiagnostic.error("Expected model name", at: currentLocation)
-        }
-        try advance()
+        let name = try parseRequiredIdentifier(message: "Expected model name")
 
         guard case .identifier(let typeStr) = currentToken else {
             throw ParserDiagnostic.error("Expected model type", at: currentLocation)
@@ -1541,6 +1594,9 @@ private struct SPICEParserImpl {
             throw ParserDiagnostic.error((profileResources == nil ? "Unknown model type: \(typeStr)" : "Unknown model type: "), at: currentLocation)
         }
 
+        if type == .osdi, !isAtEnd && !isNewline {
+            throw ParserDiagnostic.error("OSDI model declarations are coefficient-free; use the typed catalog", at: currentLocation)
+        }
         var level: Int?
         var params = SPICEParserMap<ParsedParameterValue>(resources: profileResources)
         var parameterAssignments = SPICEParserBuffer<ParsedParameterAssignment>(resources: profileResources)
@@ -2228,17 +2284,13 @@ private struct SPICEParserImpl {
         }
         try advance()
 
-        guard case .identifier(let outputNode) = currentToken else {
-            throw ParserDiagnostic.error("Expected output node name", at: currentLocation)
-        }
-        try advance()
+        let outputNode = try parseRequiredIdentifier(message: "Expected output node name")
 
         var referenceNode: String?
         if case .comma = currentToken {
             try advance()
-            if case .identifier(let ref) = currentToken {
-                referenceNode = ref
-                try advance()
+            if case .identifier = currentToken {
+                referenceNode = try parseRequiredIdentifier(message: "Expected reference node")
             }
         }
 
@@ -2248,10 +2300,7 @@ private struct SPICEParserImpl {
         try advance()
 
         // Parse input source
-        guard case .identifier(let inputSource) = currentToken else {
-            throw ParserDiagnostic.error("Expected input source name", at: currentLocation)
-        }
-        try advance()
+        let inputSource = try parseRequiredIdentifier(message: "Expected input source name")
 
         // Parse sweep type
         var scaleType: ACScaleType = .decade
@@ -2311,10 +2360,7 @@ private struct SPICEParserImpl {
         }
         try advance()
 
-        guard case .identifier(let output) = currentToken else {
-            throw ParserDiagnostic.error("Expected output node name", at: currentLocation)
-        }
-        try advance()
+        let output = try parseRequiredIdentifier(message: "Expected output node name")
 
         guard case .rightParen = currentToken else {
             throw ParserDiagnostic.error("Expected ')' after output node", at: currentLocation)
@@ -2322,10 +2368,7 @@ private struct SPICEParserImpl {
         try advance()
 
         // Parse input source
-        guard case .identifier(let input) = currentToken else {
-            throw ParserDiagnostic.error("Expected input source name", at: currentLocation)
-        }
-        try advance()
+        let input = try parseRequiredIdentifier(message: "Expected input source name")
 
         let analysisReservation = try profileStorage?.reservePayload(of: TransferFunctionSpec.self)
         let command: ParsedAnalysisCommand = .transferFunction(TransferFunctionSpec(
@@ -2352,10 +2395,7 @@ private struct SPICEParserImpl {
         }
         try advance()
 
-        guard case .identifier(let output) = currentToken else {
-            throw ParserDiagnostic.error("Expected output node name", at: currentLocation)
-        }
-        try advance()
+        let output = try parseRequiredIdentifier(message: "Expected output node name")
 
         guard case .rightParen = currentToken else {
             throw ParserDiagnostic.error("Expected ')' after output node", at: currentLocation)
@@ -3064,10 +3104,23 @@ private struct SPICEParserImpl {
 
     private mutating func parseTemp(location: SourceLocation?) throws {
         let value = try parseParameterValue()
-        guard isAtEnd || isNewline else {
-            throw ParserDiagnostic.error("Temperature sweeps require an explicit supported contract", at: currentLocation)
+        if isAtEnd || isNewline {
+            try controls.append(.temp(value: value, location: location))
+        } else {
+            guard case .numeric(let first) = value, first.isFinite else {
+                throw ParserDiagnostic.error("Temperature families require finite literal values", at: currentLocation)
+            }
+            var values = SPICEParserBuffer<Double>(resources: profileResources)
+            try values.append(first)
+            while !isAtEnd && !isNewline {
+                if case .comma = currentToken { try advance(); continue }
+                guard let value = try parseSignedNumericTokenIfPresent(), value.isFinite else {
+                    throw ParserDiagnostic.error("Temperature families require finite literal values", at: currentLocation)
+                }
+                try values.append(value)
+            }
+            try controls.append(.temp(value: .numericVector(try values.export(storage: &profileStorage)), location: location))
         }
-        try controls.append(.temp(value: value, location: location))
         try skipToEndOfLine()
     }
 
@@ -3103,6 +3156,11 @@ private struct SPICEParserImpl {
 
     private mutating func parseNodeVoltageAssignment() throws -> (node: String, value: ParsedParameterValue)? {
         let saved = current
+        let savedCursor = modelSourceCursor, savedLine = modelSourceLine, savedColumn = modelSourceColumn
+        var accepted = false
+        defer {
+            if !accepted { modelSourceCursor = savedCursor; modelSourceLine = savedLine; modelSourceColumn = savedColumn }
+        }
         var node: String?
 
         if case .identifier(let name) = currentToken, try normalized(name) == "v" {
@@ -3112,25 +3170,14 @@ private struct SPICEParserImpl {
                 return nil
             }
             try advance()
-            if case .identifier(let parsedNode) = currentToken {
-                node = parsedNode
-                try advance()
-            } else if case .number(let numericNode) = currentToken {
-                node = try parseNumericNodeName(numericNode)
-                try advance()
-            } else if case .invalidNumericLiteral(let text) = currentToken {
-                throw ParserDiagnostic.error((profileResources == nil ? "Invalid numeric literal '\(text)'" : "Invalid numeric literal ''"), at: currentLocation)
-            } else if case .invalidNumericSuffix(let suffix) = currentToken {
-                throw ParserDiagnostic.error((profileResources == nil ? "Unknown numeric suffix '\(suffix)'" : "Unknown numeric suffix ''"), at: currentLocation)
-            }
+            if let parsedNode = try parseOutputNodeName() { node = parsedNode }
             guard case .rightParen = currentToken else {
                 current = saved
                 return nil
             }
             try advance()
-        } else if case .identifier(let parsedNode) = currentToken {
-            node = parsedNode
-            try advance()
+        } else if case .identifier = currentToken {
+            node = try parseCardSymbol(message: "Expected initial-condition node")
         }
 
         guard let node else {
@@ -3144,14 +3191,14 @@ private struct SPICEParserImpl {
         try advance()
 
         let value = try parseParameterValue()
+        accepted = true
         return (node: node, value: value)
     }
 
     private mutating func parseGlobal(location: SourceLocation?) throws {
         while !isAtEnd && !isNewline {
-            if case .identifier(let node) = currentToken {
-                try globalNodes.append(node)
-                try advance()
+            if case .identifier = currentToken {
+                try globalNodes.append(try parseCardSymbol(message: "Expected global node"))
             } else {
                 try advance()
             }
@@ -3251,8 +3298,8 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseOutputVariableText() throws -> String? {
-        guard case .identifier(let name) = currentToken else { return nil }
-        try advance()
+        guard case .identifier = currentToken else { return nil }
+        let name = try parseCardSymbol(message: "Expected output reference")
 
         let lower = try normalized(name)
         if lower == "v" || lower == "i" {
@@ -3264,12 +3311,8 @@ private struct SPICEParserImpl {
                     try advance()
                     break
                 }
-                if case .identifier(let value) = currentToken {
+                if let value = try parseOutputNodeName() {
                     try parts.append(value)
-                    try advance()
-                } else if case .number(let numericValue) = currentToken {
-                    try parts.append(try parseNumericNodeName(numericValue))
-                    try advance()
                 } else if case .comma = currentToken {
                     try advance()
                 } else {
@@ -3296,10 +3339,7 @@ private struct SPICEParserImpl {
             return variable
         }
 
-        guard case .identifier(let name) = currentToken else {
-            throw ParserDiagnostic.error("Expected variable name", at: currentLocation)
-        }
-        try advance()
+        let name = try parseCardSymbol(message: "Expected variable name")
 
         // Check for V(...) or I(...)
         let lower = try normalized(name)
@@ -3371,10 +3411,7 @@ private struct SPICEParserImpl {
         } else if lower == "i" {
             if case .leftParen = currentToken {
                 try advance()
-                guard case .identifier(let device) = currentToken else {
-                    throw ParserDiagnostic.error("Expected device name", at: currentLocation)
-                }
-                try advance()
+                let device = try parseRequiredIdentifier(message: "Expected device name")
                 if case .rightParen = currentToken {
                     try advance()
                 }
@@ -3393,16 +3430,11 @@ private struct SPICEParserImpl {
     }
 
     private mutating func parseOutputNodeName() throws -> String? {
-        if case .identifier(let node) = currentToken {
-            try advance()
-            return node
+        switch currentToken {
+        case .identifier, .number:
+            return try parseCardSymbol(allowNumber: true, strictNumericNode: true, message: "Expected output node")
+        default: return nil
         }
-        if case .number(let numericNode) = currentToken {
-            let node = try parseNumericNodeName(numericNode)
-            try advance()
-            return node
-        }
-        return nil
     }
 
     private mutating func parseNumericNodeName(_ numericNode: Double) throws -> String {
@@ -3687,7 +3719,9 @@ private struct SPICEParserImpl {
                 return true
             }
             if try isParamsKeyword(id) {
-                return true
+                let savedCursor = modelSourceCursor, savedLine = modelSourceLine, savedColumn = modelSourceColumn
+                defer { modelSourceCursor = savedCursor; modelSourceLine = savedLine; modelSourceColumn = savedColumn }
+                return try cardSymbolSpan(startingAt: index).tokenEnd == index + 1
             }
         }
         return false
@@ -3715,6 +3749,8 @@ private struct SPICEParserImpl {
     }
 
     private mutating func currentControlledElementUsesExplicitSenseTerminals() throws -> Bool {
+        let savedCursor = modelSourceCursor, savedLine = modelSourceLine, savedColumn = modelSourceColumn
+        defer { modelSourceCursor = savedCursor; modelSourceLine = savedLine; modelSourceColumn = savedColumn }
         let remainingFields = try remainingPositionalFieldCountBeforeParameterStart()
         if remainingFields >= 2 {
             return true
@@ -3733,6 +3769,8 @@ private struct SPICEParserImpl {
             return start
         }
         switch tokens[start].token {
+        case .identifier, .number:
+            return try cardSymbolSpan(startingAt: start).tokenEnd
         case .leftBrace:
             var index = start + 1
             var depth = 1

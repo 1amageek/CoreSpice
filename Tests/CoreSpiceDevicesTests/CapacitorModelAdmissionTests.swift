@@ -5,65 +5,51 @@ import Synchronization
 
 @Suite("Capacitor model binding admission")
 struct CapacitorModelAdmissionTests {
-    @Test("Charge cannot become an ideal capacitor or be discarded before model admission",
-          arguments: [ParameterValue.real(1.0e-6), .string("V(1)"), .behavioralExpression(.constant(1.0e-6))],
+    @Test("Charge law is numerical and cannot mix capacitance or a model",
+          arguments: [ParameterValue.real(1e-6), .behavioralExpression(.constant(1e-6))],
           ["q", "q+c", "q+model"])
-    func chargeIsRejected(charge: ParameterValue, configuration: String) {
+    func chargeRoleAdmission(charge: ParameterValue, configuration: String) throws {
         var parameters: [String: ParameterValue] = ["q": charge]
-        if configuration == "q+c" {
-            parameters["c"] = .real(1.0e-6)
-        }
+        if configuration == "q+c" { parameters["c"] = .real(1e-6) }
         let model: ResolvedDeviceModel? = configuration == "q+model"
             ? ResolvedDeviceModel(name: "CM", typeName: "capacitor", parameters: [:]) : nil
-        let instance = Instance(
-            name: "CQ", typeName: "capacitor", nodes: [Node(id: 1), .ground],
-            parameters: parameters, model: model
-        )
+        let instance = Instance(name: "CQ", typeName: "capacitor", nodes: [Node(id: 1), .ground],
+            parameters: parameters, model: model)
         var context = BindingContext(variableMap: [.nodeVoltage(Node(id: 1)): 0], matrixDimension: 1)
-
-        do {
-            _ = try CapacitorDescriptor().bind(instance: instance, context: &context)
-            Issue.record("Expected charge-based capacitor admission to fail")
-        } catch let error as DeviceBindingError {
-            guard case .invalidParameterValue(let device, let parameter, let message) = error else {
-                Issue.record("Unexpected binding failure: \(error)")
-                return
-            }
-            #expect(device == "CQ")
-            #expect(parameter == "q")
-            #expect(message == "Charge-based capacitor numerical preparation is not implemented")
-        } catch {
-            Issue.record("Unexpected error: \(error)")
+        if configuration != "q" {
+            #expect(throws: DeviceBindingError.self) { try CapacitorDescriptor().bind(instance: instance, context: &context) }
+            return
         }
+        let bound = try CapacitorDescriptor().bind(instance: instance, context: &context)
+        let session = try #require(bound as? any TransientSessionDevice)
+        let state = SolutionState(variables: [1], variableMap: context.variableMap)
+        try session.beginTransientSession(initialState: state)
+        defer { session.endTransientSession() }
+        let current = Mutex(0.0)
+        let physical = try #require(bound as? any TransientPhysicalResidualContributing)
+        try physical.accumulateTransientPhysicalResidual(state: state,
+            integration: IntegrationState(method: .backwardEuler, timeStep: 1, currentTime: 1),
+            add: { _, value in current.withLock { $0 += value } })
+        #expect(current.withLock { $0 } == 0)
     }
 
-    @Test("Explicit capacitance cannot discard a physical model", arguments: ["capacitor", "resistor"])
-    func physicalModelIsRejected(modelType: String) {
-        let instance = Instance(
-            name: "C1", typeName: "capacitor", nodes: [Node(id: 1), .ground],
-            parameters: ["c": .real(1.0e-6)],
-            model: ResolvedDeviceModel(name: "CM", typeName: modelType, parameters: ["tc1": .real(0.01)])
-        )
-        var context = BindingContext(variableMap: [.nodeVoltage(Node(id: 1)): 0], matrixDimension: 1)
-
-        do {
-            _ = try CapacitorDescriptor().bind(instance: instance, context: &context)
-            Issue.record("Expected physical capacitor model admission to fail")
-        } catch let error as DeviceBindingError {
-            guard case .invalidParameterValue(let device, let parameter, let message) = error else {
-                Issue.record("Unexpected binding failure: \(error)")
-                return
-            }
-            #expect(device == "C1")
-            #expect(parameter == "model")
-            if modelType == "capacitor" {
-                #expect(message == "Model-backed capacitor numerical preparation is not implemented")
-            } else {
-                #expect(message == "Model type 'resistor' does not match capacitor")
-            }
-        } catch {
-            Issue.record("Unexpected error: \(error)")
+    @Test("Explicit capacitance applies model coefficients and refuses wrong model type", arguments: ["capacitor", "resistor"])
+    func physicalModelRole(modelType: String) throws {
+        let node = Node(id: 1)
+        let instance = Instance(name: "C1", typeName: "capacitor", nodes: [node, .ground],
+            parameters: ["c": .real(1e-6)],
+            model: ResolvedDeviceModel(name: "CM", typeName: modelType, parameters: ["tc1": .real(0.01), "tnom": .real(17)]))
+        var context = BindingContext(variableMap: [.nodeVoltage(node): 0], matrixDimension: 1)
+        if modelType != "capacitor" {
+            #expect(throws: DeviceBindingError.self) { try CapacitorDescriptor().bind(instance: instance, context: &context) }
+            return
         }
+        let bound = try CapacitorDescriptor().bind(instance: instance, context: &context)
+        let imaginary = Mutex(0.0)
+        var ac = ComplexMatrixStamper(variableMap: context.variableMap,
+            stampMatrix: { _, _, _, value in imaginary.withLock { $0 += value } }, stampRHS: { _, _, _ in })
+        try bound.stampAC(into: &ac, state: SolutionState(variables: [1], variableMap: context.variableMap), omega: 1)
+        #expect(abs(imaginary.withLock { $0 } - 1.1e-6) < 1e-20)
     }
 
     @Test("Ideal capacitors retain their transient companion with URC provenance",

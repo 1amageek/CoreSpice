@@ -1,4 +1,5 @@
 import CoreSpiceParser
+import CoreSpiceDevices
 import CoreSpiceParsedIR
 import Foundation
 
@@ -618,6 +619,13 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             guard model.type == .capacitor else {
                 return "Capacitor reference requires a capacitor model"
             }
+            if component.parameters["q"] != nil {
+                return "Charge capacitors cannot combine a source model"
+            }
+            if case .expression(let expression) = component.parameters["c"],
+               capacitorRuntimeReference(expression, functions: behavioralFunctions) {
+                return "Runtime capacitance cannot combine a source model"
+            }
             return blockedModelReason(model)
         }
         guard component.type.requiresModelForNativeExecution else {
@@ -651,11 +659,21 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
     ) -> String? {
         switch component.type {
         case .capacitor:
-            if component.parameters["q"] != nil {
-                // FIXME(INCOMPLETE_IMPLEMENTATION): Charge-capacitor numerical execution is absent.
-                // Coverage reports source capability; actual selected lowering/binding must
-                // refuse Q until charge/Jacobian/history success and failure tests exist.
-                return "Charge-based capacitor execution is not implemented"
+            let charge = component.parameters["q"]
+            let capacitance = component.parameters["c"]
+            if charge != nil && capacitance != nil { return "Capacitor C and Q roles are exclusive" }
+            var runtime = charge != nil
+            if case .expression(let expression) = capacitance {
+                runtime = capacitorRuntimeReference(expression, functions: behavioralFunctions)
+            }
+            let supported = runtime
+                ? CapacitorDescriptor.behavioralInstanceParameterNames.union([charge == nil ? "c" : "q"])
+                : CapacitorDescriptor.staticInstanceParameterNames
+            if let field = component.parameters.keys.sorted().first(where: { !supported.contains($0) }) {
+                return "Capacitor parameter '\(field)' is outside the admitted source profile"
+            }
+            if case .expression(let expression) = charge ?? capacitance {
+                return blockedBehavioralExpressionReason(expression, behavioralFunctions: behavioralFunctions)
             }
             return nil
         case .behavioral:
@@ -700,14 +718,17 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
     private static func blockedModelReason(_ model: ParsedModel) -> String? {
         switch model.type {
         case .capacitor:
-            // FIXME(INCOMPLETE_IMPLEMENTATION):
-            // Source coverage preserves C declarations; it cannot authorize model-backed
-            // execution until native preparation and numerical correlation are implemented.
-            return "Model-backed capacitor execution is not implemented"
+            if model.level != nil { return "Capacitor model level selectors are unsupported" }
+            if let field = model.parameters.keys.sorted().first(where: { !CapacitorDescriptor.staticModelParameterNames.contains($0) }) {
+                return "Capacitor model parameter '\(field)' is outside the admitted source profile"
+            }
+            return nil
         case .diode:
             // FIXME(INCOMPLETE_IMPLEMENTATION): D3 resolves source inputs but has no consuming numerical owner.
             // Public deck coverage stays blocked until D4 preparation and D5 execution admission are verified.
             return "Typed diode numerical preparation is not implemented"
+        case .osdi:
+            return nil
         case .resistor, .npn, .pnp:
             return nil
         case .nmos, .pmos:
@@ -715,20 +736,8 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             switch level {
             case 1, 2, 3:
                 return nil
-            case 49:
-                if let value = model.parameters["version"] {
-                    guard case .string("3.3.0") = value else {
-                        return "Native BSIM3 level 49 requires exact version 3.3.0"
-                    }
-                }
-                return nil
-            case 54:
-                if let value = model.parameters["version"] {
-                    guard case .string("4.8.3") = value else {
-                        return "Native BSIM4 level 54 requires exact version 4.8.3"
-                    }
-                }
-                return nil
+            case 49, 54:
+                return "Native BSIM models were removed; use an explicit OSDI model/catalog binding for level \(level)"
             default:
                 return "MOS level \(level) models are parsed, but no native CoreSpice device descriptor exists"
             }
@@ -765,6 +774,30 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
             return "MESFET model parameter '\(unsupported)' is parsed, but native execution is not implemented"
         }
         return nil
+    }
+
+    private static func capacitorRuntimeReference(_ expression: ParsedExpression,
+        functions: [String: BehavioralFunctionDefinition], visited: Set<String> = []) -> Bool {
+        switch expression {
+        case .literal: return false
+        case .identifier(let name): return name.lowercased() == "time" || name.lowercased() == "temper"
+        case .unaryOperation(_, let operand): return capacitorRuntimeReference(operand, functions: functions, visited: visited)
+        case .binaryOperation(_, let lhs, let rhs):
+            return capacitorRuntimeReference(lhs, functions: functions, visited: visited)
+                || capacitorRuntimeReference(rhs, functions: functions, visited: visited)
+        case .conditional(let condition, let yes, let no):
+            return capacitorRuntimeReference(condition, functions: functions, visited: visited)
+                || capacitorRuntimeReference(yes, functions: functions, visited: visited)
+                || capacitorRuntimeReference(no, functions: functions, visited: visited)
+        case .functionCall(let name, let arguments):
+            let key = name.lowercased()
+            if key == "v" || key == "i" { return true }
+            if let function = functions[key], !visited.contains(key) {
+                var nested = visited; nested.insert(key)
+                if capacitorRuntimeReference(function.body, functions: functions, visited: nested) { return true }
+            }
+            return arguments.contains { capacitorRuntimeReference($0, functions: functions, visited: visited) }
+        }
     }
 
     private static func blockedBehavioralExpressionReason(
@@ -938,7 +971,10 @@ public struct SPICEDeckCoverageReport: Sendable, Hashable, Codable {
         switch control {
         case .option(let option, let value, _):
             let key = option.lowercased().replacingOccurrences(of: "_", with: "")
-            if key == "maxord" {
+            if key == "bsim4stressiterations" {
+                status = .blocked
+                message = "Native BSIM preparation was removed; use an explicit OSDI model binding"
+            } else if key == "maxord" {
                 status = .blocked
                 message = "Persistent transient integration order is unsupported"
             } else if key == "method" {
@@ -1254,7 +1290,7 @@ private extension ParsedExpression {
 private extension ComponentType {
     var requiresModelForNativeExecution: Bool {
         switch self {
-        case .diode, .bjt, .jfet, .mosfet, .mesfet, .uniformRC, .switch_, .currentSwitch:
+        case .diode, .bjt, .jfet, .mosfet, .mesfet, .uniformRC, .switch_, .currentSwitch, .osdi:
             return true
         default:
             return false
@@ -1263,6 +1299,8 @@ private extension ComponentType {
 
     func accepts(model: ParsedModel) -> Bool {
         switch self {
+        case .osdi:
+            return model.type == .osdi
         case .diode:
             return model.type == .diode
         case .bjt:

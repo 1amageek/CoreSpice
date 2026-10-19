@@ -7,14 +7,29 @@ import Glibc
 /// A typed sparse matrix operation failure.
 public enum SparseMatrixError: Error, Equatable, Sendable, CustomStringConvertible {
     case vectorLengthMismatch(expected: Int, actual: Int)
+    case rhsLengthMismatch(expected: Int, actual: Int)
     case resultLengthMismatch(expected: Int, actual: Int)
+    case nonFiniteMatrixValue(row: Int, column: Int)
+    case nonFiniteVectorValue(index: Int)
+    case nonFiniteRHSValue(index: Int)
+    case residualOverflow(row: Int)
 
     public var description: String {
         switch self {
         case .vectorLengthMismatch(let expected, let actual):
             return "Sparse matrix vector length \(actual) does not match matrix dimension \(expected)."
+        case .rhsLengthMismatch(let expected, let actual):
+            return "Sparse matrix RHS length \(actual) does not match matrix dimension \(expected)."
         case .resultLengthMismatch(let expected, let actual):
             return "Sparse matrix result length \(actual) does not match matrix dimension \(expected)."
+        case .nonFiniteMatrixValue(let row, let column):
+            return "Sparse matrix value at row \(row), column \(column) is not finite."
+        case .nonFiniteVectorValue(let index):
+            return "Sparse matrix residual vector value at index \(index) is not finite."
+        case .nonFiniteRHSValue(let index):
+            return "Sparse matrix residual RHS value at index \(index) is not finite."
+        case .residualOverflow(let row):
+            return "Sparse matrix residual arithmetic overflowed at row \(row)."
         }
     }
 }
@@ -128,6 +143,64 @@ public struct SparseMatrix: Sendable {
             }
             result[row] = sum
         }
+    }
+
+    /// Evaluates signed `A * vector - rhs` with product and summation compensation.
+    /// The caller owns output storage; any thrown error invalidates its contents.
+    package func checkedResidual(
+        vector: borrowing [Double], rhs: borrowing [Double], into result: inout [Double]
+    ) throws {
+        let n = dimension
+        guard result.count == n else {
+            throw SparseMatrixError.resultLengthMismatch(expected: n, actual: result.count)
+        }
+        guard vector.count == n else {
+            throw SparseMatrixError.vectorLengthMismatch(expected: n, actual: vector.count)
+        }
+        guard rhs.count == n else {
+            throw SparseMatrixError.rhsLengthMismatch(expected: n, actual: rhs.count)
+        }
+        for index in 0..<n {
+            guard vector[index].isFinite else { throw SparseMatrixError.nonFiniteVectorValue(index: index) }
+            guard rhs[index].isFinite else { throw SparseMatrixError.nonFiniteRHSValue(index: index) }
+        }
+        for row in 0..<n {
+            var sum = 0.0
+            var correction = 0.0
+            for index in structure.rowPointers[row]..<structure.rowPointers[row + 1] {
+                let column = structure.columnIndices[index]
+                let coefficient = values[index]
+                guard coefficient.isFinite else {
+                    throw SparseMatrixError.nonFiniteMatrixValue(row: row, column: column)
+                }
+                let product = coefficient * vector[column]
+                guard product.isFinite else { throw SparseMatrixError.residualOverflow(row: row) }
+                // FMA retains the product error that summation compensation alone cannot recover.
+                let productError = (-product).addingProduct(coefficient, vector[column])
+                guard productError.isFinite else { throw SparseMatrixError.residualOverflow(row: row) }
+                try Self.accumulateResidual(product, productError: productError, row: row,
+                    sum: &sum, correction: &correction)
+            }
+            try Self.accumulateResidual(-rhs[row], productError: 0, row: row,
+                sum: &sum, correction: &correction)
+            let residual = sum + correction
+            guard residual.isFinite else { throw SparseMatrixError.residualOverflow(row: row) }
+            result[row] = residual
+        }
+    }
+
+    @inline(__always)
+    private static func accumulateResidual(_ term: Double, productError: Double, row: Int,
+        sum: inout Double, correction: inout Double) throws {
+        let next = sum + term
+        guard next.isFinite else { throw SparseMatrixError.residualOverflow(row: row) }
+        let sumError = abs(sum) >= abs(term) ? (sum - next) + term : (term - next) + sum
+        let error = sumError + productError
+        guard error.isFinite else { throw SparseMatrixError.residualOverflow(row: row) }
+        let nextCorrection = correction + error
+        guard nextCorrection.isFinite else { throw SparseMatrixError.residualOverflow(row: row) }
+        sum = next
+        correction = nextCorrection
     }
 
     /// Returns a new matrix with rows and columns permuted.

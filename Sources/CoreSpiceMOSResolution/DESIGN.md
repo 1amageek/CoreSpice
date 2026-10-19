@@ -28,7 +28,7 @@ but cannot replace scope, normalization or selection invariants.
 | [Evaluation](Evaluation/DESIGN.md) | child | Checked invocation graph and evaluation contract | Shared numeric environments | Numeric caller ancestry differs from lexical model/function lookup |
 | [Selection](Selection/DESIGN.md) | child | Checked resolution and independent inspection | Exact selected values and retained reasons | Inspection never repeats evaluation |
 | [Lowering](../CoreSpiceLowering/DESIGN.md) | used by | Declaration/program adapter | Parsed input projection | No device preparation in adapter |
-| [Devices](../CoreSpiceDevices/DESIGN.md) | used by | Resolved input | Exact numerical preparation | Unsupported release remains independently inspectable |
+| [Devices](../CoreSpiceDevices/DESIGN.md) | used by | Resolved input | Exact numerical preparation | Unsupported legacy native releases require OSDI binding |
 
 ## Architecture
 
@@ -95,3 +95,12 @@ their evaluation identity under the D2 shared-session contract.
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md) | depends on | Checked environment identity | D2 temperature meaning | Standard Library only; source policy stays outside this module |
+
+
+## Native Compact-Model Removal
+The native MOS release domain is now classical Levels 1/2/3 only. Legacy levels
+49/54 require an explicit OSDI binding and cannot default or fall back to a
+classical model. [Schema](../CoreSpiceMOSContracts/Schema/DESIGN.md) owns admission;
+the resolver retains the actual visited declaration source in its migration
+failure. OSDI model metadata and official four-family execution use the separate
+[OSDI binding contracts](../CoreSpiceOSDIContracts/DESIGN.md).

@@ -4,7 +4,7 @@ import CoreSpiceIR
 import CoreSpiceMOSContracts
 
 /// Lowering-owned circuit builder using the same adapter capacity ledger as every job.
-struct BoundedFrontendNetlist {
+struct BoundedFrontendNetlist: ~Copyable {
     let storage: FrontendStorage
     private var nodeMap: [String: Node] = [:]
     private var nodeNames: [Node: String] = [:]
@@ -34,6 +34,14 @@ struct BoundedFrontendNetlist {
         try storage.reserve(&nodes, nodes.count + 1); nodes.append(value)
         return value
     }
+    private mutating func ownedNode(_ name: String) throws -> Node {
+        try storage.spend()
+        let value = Node(id: nodes.count)
+        try storage.text(name)
+        try storage.reserve(&nodeNames, nodeNames.count + 1); nodeNames[value] = name
+        try storage.reserve(&nodes, nodes.count + 1); nodes.append(value)
+        return value
+    }
     mutating func branch(name: String? = nil) throws -> Branch {
         try storage.spend()
         let value = Branch(id: branches.count)
@@ -48,13 +56,14 @@ struct BoundedFrontendNetlist {
     }
     mutating func addInstance(name: String, typeName: String, nodes names: [String],
         parameters: [String: ParameterValue] = [:], model: ResolvedDeviceModel? = nil,
-        mos: MOSInstanceStage? = nil, diode: DiodeInstanceStage? = nil, modelConsumption: ModelConsumption? = nil,
-        ownedBranches: [Branch] = [], referencedBranchNames: [String] = [],
+        mos: MOSInstanceStage? = nil, diode: DiodeInstanceStage? = nil, osdi: OSDIInstanceStage? = nil, modelConsumption: ModelConsumption? = nil,
+        ownedBranches: [Branch] = [], ownedNodeNames: [String] = [], referencedBranchNames: [String] = [],
         referencedNodeNames: [String] = []) throws {
         try storage.spend()
         guard !name.isEmpty, instanceIndices[name] == nil else { throw NetlistError.duplicateInstanceName(name) }
-        var ports: [Node] = [], readNodes: [Node] = []
+        var ports: [Node] = [], readNodes: [Node] = [], privateNodes: [Node] = []
         for name in names { try storage.reserve(&ports, ports.count + 1); ports.append(try node(name)) }
+        for name in ownedNodeNames { try storage.reserve(&privateNodes, privateNodes.count + 1); privateNodes.append(try ownedNode(name)) }
         for name in referencedNodeNames { try storage.reserve(&readNodes, readNodes.count + 1); readNodes.append(try node(name)) }
         for (key, value) in parameters {
             try storage.text(key)
@@ -71,13 +80,13 @@ struct BoundedFrontendNetlist {
         try storage.retain(ownedBranches); try storage.retain(referencedBranchNames)
         for name in referencedBranchNames { try storage.text(name) }
         try storage.reserve(&instanceIndices, instanceIndices.count + 1); instanceIndices[name] = instances.count
-        try storage.reserve(&instances, instances.count + 1)
+        try storage.reserveExclusiveInstances(&instances, instances.count + 1)
         instances.append(.init(name: name, typeName: typeName, nodes: ports, parameters: parameters,
-            model: model, mos: mos, diode: diode, modelConsumption: modelConsumption, ownedBranches: ownedBranches,
+            model: model, mos: mos, diode: diode, osdi: osdi, modelConsumption: modelConsumption, ownedNodes: privateNodes, ownedBranches: ownedBranches,
             referencedNodes: readNodes))
         try storage.reserve(&references, references.count + 1); references.append(referencedBranchNames)
     }
-    mutating func build(environment: EvaluationEnvironmentIdentity) throws -> CircuitIR {
+    consuming func build(environment: EvaluationEnvironmentIdentity) throws -> CircuitIR {
         for index in instances.indices {
             try storage.spend()
             var resolved: [Branch] = []
@@ -89,7 +98,7 @@ struct BoundedFrontendNetlist {
             }
             let original = instances[index]
             instances[index] = .init(name: original.name, typeName: original.typeName, nodes: original.nodes,
-                parameters: original.parameters, model: original.model, mos: original.mos, diode: original.diode,
+                parameters: original.parameters, model: original.model, mos: original.mos, diode: original.diode, osdi: original.osdi,
                 modelConsumption: original.modelConsumption, ownedNodes: original.ownedNodes,
                 ownedBranches: original.ownedBranches, referencedBranches: resolved,
                 referencedNodes: original.referencedNodes)

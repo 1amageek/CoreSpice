@@ -2,7 +2,7 @@ import CoreSpiceMOSContracts
 import CoreSpiceMOSResolution
 import CoreSpiceParsedIR
 
-struct NetlistInvocationPlanner {
+struct NetlistInvocationPlanner: ~Copyable {
     let compiled: CompiledNetlist
     let limits: MOSResolutionLimits
     let control: (any MOSResolutionControlling)?
@@ -16,7 +16,7 @@ struct NetlistInvocationPlanner {
         storage = FrontendStorage(limits: limits, control: control)
         try storage.budget.add(compiled.retainedBytes)
     }
-    mutating func plan(overrides: [String: Double], profile: MOSInputProfile) throws -> FrontendPlan {
+    consuming func plan(overrides: [String: Double], profile: MOSInputProfile) throws -> FrontendPlan {
         if profile == .pinnedNgspiceNormalV1, let multiplier = compiled.hierarchicalMultiplier {
             try planMultiplicity(multiplier)
         }
@@ -30,6 +30,28 @@ struct NetlistInvocationPlanner {
         }
         try visit(scope: MOSScopeID(0), caller: nil, actuals: actuals, source: nil,
             prefix: "", ports: [:], depth: 1)
+        var matchedOverrides = 0
+        for job in jobs {
+            try storage.spend()
+            guard case .component(let job) = job else { continue }
+            let fullName = (job.prefix.isEmpty ? job.template.component.name : job.prefix + "." + job.template.component.name).lowercased()
+            guard let overrides = compiled.scalarOverrides[fullName] else { continue }
+            matchedOverrides += 1
+            if job.template.component.type == .osdi {
+                throw LoweringError.unsupportedFeature(feature: "OSDI source scalar overrides require the typed OSDI input boundary")
+            }
+            if job.template.component.type != .diode {
+                for override in overrides where override.source.role == .instance {
+                    try storage.spend()
+                    guard job.template.programs[override.name] != nil else {
+                        throw LoweringError.invalidComponent(name: fullName, reason: "Scalar override is not a supplied source parameter")
+                    }
+                }
+            }
+        }
+        guard matchedOverrides == compiled.scalarOverrides.count else {
+            throw LoweringError.unsupportedFeature(feature: "Scalar override target is not a concrete source instance")
+        }
         // Activation scratch does not belong to the published session's retained storage.
         storage.budget.release(try MOSStorageBudget.capacityBytes(multipliedScopes.capacity, of: Bool.self))
         multipliedScopes = []
@@ -54,7 +76,7 @@ struct NetlistInvocationPlanner {
         let invocation = try MOSScopeInvocation(id: id, scope: scope, callerInvocationID: caller,
             actuals: effectiveActuals, source: source, limits: limits)
         try storage.reserve(&invocations, invocations.count + 1); invocations.append(invocation)
-        try storage.reserve(&jobs, jobs.count + 1); jobs.append(.enter(id))
+        try storage.reserveExclusiveJobs(&jobs, jobs.count + 1); jobs.append(.enter(id))
         let body = compiled.scopes[Int(scope.rawValue)]
         for template in body.components {
             try storage.spend()
@@ -112,13 +134,14 @@ struct NetlistInvocationPlanner {
                     source: frontendSource(component.origin, location: component.location),
                     prefix: fullName, ports: mapping, depth: depth + 1)
             } else {
-                try storage.reserve(&jobs, jobs.count + 1)
+                try storage.reserveExclusiveJobs(&jobs, jobs.count + 1)
                 jobs.append(.component(.init(template: template, invocation: id, prefix: prefix, nodes: nodes,
                     inheritedMultiplier: inheritsMultiplier(component) ? multiplier : nil, portMapping: ports)))
             }
         }
     }
     private func inheritsMultiplier(_ component: ParsedComponent) -> Bool {
+        if component.type == .osdi { return true }
         guard let kind = component.type.rawValue.first,
               !"VEHAKNOPSTUWY".contains(kind) else { return false }
         return component.type != .behavioral || component.parameters["v"] == nil

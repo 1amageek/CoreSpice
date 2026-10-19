@@ -10,18 +10,37 @@ public struct SolutionState: Sendable {
     public let variables: [Double]
     public let previousVariables: [Double]?
     public let twoPreviousVariables: [Double]?
+    public let variableLowComponents: [Double]?
+    public let previousVariableLowComponents: [Double]?
+    public let twoPreviousVariableLowComponents: [Double]?
     private let variableMap: [MNAVariable: Int]
 
     public init(
         variables: [Double],
         previousVariables: [Double]? = nil,
         twoPreviousVariables: [Double]? = nil,
-        variableMap: [MNAVariable: Int]
+        variableMap: [MNAVariable: Int],
+        variableLowComponents: [Double]? = nil,
+        previousVariableLowComponents: [Double]? = nil,
+        twoPreviousVariableLowComponents: [Double]? = nil
     ) {
         self.variables = variables
         self.previousVariables = previousVariables
         self.twoPreviousVariables = twoPreviousVariables
         self.variableMap = variableMap
+        self.variableLowComponents = variableLowComponents
+        self.previousVariableLowComponents = previousVariableLowComponents
+        self.twoPreviousVariableLowComponents = twoPreviousVariableLowComponents
+    }
+
+    /// Creates a checked accepted-history view using the same private variable identities.
+    internal func checkedPreviousSnapshot() throws -> SolutionState {
+        guard let values = previousVariables, values.count == variables.count,
+              values.allSatisfy(\.isFinite) else {
+            throw DeviceBindingError.invalidParameterValue(device: "physicalResidual",
+                parameter: "previousState", message: "A finite complete accepted history is required")
+        }
+        return SolutionState(variables: values, variableMap: variableMap, variableLowComponents: previousVariableLowComponents)
     }
 
     /// Returns the voltage at the given node.
@@ -169,4 +188,52 @@ public struct SolutionState: Sendable {
         guard let tp = twoPreviousVariables else { return previousValue(at: index) }
         return tp[index]
     }
+    /// Validates all represented coordinates before a precision-requested evaluation.
+    public func validateCompensatedComponents() throws {
+        try Self.validatePair(variables, variableLowComponents)
+        if let previousVariables { try Self.validatePair(previousVariables, previousVariableLowComponents) }
+        else if previousVariableLowComponents != nil { throw NumericalStateError.missingHighHistory }
+        if let twoPreviousVariables { try Self.validatePair(twoPreviousVariables, twoPreviousVariableLowComponents) }
+        else if twoPreviousVariableLowComponents != nil { throw NumericalStateError.missingHighHistory }
+    }
+
+    private static func validatePair(_ high: [Double], _ low: [Double]?) throws {
+        if let low, low.count != high.count {
+            throw NumericalStateError.lowComponentCountMismatch(expected: high.count, actual: low.count)
+        }
+        for index in high.indices { _ = try CompensatedValue(high: high[index], low: low?[index] ?? 0) }
+    }
+
+    public func checkedCompensatedValue(at index: Int) throws -> CompensatedValue {
+        let high = try checkedValue(at: index)
+        if let low = variableLowComponents, low.count != variables.count {
+            throw NumericalStateError.lowComponentCountMismatch(expected: variables.count, actual: low.count)
+        }
+        return try CompensatedValue(high: high, low: variableLowComponents?[index] ?? 0)
+    }
+
+    /// Reads a normalized pair only when the private map preserves the exact prebound variable and row.
+    ///
+    /// Throws for missing/remapped node or branch identities, invalid storage or invalid components.
+    /// Ground has no implicit bound row; use `checkedCompensatedVoltage(at:)` for ground zero.
+    public func checkedBoundCompensatedValue(at index: Int, for variable: MNAVariable) throws -> CompensatedValue {
+        _ = try checkedBoundValue(at: index, for: variable)
+        return try checkedCompensatedValue(at: index)
+    }
+
+    public func checkedCompensatedVoltage(at node: Node) throws -> CompensatedValue {
+        if node == .ground { return .zero }
+        guard let index = variableMap[.nodeVoltage(node)] else {
+            throw SolutionStateAccessError.missingNodeVoltage(nodeID: node.id)
+        }
+        return try checkedCompensatedValue(at: index)
+    }
+
+    public func checkedCompensatedCurrent(through branch: Branch) throws -> CompensatedValue {
+        guard let index = variableMap[.branchCurrent(branch)] else {
+            throw SolutionStateAccessError.missingBranchCurrent(branchID: branch.id)
+        }
+        return try checkedCompensatedValue(at: index)
+    }
+
 }

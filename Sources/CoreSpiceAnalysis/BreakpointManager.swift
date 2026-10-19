@@ -52,11 +52,15 @@ public struct BreakpointManager: Sendable {
 
         let nextBP = breakpoints[currentIndex]
         let distToBP = nextBP - currentTime
+        return Self.constrainApproach(distance: distToBP, proposedStep: proposedStep)
+    }
 
-        if distToBP <= proposedStep { return distToBP }
+    /// Approaches an exact endpoint without leaving an avoidable tiny remainder.
+    static func constrainApproach(distance: Double, proposedStep: Double) -> Double {
+        if distance <= proposedStep { return distance }
         // Divide the final approach into two representable steps instead of leaving
         // a rounding-sized remainder after a full step. Neither step exceeds the proposal.
-        if distToBP / proposedStep < 2 { return distToBP / 2 }
+        if distance / proposedStep < 2 { return distance / 2 }
         return proposedStep
     }
 

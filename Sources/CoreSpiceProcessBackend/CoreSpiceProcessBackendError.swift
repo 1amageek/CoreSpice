@@ -1,5 +1,6 @@
 import CircuiteFoundation
 import Foundation
+import SignoffToolSupport
 
 public enum CoreSpiceProcessBackendError: Error, Sendable, Equatable, LocalizedError {
     case invalidExecutable(String)
@@ -10,6 +11,8 @@ public enum CoreSpiceProcessBackendError: Error, Sendable, Equatable, LocalizedE
     case inputLocationInvalid(ArtifactID, reason: String)
     case inputIntegrityFailed(ArtifactID, issues: [ArtifactIntegrityIssue])
     case concurrentProcessExecution
+    case processExecutionFailed(TimedProcessFailure)
+    case processFailurePersistenceFailed(TimedProcessFailure, reason: String)
     case processLaunchFailed(String)
     case processTerminationFailed(String)
     case processFailed(status: Int32, code: String?, message: String, stage: String?)
@@ -37,6 +40,10 @@ public enum CoreSpiceProcessBackendError: Error, Sendable, Equatable, LocalizedE
             return "CoreSpice input \(identifier) failed integrity verification: \(issues)"
         case .concurrentProcessExecution:
             return "The process runner is already executing another CoreSpice process."
+        case .processExecutionFailed(let failure):
+            return "CoreSpice process failed: \(failure.cause); cleanup=\(failure.cleanupIssue ?? "complete")"
+        case .processFailurePersistenceFailed(let failure, let reason):
+            return "CoreSpice process failed: \(failure.cause); output persistence failed: \(reason)"
         case .processLaunchFailed(let reason):
             return "CoreSpice could not be launched: \(reason)"
         case .processTerminationFailed(let reason):

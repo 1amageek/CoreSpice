@@ -1,0 +1,9 @@
+`include "disciplines.vams"
+module precision_context(inout p);
+electrical p;
+analog begin
+    I(p) <+ V(p)*V(p);
+    I(p) <+ ddt(1.0e-9*V(p) + 1.0e-12*$abstime + (analysis("ic") ? 2.0e-12 : 0.0));
+    $bound_step(0.25);
+end
+endmodule

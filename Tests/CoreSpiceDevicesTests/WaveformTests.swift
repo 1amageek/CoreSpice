@@ -354,7 +354,7 @@ struct WaveformTests {
             parameters: ["c": .real(1e-6), "ic": .real(2.5)]
         )
 
-        var context = BindingContext(variableMap: [:], matrixDimension: 2)
+        var context = BindingContext(variableMap: [.nodeVoltage(Node(id: 1)): 0], matrixDimension: 1)
         let bound = try descriptor.bind(instance: instance, context: &context)
 
         if let cap = bound as? BoundCapacitor {
@@ -374,7 +374,7 @@ struct WaveformTests {
             parameters: ["c": .real(1e-6)]
         )
 
-        var context = BindingContext(variableMap: [:], matrixDimension: 2)
+        var context = BindingContext(variableMap: [.nodeVoltage(Node(id: 1)): 0], matrixDimension: 1)
         let bound = try descriptor.bind(instance: instance, context: &context)
 
         if let cap = bound as? BoundCapacitor {

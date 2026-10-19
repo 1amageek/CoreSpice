@@ -18,10 +18,10 @@ struct MOSSnapshotTests {
         let function = try builder.addFunction(symbol: functionName, scope: child, parameters: [formal], program: body)
         var expected: [MOSDeclarationID] = []
         for (index, name) in ["NM.2", "other", "nm.1", "NM.2", "nm.a", "nm.", "nm.1.extra", "nm.01"].enumerated() {
-            expected.append(try builder.addModel(name: name, scope: global, polarity: .nmos, level: 54, version: "4.5",
+            expected.append(try builder.addModel(name: name, scope: global, polarity: .nmos, level: 3, version: nil,
                 coefficients: [], source: source(UInt64(index))))
         }
-        let local = try builder.addModel(name: "nm.3", scope: child, polarity: .nmos, level: 54, version: "4.5",
+        let local = try builder.addModel(name: "nm.3", scope: child, polarity: .nmos, level: 3, version: nil,
             coefficients: [.init(symbol: width, program: literal)], source: source(99))
         let snapshot = try builder.finish()
         #expect(snapshot.declarations.map(\.id) == expected + [local])

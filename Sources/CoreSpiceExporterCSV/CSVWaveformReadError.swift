@@ -29,6 +29,9 @@ public enum CSVWaveformReadError: Error, Equatable, LocalizedError {
     /// correctly ordered partner column.
     case unpairedComplexColumn(name: String)
 
+    /// Complex partners declared different units or only one declared a unit.
+    case complexUnitMismatch(name: String)
+
     /// The file contained a header but no numeric data rows.
     case noDataRows
 
@@ -54,6 +57,8 @@ public enum CSVWaveformReadError: Error, Equatable, LocalizedError {
             return "waveform CSV declares only a sweep column and no data variables"
         case .unpairedComplexColumn(let name):
             return "waveform CSV complex column '\(name)' has no adjacent _real/_imag partner"
+        case .complexUnitMismatch(let name):
+            return "waveform CSV complex column '\(name)' has mismatched real/imaginary units"
         case .noDataRows:
             return "waveform CSV contains a header but no numeric data rows"
         case .columnCountMismatch(let line, let expected, let found):

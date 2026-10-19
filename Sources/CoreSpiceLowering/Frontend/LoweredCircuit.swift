@@ -8,4 +8,5 @@ public struct LoweredCircuit: Sendable {
     public var snapshot: MOSDeclarationSnapshot { compiled.snapshot }
     public let graph: MOSInvocationGraph
     public let evaluationProvenance: NetlistEvaluationProvenance
+    public let externalMOSPreparations: [CheckedExternalMOSPreparation]
 }

@@ -13,6 +13,12 @@ struct NetlistTemperaturePlan {
         var nominal = MOSConditionInput.temperature(policy.defaults.nominal)
         var ambientOrigin = NetlistTemperatureProvenance.Origin.callerDefault
         var nominalOrigin = NetlistTemperatureProvenance.Origin.callerDefault
+        let ambientControl = try NetlistSourceTemperature.winningAmbientControl(in: compiled.source, storage: storage)
+        var nominalControl: Int?
+        for (index, control) in compiled.source.controls.enumerated() {
+            try storage.spend()
+            if case .option(let name, _, _) = control, name.lowercased() == "tnom" { nominalControl = index }
+        }
         for (index, control) in compiled.source.controls.enumerated() {
             try storage.spend()
             let condition: Bool
@@ -23,6 +29,7 @@ struct NetlistTemperaturePlan {
             case .option(let name, _, let source) where name.lowercased() == "tnom": condition = false; location = source
             default: continue
             }
+            guard index == (condition ? ambientControl : nominalControl) else { continue }
             let slot = try compiled.scalarSlot(at: .control(index: index, field: "value"))
             let source = location.map { MOSSourceOccurrence(captureID: nil, occurrenceID: nil,
                 path: $0.file, line: $0.line, column: $0.column, statementByteOffset: nil,

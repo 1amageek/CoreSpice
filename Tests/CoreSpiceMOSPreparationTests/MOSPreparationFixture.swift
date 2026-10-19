@@ -38,9 +38,9 @@ struct MOSPreparationFixture {
     }
 
     static func conditions(ambient: Double = 300.15, nominal: Double = 300.15,
-                           capabilities: MOSAnalysisCapabilities = [.dc, .ac, .transient], stress: UInt32 = 1) throws -> MOSPreparationConditions {
+                           capabilities: MOSAnalysisCapabilities = [.dc, .ac, .transient]) throws -> MOSPreparationConditions {
         try MOSPreparationConditions(ambientKelvin: ambient, nominalKelvin: nominal,
-            analysisCapabilities: capabilities, maximumStressIterations: stress)
+            analysisCapabilities: capabilities)
     }
 
     static func limits(bytes: UInt64 = 8_000_000, temporary: UInt64 = 8_000_000, work: UInt64 = 100_000) throws -> MOSPreparationLimits {
@@ -51,14 +51,13 @@ struct MOSPreparationFixture {
     static func instance(_ receipt: MOSPreparationReceipt, ports: [Node]? = nil) -> Instance {
         let prefix = receipt.identity.resolved.polarity == .nmos ? "nmos" : "pmos"
         return Instance(name: "M1", typeName: "\(prefix)_l\(receipt.identity.resolved.release.level)",
-            nodes: ports ?? (1...4).map { Node(id: $0) }, parameters: [:], mos: .prepared(receipt),
-            ownedNodes: (0..<receipt.topology.auxiliaryNodeCount).map { Node(id: 5 + $0) })
+            nodes: ports ?? (1...4).map { Node(id: $0) }, parameters: [:], mos: .prepared(receipt))
     }
 
     static func context(_ instance: Instance, ambient: Double = 300.15, nominal: Double = 300.15,
                         csr: Bool = true) throws -> BindingContext {
         var variables: [MNAVariable: Int] = [:]
-        for node in instance.nodes + instance.ownedNodes where node != .ground {
+        for node in instance.nodes where node != .ground {
             if variables[.nodeVoltage(node)] == nil { variables[.nodeVoltage(node)] = variables.count }
         }
         let dimension = variables.count

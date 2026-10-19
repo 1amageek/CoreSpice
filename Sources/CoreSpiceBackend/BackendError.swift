@@ -13,6 +13,9 @@ public enum BackendError: Error, Sendable, LocalizedError {
     case invalidConfiguration(String)
     case invalidBufferRequest(count: Int, stride: Int, label: String)
     case bufferLimitExceeded(requested: Int, limit: Int, label: String)
+    case bufferReleased(String)
+    case bufferAccessConflict(String)
+    case invalidLayerDescriptor(String)
     case invalidDispatchGrid(width: Int, height: Int, depth: Int)
 
     public var errorDescription: String? {
@@ -41,6 +44,12 @@ public enum BackendError: Error, Sendable, LocalizedError {
             "Buffer request for \(label) is invalid (count: \(count), stride: \(stride))."
         case .bufferLimitExceeded(let requested, let limit, let label):
             "Buffer request for \(label) requires \(requested) bytes, exceeding the \(limit)-byte limit."
+        case .bufferReleased(let label):
+            "Buffer lease has been released: \(label)."
+        case .bufferAccessConflict(let label):
+            "Buffer is already borrowed by CPU or in flight on GPU: \(label)."
+        case .invalidLayerDescriptor(let reason):
+            "Photonic layer descriptor is invalid: \(reason)"
         case .invalidDispatchGrid(let width, let height, let depth):
             "Dispatch grid dimensions must be positive (width: \(width), height: \(height), depth: \(depth))."
         }

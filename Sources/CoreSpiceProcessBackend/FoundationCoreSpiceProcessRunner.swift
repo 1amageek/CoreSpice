@@ -6,7 +6,7 @@ public actor FoundationCoreSpiceProcessRunner: CoreSpiceProcessRunning {
     private var isRunning = false
 
     public init(
-        processRunner: any TimedProcessRunning = TimedProcessRunner()
+        processRunner: any TimedProcessRunning = TimedProcessRunner(maximumOutputByteCount: 64 * 1024 * 1024, cleanupTimeoutSeconds: 2)
     ) {
         self.processRunner = processRunner
     }
@@ -29,7 +29,7 @@ public actor FoundationCoreSpiceProcessRunner: CoreSpiceProcessRunning {
         do {
             let result = try await processRunner.run(
                 process: process,
-                cancellationCheck: nil
+                control: nil
             )
             try persist(
                 standardOutput: result.standardOutputData,
@@ -42,20 +42,24 @@ public actor FoundationCoreSpiceProcessRunner: CoreSpiceProcessRunning {
                 standardError: result.standardErrorData
             )
         } catch let error as TimedProcessError {
-            try persist(error: error, invocation: invocation)
             switch error {
-            case .cancelled:
-                throw CancellationError()
-            case .launchFailed(_, let message):
+            case .executionFailed(let original):
+                var failure = original
+                if let handle = original.cleanupHandle {
+                    do { try await handle.close(timeoutSeconds: 2) }
+                    catch {
+                        failure = TimedProcessFailure(executablePath: original.executablePath, cause: original.cause,
+                            standardOutputData: original.standardOutputData, standardErrorData: original.standardErrorData,
+                            cleanupIssue: "\(original.cleanupIssue ?? "pending"); retry: \(error)", cleanupHandle: handle)
+                    }
+                }
+                do { try persist(standardOutput: failure.standardOutputData,
+                    standardError: failure.standardErrorData, invocation: invocation) }
+                catch { throw CoreSpiceProcessBackendError.processFailurePersistenceFailed(failure,
+                    reason: String(describing: error)) }
+                throw CoreSpiceProcessBackendError.processExecutionFailed(failure)
+            case .launchFailed(_, let message), .invalidConfiguration(let message):
                 throw CoreSpiceProcessBackendError.processLaunchFailed(message)
-            case .invalidConfiguration(let message):
-                throw CoreSpiceProcessBackendError.processLaunchFailed(message)
-            case .cancellationCheckFailed(_, let message, _, _):
-                throw CoreSpiceProcessBackendError.processTerminationFailed(message)
-            case .timedOut(_, let timeoutSeconds, _, _):
-                throw CoreSpiceProcessBackendError.processTerminationFailed(
-                    "Process timed out after \(timeoutSeconds) seconds."
-                )
             }
         } catch is CancellationError {
             throw CancellationError()
@@ -66,29 +70,6 @@ public actor FoundationCoreSpiceProcessRunner: CoreSpiceProcessRunning {
                 error.localizedDescription
             )
         }
-    }
-
-    private func persist(
-        error: TimedProcessError,
-        invocation: CoreSpiceProcessInvocation
-    ) throws {
-        let output: String
-        let standardError: String
-        switch error {
-        case .cancelled(_, let capturedOutput, let capturedError),
-             .timedOut(_, _, let capturedOutput, let capturedError),
-             .cancellationCheckFailed(_, _, let capturedOutput, let capturedError):
-            output = capturedOutput
-            standardError = capturedError
-        case .invalidConfiguration, .launchFailed:
-            output = ""
-            standardError = ""
-        }
-        try persist(
-            standardOutput: Data(output.utf8),
-            standardError: Data(standardError.utf8),
-            invocation: invocation
-        )
     }
 
     private func persist(

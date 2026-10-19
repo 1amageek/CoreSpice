@@ -125,8 +125,8 @@ public struct BJTModelParameters: Sendable {
 
     /// Thermal voltage at the circuit operating temperature (kT/q).
     public var thermalVoltage: Double {
-        let k = 1.380649e-23  // Boltzmann constant (J/K)
-        let q = 1.602176634e-19  // Elementary charge (C)
+        let k = 1.38064852e-23  // Boltzmann constant (J/K)
+        let q = 1.6021766208e-19  // Elementary charge (C)
         return k * operatingTemperature / q
     }
 

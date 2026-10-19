@@ -29,6 +29,21 @@ struct NonMOSComponentEmitter {
                 modelConsumption: consumption, into: &builder)
             return
         }
+        var privateNodes: [String] = []
+        if component.type == .bjt {
+            for (key, terminal) in [("rc", "collector"), ("rb", "base"), ("re", "emitter")] {
+                let resistance = try realParameter(named: key, in: parameters, componentName: name) ?? 0
+                guard resistance.isFinite, resistance >= 0 else {
+                    throw LoweringError.invalidComponent(name: name, reason: "BJT \(key) must be finite and non-negative")
+                }
+                if resistance > 0 {
+                    try builder.storage.reserve(&privateNodes, privateNodes.count + 1)
+                    let privateName = "\(name)#\(terminal)"
+                    try builder.storage.text(privateName)
+                    privateNodes.append(privateName)
+                }
+            }
+        }
         var owned: [Branch] = []
         for index in 0..<Self.branchesRequired(for: typeName) {
             try builder.storage.reserve(&owned, owned.count + 1)
@@ -39,7 +54,7 @@ struct NonMOSComponentEmitter {
         try builder.storage.reserve(&reads, reads.count + referencedBranches.count)
         reads.append(contentsOf: referencedBranches)
         try builder.addInstance(name: name, typeName: typeName, nodes: nodes, parameters: parameters,
-            model: model, modelConsumption: consumption, ownedBranches: owned,
+            model: model, modelConsumption: consumption, ownedBranches: owned, ownedNodeNames: privateNodes,
             referencedBranchNames: reads, referencedNodeNames: referencedNodes)
     }
     private func addSeriesResistanceFETInstances(
@@ -302,9 +317,13 @@ struct NonMOSComponentEmitter {
 
     func unsupportedModelReason(_ model: ParsedModel) -> String? {
         switch model.type {
+        case .osdi:
+            return "OSDI requires its dedicated typed emission path"
         case .capacitor:
-            return "Model-backed capacitor execution is not implemented"
-        case .resistor, .diode, .npn, .pnp:
+            return model.level == nil ? nil : "Capacitor model level is outside the admitted static profile"
+        case .npn, .pnp:
+            return model.level == nil || model.level == 1 ? nil : "BJT model level is outside the admitted low-injection GP profile"
+        case .resistor, .diode:
             return nil
         case .nmos, .pmos:
             let level = model.level ?? 1

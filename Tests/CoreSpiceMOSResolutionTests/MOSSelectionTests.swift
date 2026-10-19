@@ -6,7 +6,7 @@ import Testing
 struct MOSSelectionTests {
     @Test func exactNameTakesPriorityAndOmittedDimensionsRemainAbsent() throws {
         var f = try MOSSelectionFixture()
-        _ = try f.bin("n.1")
+        _ = try f.model("n.1")
         let exact = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos,
             level: nil, version: nil, coefficients: [], source: MOSSelectionFixture.source("exact"))
         let snapshot = try f.finish(), graph = try f.graph(snapshot)
@@ -23,7 +23,7 @@ struct MOSSelectionTests {
         _ = try f.builder.addModel(name: "n", scope: f.root, polarity: .nmos,
             level: 1, version: nil, coefficients: [], source: MOSSelectionFixture.source("parent"))
         let child = try f.builder.addScope(parent: f.root)
-        _ = try f.bin("n.1", scope: child)
+        _ = try f.model("n.1", scope: child, level: 54, version: "4.5")
         let dimensions = try [f.binding("l", 8e-6), f.binding("w", 8e-6)]
         let snapshot = try f.finish()
         let graph = try f.graph(snapshot, invocations: [
@@ -31,73 +31,19 @@ struct MOSSelectionTests {
             try MOSScopeInvocation(id: 2, scope: child, callerInvocationID: 1, actuals: [], limits: f.limits)
         ])
         var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
-        #expect(throws: MOSResolutionFailure.noMatchingBin(f.model)) {
+        #expect(throws: MOSResolutionFailure.osdiBindingRequired(level: 54, version: "4.5", source: MOSSelectionFixture.source("n.1"))) {
             try resolveMOS(f.request(dimensions, scope: child, invocation: 2), from: snapshot,
                 schemas: StandardMOSModelSchemas(), session: &session)
         }
     }
 
-    @Test func strictAmbiguityDependsOnCurrentGeometryAndUsesClosedBounds() throws {
-        var f = try MOSSelectionFixture()
-        let first = try f.bin("n.1")
-        _ = try f.bin("n.2", bounds: [2e-6, 3e-6, 1e-6, 2e-6])
-        let inside = try [f.binding("l", 1.5e-6), f.binding("w", 1e-6)]
-        let touching = try [f.binding("l", 2e-6), f.binding("w", 1e-6)]
-        let snapshot = try f.finish(), graph = try f.graph(snapshot)
-        var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
-        let result = try resolveMOS(f.request(inside), from: snapshot, schemas: StandardMOSModelSchemas(), session: &session)
-        #expect(result.declaration == first && result.candidates.count == 2)
-        #expect(throws: MOSResolutionFailure.ambiguousModel(f.model)) {
-            try resolveMOS(f.request(touching, instance: "M2"), from: snapshot,
-                schemas: StandardMOSModelSchemas(), session: &session)
-        }
-        #expect(throws: MOSResolutionFailure.poisonedSession) {
-            try resolveMOS(f.request(inside), from: snapshot, schemas: StandardMOSModelSchemas(), session: &session)
-        }
-    }
 
-    @Test func pinnedFirstCardAndReverseRegistrationAvoidDiscardedExpressions() throws {
-        var f = try MOSSelectionFixture()
-        let first = try f.bin("n.1")
-        let absent = try f.builder.intern("absent")
-        let bad = try f.builder.addProgram(.reference(absent))
-        let vth = try f.builder.intern("vth0")
-        _ = try f.bin("n.1", extras: [MOSExpressionBinding(symbol: vth, program: bad)])
-        let second = try f.bin("n.2")
-        let dimensions = try [f.binding("l", 1.5e-6), f.binding("w", 1.5e-6)]
-        let snapshot = try f.finish(), graph = try f.graph(snapshot)
-        var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
-        let result = try resolveMOS(f.request(dimensions, profile: .pinnedNgspiceNormalV1), from: snapshot,
-            schemas: StandardMOSModelSchemas(), session: &session)
-        #expect(result.declaration == second && result.candidates.count == 1)
-        #expect(result.declaration != first)
-    }
 
-    @Test func pinnedEndpointToleranceAndMissingBoundsAreRecorded() throws {
-        var f = try MOSSelectionFixture()
-        let good = try f.bin("n.1", bounds: [1e-6, 1e-6, 1e-6, 1e-6])
-        _ = try f.bin("n.2", bounds: [nil, 2e-6, 1e-6, 2e-6])
-        let dimensions = try [f.binding("l", 1e-6 + 0.5e-9), f.binding("w", 1e-6)]
-        let snapshot = try f.finish(), graph = try f.graph(snapshot)
-        var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
-        let result = try resolveMOS(f.request(dimensions, profile: .pinnedNgspiceNormalV1), from: snapshot,
-            schemas: StandardMOSModelSchemas(), session: &session)
-        #expect(result.declaration == good)
-        #expect(result.candidates.map(\.disposition) == [.missingBounds, .selected])
-        #expect(result.candidates[0].bounds?.missingMask == 1)
-    }
 
-    @Test func strictDuplicateCardFailsEvenOutsideCurrentGeometry() throws {
-        var f = try MOSSelectionFixture()
-        _ = try f.bin("n.1"); _ = try f.bin("n.1", bounds: [4e-6, 5e-6, 4e-6, 5e-6])
-        let dimensions = try [f.binding("l", 1e-6), f.binding("w", 1e-6)]
-        let snapshot = try f.finish(), graph = try f.graph(snapshot)
-        let name = try #require(snapshot.symbol(named: "n.1"))
-        var session = try MOSEvaluationSession(snapshot: snapshot, graph: graph, seed: 42, limits: f.limits)
-        #expect(throws: MOSResolutionFailure.duplicateModel(name)) {
-            try resolveMOS(f.request(dimensions), from: snapshot, schemas: StandardMOSModelSchemas(), session: &session)
-        }
-    }
+
+
+
+
     @Test func nonLexicalCallerModelNeverLeaksIntoCallee() throws {
         var f = try MOSSelectionFixture()
         let caller = try f.builder.addScope(parent: f.root), callee = try f.builder.addScope(parent: f.root)

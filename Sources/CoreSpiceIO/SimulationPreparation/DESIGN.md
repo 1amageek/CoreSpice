@@ -37,9 +37,21 @@ owned root + exact contextual resolver + initial environment + explicit policy
 
 ## Contracts and Invariants
 
+`SPICEDeckLoader.loadFile(..., resources:)` is the resource-aware local-file
+adapter for caller-profile batch intake. Before each content read it checks local
+file size, charges source work and initial hashing, and reserves simultaneous
+read/array scratch. It then creates an invocation-accounted checked source,
+uses the existing contextual `parseProfile` grammar for active includes/library
+sections, and retains the owned AST and source owners in LoadedSPICEDeck. File
+size drift is refused. An accounted source registry bounds capture metadata and
+shares repeated full-source owners while allocating distinct occurrence IDs.
+Coverage materialization receives its own checked retained/work envelope before
+generation. Default legacy loading keeps its existing contract and entry point.
+The CLI retains the loaded owner as long as its compiled batch source is retained;
+low work/hash/storage refusal precedes content read and releases all pending leases.
+
 Host composition uses the shared compiled frontend and node-voltage contracts;
-ordinary host analysis selection remains separate from this op/DC/transient prepared
-lane. The [owned grammar entry](../../CoreSpiceParserSPICE/SPICEProfileSourceParsing.swift)
+ordinary host analysis selection remains separate from checked prepared selection. The [owned grammar entry](../../CoreSpiceParserSPICE/SPICEProfileSourceParsing.swift)
 owns captured parsing and the [resolver](../InitialConditions/SPICENodeVoltageResolving.swift)
 owns actual node binding. Host execution evidence belongs to the consuming host.
 
@@ -69,9 +81,9 @@ separate from configuration identity and availability evidence.
 SP-03: Resolve effective configuration once before execution. An explicit optional
 analysis selection identifies one parsed analysis; absence uses the current first
 supported-directive rule, recorded with its index. No directive means typed failure.
-The initial profile lane covers `.op`, `.dc` and `.tran`. Existing other analyses
-remain independently usable through ordinary domain APIs, but cannot claim profile
-consumption until their prepared settings/selection paths are implemented and tested.
+The prepared lane selects `.op`, `.dc`, `.tran`, `.ac`, `.noise`, `.tf`, `.sens`,
+`.pz` and `.four`; a source `.mc` selection executes its resolved inner directive
+through the run family contract below.
 
 The initial request has source-authoritative numeric analysis/options/IC/nodeset
 settings. Caller controls explicit analysis index, supply bindings, operating-policy
@@ -90,7 +102,14 @@ completion. Unknown settings fail or retain explicit unsupported meaning; no cal
 digest can override computed identity. Paths, run IDs, timestamps, source budget
 ceilings and scheduling observations stay outside semantic configuration identity.
 Defaulted effective values carry an algorithm/default-rule version; they are not
-presented as observations from source text. Ordered bindings/model precedence are
+presented as observations from source text. Transient encoding additionally binds
+`transient.checked-be-bootstrap.v1.preferred-method.v1.voltage-lte-d3.v1.minimum-step-admission.v1.newton-minimum-retry.v1` to the
+[Analysis startup and local-error contract](../../CoreSpiceAnalysis/DESIGN.md#checked-variable-step-lte-and-startup).
+This separates the former first-step-only method semantics from the preferred
+steady method, checked bootstrap, and minimum-bounded accepted proposals and
+optional breakpoint approaches, and a Newton retry that tries the minimum
+before declaring a shrunken proposal too small. Changes to these numerical rules require a
+new transient marker; OP/DC encoding and the outer identity domain remain unchanged. Ordered bindings/model precedence are
 not sorted away; nonfinite values and framing overflow fail.
 
 SP-04: IC and nodeset are resolved against the actual lowered circuit using the
@@ -200,8 +219,7 @@ source owner and multiple grammar occurrences. Catalog entries that are not read
 remain availability and are excluded from actual input identity.
 
 The shared frontend owns hierarchical/scalar/MOS transformation work, depth and
-storage. Superseded flat-device/literal-only gates are removed; the native op/DC/tran
-analysis and explicit supply contracts remain unchanged. Inspectable resolved MOS
+storage. Superseded flat-device/literal-only gates are removed; native analysis dispatch and explicit supply contracts use the checked effective configuration. Inspectable resolved MOS
 input is retained even when later numerical preparation refuses an exact release.
 No second model/parameter evaluator or cold numerical preparation runs in IO.
 
@@ -339,3 +357,154 @@ compiled diagnostic owner. Releasing the session must not release accounting whi
 the thrown diagnostic still retains the parsed/compiled values. Reservation copies
 share one exactly-once release owner. Native preparation rejects resolved diodes
 before allocating or preparing unrelated MOS owners.
+
+07C effective-settings.v4.diode-profile includes the explicit diode interpretation
+profile (or its absence) in bounded semantic identity, independently from source
+availability. Native configuration adds prepared execution identity and policy.
+
+## Newton Numerical Rule Identity
+
+All prepared non-OSDI configurations use effective-settings.v8.source-reexecution
+(OSDI uses effective-settings.v9.osdi-source-reexecution)
+and bind `newton.accurate-residual.factor-reuse-refinement.v1`. This identifies the
+[Analysis-owned refinement rule](../../CoreSpiceAnalysis/DESIGN.md#bounded-linear-refinement)
+under unchanged caller tolerances. Source identity and public artifact fields are
+unchanged. Exact previous preparation digests are rejected by the OP/DC/transient
+identity regression; repeat preparation remains deterministic.
+
+## Explicit OSDI Input Transport
+
+`SPICESimulationPreparationRequest.osdiInstances` supplies exact flattened names
+to typed portable resolved instances. The same source session forwards this map
+to Lowering; no source coefficient kind inference or second evaluator is added.
+Preparation retains the selected effective analysis, including bounded source DC
+sweeps and transient intent, without evaluating a foreign model. Its frozen Kelvin
+environment remains unchanged. Native preparation owns actual setup and
+model/analysis capability admission; source transport is not numerical coverage.
+
+```text
+exact source + typed OSDI instance map -> one source session -> resolved CircuitIR
+ -> configuration identity including exact artifact/descriptor/typed scopes/state
+ -> existing native preparation and selected analysis execution
+```
+
+The historical `v6.osdi-inputs` semantic domain was extended by the current
+source-reexecution domains above. The current encoding binds every instance map key, complete artifact
+reference, descriptor selection, ordered scoped assignment kinds/values and
+previous state. Local paths remain availability information. Different typed
+input or previous state must change the configuration digest; saved inspection
+data cannot authorize an executable library. Frontend tests own source transport;
+native API/CLI tests own numerical results, receipt matching and save/reload.
+
+## S4 Frequency Analysis Admission
+
+Existing effective Analysis adds AC and noise configurations. The same source evaluation
+session resolves bounded frequency sweeps, exact output/reference nodes and the independent
+input source. These effective values enter configuration identity. IC remains exclusive to
+transient UIC; nodesets initialize nested operating points. Source DC sweeps and
+other selected analyses retain their effective intent and exact model bindings;
+Native model capability checks decide execution support. Nonconstant bound-supply coverage
+retains its existing explicit refusal contract.
+
+### Shared inclusive DC schedule
+
+`SPICEDCSweepSchedule` owns finite directional numeric DC coordinates for both
+prepared execution and actual batch CLI. Coordinates use `start + index * step`;
+a stop within one binary64 representational step of the final grid coordinate is
+included as the exact requested stop, for both undershoot and overshoot. The initial
+coordinate always preserves the requested start. Endpoint normalization preserves
+the advancing-value check; a repeated grid coordinate remains a failure. Nongrid
+stops are not rounded by a fraction of the sweep step. Finite span, direction, checked point count and advancing values
+are validated before publishing a schedule. The prepared caller retains its
+per-point cancellation/work accounting through the utility's checked callback.
+Decimal endpoints, descending sweeps, nongrid stop exclusion and count refusals
+are covered by focused schedule tests and the complete CLI DC persistence test.
+
+Schedule failures are translated at their caller boundary: prepared execution
+preserves `SPICESimulationPreparationError.unsupportedCapability`, and batch CLI
+preserves `CoreSpiceCLICaseError.incompleteOutput`. Only schedule failures are
+translated; cancellation and resource-accounting failures propagate unchanged.
+
+## Fresh Source Reexecution
+
+`SPICESimulationPreparer.reprepare` reuses the retained parsed input and exact source
+owners, then creates a new exclusive frontend evaluation and numerical input. It
+does not reread the filesystem or reuse mutable model history. Root parameter
+overrides, explicit temperature policy, seed and selected analysis belong to the
+new request; their values are included in effective configuration identity. The
+source input identity remains unchanged for the same captured graph. A reexecution
+retains its own reservations while sharing immutable captured storage. Cancellation
+and work/storage charges use the original invocation accountant.
+
+```text
+Prepared owned sources -> fresh evaluation(parameters, seed, temperature)
+                      -> fresh resolved circuit + effective configuration
+                      -> fresh native preparation -> analysis
+```
+
+Parameter overrides are finite root invocation constants using the existing
+frontend contract. No flat IR mutation is treated as a resolved MOS input.
+
+`prepareRuns` captures and parses once, then returns an immutable run-selection
+owner. `prepareRun(at:)` prepares one selected temperature/Monte Carlo case at a
+time. Every case uses a fresh exclusive frontend session and actual seed. The
+winning source `.temp` vector forms the temperature axis; selected `.mc` forms
+the iteration axis. The finite product is admitted before selection allocation.
+Temperature discovery reserves only the Lowering-owned capacity for traversal and
+the actual winning literal vector. An absent family reserves no model-compilation
+envelope; a large resolution policy is an admission ceiling, not schedule storage.
+The temporary receipt remains alive until all selected coordinates have been copied.
+Iteration seeds are checked `baseSeed + zeroBasedIteration`; an explicit caller
+`monteCarloSeedOverride` owns the base, then the source `.mc` seed, then the request
+seed. The typed selection records this authority, preserving CLI explicit `--seed`
+precedence without guessing whether a general request seed was defaulted. Each prepared configuration
+retains this complete selection, while numerical result storage belongs to the
+consumer. Selection alone is no execution evidence.
+
+Prepared TF/PZ/sensitivity/Fourier use the same source scalar resolution and native
+analysis implementations as ordinary APIs. Fourier resolves its supporting `.tran`
+through the same exclusive scalar session, including IC/nodeset application.
+Sensitivity source rebinding uses a fresh source override/snapshot and native
+preparation for every changed scalar, including unchanged MOS in that circuit.
+
+### Actual IO Transform Capacity
+
+IO intake reserves text and parsed-entry storage from the captured source size and
+actual parsed counts. Sweep capacity is a separate Double-coordinate envelope, not
+4096 bytes per permitted sweep point. After fresh lowering, IO reserves configuration
+and node-map storage from actual lowered instance/node counts before building those
+collections. The source transform ceiling applies to the combined IO reservation;
+policy `maximumElements` remains an admission ceiling and is never an eager allocation
+size. Frontend compilation/evaluation retains its independently checked envelope.
+
+The prepared OSDI frontend test `preparedDynamicIntentRetainsExactBindingForNativeAdmission`
+checks exact DC coordinates, transient timing and unchanged typed model input.
+The former S3-only rejection test is retired because dynamic source preparation is
+implemented. Actual-worker Native/CLI tests own numerical success and capability
+refusal; this frontend test grants neither model execution nor flow authority.
+
+### Explicit fixed-bias network selection
+
+An optional `SPICENetworkParameterSelection` is caller intent, not source grammar.
+It requires an explicit request `analysisIndex` and applies only to that resolved
+AC directive (including an explicitly selected family member's inner AC). Other
+AC directives are not converted. Ports name ordered existing independent voltage
+sources and carry explicit finite positive real reference resistances. The same
+captured source and effective DC configuration supply the bias; no new parser or
+matched-wave boundary is introduced. The effective analysis is distinct `network`,
+with positive strictly increasing Hz coordinates and checked caller RF limits.
+Zero/negative frequencies, duplicate/unknown ports, non-AC selection and missing
+explicit index fail before numerical execution. RF residual tolerance is an
+explicit positive caller field, never an inferred floor on convergence tolerance.
+
+Configuration identity binds the actual ordered source names, owned branches,
+terminal orientation, reference resistances, frequency coordinates, voltage-basis
+excitation convention and RF numerical limits. Existing non-RF identities retain
+their previous encoding. Family re-preparation preserves the selection and binds
+each fresh temperature/seed case without rereading source. RF frequency and port
+materializations participate in the existing invocation storage/work accounting.
+
+Network policy validation is shared by initial capture and retained-source
+resolution. `prepare`, `prepareRuns`, each `prepareRun` and `reprepare` enforce
+the same explicit-index, nonempty bounded ports and valid signed RF policy checks
+before any network-specific materialization or unsigned identity encoding.

@@ -18,6 +18,8 @@ public struct ResolvedMOSInstance: Sendable, Hashable {
     public let schema: MOSSchemaIdentity
     public let modelCoefficients: [MOSNumericParameter]
     public let instanceParameters: [MOSNumericParameter]
+    /// Exact evaluated source-unit values; absent only on legacy manually constructed evidence.
+    public let rawInstanceParameters: [MOSNumericParameter]?
     public let rawGeometry: MOSInputGeometry
     public let normalizedGeometry: MOSNormalizedGeometry
     public let selectionGeometry: MOSSelectionGeometry
@@ -31,6 +33,7 @@ public struct ResolvedMOSInstance: Sendable, Hashable {
                  symbolNames: [String], scope: MOSScopeID, scopeInstantiation: UInt64, instance: String, declaration: MOSDeclarationID, polarity: MOSPolarity,
                  release: MOSModelRelease, releaseOrigin: MOSReleaseOrigin, schema: MOSSchemaIdentity,
                  modelCoefficients: [MOSNumericParameter], instanceParameters: [MOSNumericParameter],
+                 rawInstanceParameters: [MOSNumericParameter]? = nil,
                  rawGeometry: MOSInputGeometry, normalizedGeometry: MOSNormalizedGeometry,
                  selectionGeometry: MOSSelectionGeometry, profile: MOSInputProfile, geometryScale: Double,
                  rules: [MOSResolutionRule], candidates: [MOSCandidateEvidence],
@@ -45,6 +48,7 @@ public struct ResolvedMOSInstance: Sendable, Hashable {
         try budget.addArray(symbolNames)
         for name in symbolNames { try workBudget.spend(); try budget.addText(name, chargingWorkTo: &workBudget) }
         try budget.addArray(modelCoefficients); try budget.addArray(instanceParameters)
+        if let rawInstanceParameters { try budget.addArray(rawInstanceParameters) }
         try budget.addArray(rules); try budget.addArray(candidates)
         if case .explicit(let version) = releaseOrigin { try budget.addText(version, chargingWorkTo: &workBudget) }
         var selectedCount = 0
@@ -72,15 +76,14 @@ public struct ResolvedMOSInstance: Sendable, Hashable {
            release.exactVersion != nil || release.level != level { throw .invalidResolvedInstance }
         if case .defaulted(let originProfile) = releaseOrigin {
             guard originProfile == profile,
-                  release == .level1 || (profile == .pinnedNgspiceNormalV1 &&
-                    (release == .bsim3_3_3_0 || release == .bsim4_4_8_3)) else {
+                  release == .level1 else {
                 throw .invalidResolvedInstance
             }
         }
         try rawGeometry.validate(); try normalizedGeometry.validate()
         try MOSNormalizedGeometry(length: selectionGeometry.length, width: selectionGeometry.width).validate()
         var seen = Set<MOSSymbolID>()
-        try workBudget.reserveSet(&seen, required: max(modelCoefficients.count, instanceParameters.count))
+        try workBudget.reserveSet(&seen, required: max(max(modelCoefficients.count, instanceParameters.count), rawInstanceParameters?.count ?? 0))
         let validationBytes = try MOSStorageBudget.capacityBytes(seen.capacity, of: MOSSymbolID.self)
         defer { workBudget.release(validationBytes) }
         func validate(_ parameters: [MOSNumericParameter]) throws(MOSResolutionFailure) {
@@ -93,6 +96,7 @@ public struct ResolvedMOSInstance: Sendable, Hashable {
             }
         }
         try validate(modelCoefficients); try validate(instanceParameters)
+        if let rawInstanceParameters { try validate(rawInstanceParameters) }
         self.retainedBytes = budget.bytes
         self.evaluationEnvironment = evaluationEnvironment
         self.identitySpace = identitySpace
@@ -101,6 +105,7 @@ public struct ResolvedMOSInstance: Sendable, Hashable {
         self.instance = instance; self.declaration = declaration; self.polarity = polarity
         self.release = release; self.releaseOrigin = releaseOrigin; self.schema = schema
         self.modelCoefficients = modelCoefficients; self.instanceParameters = instanceParameters
+        self.rawInstanceParameters = rawInstanceParameters
         self.rawGeometry = rawGeometry; self.normalizedGeometry = normalizedGeometry
         self.selectionGeometry = selectionGeometry; self.profile = profile; self.geometryScale = geometryScale
         self.rules = rules; self.candidates = candidates

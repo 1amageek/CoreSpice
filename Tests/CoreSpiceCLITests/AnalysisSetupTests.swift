@@ -469,6 +469,43 @@ struct AnalysisSetupTests {
       }
     }
   }
+  @Test
+  func frequencyAnalysesApplyNonzeroNodesetToFirstOperatingPointSolve() async throws {
+    for mode in ["parsed-ac", "override-ac", "noise"] {
+      for useGuess in [true, false] {
+        let directive = mode == "noise" ? ".noise V(out) I1 lin 2 1k 10k" : ".ac lin 2 1k 10k"
+        let source = """
+          frequency initial guess
+          I1 0 out 0.001 AC 1
+          R1 out 0 1000
+          .options gmin=0 itl1=1 tranmaxaccepted=10 tranmaxattempts=10 tranmaxiterations=1 tranmaxscalars=100 tranmaxdimension=10 tranmaxwork=1000000 tranmaxbreakpoints=10
+          \(useGuess ? ".nodeset V(out)=1" : "")
+          \(directive)
+          .end
+          """
+        var session = try Session(policy: .developerV1())
+        try await session.loadNetlist(source: source, fileName: "frequency-nodeset.cir")
+        do {
+          let waveform: WaveformData
+          if mode == "override-ac" {
+            waveform = try await session.run(.ac(sweep: .linear(start: 1000, stop: 10000, points: 2)))
+          } else {
+            waveform = try await session.runParsed(session.requiredDefaultRunnableAnalysis())
+          }
+          #expect(useGuess, "Frequency OP completed without its required initial guess under a one-iteration budget")
+          #expect(waveform.pointCount == 2)
+          if mode != "noise" {
+            let value = try #require(waveform.complexValue(variable: 0, point: 0))
+            #expect(abs(value.real - 1000) < 1e-9 && abs(value.imag) < 1e-9)
+          }
+        } catch {
+          guard !useGuess else { throw error }
+          #expect(session.lastWaveform == nil)
+        }
+      }
+    }
+  }
+
 }
 
 private extension Array {
@@ -476,4 +513,5 @@ private extension Array {
     guard indices.contains(index) else { return nil }
     return self[index]
   }
+
 }

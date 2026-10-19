@@ -21,7 +21,6 @@ contract remains separate; a device is accumulated through one path only.
 |---|---|---|---|---|
 | [Devices](../DESIGN.md) | parent | BoundDevice | Noise owner boundary | No solver types cross into device values |
 | [Analysis](../../CoreSpiceAnalysis/DESIGN.md) | used by | Original complex AC transfer | Creates all requested gains | Same factorization at each frequency |
-| [BSIM4](../BSIM4/DESIGN.md) | used by | Full private-node mapping | Original correlated spectrum | Preserve complex phase and source orientation |
 
 ## Architecture
 
@@ -44,12 +43,13 @@ this component, and no Native/WASM/Embedded synchronization branch.
 ## Failure, Concurrency, and Constraints
 
 Invalid requested nodes and unknown/nonfinite gain values are typed errors.
-BSIM4 requests at most 12 unique non-ground slots; shared node transfer is solved
-once per frequency. Size follows the prepared circuit, never external C IDs.
+Shared node transfer is solved once per frequency. Requested-node capacity follows
+the prepared circuit. No native BSIM implementation or fixed BSIM slot count
+remains in this boundary.
 
 ## Verification and Change Impact
 
-[CoreSpiceBSIM4NoiseTests](../../../Tests/CoreSpiceBSIM4NoiseTests) owns complex
-phase interference, full-node transfer, malformed gain and actual public-analysis
-proof. Existing Analysis noise regressions own independent-source behavior.
+Analysis noise regressions own complex transfer, malformed gain and independent
+source behavior. Native BSIM-specific noise tests are removed with those devices;
+OSDI noise qualification remains with its separate adapter owner.
 Host CPU runtime evidence does not qualify WASM/Embedded or Metal.

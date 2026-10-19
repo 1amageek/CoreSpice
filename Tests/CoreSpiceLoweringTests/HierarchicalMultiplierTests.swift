@@ -7,7 +7,7 @@ import Testing
 @Suite("Pinned ordinary subcircuit multiplicity", .timeLimit(.minutes(1)))
 struct HierarchicalMultiplierTests {
     private func lower(_ body: String, profile: MOSInputProfile = .pinnedNgspiceNormalV1) async throws -> LoweredCircuit {
-        let parsed = try await SPICEParser().parse(source: "Multiplicity\n.model n nmos level=54 version=4.5\n\(body)\n.end\n").get()
+        let parsed = try await SPICEParser().parse(source: "Multiplicity\n.model n nmos level=1\n\(body)\n.end\n").get()
         let limits = try FrontendTestLowering.limits()
         let compiled = try NetlistLowering.compile(parsed, limits: limits)
         var session = try NetlistLowering.beginEvaluation(compiled, profile: profile, limits: limits, seed: 42)
@@ -101,9 +101,9 @@ struct HierarchicalMultiplierTests {
     }
 
     @Test func unsupportedNonMOSMultiplicityIsRefusedBeforeDiscardedExpressionsRun() async throws {
-        try await expectUnsupported("Hierarchical multiplicity for C is not implemented", body: """
+        try await expectUnsupported("Hierarchical multiplicity for L is not implemented", body: """
             .subckt leaf d
-            C1 d 0 {missing}
+            L1 d 0 {missing}
             .ends
             X1 d leaf m=3
             """)

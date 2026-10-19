@@ -8,7 +8,6 @@ struct MOSSelectionFixture: ~Copyable {
     let model: MOSSymbolID
     let l: MOSSymbolID
     let w: MOSSymbolID
-    let nf: MOSSymbolID
     private var didFinish = false
     init() throws {
         let limits = try MOSResolutionLimits(maximumRetainedBytes: 8_000_000, maximumDiagnosticBytes: 4096,
@@ -20,11 +19,11 @@ struct MOSSelectionFixture: ~Copyable {
         var builder = MOSDeclarationSnapshotBuilder(limits: limits)
         let root = try builder.addScope(parent: nil)
         let model = try builder.intern("n")
-        let l = try builder.intern("l"), w = try builder.intern("w"), nf = try builder.intern("nf")
+        let l = try builder.intern("l"), w = try builder.intern("w")
         self.limits = limits
         self.builder = consume builder
         self.root = root; self.model = model
-        self.l = l; self.w = w; self.nf = nf
+        self.l = l; self.w = w
     }
     mutating func binding(_ name: String, _ value: Double) throws -> MOSExpressionBinding {
         guard !didFinish else { throw MOSResolutionFailure.invalidRequest }
@@ -32,17 +31,11 @@ struct MOSSelectionFixture: ~Copyable {
         let program = try builder.addProgram(.literal(value))
         return MOSExpressionBinding(symbol: symbol, program: program)
     }
-    mutating func bin(_ name: String, scope: MOSScopeID? = nil,
-        bounds: [Double?] = [1e-6, 2e-6, 1e-6, 2e-6], extras: [MOSExpressionBinding] = [],
-        level: Int? = 54, version: String? = "4.8.3") throws -> MOSDeclarationID {
+    mutating func model(_ name: String, scope: MOSScopeID? = nil,
+        level: Int? = 1, version: String? = nil) throws -> MOSDeclarationID {
         guard !didFinish else { throw MOSResolutionFailure.invalidRequest }
-        var coefficients: [MOSExpressionBinding] = []
-        for (name, value) in zip(["lmin", "lmax", "wmin", "wmax"], bounds) {
-            if let value { coefficients.append(try binding(name, value)) }
-        }
-        coefficients.append(contentsOf: extras)
         return try builder.addModel(name: name, scope: scope ?? root, polarity: .nmos,
-            level: level, version: version, coefficients: coefficients, source: Self.source(name))
+            level: level, version: version, coefficients: [], source: Self.source(name))
     }
     mutating func finish() throws -> MOSDeclarationSnapshot {
         guard !didFinish else { throw MOSResolutionFailure.invalidRequest }

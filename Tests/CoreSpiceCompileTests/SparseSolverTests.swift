@@ -52,7 +52,7 @@ struct SparseSolverTests {
             (3, 2), (3, 3)
         ]
         let structure = try SparseStructure.fromTriplets(dimension: 4, entries: entries)
-        let ordering = AMDOrdering.compute(structure: structure)
+        let ordering = try AMDOrdering.compute(structure: structure)
 
         #expect(ordering.dimension == 4)
         // Just verify it produces a valid permutation
@@ -80,7 +80,7 @@ struct SparseSolverTests {
         }
 
         let structure = try SparseStructure.fromTriplets(dimension: n, entries: entries)
-        let ordering = AMDOrdering.compute(structure: structure)
+        let ordering = try AMDOrdering.compute(structure: structure)
 
         // AMD should move the dense row/column to the end
         #expect(ordering.forward.count == n)
@@ -94,7 +94,7 @@ struct SparseSolverTests {
             dimension: 3,
             entries: [(0, 0), (1, 1), (2, 2)]
         )
-        let analysis = SymbolicAnalysis.analyze(structure: structure)
+        let analysis = try SymbolicAnalysis.analyze(structure: structure)
 
         #expect(analysis.fillInCount == 0)
         #expect(analysis.eliminationTree.count == 3)
@@ -108,7 +108,7 @@ struct SparseSolverTests {
             (2, 1), (2, 2)
         ]
         let structure = try SparseStructure.fromTriplets(dimension: 3, entries: entries)
-        let analysis = SymbolicAnalysis.analyze(structure: structure)
+        let analysis = try SymbolicAnalysis.analyze(structure: structure)
 
         // Tridiagonal has no fill-in with natural ordering
         #expect(analysis.fillInCount >= 0)
@@ -119,7 +119,7 @@ struct SparseSolverTests {
             dimension: 3,
             entries: [(0, 0), (0, 1), (1, 0), (1, 1), (1, 2), (2, 1), (2, 2)]
         )
-        let analysis = SymbolicAnalysis.analyze(structure: structure)
+        let analysis = try SymbolicAnalysis.analyze(structure: structure)
 
         // Elimination tree should be valid
         for (node, parent) in analysis.eliminationTree.enumerated() {

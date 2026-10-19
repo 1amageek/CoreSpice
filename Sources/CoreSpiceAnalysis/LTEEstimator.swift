@@ -8,24 +8,31 @@ import Foundation
 /// method order.
 public struct LTEEstimator: Sendable {
 
+    public enum EstimationError: Error, Sendable, Equatable {
+        case insufficientHistory
+        case invalidVectorDimensions
+        case invalidTimeSteps
+        case invalidTolerance
+    }
+
     public init() {}
 
     /// Estimates the maximum normalized local truncation error across all variables.
     ///
     /// Each variable's raw LTE is divided by a tolerance that depends on the
-    /// variable type: `reltol * |x| + vntol` for node voltages, and
-    /// `reltol * |x| + abstol` for branch currents. The returned value is
+    /// node voltage: `reltol * |x| + vntol`. Branch-current variables
+    /// are excluded; `abstol` does not contribute to this estimator. The returned value is
     /// dimensionless: 1.0 means the worst variable is exactly at its tolerance
     /// boundary.
     ///
     /// - Parameters:
     ///   - current: Solution vector at the current time point.
     ///   - previous: Solution vector at the previous time point.
-    ///   - twoPrevious: Solution vector two steps back (needed for trapezoidal LTE).
+    ///   - twoPrevious: Solution vector two steps back (required for both methods).
     ///   - timeStep: The current timestep.
-    ///   - previousTimeStep: The previous timestep (needed for trapezoidal LTE).
+    ///   - previousTimeStep: The previous timestep (required for both methods).
     ///   - method: The integration method in use.
-    ///   - branchCurrentIndices: Indices of branch current variables (use `abstol`).
+    ///   - branchCurrentIndices: Indices of excluded branch current variables.
     ///   - reltol: Relative tolerance (default: 1e-3).
     ///   - vntol: Voltage node tolerance (default: 1e-6 V).
     ///   - abstol: Absolute current tolerance (default: 1e-12 A).
@@ -41,8 +48,26 @@ public struct LTEEstimator: Sendable {
         reltol: Double = 1e-3,
         vntol: Double = 1e-6,
         abstol: Double = 1e-12,
-        earlyExitThreshold: Double? = nil
-    ) -> Double {
+        earlyExitThreshold: Double? = nil,
+        threePrevious: [Double]? = nil,
+        twoPreviousTimeStep: Double? = nil,
+        variableAbsoluteTolerances: [Double]? = nil
+    ) throws(EstimationError) -> Double {
+        guard current.count == previous.count, let twoPrevious, twoPrevious.count == current.count else {
+            if twoPrevious == nil { throw .insufficientHistory }
+            throw .invalidVectorDimensions
+        }
+        guard let previousTimeStep else { throw .insufficientHistory }
+        guard timeStep > 0, timeStep.isFinite, previousTimeStep > 0, previousTimeStep.isFinite else { throw .invalidTimeSteps }
+        guard reltol >= 0, reltol.isFinite, vntol > 0, vntol.isFinite else { throw .invalidTolerance }
+        if method == .trapezoidal {
+            guard let threePrevious, let twoPreviousTimeStep else { throw .insufficientHistory }
+            guard threePrevious.count == current.count else { throw .invalidVectorDimensions }
+            guard twoPreviousTimeStep > 0, twoPreviousTimeStep.isFinite else { throw .invalidTimeSteps }
+        }
+        if let tolerances = variableAbsoluteTolerances {
+            guard tolerances.count == current.count, tolerances.allSatisfy({ $0.isFinite && $0 > 0 }) else { throw .invalidTolerance }
+        }
         var maxLTE: Double = 0
 
         // Early exit threshold: if LTE exceeds this value, return immediately.
@@ -62,34 +87,29 @@ public struct LTEEstimator: Sendable {
 
             switch method {
             case .backwardEuler:
-                if let tp = twoPrevious, let prevDt = previousTimeStep {
+                do {
+                    let tp = twoPrevious, prevDt = previousTimeStep
                     let d1Cur = (current[i] - previous[i]) / timeStep
                     let d1Prev = (previous[i] - tp[i]) / prevDt
                     let xpp = 2.0 * (d1Cur - d1Prev) / (timeStep + prevDt)
                     lte = abs(timeStep * timeStep * xpp / 2.0)
-                } else {
-                    // Insufficient history for a proper LTE estimate.
-                    // The 3-point formula requires twoPrevious; without it
-                    // we cannot distinguish integration error from solution
-                    // change.  Accept the step unconditionally — the BE
-                    // method provides natural stability, and the next step
-                    // will have a full 3-point estimate.
-                    lte = 0
                 }
 
             case .trapezoidal:
-                if let tp = twoPrevious, let prevDt = previousTimeStep {
-                    let d1Cur = (current[i] - previous[i]) / timeStep
-                    let d1Prev = (previous[i] - tp[i]) / prevDt
-                    let xpp = 2.0 * (d1Cur - d1Prev) / (timeStep + prevDt)
-                    lte = abs(timeStep * timeStep * xpp / 12.0)
-                } else {
-                    lte = 0
+                guard let third = threePrevious, let olderDt = twoPreviousTimeStep else {
+                    throw .insufficientHistory
                 }
+                let recentSlope = (current[i] - previous[i]) / timeStep
+                let middleSlope = (previous[i] - twoPrevious[i]) / previousTimeStep
+                let olderSlope = (twoPrevious[i] - third[i]) / olderDt
+                let recentSecond = (recentSlope - middleSlope) / (timeStep + previousTimeStep)
+                let olderSecond = (middleSlope - olderSlope) / (previousTimeStep + olderDt)
+                let thirdDifference = (recentSecond - olderSecond) / (timeStep + previousTimeStep + olderDt)
+                lte = abs(timeStep * timeStep * timeStep * thirdDifference / 2.0)
             }
 
             // Normalize by voltage node tolerance
-            let tol = reltol * abs(current[i]) + vntol
+            let tol = reltol * abs(current[i]) + (variableAbsoluteTolerances?[i] ?? vntol)
             let normalizedLTE = lte / tol
             guard normalizedLTE.isFinite else { return .infinity }
             maxLTE = max(maxLTE, normalizedLTE)
@@ -102,6 +122,48 @@ public struct LTEEstimator: Sendable {
         }
 
         return maxLTE
+    }
+
+    /// Compares independent positive-time BE trials without using an inconsistent algebraic t=0 value.
+    func estimateBootstrap(
+        current: [Double], half: [Double], quarter: [Double],
+        branchCurrentIndices: Set<Int>, reltol: Double, vntol: Double,
+        variableAbsoluteTolerances: [Double]? = nil
+    ) throws(EstimationError) -> Double {
+        guard current.count == half.count, current.count == quarter.count else { throw .invalidVectorDimensions }
+        guard reltol >= 0, reltol.isFinite, vntol > 0, vntol.isFinite else { throw .invalidTolerance }
+        if let tolerances = variableAbsoluteTolerances {
+            guard tolerances.count == current.count, tolerances.allSatisfy({ $0.isFinite && $0 > 0 }) else { throw .invalidTolerance }
+        }
+        var maximum = 0.0
+        for index in current.indices {
+            if branchCurrentIndices.contains(index) { continue }
+            let raw = (4.0 / 3.0) * abs(current[index] - 3 * half[index] + 2 * quarter[index])
+            let normalized = raw / (reltol * abs(current[index]) + (variableAbsoluteTolerances?[index] ?? vntol))
+            guard normalized.isFinite else { return .infinity }
+            maximum = max(maximum, normalized)
+        }
+        return maximum
+    }
+
+    /// Embedded same-endpoint BE/TR estimate when distinct positive bootstrap times are unrepresentable.
+    func estimateEmbedded(
+        current: [Double], reference: [Double], branchCurrentIndices: Set<Int>,
+        reltol: Double, vntol: Double, variableAbsoluteTolerances: [Double]? = nil
+    ) throws(EstimationError) -> Double {
+        guard current.count == reference.count else { throw .invalidVectorDimensions }
+        guard reltol >= 0, reltol.isFinite, vntol > 0, vntol.isFinite else { throw .invalidTolerance }
+        if let tolerances = variableAbsoluteTolerances {
+            guard tolerances.count == current.count, tolerances.allSatisfy({ $0.isFinite && $0 > 0 }) else { throw .invalidTolerance }
+        }
+        var maximum = 0.0
+        for index in current.indices where !branchCurrentIndices.contains(index) {
+            let normalized = abs(current[index] - reference[index])
+                / (reltol * abs(current[index]) + (variableAbsoluteTolerances?[index] ?? vntol))
+            guard normalized.isFinite else { return .infinity }
+            maximum = max(maximum, normalized)
+        }
+        return maximum
     }
 
     /// Computes the optimal next timestep from the current LTE estimate.

@@ -27,3 +27,6 @@ Package.resolved
 *.metallib
 *.air
 build/
+
+# Generated Python bytecode from local verification tools.
+__pycache__/

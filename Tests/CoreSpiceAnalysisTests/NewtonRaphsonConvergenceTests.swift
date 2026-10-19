@@ -57,6 +57,7 @@ struct NewtonRaphsonConvergenceTests {
         private struct State: Sendable {
             var sequences: [[Double]] = []
             var currentSequence: [Double] = []
+            var convergedSequences: [[Double]] = []
         }
 
         private let state = Mutex(State())
@@ -82,6 +83,11 @@ struct NewtonRaphsonConvergenceTests {
             }
         }
 
+        /// Keeps the final polish visible while identifying the actual nonlinear convergence phase.
+        var lastNontrivialConvergedSequence: [Double] {
+            state.withLock { $0.convergedSequences.last(where: { $0.count >= 2 }) ?? [] }
+        }
+
         func onEvent(_ event: AnalysisEvent) {
             state.withLock { state in
                 if case .newtonIterationFinished(let info) = event {
@@ -91,6 +97,7 @@ struct NewtonRaphsonConvergenceTests {
                         state.currentSequence = []
                     }
                     state.currentSequence.append(info.residualNorm)
+                    if info.converged { state.convergedSequences.append(state.currentSequence) }
                 }
             }
         }
@@ -99,8 +106,24 @@ struct NewtonRaphsonConvergenceTests {
             state.withLock { state in
                 state.sequences.removeAll()
                 state.currentSequence.removeAll()
+                state.convergedSequences.removeAll()
             }
         }
+    }
+
+    private func checkFinalOriginalEquations(_ result: DCResult, plan: ExecutionPlan,
+                                             devices: [any BoundDevice]) throws {
+        var matrix = SparseMatrix(structure: plan.matrixStructure)
+        var rhs = [Double](repeating: 0, count: plan.topology.dimension)
+        var stamper = MatrixStamper(variableMap: plan.topology.variableMap,
+            stampMatrix: { matrix.addValue(row: $0, col: $1, value: $2) },
+            stampRHS: { rhs[$0] += $1 }, stampValue: { matrix.addValueDirect(at: $0, value: $1) })
+        let state = SolutionState(variables: result.variables, variableMap: result.variableMap,
+            variableLowComponents: result.variableLowComponents)
+        for device in devices { try device.stampDC(into: &stamper, state: state) }
+        var residual = [Double](repeating: 0, count: rhs.count)
+        try matrix.checkedResidual(vector: result.variables, rhs: rhs, into: &residual)
+        #expect(residual.allSatisfy { $0.isFinite && abs($0) <= 1e-12 })
     }
 
     // MARK: - Convergence Order Calculation
@@ -186,7 +209,9 @@ struct NewtonRaphsonConvergenceTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 
@@ -204,13 +229,16 @@ struct NewtonRaphsonConvergenceTests {
         let solver = SparseLUSolver()
         let token = CancellationToken()
 
-        let _ = try await analysis.run(
+        let result = try await analysis.run(
             plan: plan, devices: devices, solver: solver,
             observer: dispatcher, cancellation: token
         )
 
-        // Analyze the last convergence sequence (final NR solve)
-        let residuals = recorder.lastSequence
+        // Zero-Gmin polish may need one iteration; analyze the last nontrivial converged phase.
+        try checkFinalOriginalEquations(result, plan: plan, devices: devices)
+        #expect(result.iterations >= recorder.lastNontrivialConvergedSequence.count)
+        #expect(!recorder.lastSequence.isEmpty)
+        let residuals = recorder.lastNontrivialConvergedSequence
         #expect(residuals.count >= 2, "Should have at least 2 iterations, got \(residuals.count)")
 
         // If we have enough data points, verify convergence behavior
@@ -276,7 +304,9 @@ struct NewtonRaphsonConvergenceTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 
@@ -335,7 +365,9 @@ struct NewtonRaphsonConvergenceTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 
@@ -351,12 +383,15 @@ struct NewtonRaphsonConvergenceTests {
         let solver = SparseLUSolver()
         let token = CancellationToken()
 
-        let _ = try await analysis.run(
+        let result = try await analysis.run(
             plan: plan, devices: devices, solver: solver,
             observer: dispatcher, cancellation: token
         )
 
-        let residuals = recorder.lastSequence
+        try checkFinalOriginalEquations(result, plan: plan, devices: devices)
+        #expect(result.iterations >= recorder.lastNontrivialConvergedSequence.count)
+        #expect(!recorder.lastSequence.isEmpty)
+        let residuals = recorder.lastNontrivialConvergedSequence
         #expect(residuals.count >= 2)
 
         // Check that residuals generally decrease (with tolerance for damping/limiting)

@@ -8,9 +8,39 @@ public struct NetlistLowering: Sendable {
         try NetlistFrontendResourceEnvelope(limits: limits)
     }
     public static func compile(_ netlist: ParsedNetlist, additionalOverrideNames: [String] = [],
-        limits: MOSResolutionLimits, control: (any MOSResolutionControlling)? = nil) throws -> CompiledNetlist {
+        sourceOverrides: [NetlistSourceScalarOverride] = [], temperatureSelection: NetlistSourceTemperature? = nil,
+        captureSourceScalars: Bool = false, limits: MOSResolutionLimits, control: (any MOSResolutionControlling)? = nil) throws -> CompiledNetlist {
         let compiler = ParsedNetlistCompiler(limits: limits, control: control)
-        return try compiler.compile(netlist, overrideNames: additionalOverrideNames)
+        return try compiler.compile(netlist, overrideNames: additionalOverrideNames,
+            sourceOverrides: sourceOverrides, temperatureSelection: temperatureSelection,
+            captureSourceScalars: captureSourceScalars)
+    }
+    /// Returns only the winning literal family; scalar/expression temperatures use ordinary evaluation.
+    /// The optional callback admits incremental result-buffer bytes before requested
+    /// allocation and any actual capacity excess before publication. The caller
+    /// retains its reservations through the returned schedule's last use.
+    public static func temperatureSchedule(in netlist: ParsedNetlist, limits: MOSResolutionLimits,
+        control: (any MOSResolutionControlling)? = nil,
+        reserveStorage: ((UInt64) throws -> Void)? = nil) throws -> [NetlistSourceTemperature] {
+        try control?.checkCancellation()
+        let storage = FrontendStorage(limits: limits, control: control)
+        guard let index = try NetlistSourceTemperature.winningAmbientControl(in: netlist, storage: storage),
+              case .temp(.numericVector(let values), _) = netlist.controls[index] else { return [] }
+        guard !values.isEmpty else {
+            throw LoweringError.unsupportedFeature(feature: "Temperature family cannot be empty")
+        }
+        var result: [NetlistSourceTemperature] = []
+        let requestedBytes = try MOSStorageBudget.capacityBytes(values.count, of: NetlistSourceTemperature.self)
+        try storage.budget.checkAdding(requestedBytes)
+        try reserveStorage?(requestedBytes)
+        try storage.reserve(&result, values.count)
+        let actualBytes = try MOSStorageBudget.capacityBytes(result.capacity, of: NetlistSourceTemperature.self)
+        if actualBytes > requestedBytes { try reserveStorage?(actualBytes - requestedBytes) }
+        for (valueIndex, value) in values.enumerated() {
+            try storage.spend()
+            result.append(try NetlistSourceTemperature(controlIndex: index, valueIndex: valueIndex, celsius: value))
+        }
+        return result
     }
     public static func beginEvaluation(_ compiled: CompiledNetlist, profile: MOSInputProfile,
         limits: MOSResolutionLimits, seed: UInt64, parameterOverrides: [String: Double] = [:],

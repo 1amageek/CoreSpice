@@ -4,6 +4,14 @@ import Synchronization
 
 /// Retains preparation once and admits only additional result/scratch capacity.
 internal final class NativeExecutionStorage: AnalysisResultStorageAccounting {
+    struct MaterializationLease: Sendable {
+        let owner: NativeExecutionStorage
+        let reservation: SPICESourceStorageReservation
+    }
+    static func nativeOwner(of storage: (any Sendable)?) -> NativeExecutionStorage? {
+        if let owner = storage as? NativeExecutionStorage { return owner }
+        return (storage as? MaterializationLease)?.owner
+    }
     private enum AdmissionFailure: Error { case failedOwner }
     private struct State {
         var scalarCapacity = 0
@@ -13,10 +21,23 @@ internal final class NativeExecutionStorage: AnalysisResultStorageAccounting {
         var reservations: [SPICESourceStorageReservation] = []
     }
     private let preparation: NativeCircuitPreparationRecord
+    private let admittedPreparationCapacity: UInt64
     private let state = Mutex(State())
 
     init(preparation: NativeCircuitPreparationRecord, scalars: Int, retainedBytes: UInt64) throws {
-        self.preparation = preparation
+        let copiedReceipts = preparation.osdiLifetime == nil ? 0 : 3 * MemoryLayout<SPICESourceStorageReservation>.stride
+        let metadataBytes = try NativeCircuitExecution.capacitySum(UInt64(MemoryLayout<UInt64>.stride), UInt64(copiedReceipts))
+        try Self.validatePeak(preparation: preparation, floor: preparation.compileCapacity,
+            retained: metadataBytes, temporary: 0)
+        let metadataReservation: SPICESourceStorageReservation
+        do { metadataReservation = try preparation.resources.reserveStorage(kind: .liveOwnedBytes, byteCount: metadataBytes) }
+        catch { throw NativeCircuitExecution.resourceFailure(error) }
+        admittedPreparationCapacity = preparation.compileCapacity
+        self.preparation = try preparation.valueEvidence()
+        state.withLock { value in
+            value.retainedBytes = metadataBytes
+            value.reservations.append(metadataReservation)
+        }
         if retainedBytes > 0 {
             try claim(retained: retainedBytes, temporary: 0)
             try retainClaim(retainedBytes)
@@ -59,7 +80,13 @@ internal final class NativeExecutionStorage: AnalysisResultStorageAccounting {
     }
 
     private func validatePeak(retained: UInt64, temporary: UInt64) throws {
-        let peak = try NativeCircuitExecution.capacitySum(preparation.compileCapacity,
+        try Self.validatePeak(preparation: preparation, floor: admittedPreparationCapacity,
+            retained: retained, temporary: temporary)
+    }
+
+    private static func validatePeak(preparation: NativeCircuitPreparationRecord, floor: UInt64,
+                                     retained: UInt64, temporary: UInt64) throws {
+        let peak = try NativeCircuitExecution.capacitySum(floor,
             NativeCircuitExecution.capacitySum(retained, temporary))
         guard peak <= preparation.limits.maximumAllocationBytes else {
             guard let requested = Int(exactly: peak), let limit = Int(exactly: preparation.limits.maximumAllocationBytes) else {
@@ -81,6 +108,22 @@ internal final class NativeExecutionStorage: AnalysisResultStorageAccounting {
             guard !value.failed else { throw AdmissionFailure.failedOwner }
             value.reservations.append(reservation)
         }
+    }
+
+    /// An unpublished materialization can refuse without poisoning completed numerical state.
+    func reserveMaterializationBytes(_ byteCount: UInt64) throws -> MaterializationLease {
+        try claim(retained: byteCount, temporary: 0)
+        let reservation: SPICESourceStorageReservation
+        do { reservation = try preparation.resources.reserveStorage(kind: .liveOwnedBytes, byteCount: byteCount) }
+        catch {
+            state.withLock { $0.retainedBytes -= byteCount }
+            throw NativeCircuitExecution.resourceFailure(error)
+        }
+        let lease = SPICESourceStorageReservation(kind: .liveOwnedBytes, byteCount: byteCount) { [self, reservation] in
+            withExtendedLifetime(reservation) {}
+            state.withLock { $0.retainedBytes -= byteCount }
+        }
+        return MaterializationLease(owner: self, reservation: lease)
     }
 
     func reserveTemporaryBytes(_ byteCount: UInt64) throws -> any Sendable {

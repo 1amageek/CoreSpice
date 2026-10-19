@@ -16,6 +16,7 @@ public struct Instance: Sendable {
     /// Resolution or preparation evidence; generic dictionaries never override MOS values.
     public let mos: MOSInstanceStage?
     public let diode: DiodeInstanceStage?
+    public let osdi: OSDIInstanceStage?
 
     /// Private auxiliary nodes allocated by this instance, in model-defined order.
     public let ownedNodes: [Node]
@@ -42,6 +43,7 @@ public struct Instance: Sendable {
         model: ResolvedDeviceModel? = nil,
         mos: MOSInstanceStage? = nil,
         diode: DiodeInstanceStage? = nil,
+        osdi: OSDIInstanceStage? = nil,
         modelConsumption: ModelConsumption? = nil,
         ownedNodes: [Node] = [],
         ownedBranches: [Branch] = [],
@@ -56,6 +58,7 @@ public struct Instance: Sendable {
         self.model = model
         self.mos = mos
         self.diode = diode
+        self.osdi = osdi
         self.modelConsumption = modelConsumption ?? model.map(ModelConsumption.selected) ?? .unrecorded
         self.ownedNodes = ownedNodes
         self.ownedBranches = ownedBranches

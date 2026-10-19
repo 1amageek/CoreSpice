@@ -19,6 +19,7 @@ import Foundation
 /// 5. Optionally computes input-referred noise and integrated RMS noise.
 public struct NoiseAnalysis: Analysis, Sendable {
     package var executionBudget: TransientExecutionBudget?
+    package var resultStorage: (any AnalysisResultStorageAccounting)?
 
     public typealias Result = NoiseResult
 
@@ -36,19 +37,29 @@ public struct NoiseAnalysis: Analysis, Sendable {
 
     /// DC convergence configuration.
     public let dcConfig: ConvergenceConfig
+    public let nodeInitialGuess: [Node: Double]
+    public let equationPolicy: DCEquationPolicy?
+    public let physicalResidualValidator: (any DCPhysicalResidualValidating)?
+    public let completionFinalizer: (any AnalysisCompletionFinalizing)?
 
     public init(
         outputNode: Node,
         outputReferenceNode: Node? = nil,
         inputSourceName: String? = nil,
         sweep: FrequencySweep,
-        dcConfig: ConvergenceConfig = ConvergenceConfig()
+        dcConfig: ConvergenceConfig = ConvergenceConfig(),
+        nodeInitialGuess: [Node: Double] = [:],
+        equationPolicy: DCEquationPolicy? = nil,
+        physicalResidualValidator: (any DCPhysicalResidualValidating)? = nil,
+        completionFinalizer: (any AnalysisCompletionFinalizing)? = nil
     ) {
         self.outputNode = outputNode
         self.outputReferenceNode = outputReferenceNode
         self.inputSourceName = inputSourceName
         self.sweep = sweep
         self.dcConfig = dcConfig
+        self.nodeInitialGuess = nodeInitialGuess; self.equationPolicy = equationPolicy
+        self.physicalResidualValidator = physicalResidualValidator; self.completionFinalizer = completionFinalizer
     }
 
     public func run(
@@ -83,8 +94,10 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 }
             }
             // Phase 1: DC operating point
-            var dcAnalysis = DCAnalysis(config: dcConfig)
+            var dcAnalysis = DCAnalysis(config: dcConfig, nodeInitialGuess: nodeInitialGuess,
+                equationPolicy: equationPolicy, physicalResidualValidator: physicalResidualValidator)
             dcAnalysis.executionBudget = executionBudget
+            dcAnalysis.resultStorage = resultStorage
             try executionBudget?.admitSavedPoint(accepted: false)
             let dcResult = try await dcAnalysis.run(
                 plan: plan,
@@ -95,7 +108,8 @@ public struct NoiseAnalysis: Analysis, Sendable {
             )
             let dcState = SolutionState(
                 variables: dcResult.variables,
-                variableMap: variableMap
+                variableMap: variableMap,
+                variableLowComponents: dcResult.variableLowComponents
             )
             let dcOpticalState = dcResult.opticalState ?? OpticalState()
 
@@ -118,10 +132,48 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 try inputSourceStimulus(named: $0, plan: plan, variableMap: variableMap)
             }
 
+            if let equationPolicy {
+                guard equationPolicy.rows[outputIndex].kind == .electricalPotential,
+                      outputReferenceIndex.map({ equationPolicy.rows[$0].kind == .electricalPotential }) ?? true else {
+                    throw AnalysisError.invalidConfiguration("Noise output must be an electrical voltage differential")
+                }
+            }
+
             // Collect noisy devices
             let outputNoisyDevices = devices.compactMap { $0 as? any OutputReferredNoisyDevice }
             // A correlated device is counted through its output-referred path once.
-            let noisyDevices = devices.filter { !($0 is any OutputReferredNoisyDevice) }
+            let residualDevices = devices.filter { !($0 is any OutputReferredNoisyDevice) }
+                .compactMap { $0 as? any ResidualNoisyDevice }
+            let residualMetadata = residualDevices.map(\.residualNoiseSources)
+            for sources in residualMetadata {
+                guard Set(sources.map(\.index)).count == sources.count,
+                      sources.allSatisfy({ $0.index >= 0 }) else {
+                    throw AnalysisError.invalidConfiguration("Duplicate or invalid residual noise source indices")
+                }
+                for source in sources {
+                    for endpoint in [source.positive, source.negative] {
+                        if let endpoint {
+                            guard let row = variableMap[endpoint] else {
+                                throw AnalysisError.invalidConfiguration("Unknown residual noise endpoint")
+                            }
+                            let expected: ResidualNoiseUnit
+                            if let equationPolicy {
+                                switch equationPolicy.rows[row].kind {
+                                case .electricalPotential: expected = .ampere
+                                case .electricalFlow: expected = .volt
+                                case .thermalPotential: expected = .watt
+                                }
+                            } else {
+                                switch endpoint { case .nodeVoltage: expected = .ampere; case .branchCurrent: expected = .volt }
+                            }
+                            guard source.unit == expected else {
+                                throw AnalysisError.invalidConfiguration("Residual noise source unit does not match its equation")
+                            }
+                        }
+                    }
+                }
+            }
+            let noisyDevices = devices.filter { !($0 is any OutputReferredNoisyDevice) && !($0 is any ResidualNoisyDevice) }
                 .compactMap { $0 as? any NoisyDevice }
             let transferNodes = Set(outputNoisyDevices.flatMap(\.noiseTransferNodes)).sorted { $0.id < $1.id }
             for node in transferNodes where node != plan.ir.groundNode {
@@ -135,9 +187,33 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 let positiveNode: Node
                 let negativeNode: Node
                 var spectralDensity: [Double] = []
+                var residualSource: ResidualNoiseSource? = nil
+                var sourceSpectralDensity: [Double]? = nil
             }
             var sourceTrackers: [SourceTracker] = []
             var outputTrackers: [SourceTracker] = []
+            var residualTrackers: [SourceTracker] = []
+            var retainedScalarCapacity = dim
+            func admitChannels(_ count: Int) throws {
+                let metadataScalars = (MemoryLayout<SourceTracker>.stride + MemoryLayout<NoiseResult.DeviceNoiseContribution>.stride
+                    + MemoryLayout<Double>.stride - 1) / MemoryLayout<Double>.stride
+                let perChannel = try TransientExecutionBudget.add(frequencies.count, metadataScalars, "noise metadata capacity")
+                retainedScalarCapacity = try TransientExecutionBudget.add(retainedScalarCapacity,
+                    TransientExecutionBudget.multiply(count, perChannel, "noise channel capacity"), "noise retained capacity")
+                try resultStorage?.reserveResultScalars(retainedScalarCapacity)
+            }
+            try admitChannels(3)
+            for (device, sources) in zip(residualDevices, residualMetadata) {
+                try admitChannels(TransientExecutionBudget.multiply(sources.count, 2, "residual noise spectra"))
+                for source in sources {
+                    var tracker = SourceTracker(deviceName: device.instance.name, noiseName: source.name,
+                        positiveNode: plan.ir.groundNode, negativeNode: plan.ir.groundNode,
+                        residualSource: source, sourceSpectralDensity: [])
+                    tracker.spectralDensity.reserveCapacity(frequencies.count)
+                    tracker.sourceSpectralDensity?.reserveCapacity(frequencies.count)
+                    residualTrackers.append(tracker)
+                }
+            }
             var transferValues: [Node: NoiseTransferGain] = [:]
             transferValues.reserveCapacity(transferNodes.count)
 
@@ -146,6 +222,10 @@ public struct NoiseAnalysis: Analysis, Sendable {
 
             // Phase 2: Frequency sweep
             var complexSolver = ComplexSparseLUSolver()
+            if executionBudget != nil || resultStorage != nil {
+                try complexSolver.configureExecution(AnalysisLinearSolverControl.make(budget: executionBudget,
+                    cancellation: cancellation, storage: resultStorage))
+            }
             var matrix = ComplexSparseMatrix(structure: plan.matrixStructure)
             var rhs = [ComplexPair](repeating: ComplexPair(), count: dim)
 
@@ -156,7 +236,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
             var inputSolutionBuf = [ComplexPair](repeating: ComplexPair(), count: dim)
 
             for (freqIdx, freq) in frequencies.enumerated() {
-                if cancellation.isCancelled {
+                if cancellation.isCancelled || Task.isCancelled {
                     throw AnalysisError.cancelled
                 }
 
@@ -178,26 +258,27 @@ public struct NoiseAnalysis: Analysis, Sendable {
                             real: rhs[row].real + re,
                             imag: rhs[row].imag + im
                         )
+                    },
+                    stampValue: { index, real, imaginary in
+                        matrix.addValueDirect(at: index, value: ComplexPair(real: real, imag: imaginary))
                     }
                 )
 
                 for device in devices {
-                    if let optoDevice = device as? OptoelectronicDevice {
+                    if let noiseDevice = device as? any NoiseMatrixStampingDevice {
+                        try noiseDevice.stampNoiseMatrix(into: &stamper, state: dcState, omega: omega)
+                    } else if let optoDevice = device as? OptoelectronicDevice {
                         optoDevice.stampAC(into: &stamper, state: dcState, opticalState: dcOpticalState, omega: omega)
                     } else {
                         try device.stampAC(into: &stamper, state: dcState, omega: omega)
                     }
                 }
 
-                // Add Gmin to diagonal
-                for i in 0..<dim {
-                    matrix.addValue(row: i, col: i, value: ComplexPair(real: dcConfig.gmin, imag: 0))
-                }
-
                 do {
                     try complexSolver.factorize(matrix: matrix)
                 } catch {
-                    throw AnalysisError.singularMatrix
+                    if case CompileError.singularMatrix = error { throw AnalysisError.singularMatrix }
+                    throw error
                 }
 
                 // Phase 3: For each noise source, compute transfer function
@@ -210,7 +291,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         opticalState: dcOpticalState, frequency: freq
                     )
 
-                    for source in contributions {
+                    for (sourceIndex, source) in contributions.enumerated() {
                         guard source.currentSpectralDensity.isFinite, source.currentSpectralDensity >= 0 else {
                             throw AnalysisError.invalidConfiguration("Invalid noise PSD from \(noisyDevice.instance.name)/\(source.name)")
                         }
@@ -220,8 +301,13 @@ public struct NoiseAnalysis: Analysis, Sendable {
                             }
                         }
                         if freqIdx == 0 {
+                            try admitChannels(2)
+                            let residualSource = ResidualNoiseSource(index: sourceIndex, name: source.name,
+                                positive: source.positiveNode == plan.ir.groundNode ? nil : .nodeVoltage(source.positiveNode),
+                                negative: source.negativeNode == plan.ir.groundNode ? nil : .nodeVoltage(source.negativeNode), unit: .ampere)
                             sourceTrackers.append(SourceTracker(deviceName: noisyDevice.instance.name,
-                                noiseName: source.name, positiveNode: source.positiveNode, negativeNode: source.negativeNode))
+                                noiseName: source.name, positiveNode: source.positiveNode, negativeNode: source.negativeNode,
+                                residualSource: residualSource, sourceSpectralDensity: []))
                         }
                         guard trackerIdx < sourceTrackers.count,
                               sourceTrackers[trackerIdx].deviceName == noisyDevice.instance.name,
@@ -244,13 +330,11 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         }
 
                         // Solve for transfer function: Y * v = i_noise
-                        try executionBudget?.beginLinearSolve(complex: true)
+                        try executionBudget?.beginRefinementSolve(complex: true)
                         do {
                             try complexSolver.solve(rhs: noiseRHS, into: &noiseSolutionBuf)
                         } catch {
-                            throw AnalysisError.internalError(
-                                "Failed to solve noise transfer function: \(error)"
-                            )
+                            throw error
                         }
 
                         // Transfer function H(f) = V_out for unit current injection
@@ -265,22 +349,58 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         let contribution = hMagSquared * source.currentSpectralDensity
                         totalNoisePSD += contribution
 
-                        try executionBudget?.admitSavedScalars(1)
+                        try executionBudget?.admitSavedScalars(2)
                         sourceTrackers[trackerIdx].spectralDensity.append(contribution)
+                        sourceTrackers[trackerIdx].sourceSpectralDensity?.append(source.currentSpectralDensity)
                         trackerIdx += 1
                     }
+                }
+
+                var residualOffset = 0
+                for (device, sources) in zip(residualDevices, residualMetadata) {
+                    var calls = 0
+                    try device.withNoiseDensities(state: dcState, frequency: freq) { densities in
+                        calls += 1
+                        guard calls == 1, densities.count == sources.count else {
+                            throw AnalysisError.invalidConfiguration("Residual noise density callback count or width is invalid")
+                        }
+                        for (index, source) in sources.enumerated() {
+                            if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
+                            let density = densities[index]
+                            guard density.isFinite, density >= 0 else {
+                                throw AnalysisError.invalidConfiguration("Invalid residual noise PSD")
+                            }
+                            for row in 0..<dim { noiseRHS[row] = .zero }
+                            if let positive = source.positive, let row = variableMap[positive] { noiseRHS[row].real += 1 }
+                            if let negative = source.negative, let row = variableMap[negative] { noiseRHS[row].real -= 1 }
+                            try executionBudget?.beginRefinementSolve(complex: true)
+                            try complexSolver.solve(rhs: noiseRHS, into: &noiseSolutionBuf)
+                            let reference = outputReferenceIndex.map { noiseSolutionBuf[$0] } ?? .zero
+                            let h = noiseSolutionBuf[outputIndex] - reference
+                            let contribution = (h.real * h.real + h.imag * h.imag) * density
+                            guard contribution.isFinite, contribution >= 0 else {
+                                throw AnalysisError.invalidConfiguration("Nonfinite residual noise transfer")
+                            }
+                            try executionBudget?.admitSavedScalars(2)
+                            residualTrackers[residualOffset + index].spectralDensity.append(contribution)
+                            residualTrackers[residualOffset + index].sourceSpectralDensity?.append(density)
+                            totalNoisePSD += contribution
+                        }
+                    }
+                    guard calls == 1 else { throw AnalysisError.invalidConfiguration("Residual noise density callback was not invoked") }
+                    residualOffset += sources.count
                 }
 
                 // Original correlated models consume full complex H(node), retaining
                 // relative phase. One factorization serves every unit injection.
                 transferValues.removeAll(keepingCapacity: true)
                 for node in transferNodes {
-                    if cancellation.isCancelled { throw AnalysisError.cancelled }
+                    if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
                     if node == plan.ir.groundNode { continue }
                     guard let nodeIndex = variableMap[.nodeVoltage(node)] else { throw NoiseTransferError.unknownNode(node) }
                     for index in 0..<dim { noiseRHS[index] = ComplexPair() }
                     noiseRHS[nodeIndex].real = 1
-                    try executionBudget?.beginLinearSolve(complex: true)
+                    try executionBudget?.beginRefinementSolve(complex: true)
                     try complexSolver.solve(rhs: noiseRHS, into: &noiseSolutionBuf)
                     let reference = outputReferenceIndex.map { noiseSolutionBuf[$0] } ?? ComplexPair()
                     transferValues[node] = NoiseTransferGain(real: noiseSolutionBuf[outputIndex].real - reference.real,
@@ -289,7 +409,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 let gains = try NoiseTransferGains(values: transferValues)
                 var outputTrackerIndex = 0
                 for device in outputNoisyDevices {
-                    if cancellation.isCancelled { throw AnalysisError.cancelled }
+                    if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
                     let channels = try device.outputNoiseContributions(state: dcState, frequency: freq, gains: gains)
                     guard Set(channels.map(\.name)).count == channels.count else {
                         throw AnalysisError.invalidConfiguration("Duplicate output noise channel from \(device.instance.name)")
@@ -300,6 +420,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                             throw AnalysisError.invalidConfiguration("Invalid output noise PSD from \(device.instance.name)/\(channel.name)")
                         }
                         if freqIdx == 0 {
+                            try admitChannels(1)
                             outputTrackers.append(SourceTracker(deviceName: device.instance.name, noiseName: channel.name,
                                 positiveNode: plan.ir.groundNode, negativeNode: plan.ir.groundNode))
                         }
@@ -328,13 +449,11 @@ public struct NoiseAnalysis: Analysis, Sendable {
                     for i in 0..<dim { inputRHS[i] = ComplexPair() }
                     inputStimulus.stamp(into: &inputRHS)
 
-                    try executionBudget?.beginLinearSolve(complex: true)
+                    try executionBudget?.beginRefinementSolve(complex: true)
                     do {
                         try complexSolver.solve(rhs: inputRHS, into: &inputSolutionBuf)
                     } catch {
-                        throw AnalysisError.internalError(
-                            "Failed to solve noise input transfer function: \(error)"
-                        )
+                        throw error
                     }
 
                     let reference = outputReferenceIndex.map {
@@ -345,7 +464,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                         imag: inputSolutionBuf[outputIndex].imag - reference.imag
                     )
                     let gainMagnitudeSquared = gain.real * gain.real + gain.imag * gain.imag
-                    guard gainMagnitudeSquared.isFinite, gainMagnitudeSquared > 1.0e-30 else {
+                    guard gainMagnitudeSquared.isFinite, gainMagnitudeSquared > 0 else {
                         throw AnalysisError.invalidConfiguration(
                             "Input source '\(inputStimulus.sourceName)' has zero transfer to output node \(outputNode.id)"
                         )
@@ -354,7 +473,6 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 } else {
                     inputReferredNoiseDensity.append(totalNoisePSD)
                 }
-
 
                 // Progress
                 let fraction = Double(freqIdx + 1) / Double(frequencies.count)
@@ -372,23 +490,27 @@ public struct NoiseAnalysis: Analysis, Sendable {
             )
 
             // Build device contributions
-            let deviceContributions = (sourceTrackers + outputTrackers).map { tracker in
+            let deviceContributions = (sourceTrackers + outputTrackers + residualTrackers).map { tracker in
                 NoiseResult.DeviceNoiseContribution(
                     deviceName: tracker.deviceName,
                     noiseName: tracker.noiseName,
-                    spectralDensity: tracker.spectralDensity
+                    spectralDensity: tracker.spectralDensity, residualSource: tracker.residualSource,
+                    sourceSpectralDensity: tracker.sourceSpectralDensity
                 )
             }
 
-            if cancellation.isCancelled { throw AnalysisError.cancelled }
+            if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
             let result = try NoiseResult(
                 frequencies: frequencies,
                 outputNoiseDensity: outputNoiseDensity,
                 inputReferredNoiseDensity: inputReferredNoiseDensity,
                 integratedOutputNoise: integratedNoise,
                 deviceContributions: deviceContributions,
-                variableMap: variableMap
+                variableMap: variableMap, inputQuantity: inputStimulus?.quantity ?? .voltage,
+                operatingPoint: dcResult
             )
+            try completionFinalizer?.finalizeCompletion()
+            if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
 
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
@@ -398,6 +520,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
                 wallTime: Timestamp().elapsed(since: startTimestamp)
             )))
 
+            if let resultStorage { return result.retainingStorage(resultStorage) }
             return result
         } catch {
             let status: AnalysisStatus
@@ -426,6 +549,10 @@ public struct NoiseAnalysis: Analysis, Sendable {
     private enum InputSourceStimulus {
         case voltageSource(name: String, branchIndex: Int)
         case currentSource(name: String, positiveIndex: Int?, negativeIndex: Int?)
+
+        var quantity: NoiseInputQuantity {
+            switch self { case .voltageSource: .voltage; case .currentSource: .current }
+        }
 
         var sourceName: String {
             switch self {
@@ -471,7 +598,7 @@ public struct NoiseAnalysis: Analysis, Sendable {
             if instance.name.caseInsensitiveCompare(sourceName) == .orderedSame {
                 switch typeName {
                 case "vsource":
-                    let branch = Branch(id: branchID)
+                    let branch = instance.ownedBranches.first ?? Branch(id: branchID)
                     guard let branchIndex = variableMap[.branchCurrent(branch)] else {
                         throw AnalysisError.invalidConfiguration(
                             "Branch for input source '\(sourceName)' not found in variable map"

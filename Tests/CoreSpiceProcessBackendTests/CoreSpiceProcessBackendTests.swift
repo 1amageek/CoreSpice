@@ -4,6 +4,7 @@ import CircuiteFoundationFileSystem
 import CoreSpice
 @testable import CoreSpiceProcessBackend
 import Foundation
+import SignoffToolSupport
 import Testing
 
 @Suite("CoreSpice external process backend")
@@ -47,8 +48,11 @@ struct CoreSpiceProcessBackendTests {
             try await Task.sleep(for: .milliseconds(50))
             task.cancel()
 
-            await #expect(throws: CancellationError.self) {
-                _ = try await task.value
+            do { _ = try await task.value; Issue.record("Cancelled process succeeded") }
+            catch CoreSpiceProcessBackendError.processExecutionFailed(let failure) {
+                #expect(failure.cause == .cancelled)
+                #expect(failure.cleanupHandle == nil)
+                #expect(try Data(contentsOf: directory.appendingPathComponent("stdout")) == failure.standardOutputData)
             }
         }
     }
@@ -527,3 +531,43 @@ private enum TestProcessRunnerError: Error {
 }
 
 private final class TestBundleMarker: NSObject {}
+
+private struct BinaryFailureRunner: TimedProcessRunning {
+    let failure: TimedProcessFailure
+    func run(process: Process, control: TimedProcessControl?) async throws -> TimedProcessResult {
+        throw TimedProcessError.executionFailed(failure)
+    }
+}
+
+extension CoreSpiceProcessBackendTests {
+    @Test("Process failure retains binary output and original typed cause")
+    func processFailureRetainsRawBytes() async throws {
+        try await withTemporaryDirectory { directory in
+            let failure = TimedProcessFailure(executablePath: "/fixture", cause: .controlFailed("fixture-control"),
+                standardOutputData: Data([0xff, 0, 97]), standardErrorData: Data([0xfe, 10]))
+            let runner = FoundationCoreSpiceProcessRunner(processRunner: BinaryFailureRunner(failure: failure))
+            let invocation = CoreSpiceProcessInvocation(executableURL: URL(filePath: "/fixture"), arguments: [],
+                workingDirectoryURL: directory, standardOutputURL: directory.appendingPathComponent("stdout"),
+                standardErrorURL: directory.appendingPathComponent("stderr"))
+            do { _ = try await runner.run(invocation); Issue.record("Process failure became success") }
+            catch CoreSpiceProcessBackendError.processExecutionFailed(let retained) { #expect(retained == failure) }
+            #expect(try Data(contentsOf: invocation.standardOutputURL) == failure.standardOutputData)
+            #expect(try Data(contentsOf: invocation.standardErrorURL) == failure.standardErrorData)
+        }
+    }
+    @Test("Failure persistence error preserves the original process failure")
+    func processFailurePersistencePreservesCause() async throws {
+        try await withTemporaryDirectory { directory in
+            let failure = TimedProcessFailure(executablePath: "/fixture", cause: .timedOut(timeoutSeconds: 0.1),
+                standardOutputData: Data([0xff]), standardErrorData: Data([0xfe]))
+            let runner = FoundationCoreSpiceProcessRunner(processRunner: BinaryFailureRunner(failure: failure))
+            let invocation = CoreSpiceProcessInvocation(executableURL: URL(filePath: "/fixture"), arguments: [],
+                workingDirectoryURL: directory, standardOutputURL: directory,
+                standardErrorURL: directory.appendingPathComponent("stderr"))
+            do { _ = try await runner.run(invocation); Issue.record("Failed persistence became success") }
+            catch CoreSpiceProcessBackendError.processFailurePersistenceFailed(let retained, let reason) {
+                #expect(retained == failure && !reason.isEmpty)
+            }
+        }
+    }
+}

@@ -14,51 +14,7 @@ public struct NPNDescriptor: DeviceDescriptor, Sendable {
     public init() {}
 
     public func bind(instance: Instance, context: inout BindingContext) throws -> any BoundDevice {
-        guard instance.nodes.count == 3 else {
-            throw DeviceBindingError.portCountMismatch(
-                device: instance.name,
-                expected: 3,
-                got: instance.nodes.count
-            )
-        }
-
-        let params = try extractBJTParameters(
-            from: instance,
-            polarity: .npn,
-            operatingTemperature: context.operatingConditions.temperatureKelvin
-        )
-
-        let collectorNode = instance.nodes[0]
-        let baseNode = instance.nodes[1]
-        let emitterNode = instance.nodes[2]
-        let cIdx = context.nodeIndex(collectorNode)
-        let bIdx = context.nodeIndex(baseNode)
-        let eIdx = context.nodeIndex(emitterNode)
-
-        // Pre-resolve CSR value indices for O(1) stamping (3x3 = 9 positions)
-        let csrIndices = BJTCSRIndices(
-            cc: cIdx.flatMap { context.stampIndex(row: $0, col: $0) },
-            cb: cIdx.flatMap { c in bIdx.flatMap { context.stampIndex(row: c, col: $0) } },
-            ce: cIdx.flatMap { c in eIdx.flatMap { context.stampIndex(row: c, col: $0) } },
-            bc: bIdx.flatMap { b in cIdx.flatMap { context.stampIndex(row: b, col: $0) } },
-            bb: bIdx.flatMap { context.stampIndex(row: $0, col: $0) },
-            be: bIdx.flatMap { b in eIdx.flatMap { context.stampIndex(row: b, col: $0) } },
-            ec: eIdx.flatMap { e in cIdx.flatMap { context.stampIndex(row: e, col: $0) } },
-            eb: eIdx.flatMap { e in bIdx.flatMap { context.stampIndex(row: e, col: $0) } },
-            ee: eIdx.flatMap { context.stampIndex(row: $0, col: $0) }
-        )
-
-        return BoundBJT(
-            instance: instance,
-            collector: collectorNode,
-            base: baseNode,
-            emitter: emitterNode,
-            collectorIdx: cIdx,
-            baseIdx: bIdx,
-            emitterIdx: eIdx,
-            parameters: params,
-            csrIndices: csrIndices
-        )
+        try bindBJT(instance: instance, context: &context, polarity: .npn)
     }
 }
 
@@ -76,51 +32,7 @@ public struct PNPDescriptor: DeviceDescriptor, Sendable {
     public init() {}
 
     public func bind(instance: Instance, context: inout BindingContext) throws -> any BoundDevice {
-        guard instance.nodes.count == 3 else {
-            throw DeviceBindingError.portCountMismatch(
-                device: instance.name,
-                expected: 3,
-                got: instance.nodes.count
-            )
-        }
-
-        let params = try extractBJTParameters(
-            from: instance,
-            polarity: .pnp,
-            operatingTemperature: context.operatingConditions.temperatureKelvin
-        )
-
-        let collectorNode = instance.nodes[0]
-        let baseNode = instance.nodes[1]
-        let emitterNode = instance.nodes[2]
-        let cIdx = context.nodeIndex(collectorNode)
-        let bIdx = context.nodeIndex(baseNode)
-        let eIdx = context.nodeIndex(emitterNode)
-
-        // Pre-resolve CSR value indices for O(1) stamping (3x3 = 9 positions)
-        let csrIndices = BJTCSRIndices(
-            cc: cIdx.flatMap { context.stampIndex(row: $0, col: $0) },
-            cb: cIdx.flatMap { c in bIdx.flatMap { context.stampIndex(row: c, col: $0) } },
-            ce: cIdx.flatMap { c in eIdx.flatMap { context.stampIndex(row: c, col: $0) } },
-            bc: bIdx.flatMap { b in cIdx.flatMap { context.stampIndex(row: b, col: $0) } },
-            bb: bIdx.flatMap { context.stampIndex(row: $0, col: $0) },
-            be: bIdx.flatMap { b in eIdx.flatMap { context.stampIndex(row: b, col: $0) } },
-            ec: eIdx.flatMap { e in cIdx.flatMap { context.stampIndex(row: e, col: $0) } },
-            eb: eIdx.flatMap { e in bIdx.flatMap { context.stampIndex(row: e, col: $0) } },
-            ee: eIdx.flatMap { context.stampIndex(row: $0, col: $0) }
-        )
-
-        return BoundBJT(
-            instance: instance,
-            collector: collectorNode,
-            base: baseNode,
-            emitter: emitterNode,
-            collectorIdx: cIdx,
-            baseIdx: bIdx,
-            emitterIdx: eIdx,
-            parameters: params,
-            csrIndices: csrIndices
-        )
+        try bindBJT(instance: instance, context: &context, polarity: .pnp)
     }
 }
 
@@ -152,10 +64,33 @@ private let bjtParameterDescriptors: [ParameterDescriptor] = [
 private func extractBJTParameters(
     from instance: Instance,
     polarity: BJTPolarity,
-    operatingTemperature: Double
+    operatingTemperature: Double,
+    circuitNominalTemperature: Double
 ) throws -> BJTModelParameters {
+    let expected = polarity == .npn ? "npn" : "pnp"
+    if let model = instance.model, model.typeName != expected {
+        throw DeviceBindingError.invalidParameterValue(device: instance.name,
+            parameter: "model", message: "BJT model polarity does not match descriptor")
+    }
+    let supported = Set(bjtParameterDescriptors.map(\.name))
+    for source in [instance.model?.parameters ?? [:], instance.parameters] {
+        if let unsupported = source.keys.sorted().first(where: { !supported.contains($0) }) {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name,
+                parameter: unsupported, message: "Unsupported BJT parameter")
+        }
+        for (key, value) in source {
+            guard case .real(let number) = value else {
+                throw DeviceBindingError.invalidParameterType(device: instance.name, parameter: key, expected: "real")
+            }
+            guard number.isFinite else {
+                throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: key,
+                    message: "Parameter must be finite")
+            }
+        }
+    }
+    func supplied(_ key: String) -> ParameterValue? { instance.parameters[key] ?? instance.model?.parameters[key] }
     func extractReal(_ key: String, default defaultValue: Double) throws -> Double {
-        guard let value = instance.parameters[key] else { return defaultValue }
+        guard let value = supplied(key) else { return defaultValue }
         guard case .real(let v) = value else {
             throw DeviceBindingError.invalidParameterType(
                 device: instance.name,
@@ -166,16 +101,17 @@ private func extractBJTParameters(
         return v
     }
 
-    let nominalTemperature = try instance.parameters["tnom_k"].map {
-        guard case .real(let value) = $0 else {
-            throw DeviceBindingError.invalidParameterType(
-                device: instance.name,
-                parameter: "tnom_k",
-                expected: "real"
-            )
+    func nominal(in source: [String: ParameterValue]) throws -> Double? {
+        let celsius: Double? = if case .real(let v) = source["tnom"] { v + 273.15 } else { nil }
+        let kelvin: Double? = if case .real(let v) = source["tnom_k"] { v } else { nil }
+        if let celsius, let kelvin, abs(celsius - kelvin) > max(abs(celsius), abs(kelvin)) * 1e-14 {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "tnom",
+                message: "BJT nominal-temperature aliases must agree within one source role")
         }
-        return value
-    } ?? (try extractReal("tnom", default: 27) + 273.15)
+        return kelvin ?? celsius
+    }
+    let nominalTemperature = try nominal(in: instance.parameters)
+        ?? nominal(in: instance.model?.parameters ?? [:]) ?? circuitNominalTemperature
     let params = BJTModelParameters(
         polarity: polarity,
         saturationCurrent: try extractReal("is", default: 1e-16),
@@ -200,5 +136,58 @@ private func extractBJTParameters(
         operatingTemperature: operatingTemperature
     )
     try params.validate(device: instance.name)
-    return params
+    return try BJTTemperaturePreparation.prepare(params, device: instance.name)
+}
+
+private func bindBJT(instance: Instance, context: inout BindingContext,
+    polarity: BJTPolarity) throws -> any BoundDevice {
+    guard instance.nodes.count == 3 else {
+        throw DeviceBindingError.portCountMismatch(device: instance.name, expected: 3, got: instance.nodes.count)
+    }
+    let parameters = try extractBJTParameters(from: instance, polarity: polarity,
+        operatingTemperature: context.operatingConditions.temperatureKelvin,
+        circuitNominalTemperature: context.operatingConditions.nominalTemperatureKelvin)
+    let resistances = [parameters.collectorResistance, parameters.baseResistance, parameters.emitterResistance]
+    guard instance.ownedNodes.count == resistances.filter({ $0 > 0 }).count else {
+        throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "ownedNodes",
+            message: "BJT requires one owned intrinsic node per nonzero rc, rb, re in collector/base/emitter order")
+    }
+    try context.validateOwnedNodes(for: instance)
+    var intrinsic = instance.nodes
+    var series: [BJTSeriesElement] = []
+    var next = 0
+    for terminal in 0..<3 {
+        let resistance = resistances[terminal]
+        if resistance > 0 {
+            let node = instance.ownedNodes[next]; next += 1
+            series.append(try BJTSeriesElement(external: instance.nodes[terminal], intrinsic: node,
+                resistance: resistance, context: context, device: instance.name))
+            intrinsic[terminal] = node
+        }
+    }
+    for node in instance.nodes + intrinsic where node != .ground {
+        guard let index = context.nodeIndex(node), (0..<context.matrixDimension).contains(index) else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "nodes",
+                message: "BJT terminal is absent from compiled variables")
+        }
+    }
+    let indices = intrinsic.map { context.nodeIndex($0) }
+    func stamp(_ row: Int?, _ column: Int?) throws -> Int? {
+        guard let row, let column else { return nil }
+        let index = context.stampIndex(row: row, col: column)
+        guard !context.hasStampIndexResolver || index != nil else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "matrix",
+                message: "BJT compiled Jacobian position is absent")
+        }
+        return index
+    }
+    let csr = try BJTCSRIndices(cc: stamp(indices[0], indices[0]), cb: stamp(indices[0], indices[1]),
+        ce: stamp(indices[0], indices[2]), bc: stamp(indices[1], indices[0]), bb: stamp(indices[1], indices[1]),
+        be: stamp(indices[1], indices[2]), ec: stamp(indices[2], indices[0]), eb: stamp(indices[2], indices[1]),
+        ee: stamp(indices[2], indices[2]))
+    let bound = BoundBJT(instance: instance, collector: intrinsic[0], base: intrinsic[1], emitter: intrinsic[2],
+        collectorIdx: indices[0], baseIdx: indices[1], emitterIdx: indices[2], parameters: parameters,
+        csrIndices: csr, series: series)
+    context.commitValidatedOwnedNodes(for: instance)
+    return bound
 }

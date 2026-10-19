@@ -29,7 +29,9 @@ enum CircuitFactory {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
         return (plan, devices)

@@ -72,7 +72,8 @@ struct MonteCarloIntegrationTests {
             iterations: 20,
             variations: variations,
             analysisFactory: { DCAnalysis() },
-            seed: 42
+            seed: 42,
+            deviceBinding: DiodeAwareTestBinding()
         )
 
         let solver = SparseLUSolver()

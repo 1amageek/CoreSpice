@@ -44,6 +44,31 @@ extension WaveformData {
         ).retainingStorage(dcResult.retainedStorage)
     }
 
+    /// Creates a checked operating-point waveform without copying or reordering the solution buffer.
+    ///
+    /// The layout must describe the result's exact compiled variable map and width.
+    public static func from(
+        dcResult: DCResult,
+        variableLayout: WaveformVariableLayout,
+        title: String? = nil
+    ) throws -> WaveformData {
+        try variableLayout.validate(variableMap: dcResult.variableMap, variableCount: dcResult.variables.count)
+        return try WaveformData(
+            validatingMetadata: SimulationMetadata(
+                title: title,
+                analysisType: .operatingPoint,
+                pointCount: 1,
+                variableCount: variableLayout.variables.count
+            ),
+            sweepVariable: VariableDescriptor(name: "point", unit: .dimensionless, type: .parameter, index: 0),
+            sweepValues: [0.0],
+            variables: variableLayout.variables,
+            realRowMajorData: dcResult.variables,
+            pointCount: 1,
+            variableCount: variableLayout.variables.count
+        ).retainingStorage(dcResult.retainedStorage)
+    }
+
     // MARK: - From AC Result
 
     /// Creates waveform data from an AC analysis result.
@@ -75,6 +100,35 @@ extension WaveformData {
             sweepVariable: sweepVariable,
             sweepValues: acResult.frequencies,
             variables: variables,
+            complexData: complexData
+        ).retainingStorage(acResult.retainedStorage)
+    }
+
+    /// Creates an AC waveform using the result's exact compiled layout and physical units.
+    public static func from(
+        acResult: ACResult,
+        variableLayout: WaveformVariableLayout,
+        title: String? = nil
+    ) throws -> WaveformData {
+        try variableLayout.validate(
+            variableMap: acResult.variableMap,
+            variableCount: acResult.solutions.first?.count ?? 0
+        )
+        // ComplexPair becomes a tuple only at the waveform storage boundary.
+        let complexData = acResult.solutions.map { solution in
+            solution.map { (real: $0.real, imag: $0.imag) }
+        }
+        return try WaveformData(
+            validatingMetadata: SimulationMetadata(
+                title: title,
+                analysisType: .ac,
+                pointCount: acResult.frequencies.count,
+                variableCount: variableLayout.variables.count,
+                isComplex: true
+            ),
+            sweepVariable: .frequency(),
+            sweepValues: acResult.frequencies,
+            variables: variableLayout.variables,
             complexData: complexData
         ).retainingStorage(acResult.retainedStorage)
     }
@@ -119,12 +173,10 @@ extension WaveformData {
         title: String? = nil
     ) throws -> WaveformData {
         let variables = variableLayout.variables
-        guard variables.count == transientResult.solutionTrace.variableCount else {
-            throw WaveformValidationError.variableLayoutWidthMismatch(
-                expected: transientResult.solutionTrace.variableCount,
-                actual: variables.count
-            )
-        }
+        try variableLayout.validate(
+            variableMap: transientResult.variableMap,
+            variableCount: transientResult.solutionTrace.variableCount
+        )
         let metadata = SimulationMetadata(
             title: title,
             analysisType: .transient,
@@ -312,38 +364,45 @@ extension WaveformData {
 
     /// Creates waveform data from a transfer function result.
     ///
-    /// The result is a single data point with three variables:
-    /// gain, input impedance, and output impedance.
+    /// One data point contains gain and each typed finite port impedance.
+    /// Metadata explicitly classifies both ports, including omitted open ports.
     public static func from(
         transferFunctionResult: TransferFunctionResult,
         title: String? = nil
     ) -> WaveformData {
-        let variables = [
+        var variables = [
             VariableDescriptor(
                 name: "gain",
                 unit: .dimensionless,
                 type: .voltage,
                 index: 0
             ),
-            VariableDescriptor(
-                name: "Zin",
-                unit: .ohm,
-                type: .voltage,
-                index: 1
-            ),
-            VariableDescriptor(
-                name: "Zout",
-                unit: .ohm,
-                type: .voltage,
-                index: 2
-            ),
         ]
+        var row = [transferFunctionResult.gain]
+        var portClassifications: [String: String] = [:]
+        switch transferFunctionResult.inputPortImpedance {
+        case .finite(let value):
+            variables.append(VariableDescriptor(name: "Zin", unit: .ohm, type: .voltage, index: variables.count))
+            row.append(value)
+            portClassifications["input_port_impedance"] = "finite"
+        case .openCircuit:
+            portClassifications["input_port_impedance"] = "open_circuit"
+        }
+        switch transferFunctionResult.outputPortImpedance {
+        case .finite(let value):
+            variables.append(VariableDescriptor(name: "Zout", unit: .ohm, type: .voltage, index: variables.count))
+            row.append(value)
+            portClassifications["output_port_impedance"] = "finite"
+        case .openCircuit:
+            portClassifications["output_port_impedance"] = "open_circuit"
+        }
 
         let metadata = SimulationMetadata(
             title: title,
             analysisType: .transferFunction,
             pointCount: 1,
-            variableCount: 3
+            variableCount: variables.count,
+            options: portClassifications
         )
 
         let sweepVariable = VariableDescriptor(
@@ -358,11 +417,7 @@ extension WaveformData {
             sweepVariable: sweepVariable,
             sweepValues: [0.0],
             variables: variables,
-            realData: [[
-                transferFunctionResult.gain,
-                transferFunctionResult.inputImpedance,
-                transferFunctionResult.outputImpedance,
-            ]]
+            realData: [row]
         ).retainingStorage(transferFunctionResult.retainedStorage)
     }
 
@@ -379,13 +434,13 @@ extension WaveformData {
         let variables = [
             VariableDescriptor(
                 name: "output_noise_density",
-                unit: .dimensionless,
+                unit: .voltSquaredPerHertz,
                 type: .noiseDensity,
                 index: 0
             ),
             VariableDescriptor(
                 name: "input_referred_noise_density",
-                unit: .dimensionless,
+                unit: noiseResult.inputQuantity == .current ? .ampereSquaredPerHertz : .voltSquaredPerHertz,
                 type: .noiseDensity,
                 index: 1
             ),
@@ -400,10 +455,8 @@ extension WaveformData {
         let pointCount = noiseResult.frequencies.count
         let realData = noiseResult.frequencies.indices.map { index in
             [
-                noiseResult.outputNoiseDensity.indices.contains(index)
-                    ? noiseResult.outputNoiseDensity[index] : .nan,
-                noiseResult.inputReferredNoiseDensity.indices.contains(index)
-                    ? noiseResult.inputReferredNoiseDensity[index] : .nan,
+                noiseResult.outputNoiseDensity[index],
+                noiseResult.inputReferredNoiseDensity[index],
                 noiseResult.integratedOutputNoise,
             ]
         }
@@ -426,58 +479,38 @@ extension WaveformData {
 
     /// Creates waveform data from a pole-zero analysis result.
     ///
-    /// The sweep variable is the result index. Pole and zero values are stored
-    /// as complex columns; missing pole/zero slots are represented as NaN.
+    /// One complex point contains an individually named column for each actual
+    /// pole and zero in rad/s, followed by the dimensionless DC gain.
     public static func from(
         poleZeroResult: PoleZeroResult,
         title: String? = nil
     ) -> WaveformData {
-        let pointCount = max(poleZeroResult.poles.count, poleZeroResult.zeros.count, 1)
-        let variables = [
-            VariableDescriptor(
-                name: "pole",
-                unit: .radian,
-                type: .frequency,
-                index: 0
-            ),
-            VariableDescriptor(
-                name: "zero",
-                unit: .radian,
-                type: .frequency,
-                index: 1
-            ),
-            VariableDescriptor(
-                name: "dc_gain",
-                unit: .dimensionless,
-                type: .magnitude,
-                index: 2
-            ),
-        ]
-
-        let complexData = (0..<pointCount).map { index in
-            [
-                poleZeroResult.poles.indices.contains(index)
-                    ? (
-                        real: poleZeroResult.poles[index].real,
-                        imag: poleZeroResult.poles[index].imag
-                    )
-                    : (real: Double.nan, imag: Double.nan),
-                poleZeroResult.zeros.indices.contains(index)
-                    ? (
-                        real: poleZeroResult.zeros[index].real,
-                        imag: poleZeroResult.zeros[index].imag
-                    )
-                    : (real: Double.nan, imag: Double.nan),
-                (real: index == 0 ? poleZeroResult.dcGain : Double.nan, imag: 0.0),
-            ]
+        let variableCount = poleZeroResult.poles.count + poleZeroResult.zeros.count + 1
+        var variables: [VariableDescriptor] = []
+        var row: [(real: Double, imag: Double)] = []
+        variables.reserveCapacity(variableCount)
+        row.reserveCapacity(variableCount)
+        for (index, pole) in poleZeroResult.poles.enumerated() {
+            variables.append(VariableDescriptor(name: "pole_\(index)", unit: .radianPerSecond,
+                type: .frequency, index: variables.count))
+            row.append((real: pole.real, imag: pole.imag))
         }
+        for (index, zero) in poleZeroResult.zeros.enumerated() {
+            variables.append(VariableDescriptor(name: "zero_\(index)", unit: .radianPerSecond,
+                type: .frequency, index: variables.count))
+            row.append((real: zero.real, imag: zero.imag))
+        }
+        variables.append(VariableDescriptor(name: "dc_gain", unit: .dimensionless,
+            type: .magnitude, index: variables.count))
+        row.append((real: poleZeroResult.dcGain, imag: 0))
 
         return WaveformData(
             metadata: SimulationMetadata(
                 title: title,
                 analysisType: .poleZero,
-                pointCount: pointCount,
-                variableCount: variables.count
+                pointCount: 1,
+                variableCount: variables.count,
+                isComplex: true
             ),
             sweepVariable: VariableDescriptor(
                 name: "index",
@@ -485,9 +518,9 @@ extension WaveformData {
                 type: .parameter,
                 index: 0
             ),
-            sweepValues: (0..<pointCount).map(Double.init),
+            sweepValues: [0],
             variables: variables,
-            complexData: complexData
+            complexData: [row]
         ).retainingStorage(poleZeroResult.retainedStorage)
     }
 
@@ -563,8 +596,8 @@ extension WaveformData {
 
     /// Creates waveform data from a sensitivity analysis result.
     ///
-    /// Each data point corresponds to a parameter, with sensitivity and
-    /// normalized sensitivity as variables.
+    /// Each data point corresponds to a parameter. The shared normalized
+    /// sensitivity column is included only when every parameter defines it.
     public static func from(
         sensitivityResult: SensitivityResult,
         title: String? = nil
@@ -574,37 +607,41 @@ extension WaveformData {
             return WaveformData.empty(analysisType: .sensitivity)
         }
 
-        let variables = [
+        let includeNormalized = entries.allSatisfy { $0.normalizedSensitivity != nil }
+        var variables = [
             VariableDescriptor(
                 name: "sensitivity",
                 unit: .dimensionless,
                 type: .voltage,
                 index: 0
             ),
-            VariableDescriptor(
+        ]
+        if includeNormalized {
+            variables.append(VariableDescriptor(
                 name: "normalized_sensitivity",
                 unit: .dimensionless,
                 type: .voltage,
                 index: 1
-            ),
-        ]
+            ))
+        }
 
         var realData: [[Double]] = []
         var sweepValues: [Double] = []
 
         for (i, entry) in entries.enumerated() {
             sweepValues.append(Double(i))
-            realData.append([
-                entry.sensitivity,
-                entry.normalizedSensitivity ?? Double.nan,
-            ])
+            var row = [entry.sensitivity]
+            if includeNormalized, let normalized = entry.normalizedSensitivity {
+                row.append(normalized)
+            }
+            realData.append(row)
         }
 
         let metadata = SimulationMetadata(
             title: title,
             analysisType: .sensitivity,
             pointCount: entries.count,
-            variableCount: 2
+            variableCount: variables.count
         )
 
         let sweepVariable = VariableDescriptor(
@@ -625,15 +662,18 @@ extension WaveformData {
 
     /// Creates complex waveform data from an AC sensitivity result.
     ///
-    /// Each parameter contributes an absolute and normalized derivative column
-    /// over the shared frequency sweep.
+    /// Each parameter contributes an absolute derivative column over the shared
+    /// sweep. Its normalized column requires a defined value at every frequency.
     public static func from(
         acSensitivityResult: ACSensitivityResult,
         title: String? = nil
     ) -> WaveformData {
+        let includeNormalized = acSensitivityResult.sensitivities.map {
+            $0.normalizedSensitivities.allSatisfy { $0 != nil }
+        }
         var variables: [VariableDescriptor] = []
         variables.reserveCapacity(acSensitivityResult.sensitivities.count * 2)
-        for entry in acSensitivityResult.sensitivities {
+        for (index, entry) in acSensitivityResult.sensitivities.enumerated() {
             let baseName = "\(entry.deviceName).\(entry.parameterName)"
             variables.append(VariableDescriptor(
                 name: "d\(acSensitivityResult.outputVariable)/d\(baseName)",
@@ -641,24 +681,25 @@ extension WaveformData {
                 type: .voltage,
                 index: variables.count
             ))
-            variables.append(VariableDescriptor(
-                name: "normalized_\(baseName)",
-                unit: .dimensionless,
-                type: .magnitude,
-                index: variables.count
-            ))
+            if includeNormalized[index] {
+                variables.append(VariableDescriptor(
+                    name: "normalized_\(baseName)",
+                    unit: .dimensionless,
+                    type: .magnitude,
+                    index: variables.count
+                ))
+            }
         }
 
         let complexData = acSensitivityResult.frequencies.indices.map { frequencyIndex in
             var row: [(real: Double, imag: Double)] = []
             row.reserveCapacity(variables.count)
-            for entry in acSensitivityResult.sensitivities {
+            for (index, entry) in acSensitivityResult.sensitivities.enumerated() {
                 let derivative = entry.sensitivities[frequencyIndex]
                 row.append((real: derivative.real, imag: derivative.imag))
-                if let normalized = entry.normalizedSensitivities[frequencyIndex] {
+                if includeNormalized[index],
+                   let normalized = entry.normalizedSensitivities[frequencyIndex] {
                     row.append((real: normalized.real, imag: normalized.imag))
-                } else {
-                    row.append((real: Double.nan, imag: Double.nan))
                 }
             }
             return row

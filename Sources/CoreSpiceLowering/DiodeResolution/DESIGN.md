@@ -153,3 +153,16 @@ checked through the same frontend. No numerical diode capability is claimed.
 links each D3 invariant to its production-path counterexample. The immutable model
 owner supplies its aligned header/payload accounting extent before allocation.
 The frontend separately reserves bounded diode diagnostic capacity.
+
+## Fresh Source Scalar Overlay
+
+Frontend's checked full-instance source overlay applies before typed diode input
+construction. Existing explicit model/instance scalar assignments are the only
+eligible targets; model selectors fail. A model override bypasses both reuse and
+insertion of the unmodified shared model memo, retains the exact declaration and
+constructs a fresh checked model owner. The ordinary memo retains source-unit
+scalar assignments alongside its immutable checked model, allowing sensitivity
+inventory without inverse temperature/geometry normalization or random reevaluation.
+Only supplied active model fields and supplied instance fields enter Frontend's
+source scalar inventory. Typed law, geometry, thermal and provenance contracts are
+unchanged. Existing source-free numerical perturbations remain a separate path.

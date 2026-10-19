@@ -11,6 +11,9 @@ public struct DCResult: Sendable, AnalysisResultStorageRetaining {
     /// The converged solution vector.
     public let variables: [Double]
 
+    /// Complete low components, or nil for an ordinary binary64 result.
+    public let variableLowComponents: [Double]?
+
     /// Mapping from MNA variables to indices in the solution vector.
     public let variableMap: [MNAVariable: Int]
 
@@ -25,13 +28,23 @@ public struct DCResult: Sendable, AnalysisResultStorageRetaining {
         variables: [Double],
         variableMap: [MNAVariable: Int],
         iterations: Int,
-        opticalState: OpticalState? = nil
+        opticalState: OpticalState? = nil,
+        variableLowComponents: [Double]? = nil
     ) throws {
         guard iterations >= 0 else {
             throw DCResultValidationError.negativeIterationCount(iterations)
         }
         for (index, value) in variables.enumerated() where !value.isFinite {
             throw DCResultValidationError.nonFiniteVariable(index: index, value: value)
+        }
+        if let variableLowComponents {
+            guard variableLowComponents.count == variables.count else {
+                throw NumericalStateError.lowComponentCountMismatch(expected: variables.count,
+                    actual: variableLowComponents.count)
+            }
+            for index in variables.indices {
+                _ = try CompensatedValue(high: variables[index], low: variableLowComponents[index])
+            }
         }
         var mappedIndices: Set<Int> = []
         for (variable, index) in variableMap {
@@ -47,6 +60,7 @@ public struct DCResult: Sendable, AnalysisResultStorageRetaining {
             }
         }
         self.variables = variables
+        self.variableLowComponents = variableLowComponents
         self.variableMap = variableMap
         self.iterations = iterations
         self.opticalState = opticalState
@@ -60,6 +74,7 @@ public struct DCResult: Sendable, AnalysisResultStorageRetaining {
 
     private init(retaining result: Self, owner: any Sendable) {
         self.variables = result.variables
+        self.variableLowComponents = result.variableLowComponents
         self.variableMap = result.variableMap
         self.iterations = result.iterations
         self.opticalState = result.opticalState
@@ -96,6 +111,39 @@ public struct DCResult: Sendable, AnalysisResultStorageRetaining {
     /// Returns the current through the given branch, or throws when the branch is not part of the solved state.
     public func checkedCurrent(through branch: Branch) throws -> Double {
         try current(through: branch)
+    }
+
+    /// Returns the full represented coordinate; ordinary results have an exact zero low.
+    public func checkedCompensatedValue(at index: Int) throws -> CompensatedValue {
+        let high = try value(at: index)
+        return try CompensatedValue(high: high, low: variableLowComponents?[index] ?? 0)
+    }
+
+    public func checkedCompensatedVoltage(at node: Node) throws -> CompensatedValue {
+        if node == .ground { return .zero }
+        guard let index = variableMap[.nodeVoltage(node)] else {
+            throw SolutionStateAccessError.missingNodeVoltage(nodeID: node.id)
+        }
+        return try checkedCompensatedValue(at: index)
+    }
+
+    public func checkedCompensatedCurrent(through branch: Branch) throws -> CompensatedValue {
+        guard let index = variableMap[.branchCurrent(branch)] else {
+            throw SolutionStateAccessError.missingBranchCurrent(branchID: branch.id)
+        }
+        return try checkedCompensatedValue(at: index)
+    }
+
+    /// Borrows both immutable component buffers for this closure's lifetime.
+    public func withCompensatedSolution<R>(
+        _ body: (UnsafeBufferPointer<Double>, UnsafeBufferPointer<Double>?) throws -> R
+    ) rethrows -> R {
+        try variables.withUnsafeBufferPointer { high in
+            if let variableLowComponents {
+                return try variableLowComponents.withUnsafeBufferPointer { try body(high, $0) }
+            }
+            return try body(high, nil)
+        }
     }
 
     private func value(at index: Int) throws -> Double {

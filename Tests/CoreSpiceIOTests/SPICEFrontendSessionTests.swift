@@ -88,13 +88,12 @@ struct SPICEFrontendSessionTests {
     @Test func sourceOptionInventoryNeverEvaluatesExpressions() async throws {
         let loaded = try await SPICEDeckLoader.load(source: """
         option inventory
-        .options reltol={missing+rand()} bsim4stressiterations=0
+        .options reltol={missing+rand()}
         R1 out 0 1k
         .op
         .end
         """)
         #expect(loaded.coverage.items.first { $0.name == "reltol" }?.status == .supported)
-        #expect(loaded.coverage.items.first { $0.name == "bsim4stressiterations" }?.status == .supported)
         do {
             _ = try IOTestFrontend.lower(loaded.netlist)
             Issue.record("Actual invocation silently ignored an unresolved numeric option")
@@ -110,13 +109,13 @@ struct SPICEFrontendSessionTests {
         let result = try await SPICEIO.parseAndLower("""
         retained exact release
         .options scale=1u
-        .model nch nmos level=54 version=4.5
+        .model nch nmos level=3
         M1 d g 0 0 nch l=1 w=2
         .end
         """, profile: .coreStrictV1, seed: 77, limits: IOTestFrontend.limits)
         let mos = try #require(result.circuit.instances.first)
         guard case .resolved(let resolved) = mos.mos else { Issue.record("No resolved MOS stage"); return }
-        #expect(resolved.release == .bsim4_4_5)
+        #expect(resolved.release == .level3)
         #expect(resolved.geometryScale == 1e-6)
         #expect(resolved.normalizedGeometry.length == 1e-6)
         #expect(resolved.normalizedGeometry.width == 2e-6)
@@ -193,9 +192,8 @@ struct SPICEFrontendSessionTests {
         let parsed = try await SPICEIO.parse("""
         Shared width flag
         .options wnflag={rand()<1}
-        .model n.1 nmos level=54 version=4.8.3 lmin=.1u lmax=2u wmin=.1u wmax=1.5u
-        .model n.2 nmos level=54 version=4.8.3 lmin=.1u lmax=2u wmin=2u wmax=5u
-        M1 d g 0 0 n l=1u w=4u nf=4
+        .model n nmos level=1
+        M1 d g 0 0 n l=1u w=4u
         .end
         """).get()
         let limits = try IOTestFrontend.limits
@@ -208,8 +206,8 @@ struct SPICEFrontendSessionTests {
         let lowered = try session.finish()
         #expect(lowered.evaluationProvenance.randomDraws == 1)
         guard case .resolved(let mos) = lowered.circuit.instances[0].mos else { Issue.record("Missing MOS"); return }
-        #expect(mos.symbolNames[Int(mos.selectedName.rawValue)] == "n.1")
-        #expect(mos.normalizedGeometry.width == 4e-6 && mos.selectionGeometry.width == 1e-6)
+        #expect(mos.symbolNames[Int(mos.selectedName.rawValue)] == "n")
+        #expect(mos.normalizedGeometry.width == 4e-6 && mos.selectionGeometry.width == 4e-6)
     }
 
     @Test func invalidWidthOptionPoisonsIOEvaluation() async throws {

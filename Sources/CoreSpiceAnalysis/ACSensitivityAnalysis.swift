@@ -6,12 +6,14 @@ import CoreSpiceIR
 /// Frequency-dependent finite-difference sensitivity analysis.
 public struct ACSensitivityAnalysis: Analysis, Sendable {
     package var executionBudget: TransientExecutionBudget?
+    package var resultStorage: (any AnalysisResultStorageAccounting)?
     public typealias Result = ACSensitivityResult
 
     public let outputPositiveNode: Node
     public let outputReferenceNode: Node
     public let sweep: FrequencySweep
     public let dcConfig: ConvergenceConfig
+    public let nodeInitialGuess: [Node: Double]
     public let perturbationFraction: Double
     public let minimumPerturbation: Double
     public let deviceBinding: any CircuitDeviceBinding
@@ -21,6 +23,7 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
         outputReferenceNode: Node = .ground,
         sweep: FrequencySweep,
         dcConfig: ConvergenceConfig = ConvergenceConfig(),
+        nodeInitialGuess: [Node: Double] = [:],
         perturbationFraction: Double = 1e-6,
         minimumPerturbation: Double = 1e-12,
         deviceBinding: any CircuitDeviceBinding = StandardCircuitDeviceBinding()
@@ -29,6 +32,7 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
         self.outputReferenceNode = outputReferenceNode
         self.sweep = sweep
         self.dcConfig = dcConfig
+        self.nodeInitialGuess = nodeInitialGuess
         self.perturbationFraction = perturbationFraction
         self.minimumPerturbation = minimumPerturbation
         self.deviceBinding = deviceBinding
@@ -43,11 +47,16 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
     ) async throws -> ACSensitivityResult {
         try PreparedCircuit.validate(plan: plan, devices: devices)
         try validateOutput(plan: plan)
-        let perturbations = try CircuitParameterPerturbation.makeAll(
-            instances: plan.ir.instances,
-            fraction: perturbationFraction,
-            minimumDelta: minimumPerturbation
-        )
+        let perturbations: [CircuitParameterPerturbation]
+        if let resolver = deviceBinding as? any SourceResolvingCircuitDeviceBinding {
+            perturbations = try CircuitParameterPerturbation.makeSourceResolved(
+                parameters: resolver.sensitivityParameters(in: plan, cancellation: cancellation),
+                instances: plan.ir.instances, fraction: perturbationFraction,
+                minimumDelta: minimumPerturbation, cancellation: cancellation)
+        } else {
+            perturbations = try CircuitParameterPerturbation.makeAll(instances: plan.ir.instances,
+                fraction: perturbationFraction, minimumDelta: minimumPerturbation, cancellation: cancellation)
+        }
         let analysisID = AnalysisID()
         let startTimestamp = Timestamp()
         await observer?.emit(.analysisStarted(AnalysisStartedInfo(
@@ -59,8 +68,13 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
         )))
 
         do {
-            var acAnalysis = ACAnalysis(sweep: sweep, dcConfig: dcConfig)
+            var acAnalysis = ACAnalysis(sweep: sweep, dcConfig: dcConfig, nodeInitialGuess: nodeInitialGuess)
             acAnalysis.executionBudget = executionBudget
+            acAnalysis.resultStorage = resultStorage
+            if let resolver = deviceBinding as? any SourceResolvingCircuitDeviceBinding {
+                acAnalysis = try resolver.configureACAnalysis(acAnalysis, plan: plan, devices: devices,
+                    cancellation: cancellation)
+            }
             let baseline = try await acAnalysis.run(
                 plan: plan,
                 devices: devices,
@@ -76,15 +90,35 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
             entries.reserveCapacity(perturbations.count)
 
             for (index, perturbation) in perturbations.enumerated() {
-                if cancellation.isCancelled {
+                if cancellation.isCancelled || Task.isCancelled {
                     throw AnalysisError.cancelled
                 }
                 try executionBudget?.chargeWork(TransientExecutionBudget.multiply(devices.count, 2, "AC sensitivity rebind work"))
                 var instances = plan.ir.instances
                 instances[perturbation.instanceIndex] = perturbation.perturbedInstance
-                let prepared = try deviceBinding.bind(plan: plan, instances: instances)
-                let perturbed = try await acAnalysis.run(
-                    plan: plan,
+                let prepared = try await deviceBinding.bind(plan: plan, instances: instances, cancellation: cancellation)
+                defer { withExtendedLifetime(prepared) {} }
+                let changedPositive = deviceBinding is any SourceResolvingCircuitDeviceBinding
+                    ? try CircuitReexecution.outputNode(outputPositiveNode, from: plan, to: prepared.plan)
+                    : outputPositiveNode
+                let changedReference = deviceBinding is any SourceResolvingCircuitDeviceBinding
+                    ? try CircuitReexecution.outputNode(outputReferenceNode, from: plan, to: prepared.plan)
+                    : outputReferenceNode
+                let perturbedGuesses = deviceBinding is any SourceResolvingCircuitDeviceBinding
+                    ? try CircuitReexecution.nodeGuesses(nodeInitialGuess, from: plan, to: prepared.plan)
+                    : nodeInitialGuess
+                var perturbedAnalysis = ACAnalysis(sweep: sweep, dcConfig: dcConfig, nodeInitialGuess: perturbedGuesses)
+                perturbedAnalysis.resultStorage = resultStorage
+                perturbedAnalysis.executionBudget = try executionBudget?.rebound(
+                    dimension: prepared.plan.topology.dimension,
+                    nonZeroCount: prepared.plan.matrixStructure.nonZeroCount,
+                    deviceCount: prepared.devices.count)
+                if let resolver = deviceBinding as? any SourceResolvingCircuitDeviceBinding {
+                    perturbedAnalysis = try resolver.configureACAnalysis(perturbedAnalysis, plan: prepared.plan,
+                        devices: prepared.devices, cancellation: cancellation)
+                }
+                let perturbed = try await perturbedAnalysis.run(
+                    plan: prepared.plan,
                     devices: prepared.devices,
                     solver: solver,
                     observer: nil,
@@ -96,21 +130,22 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
                     )
                 }
 
-                try executionBudget?.chargeWork(TransientExecutionBudget.multiply(baselineValues.count, 32, "AC sensitivity derivative work"))
+                try executionBudget?.chargeWork(TransientExecutionBudget.multiply(baselineValues.count, 256, "AC sensitivity derivative work"))
                 try executionBudget?.admitSavedScalars(TransientExecutionBudget.add(
-                    TransientExecutionBudget.multiply(baselineValues.count, 4, "AC sensitivity derivative scalars"), 1, "AC sensitivity nominal scalar"))
+                    TransientExecutionBudget.multiply(baselineValues.count, 6, "AC sensitivity derivative and child scalars"), 4, "AC sensitivity parameter and increment scalars"))
                 let perturbedValues = perturbed.solutions.map {
-                    outputVoltage($0, variableMap: perturbed.variableMap)
+                    outputVoltage($0, variableMap: perturbed.variableMap, positive: changedPositive, reference: changedReference)
                 }
                 var derivatives: [ComplexPair] = []
                 var normalized: [ComplexPair?] = []
                 derivatives.reserveCapacity(baselineValues.count)
                 normalized.reserveCapacity(baselineValues.count)
                 for (base, changed) in zip(baselineValues, perturbedValues) {
-                    let derivative = ComplexPair(
-                        real: (changed.real - base.real) / perturbation.delta,
-                        imag: (changed.imag - base.imag) / perturbation.delta
-                    )
+                    let real = try CompensatedValue(high: changed.real).subtracting(CompensatedValue(high: base.real))
+                        .divided(by: perturbation.effectiveIncrement)
+                    let imaginary = try CompensatedValue(high: changed.imag).subtracting(CompensatedValue(high: base.imag))
+                        .divided(by: perturbation.effectiveIncrement)
+                    let derivative = ComplexPair(real: real.high + real.low, imag: imaginary.high + imaginary.low)
                     derivatives.append(derivative)
                     if base.magnitude > 1e-30 {
                         normalized.append(
@@ -127,7 +162,15 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
                     parameterName: perturbation.parameterName,
                     nominalValue: perturbation.nominalValue,
                     sensitivities: derivatives,
-                    normalizedSensitivities: normalized
+                    normalizedSensitivities: normalized,
+                    perturbedValue: perturbation.perturbedValue,
+                    effectiveIncrement: perturbation.effectiveIncrement,
+                    perturbedValues: perturbedValues, outputPositiveNode: changedPositive,
+                    outputReferenceNode: changedReference,
+                    diodePreparation: {
+                        if case .prepared(let receipt) = prepared.devices.first(where: { $0.instance.name == perturbation.deviceName })?.instance.diode { return receipt }
+                        return nil
+                    }()
                 ))
                 await observer?.emit(.progressUpdate(try ProgressInfo(
                     id: analysisID,
@@ -140,7 +183,9 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
                 outputVariable: outputName(plan: plan),
                 frequencies: baseline.frequencies,
                 baselineValues: baselineValues,
-                sensitivities: entries
+                sensitivities: entries,
+                outputPositiveNode: outputPositiveNode, outputReferenceNode: outputReferenceNode,
+                operatingPoint: baseline.operatingPoint
             )
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
@@ -188,7 +233,8 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
 
     private func outputVoltage(
         _ solution: [ComplexPair],
-        variableMap: [MNAVariable: Int]
+        variableMap: [MNAVariable: Int],
+        positive: Node? = nil, reference: Node? = nil
     ) -> ComplexPair {
         func voltage(_ node: Node) -> ComplexPair {
             guard node != .ground,
@@ -197,7 +243,7 @@ public struct ACSensitivityAnalysis: Analysis, Sendable {
             }
             return solution[index]
         }
-        return voltage(outputPositiveNode) - voltage(outputReferenceNode)
+        return voltage(positive ?? outputPositiveNode) - voltage(reference ?? outputReferenceNode)
     }
 
     private func outputName(plan: ExecutionPlan) -> String {

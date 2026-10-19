@@ -54,7 +54,7 @@ integration. Root owns Package.swift and cumulative integration/commit evidence.
 
 ## Designed Diode Resolution Composition
 
-Status: proposed addition. [DiodeResolution](DiodeResolution/DESIGN.md) is the new
+Status: implemented. [DiodeResolution](DiodeResolution/DESIGN.md) is the new
 direct child owning diode source admission; Frontend remains the single compiled
 storage/session owner. The new child consumes
 [DiodeContracts](../CoreSpiceDiodeContracts/DESIGN.md); no Devices edge is introduced.
@@ -68,6 +68,6 @@ storage/session owner. The new child consumes
 ## D3 Change Impact
 
 The [D3 resolution owner](DiodeResolution/DESIGN.md) defines occurrence admission, frozen
-evaluation, immutable result transport and explicit numerical refusal. This layer
-consumes that contract; D4 numerical preparation and D5 downstream adoption remain
-separate. Its affected production path and behavioral tests are verified in D3.
+evaluation and immutable result transport. This layer consumes that contract;
+D4 numerical preparation and D5 API/CLI adoption are separate implemented owners
+linked by the package design. Its own affected path and tests remain the D3 proof.

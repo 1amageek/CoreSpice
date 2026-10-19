@@ -15,11 +15,31 @@ public struct IntegrationState: Sendable {
     public let currentTime: Double
     public let previousTimeStep: Double?
 
-    public init(method: IntegrationMethod, timeStep: Double, currentTime: Double, previousTimeStep: Double? = nil) {
+    public let timeStepLowComponent: Double
+    public let previousTimeStepLowComponent: Double?
+
+    public init(method: IntegrationMethod, timeStep: Double, currentTime: Double, previousTimeStep: Double? = nil,
+                timeStepLowComponent: Double = 0, previousTimeStepLowComponent: Double? = nil) {
+        self.timeStepLowComponent = timeStepLowComponent
+        self.previousTimeStepLowComponent = previousTimeStepLowComponent
         self.method = method
         self.timeStep = timeStep
         self.currentTime = currentTime
         self.previousTimeStep = previousTimeStep
+    }
+
+    public var compensatedTimeStep: CompensatedValue {
+        get throws { try CompensatedValue(high: timeStep, low: timeStepLowComponent) }
+    }
+
+    public var compensatedPreviousTimeStep: CompensatedValue? {
+        get throws {
+            guard let previousTimeStep else {
+                if previousTimeStepLowComponent != nil { throw NumericalStateError.missingHighHistory }
+                return nil
+            }
+            return try CompensatedValue(high: previousTimeStep, low: previousTimeStepLowComponent ?? 0)
+        }
     }
 
     /// Coefficient for the companion model: `C * coefficient` or `L / coefficient`.

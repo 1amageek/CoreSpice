@@ -9,7 +9,7 @@ python3 validation/temperature-environment/verify.py --output /absolute/evidence
 python3 validation/temperature-environment/public-fixture.py --output /absolute/evidence/path
 # Build the IO dependency target first on a cold cache; use a 120-second subprocess deadline.
 # Then build/run the selected test targets using the same fixture and scratch path.
-env TOOLCHAINS=org.swift.640202609131a scripts/swift-test-timeout.sh 120 --package-path /absolute/evidence/path/public-component --build-path /absolute/evidence/path/public-native --jobs 12 --filter 'ConditionEvaluationTests|PreparedNativeExecutionTests|MOSEvaluationTests|ResistorLoweringTests|SPICEExecutionIntentTests'
+scripts/swift-test-timeout.sh 120 --package-path /absolute/evidence/path/public-component --build-path /absolute/evidence/path/public-native --jobs 12 --filter 'ConditionEvaluationTests|PreparedNativeExecutionTests|MOSEvaluationTests|ResistorLoweringTests|SPICEExecutionIntentTests'
 ```
 
 All subprocesses have deadlines. The release Swift 6.4.0 compiler and matching

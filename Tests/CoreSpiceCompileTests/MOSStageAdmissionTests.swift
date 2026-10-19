@@ -3,26 +3,25 @@ import Testing
 @testable import CoreSpiceCompile
 @testable import CoreSpiceIR
 
-@Suite("Prepared MOS compiler admission")
+@Suite("Classic MOS compiler admission", .timeLimit(.minutes(1)))
 struct MOSStageAdmissionTests {
     private let ports = [Node(id: 1), Node(id: 2), Node(id: 3), Node.ground]
 
-    @Test func legacyDictionariesCannotAdmitMOSAndResolvedStageIsRefused() throws {
+    @Test func dictionariesAndResolvedStagesCannotBypassPreparation() throws {
         let legacy = Instance(name: "M1", typeName: "nmos", nodes: ports,
             parameters: ["w": .real(1e-6), "l": .real(1e-6), "kp": .real(1e-3)])
         #expect(throws: CompileError.mosPreparationRequired(instance: "M1")) {
             try StandardCompiler().compile(ir: circuit(legacy))
         }
-        let resolved = try resolution()
         let staged = Instance(name: "M1", typeName: "nmos", nodes: ports,
-            parameters: [:], mos: .resolved(resolved))
+            parameters: [:], mos: .resolved(try resolution()))
         #expect(throws: CompileError.mosNotPrepared(instance: "M1")) {
             try StandardCompiler().compile(ir: circuit(staged))
         }
     }
 
-    @Test func preparedClassicAndNativeReleasesCompileUsingReceiptAuthority() throws {
-        for release in [MOSModelRelease.level1, .level2, .level3, .bsim3_3_3_0, .bsim4_4_8_3] {
+    @Test func classicReceiptsOwnReleaseAndPolarity() throws {
+        for release in [MOSModelRelease.level1, .level2, .level3] {
             for polarity in [MOSPolarity.nmos, .pmos] {
                 let receipt = try receipt(resolution(release: release, polarity: polarity))
                 let prefix = polarity == .nmos ? "nmos" : "pmos"
@@ -37,10 +36,10 @@ struct MOSStageAdmissionTests {
         }
     }
 
-    @Test func preparedReceiptMustMatchTypePolarityAndInstanceIdentity() throws {
+    @Test func mismatchedIdentityReleaseAndPolarityRefuse() throws {
         let classic = try receipt(resolution())
-        #expect(throws: CompileError.mosReleaseMismatch(instance: "M1", expectedLevel: 54, actual: .level1)) {
-            try StandardCompiler().compile(ir: circuit(Instance(name: "M1", typeName: "nmos_l54", nodes: ports,
+        #expect(throws: CompileError.mosReleaseMismatch(instance: "M1", expectedLevel: 3, actual: .level1)) {
+            try StandardCompiler().compile(ir: circuit(Instance(name: "M1", typeName: "nmos_l3", nodes: ports,
                 parameters: [:], mos: .prepared(classic))))
         }
         #expect(throws: CompileError.mosPolarityMismatch(instance: "M1", expected: .pmos, actual: .nmos)) {
@@ -55,68 +54,38 @@ struct MOSStageAdmissionTests {
             try StandardCompiler().compile(ir: circuit(Instance(name: "M1", typeName: "resistor", nodes: ports,
                 parameters: [:], mos: .prepared(classic))))
         }
-        let unsupported = try receipt(resolution(release: .bsim4_4_5))
-        // A custom prepared receipt is topology authority; native numerical
-        // capability is tested at NativeMOSDevicePreparer, not in the compiler.
-        _ = try StandardCompiler().compile(ir: circuit(Instance(name: "M1", typeName: "nmos_l54", nodes: ports,
-            parameters: [:], mos: .prepared(unsupported))))
     }
 
-    @Test func privateTopologyIsRetainedAndEveryRequiredSparsePairExists() throws {
-        let receipt = try receipt(resolution(release: .bsim3_3_3_0), auxiliary: true)
-        let privateNode = Node(id: 5)
-        let instance = Instance(name: "M1", typeName: "nmos_l49", nodes: ports,
-            parameters: [:], mos: .prepared(receipt), ownedNodes: [privateNode])
-        let plan = try StandardCompiler().compile(ir: circuit(instance, extraNodes: [privateNode]))
-        let privateIndex = try #require(plan.topology.nodeIndex(privateNode))
-        let gateIndex = try #require(plan.topology.nodeIndex(ports[1]))
-        #expect(privateIndex != gateIndex)
-        #expect(plan.matrixStructure.index(row: privateIndex, col: gateIndex) != nil)
-        #expect(plan.matrixStructure.index(row: gateIndex, col: privateIndex) != nil)
+    @Test func removedNativeCompactTypesCannotCompileWithAnyClassicReceipt() throws {
+        let classic = try receipt(resolution())
+        for typeName in ["nmos_l49", "pmos_l49", "nmos_l54", "pmos_l54"] {
+            let stages: [MOSInstanceStage?] = [nil, .prepared(classic)]
+            for stage in stages {
+                #expect(throws: CompileError.osdiPreparationRequired(instance: "M1")) {
+                    try StandardCompiler().compile(ir: circuit(Instance(name: "M1", typeName: typeName,
+                        nodes: ports, parameters: [:], mos: stage)))
+                }
+            }
+        }
     }
 
-    @Test func malformedPortsAuxiliaryCountAndAbsentNodesRefuseCompilation() throws {
+    @Test func malformedPortsAndInventedPrivateTopologyRefuse() throws {
         let classic = try receipt(resolution())
         #expect(throws: CompileError.mosPhysicalPortCount(instance: "M1", actual: 3)) {
             try StandardCompiler().compile(ir: circuit(Instance(name: "M1", typeName: "nmos", nodes: Array(ports.prefix(3)),
                 parameters: [:], mos: .prepared(classic))))
         }
-        let auxiliary = try receipt(resolution(release: .bsim3_3_3_0), auxiliary: true)
-        #expect(throws: CompileError.mosAuxiliaryNodeCount(instance: "M1", expected: 1, actual: 0)) {
-            try StandardCompiler().compile(ir: circuit(Instance(name: "M1", typeName: "nmos_l49", nodes: ports,
-                parameters: [:], mos: .prepared(auxiliary))))
-        }
-        let missingPort = Instance(name: "M1", typeName: "nmos", nodes: [ports[0], ports[1], Node(id: 77), .ground],
-            parameters: [:], mos: .prepared(classic))
-        #expect(throws: CompileError.mosNodeMissing(instance: "M1", node: 77)) {
-            try StandardCompiler().compile(ir: circuit(missingPort))
-        }
-        let missingPrivate = Instance(name: "M1", typeName: "nmos_l49", nodes: ports,
-            parameters: [:], mos: .prepared(auxiliary), ownedNodes: [Node(id: 88)])
-        #expect(throws: CompileError.mosNodeMissing(instance: "M1", node: 88)) {
-            try StandardCompiler().compile(ir: circuit(missingPrivate))
-        }
-    }
-
-    @Test func privateNodesCannotAliasAnyPhysicalPortOrAnotherOwner() throws {
-        let receipt = try receipt(resolution(release: .bsim3_3_3_0), auxiliary: true)
-        let ownAlias = Instance(name: "M1", typeName: "nmos_l49", nodes: ports,
-            parameters: [:], mos: .prepared(receipt), ownedNodes: [ports[0]])
-        #expect(throws: CompileError.mosPrivateNodeAlias(instance: "M1", node: ports[0].id)) {
-            try StandardCompiler().compile(ir: circuit(ownAlias))
-        }
-        let privateNode = Node(id: 5)
-        let mos = Instance(name: "M1", typeName: "nmos_l49", nodes: ports,
-            parameters: [:], mos: .prepared(receipt), ownedNodes: [privateNode])
-        for other in [
-            Instance(name: "R1", typeName: "resistor", nodes: [privateNode, .ground], parameters: [:]),
-            Instance(name: "X1", typeName: "other", nodes: [], parameters: [:], ownedNodes: [privateNode])
+        for instance in [
+            Instance(name: "M1", typeName: "nmos", nodes: ports, parameters: [:], mos: .prepared(classic), ownedNodes: [Node(id: 5)]),
+            Instance(name: "M1", typeName: "nmos", nodes: ports, parameters: [:], mos: .prepared(classic), ownedBranches: [Branch(id: 1)])
         ] {
-            for instances in [[mos, other], [other, mos]] {
-                #expect(throws: CompileError.mosPrivateNodeAlias(instance: "M1", node: 5)) {
-                    try StandardCompiler().compile(ir: CircuitIR(nodes: ports + [privateNode], branches: [], instances: instances))
-                }
+            #expect(throws: CompileError.unexpectedMOSStage(instance: "M1")) {
+                try StandardCompiler().compile(ir: circuit(instance, extraNodes: [Node(id: 5)]))
             }
+        }
+        #expect(throws: CompileError.mosNodeMissing(instance: "M1", node: 77)) {
+            try StandardCompiler().compile(ir: circuit(Instance(name: "M1", typeName: "nmos", nodes: [ports[0], ports[1], Node(id: 77), .ground],
+                parameters: [:], mos: .prepared(classic))))
         }
     }
 
@@ -152,12 +121,11 @@ struct MOSStageAdmissionTests {
             limits: limits, workBudget: &budget)
     }
 
-    private func receipt(_ resolved: ResolvedMOSInstance, auxiliary: Bool = false) throws -> MOSPreparationReceipt {
+    private func receipt(_ resolved: ResolvedMOSInstance) throws -> MOSPreparationReceipt {
         let conditions = try MOSPreparationConditions(ambientKelvin: 300.15, nominalKelvin: 300.15,
-            analysisCapabilities: [.dc], maximumStressIterations: 1)
+            analysisCapabilities: [.dc])
         let identity = try MOSPreparationIdentity(resolved: resolved, conditions: conditions, implementationIdentity: "compiler-test-fixture-v1")
-        let topology = try MOSPreparedTopology(localNodeCount: auxiliary ? 5 : 4, drainPrime: auxiliary ? 5 : 1,
-            sourcePrime: 3, gatePrime: 2, gateMid: 2, bodyPrime: 4, drainBody: 4, sourceBody: 4, chargeNode: 0)
+        let topology = MOSPreparedTopology()
         let limits = try MOSPreparationLimits(maximumRetainedBytes: 100_000, maximumTemporaryBytes: 100_000,
             maximumDiagnosticBytes: 4096, maximumWorkUnits: 100_000)
         // The package-only fixture admits compiler metadata; it does not claim device preparation evidence.

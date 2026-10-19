@@ -3,12 +3,12 @@ import PackageDescription
 
 let circuiteFoundationDependency: Package.Dependency = .package(
     url: "https://github.com/1amageek/CircuiteFoundation.git",
-    revision: "ae88104c556f5802819713ed741f5b2fffffc2d9"
+    exact: "26.1018.0"
 )
 
 let signoffToolSupportDependency: Package.Dependency = .package(
     url: "https://github.com/1amageek/SignoffToolSupport.git",
-    exact: "26.812.0"
+    exact: "26.1018.0"
 )
 
 let package = Package(
@@ -16,7 +16,8 @@ let package = Package(
     platforms: [.macOS(.v27)],
     products: [
         .library(name: "CoreSpice", targets: ["CoreSpice"]),
-        .library(name: "CoreSpiceCompactModels", targets: ["CoreSpiceCompactModels"]),
+        .library(name: "CoreSpiceOSDIContracts", targets: ["CoreSpiceOSDIContracts"]),
+        .library(name: "CoreSpiceOSDI", targets: ["CoreSpiceOSDI"]),
         .library(name: "CoreSpiceIR", targets: ["CoreSpiceIR"]),
         .library(name: "CoreSpiceEvaluationContracts", targets: ["CoreSpiceEvaluationContracts"]),
         .library(name: "CoreSpiceDiodeContracts", targets: ["CoreSpiceDiodeContracts"]),
@@ -24,15 +25,23 @@ let package = Package(
         .library(name: "CoreSpiceMOSResolution", targets: ["CoreSpiceMOSResolution"]),
         .library(name: "CoreSpiceIO", targets: ["CoreSpiceIO"]),
         .library(name: "CoreSpiceProcessBackend", targets: ["CoreSpiceProcessBackend"]),
+        .library(name: "CoreSpiceBackend", targets: ["CoreSpiceBackend"]),
         .library(name: "PluginsPhotonic", targets: ["PluginsPhotonic"]),
         .executable(name: "corespice", targets: ["CoreSpiceCLI"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/1amageek/ToolQualification.git", revision: "7a69d2ba4e3c4c2262478312f9217de4293a7ab7"),
+        .package(url: "https://github.com/1amageek/swift-osdi.git", exact: "1.2.0"),
+        .package(url: "https://github.com/1amageek/ToolQualification.git", exact: "26.1018.0"),
         circuiteFoundationDependency,
         signoffToolSupportDependency,
     ],
     targets: [
+        .executableTarget(name: "CoreSpiceSparseQualification", dependencies: [
+            "CoreSpice", "CoreSpiceCompile", "CoreSpiceAnalysis", "CoreSpiceIO", "CoreSpiceMOSContracts", "CoreSpiceWaveform",
+            .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
+            .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")
+        ], path: "tools/SparseQualification", exclude: ["DESIGN.md", "prepare.py", "cold_run.py", "verify.py", "transient_oracle.py", "test_prepare.py"],
+            sources: ["QualificationTool.swift", "SparseMatrixQualification.swift"]),
         // --- C module: Metal-compatible types ---
         .target(name: "SharedTypes", path: "Sources/SharedTypes", exclude: ["README.md"], publicHeadersPath: "include"),
 
@@ -42,64 +51,59 @@ let package = Package(
         // --- Portable evaluation and diode input contracts ---
         .target(name: "CoreSpiceEvaluationContracts", exclude: ["DESIGN.md", "Environment/DESIGN.md"]),
         .target(name: "CoreSpiceDiodeContracts", dependencies: ["CoreSpiceEvaluationContracts"],
-                exclude: ["DESIGN.md", "Input/DESIGN.md"]),
+                exclude: ["DESIGN.md", "Input/DESIGN.md", "Preparation/DESIGN.md"]),
 
         // --- Portable MOS interpretation boundary ---
         .target(name: "CoreSpiceMOSContracts", dependencies: ["CoreSpiceEvaluationContracts"], exclude: ["DESIGN.md", "Values/DESIGN.md", "Schema/DESIGN.md", "Preparation/DESIGN.md"]),
         .target(name: "CoreSpiceMOSResolution", dependencies: ["CoreSpiceMOSContracts", "CoreSpiceEvaluationContracts"],
                 exclude: ["DESIGN.md", "Declarations/DESIGN.md", "Evaluation/DESIGN.md", "Selection/DESIGN.md"]),
 
+        // --- Portable OSDI circuit binding values ---
+        .target(name: "CoreSpiceOSDIContracts", dependencies: [
+            .product(name: "OSDIContracts", package: "swift-osdi"),
+            .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
+        ], exclude: ["DESIGN.md", "Binding/DESIGN.md"]),
+
         // --- IR ---
-        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceEvent", "CoreSpiceMOSContracts", "CoreSpiceEvaluationContracts", "CoreSpiceDiodeContracts"], exclude: ["README.md", "DESIGN.md", "MOSInstances/DESIGN.md", "DiodeInstances/DESIGN.md"]),
+        .target(name: "CoreSpiceIR", dependencies: ["CoreSpiceOSDIContracts", "CoreSpiceEvent", "CoreSpiceMOSContracts", "CoreSpiceEvaluationContracts", "CoreSpiceDiodeContracts"], exclude: ["README.md", "DESIGN.md", "MOSInstances/DESIGN.md", "DiodeInstances/DESIGN.md", "OSDIInstances/DESIGN.md"]),
 
-        // --- LAPACK ABI boundary ---
-        .target(
-            name: "CoreSpiceLAPACK",
-            cSettings: [.define("ACCELERATE_NEW_LAPACK")],
-            linkerSettings: [.linkedFramework("Accelerate")]
-        ),
-
-        // --- Native compact-model evaluator ---
-        .target(name: "CoreSpiceBSIM3", exclude: ["DESIGN.md", "NOTICE.md", "Kernel/DESIGN.md",
-            "Kernel/B3TERMS_OF_USE", "Kernel/upstream.json", "Kernel/adapt_upstream.py"],
-            publicHeadersPath: "include"),
-        .target(name: "CoreSpiceBSIM45", exclude: ["DESIGN.md", "NOTICE.md", "Proof",
-            "Kernel/DESIGN.md", "Kernel/B4TERMS_OF_USE", "Kernel/upstream.json", "Kernel/adapt_upstream.py", "Kernel/admission.inc", "Kernel/finite.inc"],
-            publicHeadersPath: "include"),
-        .target(name: "CoreSpiceBSIM4", exclude: ["DESIGN.md", "NOTICE.md", "LICENSE.txt", "ECL-2.0.txt", "Proof",
-            "Kernel/DESIGN.md", "Kernel/upstream.json", "Kernel/adapt_upstream.py", "Kernel/noise_primitives.inc", "Kernel/NOISE_PRIMITIVE_LICENSE"],
-            publicHeadersPath: "include"),
-        .target(name: "CoreSpiceCompactModels", dependencies: ["CoreSpiceBSIM3", "CoreSpiceBSIM4", "CoreSpiceBSIM45", "CoreSpiceMOSContracts"],
-            exclude: ["DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "BSIM45/DESIGN.md", "PreparationStorage/DESIGN.md"]),
+        // Compact-model physics is provided exclusively through swift-osdi.
 
         // --- Devices ---
-        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceMOSContracts", "CoreSpiceEvaluationContracts"],
-                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md", "BSIM3/DESIGN.md", "BSIM4/DESIGN.md", "BSIM45/DESIGN.md", "OutputReferredNoise/DESIGN.md", "MOSPreparation/DESIGN.md", "Diode/DESIGN.md"]),
+        .target(name: "CoreSpiceDevices", dependencies: ["CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceMOSContracts", "CoreSpiceEvaluationContracts", "CoreSpiceDiodeContracts"],
+                exclude: ["README.md", "DESIGN.md", "Devices/DESIGN.md", "OutputReferredNoise/DESIGN.md", "MOSPreparation/DESIGN.md", "Diode/DESIGN.md", "ResidualNoise/DESIGN.md", "TransientLifecycle/DESIGN.md", "NumericalState/DESIGN.md", "ContinuousEquationStructure/DESIGN.md"]),
 
         // --- Compile ---
         .target(
             name: "CoreSpiceCompile",
-            dependencies: ["CoreSpiceIR", "CoreSpiceLAPACK", "CoreSpiceMOSContracts"],
-            exclude: ["README.md", "DESIGN.md"]
+            dependencies: ["CoreSpiceIR", "CoreSpiceMOSContracts", "CoreSpiceDiodeContracts"],
+            exclude: ["README.md", "DESIGN.md", "SparseFactorization/DESIGN.md", "SparseOrdering/DESIGN.md"]
         ),
 
         // --- Backend ---
         .target(name: "CoreSpiceBackend", dependencies: ["CoreSpiceEvent", "SharedTypes"],
-                exclude: ["README.md", "Shaders"]),
+                exclude: ["README.md", "Shaders", "DESIGN.md", "MetalExecution/DESIGN.md"]),
+
+        // --- Native OSDI model-to-circuit adapter ---
+        .target(name: "CoreSpiceOSDI", dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile", "CoreSpiceOSDIContracts",
+            .product(name: "OSDIContracts", package: "swift-osdi"),
+            .product(name: "OSDIRuntime", package: "swift-osdi"),
+            .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
+        ], exclude: ["DCExecution/DESIGN.md", "DESIGN.md", "Preparation/DESIGN.md", "Topology/DESIGN.md", "RangeExecution/DESIGN.md"], swiftSettings: [.enableExperimentalFeature("Lifetimes"), .enableExperimentalFeature("LifetimeDependence")]),
 
         // --- Analysis ---
         .target(name: "CoreSpiceAnalysis",
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
-                               "CoreSpiceLAPACK",
-                               "CoreSpiceBackend", "CoreSpiceEvent"],
-                exclude: ["README.md", "DESIGN.md"]),
+                               "CoreSpiceDiodeContracts", "CoreSpiceEvaluationContracts",
+                               "CoreSpiceEvent"],
+                exclude: ["README.md", "DESIGN.md", "EquationConvergence/DESIGN.md", "Completion/DESIGN.md", "TransientValidation/DESIGN.md", "FrequencyNoise/DESIGN.md", "CompensatedTransient/DESIGN.md", "CompensatedDC/DESIGN.md", "NewtonVoltageLimiting/DESIGN.md", "SparseExecution/DESIGN.md", "ValidatedTransient/DESIGN.md", "NetworkParameters/DESIGN.md", "ExactRowAlgebra/DESIGN.md", "PrescribedVoltageReduction/DESIGN.md", "GeneralizedSchur/DESIGN.md", "GeneralizedSchur/THIRD_PARTY_NOTICES.txt"]),
 
         // --- Photonic Plugin ---
         // Note: Photonic shaders are provided by CoreSpiceBackend
         .target(name: "PluginsPhotonic",
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
                                "CoreSpiceBackend", "CoreSpiceEvent", "SharedTypes"],
-                exclude: ["README.md"]),
+                exclude: ["README.md", "DESIGN.md", "IR/DESIGN.md", "Compiler/DESIGN.md", "GPU/DESIGN.md", "Execution/DESIGN.md"]),
 
         // --- Optoelectronic Device Models ---
         .target(name: "CoreSpiceOptoelectronics",
@@ -107,13 +111,17 @@ let package = Package(
 
         // --- Umbrella ---
         .target(name: "CoreSpice",
-                dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
-                               "CoreSpiceAnalysis", "CoreSpiceBackend", "CoreSpiceEvent",
-                               "CoreSpiceOptoelectronics", "CoreSpiceIO", "CoreSpiceWaveform", "CoreSpiceMOSContracts", "CoreSpiceCompactModels", "CoreSpiceParsedIR",
+                dependencies: ["CoreSpiceOSDI", "CoreSpiceOSDIContracts", "CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
+                               "CoreSpiceAnalysis", "CoreSpiceEvent",
+                               "CoreSpiceOptoelectronics", "CoreSpiceIO", "CoreSpiceWaveform", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceEvaluationContracts", "CoreSpiceDiodeContracts",
                                .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
                                .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation"),
-                               .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation")],
-                exclude: ["DESIGN.md", "NativeExecution/DESIGN.md"]),
+                               .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation"),
+                               .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation"),
+                               .product(name: "OSDIContracts", package: "swift-osdi"),
+                               .product(name: "OSDIRuntime", package: "swift-osdi")],
+                exclude: ["DESIGN.md", "NativeExecution/DESIGN.md"],
+                swiftSettings: [.enableExperimentalFeature("Lifetimes"), .enableExperimentalFeature("LifetimeDependence")]),
 
         // --- Production external-process simulation backend ---
         .target(
@@ -124,7 +132,8 @@ let package = Package(
                 .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation"),
                 .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation"),
                 .product(name: "SignoffToolSupport", package: "SignoffToolSupport")
-            ]
+            ],
+            exclude: ["DESIGN.md"]
         ),
 
         // ==========================================================================
@@ -150,64 +159,69 @@ let package = Package(
 
         // --- Lowering: ParsedNetlist → CircuitIR conversion ---
         .target(name: "CoreSpiceLowering",
-                dependencies: ["CoreSpiceParsedIR", "CoreSpiceIR", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceEvaluationContracts", "CoreSpiceDiodeContracts"], exclude: ["DESIGN.md", "Frontend/DESIGN.md", "DiodeResolution/DESIGN.md"]),
+                dependencies: ["CoreSpiceOSDIContracts","CoreSpiceParsedIR", "CoreSpiceIR", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceEvaluationContracts", "CoreSpiceDiodeContracts",
+                               .product(name: "OSDIContracts", package: "swift-osdi")], exclude: ["DESIGN.md", "Frontend/DESIGN.md", "DiodeResolution/DESIGN.md"]),
 
         // --- Exporter: Exporter protocols and registry ---
         .target(name: "CoreSpiceExporter",
-                dependencies: ["CoreSpiceWaveform"]),
+                dependencies: ["CoreSpiceWaveform"], exclude: ["DESIGN.md"]),
 
         // --- ExporterRAW: RAW format exporter ---
         .target(name: "CoreSpiceExporterRAW",
-                dependencies: ["CoreSpiceWaveform", "CoreSpiceExporter"]),
+                dependencies: ["CoreSpiceWaveform", "CoreSpiceExporter"], exclude: ["DESIGN.md"]),
 
         // --- ExporterCSV: CSV format exporter ---
         .target(name: "CoreSpiceExporterCSV",
-                dependencies: ["CoreSpiceWaveform", "CoreSpiceExporter"]),
+                dependencies: ["CoreSpiceWaveform", "CoreSpiceExporter"], exclude: ["DESIGN.md"]),
 
         // --- ExporterPSF: PSF format exporter (Cadence) ---
         .target(name: "CoreSpiceExporterPSF",
-                dependencies: ["CoreSpiceWaveform", "CoreSpiceExporter"]),
+                dependencies: ["CoreSpiceWaveform", "CoreSpiceExporter"], exclude: ["DESIGN.md"]),
 
         // --- I/O Umbrella: Re-exports all I/O modules ---
         .target(name: "CoreSpiceIO",
-                dependencies: ["CoreSpiceEvaluationContracts", "CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceAnalysis",
+                dependencies: ["CoreSpiceCompile", "CoreSpiceEvent", "CoreSpiceOSDIContracts","CoreSpiceEvaluationContracts", "CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceAnalysis",
                                "CoreSpiceMOSContracts", "CoreSpiceMOSResolution",
                                "CoreSpiceParsedIR", "CoreSpiceWaveform",
                                "CoreSpiceParser", "CoreSpiceParserSPICE",
                                "CoreSpiceLowering", "CoreSpiceDiodeContracts", "CoreSpiceExporter",
                                "CoreSpiceExporterRAW", "CoreSpiceExporterCSV",
                                "CoreSpiceExporterPSF",
+                               .product(name: "OSDIContracts", package: "swift-osdi"),
                                .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
-                               .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")], exclude: ["DESIGN.md", "InitialConditions/DESIGN.md", "SimulationPreparation/DESIGN.md"]),
+                               .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")], exclude: ["DESIGN.md", "InitialConditions/DESIGN.md", "SimulationPreparation/DESIGN.md", "Touchstone/DESIGN.md", "ExternalModelPreparation/DESIGN.md", "ExternalModelPreparation/MOSBinPreparation/DESIGN.md"]),
 
         // CLI core and executable entry
         .target(
             name: "CoreSpiceCLICore",
             dependencies: [
+                "CoreSpiceOSDI", "CoreSpiceOSDIContracts",
+                .product(name: "OSDIContracts", package: "swift-osdi"),
+                .product(name: "OSDIRuntime", package: "swift-osdi"),
                 .product(name: "ToolQualification", package: "ToolQualification"),
                 .product(name: "ToolQualificationCLICore", package: "ToolQualification"),
                 "CoreSpice",
                 "CoreSpiceIO",
                 "CoreSpiceLowering",
+                "CoreSpiceDiodeContracts",
+                "CoreSpiceEvaluationContracts",
                 "CoreSpiceMOSContracts",
                 "CoreSpiceMOSResolution",
                 "CoreSpiceAnalysis",
                 "CoreSpiceDevices",
-                "CoreSpiceCompactModels",
                 "CoreSpiceOptoelectronics",
                 "CoreSpiceCompile",
                 "CoreSpiceExporter",
                 "CoreSpiceExporterRAW",
                 "CoreSpiceExporterCSV",
                 "CoreSpiceExporterPSF",
-                "CoreSpiceBackend",
                 .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
                 .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation"),
                 .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation"),
                 .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation")
             ],
             path: "Sources/CoreSpiceCLI",
-            exclude: ["README.md", "DESIGN.md"]
+            exclude: ["README.md", "DESIGN.md", "DiodeEvidence/DESIGN.md", "MetricEvidence/DESIGN.md", "PrecisionEvidence/DESIGN.md", "ExecutionPolicy/DESIGN.md"]
         ),
         .executableTarget(
             name: "CoreSpiceCLI",
@@ -219,15 +233,28 @@ let package = Package(
         // Tests
         // ==========================================================================
 
-        .testTarget(name: "CoreSpiceBSIM45KernelTests", dependencies: ["CoreSpiceCompactModels", "CoreSpiceMOSContracts"]),
-        .testTarget(name: "CoreSpiceBSIM3IntegrationTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "CoreSpiceBSIM3NoiseTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "CoreSpiceBSIM45IntegrationTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"]),
-        .testTarget(name: "CoreSpiceBSIM4IntegrationTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "CoreSpiceBSIM4NoiseTests", dependencies: ["CoreSpiceEvaluationContracts", "CoreSpice", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceParserSPICE", "CoreSpiceLowering", "CoreSpiceDevices", "CoreSpiceCompactModels", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceIO"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "CoreSpiceBSIM4KernelTests", dependencies: ["CoreSpiceCompactModels"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "CoreSpiceCompactModelsTests", dependencies: ["CoreSpiceCompactModels"],
-            resources: [.copy("Fixtures")]),
+        .target(name: "CoreSpiceOSDITestSupport", dependencies: ["CoreSpiceOSDI", .product(name: "CircuiteFoundation", package: "CircuiteFoundation"), .product(name: "OSDIContracts", package: "swift-osdi")], path: "Tests/CoreSpiceOSDITestSupport", exclude: ["DESIGN.md"]),
+        .testTarget(name: "CoreSpiceOSDITests", dependencies: ["CoreSpiceOSDITestSupport","CoreSpiceOSDI", "CoreSpiceOSDIContracts", "CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile", "CoreSpiceAnalysis", "CoreSpiceEvent",
+            .product(name: "OSDIContracts", package: "swift-osdi"), .product(name: "OSDIRuntime", package: "swift-osdi"),
+            .product(name: "CircuiteFoundation", package: "CircuiteFoundation"), .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation"),
+            .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation"), .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation")
+        ], exclude: ["DESIGN.md", "Fixtures"], swiftSettings: [.enableExperimentalFeature("Lifetimes"), .enableExperimentalFeature("LifetimeDependence")]),
+        .testTarget(name: "CoreSpiceOSDINativeTests", dependencies: ["CoreSpiceExporterCSV", "CoreSpiceExporter", "CoreSpice", "CoreSpiceIO", "CoreSpiceLowering", "CoreSpiceMOSContracts", "CoreSpiceParsedIR", "CoreSpiceOSDI", "CoreSpiceOSDIContracts", "CoreSpiceOSDITestSupport", "CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceDevices", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceWaveform",
+            .product(name: "OSDIContracts", package: "swift-osdi"), .product(name: "OSDIRuntime", package: "swift-osdi"),
+            .product(name: "CircuiteFoundation", package: "CircuiteFoundation"), .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation"),
+            .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation"), .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation")]),
+        .testTarget(name: "CoreSpiceOSDICLITests", dependencies: ["CoreSpiceAnalysis", "CoreSpiceDevices", "CoreSpiceIR", "CoreSpiceEvent", "CoreSpiceExporterCSV", "CoreSpiceCLICore", "CoreSpice", "CoreSpiceIO", "CoreSpiceWaveform", "CoreSpiceOSDI", "CoreSpiceOSDIContracts", "CoreSpiceOSDITestSupport",
+            .product(name: "OSDIContracts", package: "swift-osdi"), .product(name: "OSDIRuntime", package: "swift-osdi"),
+            .product(name: "SignoffToolSupport", package: "SignoffToolSupport"),
+            .product(name: "ToolQualification", package: "ToolQualification"),
+            .product(name: "CircuiteFoundation", package: "CircuiteFoundation"), .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation"),
+            .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation"), .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation")], exclude: ["DESIGN.md"]),
+        .testTarget(name: "CoreSpiceOSDIAnalysisTests", dependencies: ["CoreSpiceAnalysis", "CoreSpiceCompile", "CoreSpiceDevices", "CoreSpiceIR", "CoreSpiceEvent"]),
+        .testTarget(name: "CoreSpiceOSDIFrontendTests", dependencies: ["CoreSpiceParserSPICE", "CoreSpiceParser", "CoreSpiceParsedIR", "CoreSpiceLowering", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceIR", "CoreSpiceIO", "CoreSpiceOSDIContracts",
+            .product(name: "OSDIContracts", package: "swift-osdi"), .product(name: "CircuiteFoundation", package: "CircuiteFoundation"), .product(name: "CircuiteFoundationCrypto", package: "CircuiteFoundation")]),
+        .testTarget(name: "CoreSpiceOSDIContractsTests", dependencies: ["CoreSpiceOSDIContracts", "CoreSpiceIR",
+            .product(name: "OSDIContracts", package: "swift-osdi"),
+            .product(name: "CircuiteFoundation", package: "CircuiteFoundation")]),
         .testTarget(name: "CoreSpiceConditionEvaluationTests", dependencies: ["CoreSpiceLowering", "CoreSpiceIR", "CoreSpiceParsedIR", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceEvaluationContracts"]),
         .testTarget(name: "CoreSpiceEvaluationContractsTests", dependencies: ["CoreSpiceEvaluationContracts"]),
         .testTarget(name: "CoreSpiceDiodeIntegrationTests", dependencies: ["CoreSpiceIO", "CoreSpiceLowering", "CoreSpiceMOSContracts", "CoreSpiceDiodeContracts", "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceDevices", "CoreSpiceEvent"]),
@@ -235,11 +262,13 @@ let package = Package(
         .testTarget(name: "CoreSpiceDiodeContractsTests", dependencies: ["CoreSpiceDiodeContracts", "CoreSpiceEvaluationContracts"]),
         .testTarget(name: "CoreSpiceMOSContractsTests", dependencies: ["CoreSpiceMOSContracts"]),
         .testTarget(name: "CoreSpiceMOSResolutionTests", dependencies: ["CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),
-        .testTarget(name: "CoreSpiceMOSPreparationTests", dependencies: ["CoreSpiceDevices", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceIR", "CoreSpiceCompile", "CoreSpiceCompactModels"]),
+        .testTarget(name: "CoreSpiceMOSPreparationTests", dependencies: ["CoreSpiceDevices", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceIR", "CoreSpiceCompile"]),
         .testTarget(name: "CoreSpiceIRTests", dependencies: ["CoreSpiceIR", "CoreSpiceMOSContracts"]),
         .testTarget(
             name: "CoreSpiceDevicesTests",
             dependencies: [
+                "CoreSpiceDiodeContracts",
+                "CoreSpiceEvaluationContracts",
                 "CoreSpiceMOSContracts",
                 "CoreSpiceMOSResolution",
                 "CoreSpiceDevices",
@@ -250,7 +279,7 @@ let package = Package(
             ]
         ),
         .testTarget(name: "CoreSpiceCompileTests", dependencies: ["CoreSpiceCompile", "CoreSpiceMOSContracts"]),
-        .testTarget(name: "CoreSpiceAnalysisTests", dependencies: ["CoreSpiceAnalysis", "CoreSpice", "CoreSpiceIO", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceParsedIR"]),
+        .testTarget(name: "CoreSpiceAnalysisTests", dependencies: ["CoreSpiceAnalysis", "CoreSpice", "CoreSpiceIO", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution", "CoreSpiceParsedIR", "CoreSpiceDiodeContracts", "CoreSpiceEvaluationContracts"], resources: [.copy("Fixtures")]),
         .testTarget(name: "CoreSpiceBackendTests", dependencies: ["CoreSpiceBackend"]),
         .testTarget(name: "PluginsPhotonicTests", dependencies: ["PluginsPhotonic"]),
         .testTarget(
@@ -266,7 +295,8 @@ let package = Package(
                 "CoreSpiceProcessBackend",
                 .product(name: "CircuiteFoundation", package: "CircuiteFoundation"),
                 .product(name: "CircuiteFoundationFoundation", package: "CircuiteFoundation"),
-                .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation")
+                .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation"),
+                .product(name: "SignoffToolSupport", package: "SignoffToolSupport")
             ],
             resources: [.copy("Fixtures")]
         ),
@@ -294,8 +324,8 @@ let package = Package(
             dependencies: ["CoreSpiceWaveform", "CoreSpiceAnalysis", "CoreSpiceCompile"]
         ),
         .testTarget(name: "CoreSpiceParserSPICETests", dependencies: ["CoreSpiceParserSPICE"]),
-        .testTarget(name: "CoreSpiceIOTests", dependencies: ["CoreSpiceIO", "CoreSpiceCompile", "CoreSpiceEvent", "CoreSpiceCompactModels", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),
-        .testTarget(name: "CoreSpiceLoweringTests", dependencies: ["CoreSpiceLowering", "CoreSpiceIR", "CoreSpiceParserSPICE", "CoreSpiceDevices", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),
+        .testTarget(name: "CoreSpiceIOTests", dependencies: ["CoreSpiceIO", "CoreSpiceCompile", "CoreSpiceEvent", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),
+        .testTarget(name: "CoreSpiceLoweringTests", dependencies: ["CoreSpiceDiodeContracts", "CoreSpiceLowering", "CoreSpiceIR", "CoreSpiceParserSPICE", "CoreSpiceDevices", "CoreSpiceMOSContracts", "CoreSpiceMOSResolution"]),
         .testTarget(name: "CoreSpiceExporterTests", dependencies: ["CoreSpiceExporterRAW", "CoreSpiceExporterCSV", "CoreSpiceExporterPSF", "CoreSpiceWaveform"]),
         .testTarget(
             name: "CoreSpiceCLITests",
@@ -305,6 +335,8 @@ let package = Package(
                 "CoreSpiceIO",
                 "CoreSpiceMOSContracts",
                 "CoreSpiceMOSResolution",
+                "CoreSpiceExporterCSV",
+                .product(name: "SignoffToolSupport", package: "SignoffToolSupport"),
                 .product(name: "CircuiteFoundation", package: "CircuiteFoundation")
             ],
             path: "Tests/CoreSpiceCLITests",

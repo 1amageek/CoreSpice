@@ -4,9 +4,9 @@
 
 This SwiftPM module owns native electrical device binding and stamping. Its
 parent is the [CoreSpice package](../../DESIGN.md), and its device implementation
-children are [Devices](Devices/DESIGN.md), [BSIM3](BSIM3/DESIGN.md),
-[BSIM4](BSIM4/DESIGN.md), [MOSPreparation](MOSPreparation/DESIGN.md), and
-[output-referred noise](OutputReferredNoise/DESIGN.md).
+children are [ContinuousEquationStructure](ContinuousEquationStructure/DESIGN.md), [Devices](Devices/DESIGN.md), [MOSPreparation](MOSPreparation/DESIGN.md), and
+[output-referred noise](OutputReferredNoise/DESIGN.md), [Diode](Diode/DESIGN.md),
+[TransientLifecycle](TransientLifecycle/DESIGN.md), and proposed S4D [NumericalState](NumericalState/DESIGN.md).
 
 ## Responsibilities and Boundaries
 
@@ -20,12 +20,13 @@ typed numerical failures; devices never label an analysis successful.
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [CoreSpice](../../DESIGN.md) | parent | Simulation domain | Package composition | Native evidence does not qualify a foundry model |
+| [ContinuousEquationStructure](ContinuousEquationStructure/DESIGN.md) | child | Package-only actual bound F/Q support, native R/C/V coefficient bits and source value-law facts | Structural and represented-law composition input | No rank/root/jet/history authority |
 | [Devices](Devices/DESIGN.md) | child | Descriptors and bound devices | Physical models | Current and Jacobian must change together |
+| [Diode](Diode/DESIGN.md) | child | Checked exact/generic input and consuming preparation | Diode ownership boundary | Generic numerical graduation remains separate |
 | [MOSPreparation](MOSPreparation/DESIGN.md) | child | Single-owner preparation and consuming binding | Approved S3 boundary | Runtime evidence remains migration-owned |
-| [BSIM3](BSIM3/DESIGN.md) | child | Exact 3.3.0 bound owner | Electrical and history behavior | Preserve both Mutex owners |
-| [BSIM45](BSIM45/DESIGN.md) | child | Exact 4.5 prepared/bound owner | Existing Analysis composition | Original wrappers need independent qualification |
-| [BSIM4](BSIM4/DESIGN.md) | child | Exact 4.8.3 bound owner | Electrical and history behavior | Preserve stress/noise intent |
 | [Output-referred noise](OutputReferredNoise/DESIGN.md) | child | Correlated spectrum composition | Full-node gain input | Success does not imply qualification |
+| [NumericalState](NumericalState/DESIGN.md) | child | Proposed compensated SolutionState views | S4D numerical representation | Cross-owner D1 freeze precedes implementation |
+| [TransientLifecycle](TransientLifecycle/DESIGN.md) | child | Sessions and original F / alphaDeltaQ capabilities | Accepted history and independent equation contribution | Complete-circuit composition owns admission and bounded row buffers |
 | [ParsedIR](../CoreSpiceParsedIR/DESIGN.md) | coordinates with | Original model and instance source roles | Resistor declaration provenance | Unused declaration acceptance is not execution admission |
 | [Lowering](../CoreSpiceLowering/DESIGN.md) | used by | Device preparation and supported parameter roles | Canonical model/instance values and runtime dependencies | Model values must not be flattened into instance overrides |
 | [Analysis](../CoreSpiceAnalysis/DESIGN.md) | used by | Fallible stamps and noise admission | Numerical execution and current PSD consumption | Unsupported requested noise cannot disappear from a successful result |
@@ -80,15 +81,16 @@ TransientSessionDevice begins history from an initial SolutionState and ends it
 on every analysis-scope exit. NoiseAnalysisAdmissionDevice rejects unsupported
 noise before a result can be labeled successful. NoisyDevice contributes
 fallible current PSDs through the checked noise contract owned by
-[Analysis](../CoreSpiceAnalysis/DESIGN.md). Their BSIM3 ownership, lifecycle
-and behavior are defined by the [BSIM3 component](BSIM3/DESIGN.md).
+[Analysis](../CoreSpiceAnalysis/DESIGN.md).
 
-## BSIM4 composition
+## Compact-model boundary
 
-[BSIM4](BSIM4/DESIGN.md) owns exact Level54 preparation, explicit work policy,
-full auxiliary mapping and checked DC/AC/transient sessions. Its correlated-noise
-uses the [output-referred contract](OutputReferredNoise/DESIGN.md). Registry policy is runtime configuration, not physical IR.
-
+Native BSIM3/BSIM4.5/BSIM4.8 components and registry entries are removed.
+[MOSPreparation](MOSPreparation/DESIGN.md) prepares classic L1/L2/L3 only and
+has no BSIM release or schema cases. Source admission rejects legacy BSIM
+selection before native preparation. Compact-model execution uses
+[CoreSpiceOSDI](../CoreSpiceOSDI/DESIGN.md) with exact compiled model artifacts;
+no simplified native fallback or version reinterpretation is provided.
 
 ## Atomic Private-Node Binding
 
@@ -119,7 +121,27 @@ in total device count. The claimed-node set grows once for each successful claim
 Binding tests must show that a valid first node followed by an invalid/duplicate
 node leaves both unclaimed, that failed CSR/IC checks claim nothing, and that a
 later valid bind can claim the same nodes. Existing successful duplicate-ownership
-refusal remains. This proof does not change branch-claim semantics.
+refusal remains.
+
+Explicit branch proposals use the same preflight/commit transaction through
+`validateOwnedBranches(for:)` and `commitValidatedOwnedBranches(for:)`: every
+proposed branch must have a unique, in-range compiled current variable and must
+not already be claimed. OSDI binding preflights both sets, completes fallible
+mapping and construction, then commits both sets without intervening callbacks.
+Legacy `claimBranch(for:)` retains its individual fallback allocation contract.
+The context is invocation-local and is never shared across concurrent binders.
+
+### Finite Pole-Zero Applicability
+
+`BoundDevice.poleZeroStampApplicability` is a device-owned declaration that the
+entire fixed-bias matrix is exactly the affine pencil `G + s*C`. Its default is
+an explicit unsupported reason. Pole-zero analysis admits all devices before
+stamping and rejects a non-affine or unestablished realization. Delayed lines
+contain `exp(-s*delay)` and require a separate infinite-spectrum method; two
+frequency samples do not establish an affine realization. AC analysis retains
+its full frequency-dependent stamp contract. Analytic RC/TF and delayed-line
+refusal regressions are owned by
+[ReleaseNumericalRegressionTests](../../Tests/CoreSpiceAnalysisTests/ReleaseNumericalRegressionTests.swift).
 
 ## Designed Diode Preparation Composition
 
@@ -136,3 +158,23 @@ silently choosing a second nominal or operating temperature.
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md) | depends on | Checked environment identity | D2 temperature meaning | Standard Library only; source policy stays outside this module |
+
+07N replaces generic diode legacy I/G and variable-C history with the exact
+[diode-owned numerical and session contract](Diode/DESIGN.md#07n-generic-numerical-law).
+The shared capacitance store and unrelated model families remain independent.
+
+## S4 Transient Boundary
+
+[TransientLifecycle](TransientLifecycle/DESIGN.md) owns explicit initialization and fresh candidate-step queries. The existing session protocol adds a requirement with a default witness delegating to the original begin method, preserving existing devices. Accepted step constraints may change after commits and are read before each next proposal; positive infinity denotes no accepted-state limit. Candidate constraints are optional finite positive seconds, queried from a freshly solved full candidate before acceptance. No query publishes native/Q/current history.
+
+## S4 Residual Noise Composition
+
+[ResidualNoise](ResidualNoise/DESIGN.md) owns canonical residual-row source metadata, scoped PSD borrowing and the separate noise matrix stamp requirement. Existing electrical and correlated device contracts remain unchanged.
+
+### Checked Physical History Snapshot
+
+SolutionState keeps its variable map private. An internal checkedPreviousSnapshot factory
+uses that same map and requires an explicitly present, finite previous vector of identical
+width. Direct physical residual helpers consume this snapshot; absent history is an error
+and never substitutes the current candidate. The factory preserves array backing through
+Swift value semantics and exposes no mutable map authority.

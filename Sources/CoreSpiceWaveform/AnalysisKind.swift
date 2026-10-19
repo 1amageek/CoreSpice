@@ -10,6 +10,9 @@ public enum AnalysisKind: String, Sendable, Hashable, Codable {
     /// AC small-signal analysis.
     case ac
 
+    /// Fixed-bias voltage-controlled multiport parameters.
+    case networkParameters = "network"
+
     /// Transient (time-domain) analysis.
     case transient = "tran"
 
@@ -37,6 +40,7 @@ public enum AnalysisKind: String, Sendable, Hashable, Codable {
         case .operatingPoint: return "Operating Point"
         case .dc: return "DC transfer characteristic"
         case .ac: return "AC Analysis"
+        case .networkParameters: return "Network Parameters"
         case .transient: return "Transient Analysis"
         case .noise: return "Noise Spectral Density"
         case .transferFunction: return "Transfer Function"
@@ -50,7 +54,7 @@ public enum AnalysisKind: String, Sendable, Hashable, Codable {
     /// Whether this analysis produces complex results.
     public var producesComplexData: Bool {
         switch self {
-        case .ac, .noise, .poleZero:
+        case .ac, .networkParameters, .noise, .poleZero:
             return true
         case .operatingPoint, .dc, .transient, .transferFunction, .sensitivity,
              .fourier, .monteCarlo:

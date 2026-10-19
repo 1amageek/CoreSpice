@@ -79,11 +79,11 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
             guard iterations > 0 else {
                 throw AnalysisError.invalidConfiguration("Monte Carlo iterations must be positive")
             }
-            // FIXME(INCOMPLETE_IMPLEMENTATION): Generic IR Monte Carlo rebinds all instances without source-level MOS re-resolution. MOS callers must open a fresh frontend session and prepare a new owner for each sample before this path can succeed.
-            if let instance = plan.ir.instances.first(where: { $0.mos != nil }) {
+            if !(deviceBinding is any SourceResolvingCircuitDeviceBinding),
+               let instance = plan.ir.instances.first(where: { $0.mos != nil }) {
                 throw AnalysisError.requiresFreshMOSResolution(instance: instance.name)
             }
-            try validateVariations(in: plan)
+            try validateVariations(in: plan, cancellation: cancellation)
 
             var rng: any RandomNumberGenerator = seed.map {
                 SeededRandomNumberGenerator(seed: $0) as any RandomNumberGenerator
@@ -93,7 +93,7 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
             var allParamValues: [[String: Double]] = []
 
             for iteration in 0..<iterations {
-                if cancellation.isCancelled {
+                if cancellation.isCancelled || Task.isCancelled {
                     throw AnalysisError.cancelled
                 }
 
@@ -103,21 +103,26 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
 
                 for variation in variations {
                     let value = variation.sample(rng: &rng)
+                    guard value.isFinite else {
+                        throw AnalysisError.invalidConfiguration("Monte Carlo sampled a nonfinite parameter")
+                    }
                     let key = "\(variation.deviceName).\(variation.parameterName)"
                     sampledParams[key] = value
-                    instanceOverrides[variation.deviceName, default: [:]][variation.parameterName] = value
+                    instanceOverrides[variation.deviceName.lowercased(), default: [:]][variation.parameterName] = value
                 }
 
                 // Rebuild devices with the sampled parameters
-                let perturbedCircuit = try rebindDevices(
+                let perturbedCircuit = try await rebindDevices(
                     plan: plan,
-                    overrides: instanceOverrides
+                    overrides: instanceOverrides,
+                    cancellation: cancellation
                 )
+                defer { withExtendedLifetime(perturbedCircuit) {} }
 
                 // Run the inner analysis
                 let analysis = analysisFactory()
                 let result = try await analysis.run(
-                    plan: plan,
+                    plan: perturbedCircuit.plan,
                     devices: perturbedCircuit.devices,
                     solver: solver,
                     observer: nil,
@@ -177,13 +182,14 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
     /// Rebinds all device instances, applying parameter overrides where specified.
     private func rebindDevices(
         plan: ExecutionPlan,
-        overrides: [String: [String: Double]]
-    ) throws -> PreparedCircuit {
+        overrides: [String: [String: Double]],
+        cancellation: CancellationToken
+    ) async throws -> PreparedCircuit {
         var instances: [Instance] = []
         instances.reserveCapacity(plan.ir.instances.count)
         for instance in plan.ir.instances {
             let inst: Instance
-            if let paramOverrides = overrides[instance.name] {
+            if let paramOverrides = overrides[instance.name.lowercased()] {
                 var params = instance.parameters
                 for (key, value) in paramOverrides {
                     params[key] = .real(value)
@@ -194,7 +200,7 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
                     nodes: instance.nodes,
                     parameters: params,
                     model: instance.model,
-                    mos: instance.mos, diode: instance.diode, modelConsumption: instance.modelConsumption,
+                    mos: instance.mos, diode: instance.diode, osdi: instance.osdi, modelConsumption: instance.modelConsumption,
                     ownedNodes: instance.ownedNodes,
                     ownedBranches: instance.ownedBranches,
                     referencedBranches: instance.referencedBranches,
@@ -207,10 +213,13 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
 
             instances.append(inst)
         }
-        return try deviceBinding.bind(plan: plan, instances: instances)
+        return try await deviceBinding.bind(plan: plan, instances: instances, cancellation: cancellation)
     }
 
-    private func validateVariations(in plan: ExecutionPlan) throws {
+    private func validateVariations(in plan: ExecutionPlan, cancellation: CancellationToken) throws {
+        let sourceParameters = try (deviceBinding as? any SourceResolvingCircuitDeviceBinding)?
+            .sensitivityParameters(in: plan, cancellation: cancellation)
+
         let instances = Dictionary(
             uniqueKeysWithValues: plan.ir.instances.map { ($0.name.lowercased(), $0) }
         )
@@ -225,7 +234,15 @@ public struct MonteCarloAnalysis<A: Analysis>: Sendable {
                     "Monte Carlo device \(variation.deviceName) does not exist"
                 )
             }
-            guard case .real? = instance.parameters[variation.parameterName] else {
+            let sourceSupported = sourceParameters?.contains {
+                $0.deviceName.lowercased() == instance.name.lowercased()
+                    && $0.parameterName == variation.parameterName && $0.nominalValue.isFinite
+            }
+            let supported: Bool
+            if let sourceSupported { supported = sourceSupported }
+            else if case .real? = instance.parameters[variation.parameterName] { supported = true }
+            else { supported = false }
+            guard supported else {
                 throw AnalysisError.invalidConfiguration(
                     "Monte Carlo parameter \(variation.deviceName).\(variation.parameterName) is not a real device parameter"
                 )

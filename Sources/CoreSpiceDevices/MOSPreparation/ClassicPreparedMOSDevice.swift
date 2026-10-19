@@ -43,7 +43,6 @@ public struct ClassicPreparedMOSDevice: ~Copyable, Sendable {
             return BoundPMOSL3(instance: instance, drain: d, gate: g, source: s, bulk: b,
                 parameters: parameters, drainIdx: mapping.drain, gateIdx: mapping.gate,
                 sourceIdx: mapping.source, bulkIdx: mapping.bulk, csrIndices: mapping.csr)
-        default: throw MOSBindingFailure.identityMismatch
         }
     }
 }

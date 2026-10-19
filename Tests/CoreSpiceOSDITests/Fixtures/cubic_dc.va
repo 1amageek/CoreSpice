@@ -1,0 +1,7 @@
+`include "dc_disciplines.vams"
+module cubic_dc(p, n);
+    inout p, n;
+    electrical p, n;
+    analog I(p, n) <+ 0.001 * V(p, n) * V(p, n) * V(p, n)
+                         + 0.0002 * V(p, n) + 0.0001;
+endmodule

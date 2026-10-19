@@ -20,7 +20,7 @@ let package = Package(name: "DiodeD3Contracts", platforms: [.macOS(.v27)], targe
 ])
 ''')
 runner=out/'run-wasi.mjs';runner.write_text("import {WASI} from 'node:wasi';import {readFile} from 'node:fs/promises';const w=new WASI({version:'preview1',args:['D3Probe'],env:{},preopens:{}});const m=await WebAssembly.compile(await readFile(process.argv[2]));const i=await WebAssembly.instantiate(m,w.getImportObject());w.start(i);\n")
-records=[];env=dict(os.environ,TOOLCHAINS='org.swift.640202609131a')
+records=[];env=dict(os.environ)
 def run(label,command,timeout=120):
  start=time.monotonic();result=subprocess.run(command,env=env,capture_output=True,text=True,timeout=timeout)
  (out/(label+'.log')).write_text(result.stdout+result.stderr);records.append(dict(label=label,command=command,exit=result.returncode,seconds=time.monotonic()-start));(out/'commands.json').write_text(json.dumps(records,indent=2))

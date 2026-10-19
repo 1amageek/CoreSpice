@@ -88,33 +88,39 @@ public struct PhotonicExecutor: Sendable {
                     try checkCancellation(cancellation)
                     let coefficients = plan.coefficients[layerIndex]
                     let descriptor = plan.descriptors[layerIndex]
+                    let coefficientElementCount = coefficients.count * 8
                     let coefficientBuffer = try backend.allocateBuffer(
-                        type: MZICoefficients.self,
-                        count: coefficients.count,
+                        type: Float.self,
+                        count: coefficientElementCount,
                         label: "coefficients-layer-\(layerIndex)"
                     )
                     defer { backend.releaseBuffer(coefficientBuffer) }
 
                     try backend.withMutableContents(
                         of: coefficientBuffer,
-                        as: MZICoefficients.self
+                        as: Float.self
                     ) { destination in
-                        guard destination.count >= coefficients.count else {
+                        guard destination.count >= coefficientElementCount else {
                             throw PhotonicExecutionError.insufficientBufferCapacity(
                                 label: "coefficients-layer-\(layerIndex)",
-                                required: coefficients.count,
+                                required: coefficientElementCount,
                                 actual: destination.count
                             )
                         }
-                        coefficients.withUnsafeBufferPointer { source in
-                            guard let sourceAddress = source.baseAddress,
-                                  let destinationAddress = destination.baseAddress else {
-                                return
-                            }
-                            destinationAddress.update(
-                                from: sourceAddress,
-                                count: coefficients.count
-                            )
+                        // One preparation copy at the CPU/GPU ABI boundary. Imported C
+                        // structs cannot retroactively adopt BitwiseCopyable; store their
+                        // eight scalar fields directly, with no intermediate packed array.
+                        // The retained GPU buffer is reused for every batch in this layer.
+                        for (index, matrix) in coefficients.enumerated() {
+                            let base = index * 8
+                            destination[base] = matrix.m00_real
+                            destination[base + 1] = matrix.m00_imag
+                            destination[base + 2] = matrix.m01_real
+                            destination[base + 3] = matrix.m01_imag
+                            destination[base + 4] = matrix.m10_real
+                            destination[base + 5] = matrix.m10_imag
+                            destination[base + 6] = matrix.m11_real
+                            destination[base + 7] = matrix.m11_imag
                         }
                     }
 
@@ -129,6 +135,7 @@ public struct PhotonicExecutor: Sendable {
                 }
 
                 try await backend.synchronize()
+                try checkCancellation(cancellation)
                 let outputs = try backend.withMutableContents(
                     of: stateBuffer,
                     as: Float.self
@@ -143,18 +150,24 @@ public struct PhotonicExecutor: Sendable {
                     var values: [PhotonicPortOutput] = []
                     values.reserveCapacity(PhotonicMesh512.portCount)
                     for port in 0..<PhotonicMesh512.portCount {
-                        var totalReal: Float = 0
-                        var totalImaginary: Float = 0
+                        var totalReal: Double = 0
+                        var totalImaginary: Double = 0
                         for repetition in 0..<batch.repetitions {
                             let baseIndex = repetition * PhotonicMesh512.portCount * 2
-                            totalReal += state[baseIndex + port * 2]
-                            totalImaginary += state[baseIndex + port * 2 + 1]
+                            let real = Double(state[baseIndex + port * 2])
+                            let imaginary = Double(state[baseIndex + port * 2 + 1])
+                            guard real.isFinite, imaginary.isFinite else {
+                                throw PhotonicExecutionError.nonFiniteOutput(wavelength: wavelengthIndex, port: port)
+                            }
+                            totalReal += real
+                            totalImaginary += imaginary
                         }
-                        values.append(PhotonicPortOutput(
-                            portIndex: port,
-                            real: totalReal / Float(batch.repetitions),
-                            imag: totalImaginary / Float(batch.repetitions)
-                        ))
+                        let real = Float(totalReal / Double(batch.repetitions))
+                        let imaginary = Float(totalImaginary / Double(batch.repetitions))
+                        guard real.isFinite, imaginary.isFinite else {
+                            throw PhotonicExecutionError.nonFiniteOutput(wavelength: wavelengthIndex, port: port)
+                        }
+                        values.append(PhotonicPortOutput(portIndex: port, real: real, imag: imaginary))
                     }
                     return values
                 }
@@ -174,6 +187,7 @@ public struct PhotonicExecutor: Sendable {
                 )))
             }
 
+            try checkCancellation(cancellation)
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .photonic,

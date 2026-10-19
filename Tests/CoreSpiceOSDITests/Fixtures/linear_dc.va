@@ -1,0 +1,7 @@
+`include "dc_disciplines.vams"
+module linear_dc(p, n);
+    inout p, n;
+    electrical p, n;
+    parameter real g = 0.001;
+    analog I(p, n) <+ g * V(p, n);
+endmodule

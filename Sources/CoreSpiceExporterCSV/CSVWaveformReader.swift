@@ -11,7 +11,8 @@ import Foundation
 ///
 /// The analysis kind is inferred from the sweep column name because the CSV
 /// format does not record it: `time` maps to transient, `frequency`/`freq`
-/// maps to AC, and any other sweep name maps to DC.
+/// maps to noise when canonical noise-density columns are present and otherwise
+/// to AC, and any other sweep name maps to DC.
 public struct CSVWaveformReader: Sendable {
 
     /// The field separator character.
@@ -48,7 +49,7 @@ public struct CSVWaveformReader: Sendable {
         }
 
         let sweepVariable = sweepDescriptor(for: sweepColumn)
-        let analysisType = inferredAnalysisKind(sweepName: sweepColumn.name)
+        let analysisType = inferredAnalysisKind(sweepName: sweepColumn.name, dataColumns: dataColumns)
         let sweepValues = rows.map { row in row[0] }
 
         if let complexPairs = try complexColumnPairs(dataColumns) {
@@ -177,6 +178,9 @@ public struct CSVWaveformReader: Sendable {
                   dataColumns[index + 1].name == baseName + "_imag" else {
                 throw CSVWaveformReadError.unpairedComplexColumn(name: realColumn.name)
             }
+            guard realColumn.declaredUnit == dataColumns[index + 1].declaredUnit else {
+                throw CSVWaveformReadError.complexUnitMismatch(name: baseName)
+            }
             pairs.append(ComplexPair(
                 baseName: baseName,
                 declaredUnit: realColumn.declaredUnit,
@@ -275,6 +279,12 @@ public struct CSVWaveformReader: Sendable {
             type = .voltage
         } else if lowered.hasPrefix("i(") {
             type = .current
+        } else if lowered.hasPrefix("dt(") {
+            type = .temperature
+        } else if lowered == "output_noise_density" || lowered == "input_referred_noise_density" {
+            type = .noiseDensity
+        } else if lowered == "integrated_output_noise" {
+            type = .voltage
         } else {
             type = .parameter
         }
@@ -286,12 +296,15 @@ public struct CSVWaveformReader: Sendable {
         )
     }
 
-    private func inferredAnalysisKind(sweepName: String) -> AnalysisKind {
+    private func inferredAnalysisKind(sweepName: String, dataColumns: [HeaderColumn]) -> AnalysisKind {
         switch sweepName.lowercased() {
         case "time":
             return .transient
         case "frequency", "freq":
-            return .ac
+            return dataColumns.contains {
+                let name = $0.name.lowercased()
+                return name == "output_noise_density" || name == "input_referred_noise_density"
+            } ? .noise : .ac
         default:
             return .dc
         }
@@ -300,41 +313,56 @@ public struct CSVWaveformReader: Sendable {
     // MARK: - Line and field splitting
 
     private func numberedNonEmptyLines(_ text: String) -> [(number: Int, content: Substring)] {
-        var lines: [(number: Int, content: Substring)] = []
-        var lineNumber = 0
-        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            lineNumber += 1
-            var line = rawLine
-            if line.hasSuffix("\r") {
-                line = line.dropLast()
+        var records: [(number: Int, content: Substring)] = []
+        var start = text.startIndex
+        var lineNumber = 1
+        var recordLine = 1
+        var inQuotes = false
+        for index in text.indices {
+            let character = text[index]
+            if character == "\"" { inQuotes.toggle() }
+            if character == "\n" || character == "\r\n" || character == "\r" {
+                if !inQuotes {
+                    let record = text[start..<index]
+                    if !record.trimmingCharacters(in: .whitespaces).isEmpty {
+                        records.append((number: recordLine, content: record))
+                    }
+                    start = text.index(after: index)
+                    recordLine = lineNumber + 1
+                }
+                lineNumber += 1
             }
-            guard !line.trimmingCharacters(in: .whitespaces).isEmpty else {
-                continue
-            }
-            lines.append((number: lineNumber, content: line))
         }
-        return lines
+        let record = text[start...]
+        if !record.trimmingCharacters(in: .whitespaces).isEmpty {
+            records.append((number: recordLine, content: record))
+        }
+        return records
     }
 
-    /// Splits one CSV line into fields, honoring double-quoted fields (the
-    /// exporter's `quoteFields` option) so quoted names may contain the
-    /// separator. Surrounding quotes are stripped from the returned fields.
+    /// Decodes quoted fields and doubled quotes within a logical CSV record.
     private func splitFields(_ line: Substring, lineNumber: Int) throws -> [String] {
         var fields: [String] = []
         var current = ""
         var inQuotes = false
-
-        for character in line {
+        var index = line.startIndex
+        while index < line.endIndex {
+            let character = line[index]
+            let next = line.index(after: index)
             if character == "\"" {
+                if inQuotes, next < line.endIndex, line[next] == "\"" {
+                    current.append("\"")
+                    index = line.index(after: next)
+                    continue
+                }
                 inQuotes.toggle()
-                continue
-            }
-            if character == separator && !inQuotes {
+            } else if character == separator && !inQuotes {
                 fields.append(current)
                 current = ""
-                continue
+            } else {
+                current.append(character)
             }
-            current.append(character)
+            index = next
         }
         guard !inQuotes else {
             throw CSVWaveformReadError.unterminatedQuote(line: lineNumber)

@@ -67,7 +67,7 @@ public enum VariableType: String, Sendable, Hashable, Codable {
         case .noiseDensity:
             return .dimensionless
         case .temperature:
-            return .dimensionless
+            return .kelvin
         case .parameter:
             return .dimensionless
         }

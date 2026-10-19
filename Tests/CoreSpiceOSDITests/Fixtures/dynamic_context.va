@@ -1,0 +1,11 @@
+`include "dc_disciplines.vams"
+module dynamic_context(p, n);
+    inout p, n;
+    electrical p, n;
+    analog begin
+        I(p, n) <+ (analysis("noise") ? 0.002 : 0.001) * V(p, n);
+        I(p, n) <+ (analysis("ic") ? 1.0e-5 : 0.0) + 1.0e-3 * $abstime;
+        I(p, n) <+ ddt(1.0e-9 * V(p, n));
+        I(p, n) <+ white_noise(4.0e-24, "context");
+    end
+endmodule

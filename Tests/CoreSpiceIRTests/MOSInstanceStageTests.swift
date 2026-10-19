@@ -12,10 +12,9 @@ struct MOSInstanceStageTests {
     @Test func resolvedAndPreparedStagesRetainExactValuesAcrossNetlistBuild() throws {
         let resolved = try resolution()
         let conditions = try MOSPreparationConditions(ambientKelvin: 300.15, nominalKelvin: 300.15,
-            analysisCapabilities: [.dc, .ac], maximumStressIterations: 1)
+            analysisCapabilities: [.dc, .ac])
         let identity = try MOSPreparationIdentity(resolved: resolved, conditions: conditions, implementationIdentity: "ir-test-fixture-v1")
-        let topology = try MOSPreparedTopology(localNodeCount: 4, drainPrime: 1, sourcePrime: 3,
-            gatePrime: 2, gateMid: 2, bodyPrime: 4, drainBody: 4, sourceBody: 4, chargeNode: 0)
+        let topology = MOSPreparedTopology()
         let limits = try MOSPreparationLimits(maximumRetainedBytes: 100_000, maximumTemporaryBytes: 100_000,
             maximumDiagnosticBytes: 4096, maximumWorkUnits: 100_000)
         let receipt = try MOSPreparationReceipt(identity: identity, topology: topology, retainedBytes: 4096,

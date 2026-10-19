@@ -1,6 +1,5 @@
 import CoreSpiceWaveform
 import Foundation
-import Synchronization
 
 /// A protocol for streaming waveform exporters.
 ///
@@ -95,72 +94,49 @@ extension ExportSession {
                 reason: "Batch contains \(sweepValues.count) sweep values and \(values.count) value rows"
             )
         }
-        for (i, sweep) in sweepValues.enumerated() {
-            try await writePoint(sweepValue: sweep, values: values[i])
+        do {
+            for (i, sweep) in sweepValues.enumerated() {
+                try await writePoint(sweepValue: sweep, values: values[i])
+            }
+        } catch is CancellationError {
+            await cancel()
+            throw CancellationError()
         }
     }
 }
 
-/// A helper class for export sessions with common I/O functionality.
-///
-/// Uses `Mutex` for thread-safe mutable state access.
-/// Export session implementations should compose this helper rather than inherit from it.
-public final class ExportSessionHelper: Sendable {
-
+/// A synchronous output owner. A session actor must exclusively own this helper.
+/// Only its point-count snapshot may be shared across isolation boundaries.
+public final class ExportSessionHelper {
     public enum PointKind: Sendable, Equatable {
         case real
         case complex
     }
 
-    /// Mutable state protected by Mutex.
-    private struct MutableState {
-        enum Phase: Equatable {
-            case open
-            case finalized
-            case cancelled
-            case failed
-        }
-
-        var pointsWritten: Int = 0
-        var bytesWritten: Int = 0
-        var fileHandle: FileHandle?
-        var outputData: Data?
-        var pointKind: PointKind?
-        var phase: Phase = .open
+    private enum Phase {
+        case open
+        case finalized
+        case cancelled
+        case failed
     }
 
-    /// The protected mutable state.
-    private let state: Mutex<MutableState>
-
-    /// The metadata for this export.
+    private var phase: Phase = .open
+    private var fileHandle: FileHandle?
+    private var memoryData: Data?
+    private var pointKind: PointKind?
+    private var writtenBytes = 0
+    public let progress: ExportSessionProgress
     public let metadata: SimulationMetadata
-
-    /// The sweep variable.
     public let sweepVariable: VariableDescriptor
-
-    /// The data variables.
     public let variables: [VariableDescriptor]
-
-    /// The configuration.
     public let configuration: ExportConfiguration
-
-    /// Whether we're exporting to memory.
     public let isMemoryExport: Bool
-
-    /// The output path if writing to file.
     public let outputPath: String?
-
     private let temporaryPath: String?
 
-    /// Counter for points written.
-    public var pointsWritten: Int {
-        state.withLock { $0.pointsWritten }
-    }
-
-    /// Total bytes written.
-    public var bytesWritten: Int {
-        state.withLock { $0.bytesWritten }
-    }
+    public var pointsWritten: Int { progress.pointsWritten }
+    public var bytesWritten: Int { writtenBytes }
+    public var outputData: Data? { memoryData }
 
     public init(
         metadata: SimulationMetadata,
@@ -169,209 +145,176 @@ public final class ExportSessionHelper: Sendable {
         configuration: ExportConfiguration,
         destination: ExportDestination
     ) throws {
+        try Task.checkCancellation()
         try configuration.validate()
         self.metadata = metadata
         self.sweepVariable = sweepVariable
         self.variables = variables
         self.configuration = configuration
-
-        var initialState = MutableState()
-
+        self.progress = ExportSessionProgress()
         switch destination {
         case .file(let path):
-            self.isMemoryExport = false
-            self.outputPath = path
-            let destinationURL = URL(fileURLWithPath: path)
-            let temporaryURL = destinationURL
-                .deletingLastPathComponent()
-                .appendingPathComponent(
-                    ".\(destinationURL.lastPathComponent).corespice-\(UUID().uuidString).partial"
-                )
-            self.temporaryPath = temporaryURL.path
-            guard FileManager.default.createFile(
-                atPath: temporaryURL.path,
-                contents: nil
-            ) else {
+            isMemoryExport = false
+            outputPath = path
+            let url = URL(fileURLWithPath: path)
+            let temporaryURL = url.deletingLastPathComponent().appendingPathComponent(
+                ".\(url.lastPathComponent).corespice-\(UUID().uuidString).partial"
+            )
+            temporaryPath = temporaryURL.path
+            guard FileManager.default.createFile(atPath: temporaryURL.path, contents: nil) else {
                 throw ExporterError.cannotCreateFile(path: temporaryURL.path)
-            }
-            let handle = FileHandle(forWritingAtPath: temporaryURL.path)
-            if handle == nil {
-                throw ExporterError.cannotCreateFile(path: temporaryURL.path)
-            }
-            initialState.fileHandle = handle
-
-        case .memory:
-            self.isMemoryExport = true
-            self.outputPath = nil
-            self.temporaryPath = nil
-            initialState.outputData = Data()
-        }
-
-        self.state = Mutex(initialState)
-    }
-
-    /// Writes data to the output.
-    public func write(_ data: Data) throws {
-        try state.withLock { state in
-            guard state.phase == .open else {
-                throw ExporterError.streamingError(
-                    reason: "Cannot write after the export session has ended"
-                )
             }
             do {
+                fileHandle = try FileHandle(forWritingTo: temporaryURL)
+            } catch {
+                do {
+                    try FileManager.default.removeItem(at: temporaryURL)
+                } catch {
+                    throw ExporterError.writeFailed(reason: "Cannot open or remove temporary output: \(error)")
+                }
+                throw ExporterError.cannotCreateFile(path: temporaryURL.path)
+            }
+        case .memory:
+            isMemoryExport = true
+            outputPath = nil
+            temporaryPath = nil
+            memoryData = Data()
+        }
+        try checkCancellation()
+    }
+
+    public func write(_ data: Data) throws {
+        try requireOpen()
+        do {
+            // Bound cancellation latency during large row/header writes without copying file chunks.
+            let chunkSize = 64 * 1024
+            var offset = data.startIndex
+            while offset < data.endIndex {
+                try Task.checkCancellation()
+                let end = offset + min(chunkSize, data.endIndex - offset)
                 if isMemoryExport {
-                    guard state.outputData != nil else {
-                        throw ExporterError.writeFailed(
-                            reason: "In-memory output storage is unavailable"
-                        )
-                    }
-                    state.outputData?.append(data)
+                    memoryData?.append(data[offset..<end])
                 } else {
-                    guard let handle = state.fileHandle else {
+                    guard let fileHandle else {
                         throw ExporterError.writeFailed(reason: "Output file handle is closed")
                     }
-                    try handle.write(contentsOf: data)
+                    try fileHandle.write(contentsOf: data[offset..<end])
                 }
-                state.bytesWritten += data.count
-            } catch {
-                state.phase = .failed
-                state.fileHandle?.closeFile()
-                state.fileHandle = nil
-                throw error
+                writtenBytes += end - offset
+                offset = end
             }
+            try Task.checkCancellation()
+        } catch {
+            cancel()
+            throw error
         }
     }
 
-    /// Writes a string to the output.
     public func write(_ string: String) throws {
-        guard let data = string.data(using: .utf8) else {
-            throw ExporterError.writeFailed(reason: "Failed to encode string as UTF-8")
-        }
-        try write(data)
+        try write(Data(string.utf8))
     }
 
-    /// Increments the point counter.
-    public func validatePoint(
-        kind: PointKind,
-        sweepValue: Double,
-        valueCount: Int
-    ) throws {
-        try state.withLock { state in
-            guard state.phase == .open else {
-                throw ExporterError.streamingError(
-                    reason: "Cannot write a point after the export session has ended"
-                )
-            }
-            guard sweepValue.isFinite else {
-                throw ExporterError.streamingError(
-                    reason: "Sweep value must be finite"
-                )
-            }
-            guard valueCount == variables.count else {
-                throw ExporterError.streamingError(
-                    reason: "Expected \(variables.count) values, got \(valueCount)"
-                )
-            }
-            if let pointKind = state.pointKind, pointKind != kind {
-                throw ExporterError.streamingError(
-                    reason: "Cannot mix real and complex points in one export session"
-                )
-            }
-            state.pointKind = kind
+    public func validatePoint(kind: PointKind, sweepValue: Double, valueCount: Int) throws {
+        try requireOpen()
+        try checkCancellation()
+        guard sweepValue.isFinite else {
+            throw ExporterError.streamingError(reason: "Sweep value must be finite")
         }
+        guard valueCount == variables.count else {
+            throw ExporterError.streamingError(reason: "Expected \(variables.count) values, got \(valueCount)")
+        }
+        if let pointKind, pointKind != kind {
+            throw ExporterError.streamingError(reason: "Cannot mix real and complex points in one export session")
+        }
+        self.pointKind = kind
     }
 
-    /// Increments the point counter after one complete point was written.
     public func incrementPointCount() throws {
-        try state.withLock { state in
-            guard state.phase == .open else {
-                throw ExporterError.streamingError(
-                    reason: "Cannot count a point after the export session has ended"
-                )
-            }
-            state.pointsWritten += 1
-        }
+        try requireOpen()
+        progress.increment()
     }
 
-    /// Creates the final export result.
-    private func createResult() -> ExportResult {
-        state.withLock { state in
-            ExportResult(
-                pointsExported: state.pointsWritten,
-                variablesExported: variables.count,
-                bytesWritten: state.bytesWritten,
-                outputPath: outputPath,
-                data: state.outputData
-            )
-        }
-    }
-
-    /// Atomically commits the completed output.
     public func finalize() throws -> ExportResult {
-        try state.withLock { state in
-            guard state.phase == .open else {
+        try requireOpen()
+        do {
+            try Task.checkCancellation()
+            if metadata.pointCount > 0, pointsWritten != metadata.pointCount {
                 throw ExporterError.streamingError(
-                    reason: "Export session can only be finalized once"
+                    reason: "Expected \(metadata.pointCount) points, wrote \(pointsWritten)"
                 )
             }
-            if metadata.pointCount > 0, state.pointsWritten != metadata.pointCount {
-                throw ExporterError.streamingError(
-                    reason: "Expected \(metadata.pointCount) points, wrote \(state.pointsWritten)"
-                )
-            }
-            do {
-                try state.fileHandle?.synchronize()
-                try state.fileHandle?.close()
-                state.fileHandle = nil
-
-                if let temporaryPath, let outputPath {
-                    let manager = FileManager.default
-                    let temporaryURL = URL(fileURLWithPath: temporaryPath)
-                    let outputURL = URL(fileURLWithPath: outputPath)
-                    if manager.fileExists(atPath: outputPath) {
-                        _ = try manager.replaceItemAt(
-                            outputURL,
-                            withItemAt: temporaryURL
-                        )
-                    } else {
-                        try manager.moveItem(at: temporaryURL, to: outputURL)
-                    }
+            try fileHandle?.synchronize()
+            try fileHandle?.close()
+            fileHandle = nil
+            // The next atomic move/replace is the publication linearization point.
+            try Task.checkCancellation()
+            if let temporaryPath, let outputPath {
+                let manager = FileManager.default
+                let temporaryURL = URL(fileURLWithPath: temporaryPath)
+                let outputURL = URL(fileURLWithPath: outputPath)
+                let destinationExists = manager.fileExists(atPath: outputPath)
+                try Task.checkCancellation()
+                if destinationExists {
+                    _ = try manager.replaceItemAt(outputURL, withItemAt: temporaryURL)
+                } else {
+                    try manager.moveItem(at: temporaryURL, to: outputURL)
                 }
-                state.phase = .finalized
-            } catch {
-                state.phase = .failed
-                throw ExporterError.writeFailed(
-                    reason: "Failed to commit export atomically: \(error)"
-                )
             }
+            phase = .finalized
+            return ExportResult(
+                pointsExported: pointsWritten, variablesExported: variables.count,
+                bytesWritten: writtenBytes, outputPath: outputPath, data: memoryData
+            )
+        } catch let error as CancellationError {
+            cancel()
+            throw error
+        } catch let error as ExporterError {
+            cancel()
+            throw error
+        } catch {
+            cancel()
+            throw ExporterError.writeFailed(reason: "Failed to commit export atomically: \(error)")
         }
-        return createResult()
     }
 
-    /// Cancels the session and removes its uncommitted temporary file.
     public func cancel() {
-        let pathToRemove = state.withLock { state -> String? in
-            guard state.phase == .open || state.phase == .failed else { return nil }
-            state.fileHandle?.closeFile()
-            state.fileHandle = nil
-            state.phase = .cancelled
-            return temporaryPath
-        }
-        if let pathToRemove {
+        guard phase == .open || phase == .failed else { return }
+        phase = .cancelled
+        memoryData = nil
+        if let handle = fileHandle {
+            fileHandle = nil
             do {
-                try FileManager.default.removeItem(atPath: pathToRemove)
+                try handle.close()
+            } catch {
+                phase = .failed
+            }
+        }
+        if let temporaryPath {
+            do {
+                try FileManager.default.removeItem(atPath: temporaryPath)
             } catch let error as CocoaError where error.code == .fileNoSuchFile {
                 return
             } catch {
+                phase = .failed
                 #if DEBUG
-                print("CoreSpiceExporter: failed to remove partial output \(pathToRemove): \(error)")
+                print("CoreSpiceExporter: failed to remove partial output \(temporaryPath): \(error)")
                 #endif
             }
         }
     }
 
-    /// The current output data for an in-memory export.
-    public var outputData: Data? {
-        state.withLock { $0.outputData }
+    private func requireOpen() throws {
+        guard phase == .open else {
+            throw ExporterError.streamingError(reason: "Export session has ended")
+        }
+    }
+
+    private func checkCancellation() throws {
+        do {
+            try Task.checkCancellation()
+        } catch {
+            cancel()
+            throw error
+        }
     }
 }

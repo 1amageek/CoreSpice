@@ -53,7 +53,7 @@ typedef struct __attribute__((packed)) {
 //
 // Describes a single layer within a photonic mesh (e.g. Clements / Reck).
 //
-//   offset  - index of the first MZI unit in this layer
+//   offset  - index of the first optical port in this layer
 //   count   - number of MZI units in this layer
 //   pattern - 0 = even-column layer, 1 = odd-column layer
 // ---------------------------------------------------------------------------

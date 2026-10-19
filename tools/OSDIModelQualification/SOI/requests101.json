@@ -1,0 +1,2173 @@
+{
+  "schema": "corespice.osdi.dc-inputs.v1",
+  "cases": [
+    {
+      "id": "soi101-n-pd-forward",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": 0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": 0.1,
+        "net:g": 0.8,
+        "net:supply": 0.1,
+        "net:e": 0.0
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-n-pd-reverse",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": -0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": -0.1,
+        "net:g": 0.8,
+        "net:supply": -0.1,
+        "net:e": 0.0
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-n-dd-forward",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": 0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": 0.1,
+        "net:g": 0.8,
+        "net:supply": 0.1,
+        "net:e": 0.0
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-n-dd-reverse",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": -0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": -0.1,
+        "net:g": 0.8,
+        "net:supply": -0.1,
+        "net:e": 0.0
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-n-dd-body-backgate",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 5,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": 0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": -0.1
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": 0.01
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": 0.1,
+        "net:g": 0.8,
+        "net:supply": 0.1,
+        "net:e": -0.1,
+        "net:b": 0.01
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-n-dd-hot-series-thermal",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 373.15,
+          "connectedTerminalCount": 5,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 3
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RTH0",
+              "value": {
+                "kind": "real",
+                "real": 0.01
+              }
+            },
+            {
+              "scope": "model",
+              "name": "CTH0",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "DTEMP",
+              "value": {
+                "kind": "real",
+                "real": 10.0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": 0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": -0.1
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": 0.01
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": 0.1,
+        "net:g": 0.8,
+        "net:supply": 0.1,
+        "net:e": -0.1,
+        "net:b": 0.01
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-p-pd-forward",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": -0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": -0.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": -0.1,
+        "net:g": -0.8,
+        "net:supply": -0.1,
+        "net:e": -0.0
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-p-pd-reverse",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": 0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": -0.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": 0.1,
+        "net:g": -0.8,
+        "net:supply": 0.1,
+        "net:e": -0.0
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-p-dd-forward",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": -0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": -0.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": -0.1,
+        "net:g": -0.8,
+        "net:supply": -0.1,
+        "net:e": -0.0
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-p-dd-reverse",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 4,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": 0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": -0.0
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": 0.1,
+        "net:g": -0.8,
+        "net:supply": 0.1,
+        "net:e": -0.0
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-p-dd-body-backgate",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 5,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": -0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0.1
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": -0.01
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": -0.1,
+        "net:g": -0.8,
+        "net:supply": -0.1,
+        "net:e": 0.1,
+        "net:b": -0.01
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-p-dd-hot-series-thermal",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 373.15,
+          "connectedTerminalCount": 5,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "e",
+            "b": "b"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": -1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 3
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RTH0",
+              "value": {
+                "kind": "real",
+                "real": 0.01
+              }
+            },
+            {
+              "scope": "model",
+              "name": "CTH0",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "DTEMP",
+              "value": {
+                "kind": "real",
+                "real": 10.0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": -0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": -0.8
+        },
+        {
+          "id": "VE",
+          "positive": "e",
+          "negative": "0",
+          "value": 0.1
+        },
+        {
+          "id": "VB",
+          "positive": "b",
+          "negative": "0",
+          "value": -0.01
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": -0.1,
+        "net:g": -0.8,
+        "net:supply": -0.1,
+        "net:e": 0.1,
+        "net:b": -0.01
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    },
+    {
+      "id": "soi101-n-dd-loaded",
+      "devices": [
+        {
+          "id": "M1",
+          "library": "soi101",
+          "descriptorIndex": 0,
+          "temperatureKelvin": 300.15,
+          "connectedTerminalCount": 6,
+          "terminals": {
+            "d": "d",
+            "g": "g",
+            "s": "0",
+            "e": "0",
+            "b": "0",
+            "t": "0"
+          },
+          "parameters": [
+            {
+              "scope": "model",
+              "name": "TYPE",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "BODYMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 2
+              }
+            },
+            {
+              "scope": "model",
+              "name": "MODAGBCP2",
+              "value": {
+                "kind": "integer",
+                "integer": 1
+              }
+            },
+            {
+              "scope": "model",
+              "name": "SHMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "RDSMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "model",
+              "name": "TNOIMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "L",
+              "value": {
+                "kind": "real",
+                "real": 1e-06
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "W",
+              "value": {
+                "kind": "real",
+                "real": 1e-05
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "TNODEOUT",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            },
+            {
+              "scope": "instance",
+              "name": "RGATEMOD",
+              "value": {
+                "kind": "integer",
+                "integer": 0
+              }
+            }
+          ],
+          "previousState": []
+        }
+      ],
+      "resistors": [
+        {
+          "id": "RLOAD",
+          "positive": "supply",
+          "negative": "d",
+          "value": 1000.0
+        }
+      ],
+      "voltageSources": [
+        {
+          "id": "VDD",
+          "positive": "supply",
+          "negative": "0",
+          "value": 0.1
+        },
+        {
+          "id": "VG",
+          "positive": "g",
+          "negative": "0",
+          "value": 0.6
+        }
+      ],
+      "currentSources": [],
+      "initialUnknowns": {
+        "net:d": 0.09,
+        "net:g": 0.6,
+        "net:supply": 0.1
+      },
+      "expectedOutcome": "converged",
+      "analyticUnknowns": {},
+      "policy": {
+        "unknownAbsoluteTolerances": {
+          "V": 1e-09,
+          "A": 1e-12,
+          "K": 1e-06
+        },
+        "equationAbsoluteTolerances": {
+          "A": 1e-12,
+          "V": 1e-10,
+          "W": 1e-12
+        },
+        "relativeTolerance": 1e-09,
+        "maximumIterations": 200,
+        "maximumBacktracks": 40
+      }
+    }
+  ]
+}

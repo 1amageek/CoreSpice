@@ -1,4 +1,5 @@
 import CoreSpiceIR
+import CoreSpiceDevices
 
 public enum TransientResultError: Error, Equatable, Sendable, CustomStringConvertible {
     case unknownNode(Node)
@@ -23,6 +24,7 @@ public struct TransientResult: Sendable, AnalysisResultStorageRetaining {
 
     /// Solution vectors, one per time point, stored in row-major order.
     public let solutionTrace: SolutionTrace
+    public let solutionLowTrace: SolutionTrace?
 
     /// Mapping from MNA variables to indices in each solution vector.
     public let variableMap: [MNAVariable: Int]
@@ -33,6 +35,9 @@ public struct TransientResult: Sendable, AnalysisResultStorageRetaining {
     /// Number of rejected (and retried) timesteps.
     public let rejectedSteps: Int
 
+    public let operatingPoint: DCResult?
+    public let acceptedSteps: [TransientAcceptedStep]
+
     public let executionStatistics: TransientExecutionStatistics?
 
     public init(
@@ -41,8 +46,25 @@ public struct TransientResult: Sendable, AnalysisResultStorageRetaining {
         variableMap: [MNAVariable: Int],
         timeSteps: Int,
         rejectedSteps: Int,
-        executionStatistics: TransientExecutionStatistics? = nil
+        executionStatistics: TransientExecutionStatistics? = nil,
+        operatingPoint: DCResult? = nil,
+        acceptedSteps: [TransientAcceptedStep] = [],
+        solutionLowTrace: SolutionTrace? = nil
     ) throws {
+        if let solutionLowTrace {
+            guard solutionLowTrace.variableCount == solutionTrace.variableCount,
+                  solutionLowTrace.pointCount == solutionTrace.pointCount else {
+                throw AnalysisResultValidationError.countMismatch(field: "solutionLowTrace", expected: solutionTrace.pointCount, actual: solutionLowTrace.pointCount)
+            }
+            for point in 0..<solutionTrace.pointCount {
+                try solutionTrace.withPoint(at: point) { high in
+                    try solutionLowTrace.withPoint(at: point) { low in
+                        for index in high.indices { _ = try CompensatedValue(high: high[index], low: low[index]) }
+                    }
+                }
+            }
+        }
+        self.solutionLowTrace = solutionLowTrace
         guard timeSteps >= 0 else {
             throw AnalysisResultValidationError.negativeCount(
                 field: "timeSteps",
@@ -98,6 +120,32 @@ public struct TransientResult: Sendable, AnalysisResultStorageRetaining {
                 throw AnalysisResultValidationError.duplicateVariableIndex(index)
             }
         }
+        if let operatingPoint, operatingPoint.variableMap != variableMap {
+            throw AnalysisResultValidationError.variableMapMismatch
+        }
+        if solutionLowTrace != nil || !acceptedSteps.isEmpty {
+            guard acceptedSteps.count == timeSteps, acceptedSteps.count == timePoints.count - 1 else {
+                throw AnalysisResultValidationError.countMismatch(field: "acceptedSteps", expected: timePoints.count - 1, actual: acceptedSteps.count)
+            }
+            for (index, step) in acceptedSteps.enumerated() {
+                _ = try CompensatedValue(high: step.timeStep, low: step.timeStepLowComponent)
+                if let previous = step.previousTimeStep { _ = try CompensatedValue(high: previous, low: step.previousTimeStepLowComponent ?? 0) }
+                else if step.previousTimeStepLowComponent != nil { throw NumericalStateError.missingHighHistory }
+                if solutionLowTrace != nil {
+                    let exact = try CompensatedValue(high: step.time).subtracting(CompensatedValue(high: timePoints[index]))
+                    guard exact == (try CompensatedValue(high: step.timeStep, low: step.timeStepLowComponent)) else {
+                        throw AnalysisResultValidationError.nonFiniteValue(field: "acceptedSteps.exactInterval", index: index, value: step.timeStep)
+                    }
+                }
+                guard step.time == timePoints[index + 1], step.timeStep.isFinite, step.timeStep > 0,
+                      abs((step.time - timePoints[index]) - step.timeStep) <= max(abs(step.time), step.timeStep) * 64 * Double.ulpOfOne,
+                      step.previousTimeStep.map({ $0.isFinite && $0 > 0 }) ?? true else {
+                    throw AnalysisResultValidationError.nonFiniteValue(field: "acceptedSteps", index: index, value: step.timeStep)
+                }
+            }
+        }
+        self.operatingPoint = operatingPoint
+        self.acceptedSteps = acceptedSteps
         self.executionStatistics = executionStatistics
         self.timePoints = timePoints
         self.solutionTrace = solutionTrace
@@ -113,9 +161,12 @@ public struct TransientResult: Sendable, AnalysisResultStorageRetaining {
     }
 
     private init(retaining result: Self, owner: any Sendable) {
+        self.operatingPoint = result.operatingPoint?.retainingStorage(owner)
+        self.acceptedSteps = result.acceptedSteps
         self.executionStatistics = result.executionStatistics
         self.timePoints = result.timePoints
         self.solutionTrace = result.solutionTrace
+        self.solutionLowTrace = result.solutionLowTrace
         self.variableMap = result.variableMap
         self.timeSteps = result.timeSteps
         self.rejectedSteps = result.rejectedSteps
@@ -135,6 +186,20 @@ public struct TransientResult: Sendable, AnalysisResultStorageRetaining {
 
     public func voltage(at node: Node, timeIndex: Int) throws -> Double {
         try checkedVoltage(at: node, timeIndex: timeIndex)
+    }
+
+    public func checkedCompensatedValue(variableIndex: Int, timeIndex: Int) throws -> CompensatedValue {
+        try CompensatedValue(high: solutionTrace.value(pointIndex: timeIndex, variableIndex: variableIndex),
+            low: solutionLowTrace?.value(pointIndex: timeIndex, variableIndex: variableIndex) ?? 0)
+    }
+
+    public func withCompensatedSolution<R>(at timeIndex: Int,
+        _ body: (UnsafeBufferPointer<Double>, UnsafeBufferPointer<Double>?) throws -> R
+    ) throws -> R {
+        try solutionTrace.withPoint(at: timeIndex) { high in
+            if let solutionLowTrace { return try solutionLowTrace.withPoint(at: timeIndex) { try body(high, $0) } }
+            return try body(high, nil)
+        }
     }
 
     public func checkedValue(variableIndex: Int, timeIndex: Int) throws -> Double {

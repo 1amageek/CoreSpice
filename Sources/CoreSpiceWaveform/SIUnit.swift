@@ -11,11 +11,15 @@ public enum SIUnit: String, Sendable, Hashable, Codable {
     case henry = "H"
     case watt = "W"
     case siemens = "S"
+    case kelvin = "K"
 
     // Derived units
     case decibel = "dB"
     case degree = "°"
     case radian = "rad"
+    case radianPerSecond = "rad/s"
+    case voltSquaredPerHertz = "V²/Hz"
+    case ampereSquaredPerHertz = "A²/Hz"
 
     // Dimensionless
     case dimensionless = ""
@@ -32,9 +36,13 @@ public enum SIUnit: String, Sendable, Hashable, Codable {
         case .henry: return "henries"
         case .watt: return "watts"
         case .siemens: return "siemens"
+        case .kelvin: return "kelvins"
         case .decibel: return "decibels"
         case .degree: return "degrees"
         case .radian: return "radians"
+        case .radianPerSecond: return "radians per second"
+        case .voltSquaredPerHertz: return "volts squared per hertz"
+        case .ampereSquaredPerHertz: return "amperes squared per hertz"
         case .dimensionless: return ""
         }
     }
@@ -51,9 +59,13 @@ public enum SIUnit: String, Sendable, Hashable, Codable {
         case .henry: return "H"
         case .watt: return "W"
         case .siemens: return "S"
+        case .kelvin: return "K"
         case .decibel: return "dB"
         case .degree: return "degrees"
         case .radian: return "radians"
+        case .radianPerSecond: return "rad/s"
+        case .voltSquaredPerHertz: return "V²/Hz"
+        case .ampereSquaredPerHertz: return "A²/Hz"
         case .dimensionless: return ""
         }
     }

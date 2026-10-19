@@ -1,3 +1,4 @@
+import CoreSpiceIR
 import CoreSpiceMOSContracts
 import CoreSpiceParsedIR
 
@@ -15,6 +16,18 @@ final class FrontendStorage {
     func spend() throws(MOSResolutionFailure) { try budget.spend() }
     func reserve<T>(_ values: inout [T], _ required: Int) throws(MOSResolutionFailure) {
         try budget.reserve(&values, required: required)
+    }
+    /// Only compileBody's unaliased local backing before its immutable scope publication.
+    func reserveExclusiveComponents(_ values: inout [FrontendComponentTemplate], _ required: Int) throws(MOSResolutionFailure) {
+        try budget.reserveExclusive(&values, required: required)
+    }
+    /// Only the noncopyable planner's private backing before consuming plan publication.
+    func reserveExclusiveJobs(_ values: inout [FrontendExecutionJob], _ required: Int) throws(MOSResolutionFailure) {
+        try budget.reserveExclusive(&values, required: required)
+    }
+    /// Only the noncopyable circuit builder's private backing before consuming publication.
+    func reserveExclusiveInstances(_ values: inout [Instance], _ required: Int) throws(MOSResolutionFailure) {
+        try budget.reserveExclusive(&values, required: required)
     }
     func reserve<K: Hashable, V>(_ values: inout [K: V], _ required: Int) throws(MOSResolutionFailure) {
         try budget.reserveDictionary(&values, required: required)

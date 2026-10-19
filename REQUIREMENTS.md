@@ -1,41 +1,25 @@
 # CoreSpice Requirements
 
-## Required capabilities
+The authoritative complete production requirements are PR01–PR20 in
+[DESIGN.md](DESIGN.md#released-osdi-adoption-and-semiconductor-production-gates). This index does not
+replace that matrix with a smaller supported-model envelope or a historical
+test-count gate.
 
-| ID | Requirement |
-|---|---|
-| CS-001 | Build as an independent Swift package with a local `CircuiteFoundation` dependency. |
-| CS-002 | Expose `CoreSpiceSimulating` as the Foundation engine boundary. |
-| CS-003 | Keep simulation requests and results `Sendable`, `Hashable`, and `Codable` for Agent and CLI use. |
-| CS-004 | Carry input and output files through digest-bearing `ArtifactReference` values. |
-| CS-005 | Carry execution provenance and structured `DesignDiagnostic` values without discarding conversion failures. |
-| CS-006 | Preserve existing SPICE analyses, device models, optoelectronic models, photonic execution, and waveform I/O. |
-| CS-007 | Preserve cooperative cancellation and typed numerical/parser errors at the domain boundary. |
-| CS-008 | Keep standard SPICE/RAW/CSV/PSF formats as the source of truth for simulation artifacts. |
-| CS-009 | Keep CLI and library operations independently callable without requiring Xcircuite or a UI. |
+Compact-model physics comes from official external models through swift-osdi.
+CoreSpice circuit equations, numerical solvers and analyses must be implemented
+in Swift. Obsolete embedded BSIM kernels and independent Swift physics models
+are not part of this architecture.
 
-## Quality and acceptance criteria
+The package must resolve exact public dependencies without path overrides;
+expose independently usable typed API and CLI; preserve source/model/condition
+identity; solve the original equations; retain complete standard-format results;
+and propagate numerical, capacity, cancellation and lifecycle failures.
 
-- `swift build` succeeds in the package checkout.
-- Existing simulation and I/O tests remain green; the current baseline is 218
-  passing tests under `swift test --parallel`.
-- New engine implementations must be deterministic for the same input,
-  configuration, and random seed, and must retain reproducibility metadata.
-- Failure results must identify the analysis stage and preserve actionable
-  typed diagnostics; a bare `Simulation failed` message is insufficient.
-- Foundation artifacts must be created from materialized files and verified
-  byte counts/digests; a path string alone is not evidence.
+Qualification covers the actual selected implementation, model release,
+parameters, platform and analysis. An ordinary point or finite trace does not
+certify all-input, continuous-time, all-phase or all-history behavior. Simulator
+qualification, PDK qualification and foundry signoff are separate decisions.
 
-## Non-goals
-
-- No project manifest, run ledger, approval workflow, or flow scheduler.
-- No DRC/LVS/PEX/STA/EM-IR implementation.
-- No claim that an in-process simulation is foundry-qualified.
-- No replacement of domain-specific SPICE IR with a universal Foundation IR.
-
-## Next-agent acceptance gate
-
-An implementation agent is complete when a concrete engine can be invoked from
-the library or CLI, returns a reproducible `CoreSpiceSimulationResult`, and
-passes the build/test/diagnostic checks above without changing the ownership
-boundary in `DESIGN.md`.
+Changes require owner-level design, behavioral tests, scoped review, coherent
+commits, complete integration evidence and verification of the published exact
+revision. [PROGRESS.md](PROGRESS.md) is the task-control record.

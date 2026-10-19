@@ -44,7 +44,7 @@ enum PreparedMOSFixture {
             geometryScale: 1, seed: 1, limits: limits)
         let resolved = try resolveMOS(request, from: snapshot, schemas: StandardMOSModelSchemas(), session: &session)
         let conditions = try MOSPreparationConditions(ambientKelvin: 300.15, nominalKelvin: 300.15,
-            analysisCapabilities: [.dc, .ac, .transient, .noise], maximumStressIterations: 1)
+            analysisCapabilities: [.dc, .ac, .transient, .noise])
         let preparationLimits = try MOSPreparationLimits(maximumRetainedBytes: 8_000_000,
             maximumTemporaryBytes: 8_000_000, maximumDiagnosticBytes: 4096, maximumWorkUnits: 100_000)
         return try NativeMOSDevicePreparer().prepare(.init(resolved: resolved, conditions: conditions),

@@ -21,6 +21,9 @@ public enum LoweringError: Error, Sendable {
     /// Invalid component configuration.
     case invalidComponent(name: String, reason: String)
 
+    /// Explicit OSDI input could not be admitted at its source location.
+    case invalidOSDIInput(name: String, reason: String, location: SourceLocation?)
+
     /// Subcircuit port count mismatch.
     case portCountMismatch(subcircuit: String, expected: Int, got: Int)
 
@@ -57,6 +60,9 @@ extension LoweringError: CustomStringConvertible {
 
         case .expressionEvaluationFailed(let expr, let reason):
             return "Failed to evaluate expression '\(expr)': \(reason)"
+
+        case .invalidOSDIInput(let name, let reason, let location):
+            return "Invalid OSDI input '\(name)': \(reason)" + (location.map { " at \($0)" } ?? "")
 
         case .invalidComponent(let name, let reason):
             return "Invalid component '\(name)': \(reason)"

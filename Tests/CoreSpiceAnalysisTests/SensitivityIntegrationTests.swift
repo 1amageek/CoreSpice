@@ -14,7 +14,7 @@ struct SensitivityIntegrationTests {
 
     private func runSensitivity(netlist: Netlist, outputNode: Node) async throws -> SensitivityResult {
         let (plan, devices) = try CircuitFactory.compile(netlist)
-        let analysis = SensitivityAnalysis(outputNode: outputNode)
+        let analysis = SensitivityAnalysis(outputNode: outputNode, deviceBinding: DiodeAwareTestBinding())
         let solver = SparseLUSolver()
         let token = CancellationToken()
         return try await analysis.run(

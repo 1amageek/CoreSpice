@@ -1,0 +1,221 @@
+{
+  "schema": "corespice.osdi.family-profile-authority.v1",
+  "baselineRequestPath": "Tests/CoreSpiceOSDITests/Fixtures/requests.json",
+  "baselineRequestSHA256": "16ba48fa8f5d28052e3d80ced5d6bd19bb2f1e1634b1fa21dde47b4fae65cdb5",
+  "requiredBaselineCaseIDs": [
+    "linear-current",
+    "mixed-collapse-private",
+    "driven-auxiliary",
+    "flow-current",
+    "cubic-current",
+    "no-root",
+    "cubic-iteration-limit",
+    "bsim-n-clamped",
+    "bsim-p-clamped",
+    "bsim-n-loaded",
+    "bsim-p-loaded",
+    "bsim-n-reverse-loaded",
+    "bsim-p-reverse-loaded",
+    "bsim-n-series-loaded",
+    "bsim-p-selfheat-loaded"
+  ],
+  "families": {
+    "BULK-107.2.1": {
+      "family": "BULK",
+      "version": "107.2.1",
+      "libraryID": "bsim",
+      "descriptorIndex": 0,
+      "descriptorName": "bsimbulk",
+      "sourceSHA256": {
+        "bsimbulk.va": "4db89e3997e9eec1fd5949cf2751f415a483d37b61cdd37aabd1febfc5cb7fb8"
+      },
+      "compilerSHA256": "386a0f9b52e083c3f15f3642ef76937def3258c16e8f270fa797a853941f913c",
+      "compilerProfileReceiptSHA256": "18237179c11753b1d2af87e21e00a7115e1a62925f956683fcf54cb9236ffbe1",
+      "requestPath": "Tests/CoreSpiceOSDITests/Fixtures/requests.json",
+      "requestSHA256": "16ba48fa8f5d28052e3d80ced5d6bd19bb2f1e1634b1fa21dde47b4fae65cdb5",
+      "requiredCaseIDs": [
+        "bsim-n-clamped",
+        "bsim-p-clamped",
+        "bsim-n-loaded",
+        "bsim-p-loaded",
+        "bsim-n-reverse-loaded",
+        "bsim-p-reverse-loaded",
+        "bsim-n-series-loaded",
+        "bsim-p-selfheat-loaded"
+      ],
+      "artifactSHA256": "55b05d39103bc927251ae9ba43d7984b271016b70127a074cda9657abd4a8e38"
+    },
+    "CMG-112.1.0": {
+      "family": "CMG",
+      "version": "112.1.0",
+      "libraryID": "cmg",
+      "descriptorIndex": 0,
+      "descriptorName": "bsimcmg_va",
+      "sourceSHA256": {
+        "bsimcmg.va": "adde661d1b0473d22a7eeab9e68a223c140c4417dd31253ee2499896f581f578",
+        "bsimcmg_body.include": "442e58991a29c646171683648292cbd7edc55b8ab55c2346dc9486d3f7b68056",
+        "bsimcmg_checking.include": "1a12987819dc3c8be1f9f2d0edb7cdd5ed9a4c154a94acd5831062eeebb0ac44",
+        "bsimcmg_initialization.include": "d89a73ae8dbe79e4b0af3f4b61bb4ae24539bc5c90a8c5c4cbe713dfd6d05371",
+        "bsimcmg_macros.include": "434eeb89a141897b09bf26121016427926e3abf38db3e8d9c92d4cbf95f4e050",
+        "bsimcmg_noise.include": "46f293eacee1d1d251684ad36d504674f4448787025710a09197b353640a0646",
+        "bsimcmg_parameters.include": "4a74b58115eb4fe8ecafe85c5c09033e30f32126f723126a2418829a4e0c7976",
+        "bsimcmg_variables.include": "e41da286696b033a5e712117ffbff032913697acaacaffc5e890ec5b939239f7"
+      },
+      "compilerSHA256": "386a0f9b52e083c3f15f3642ef76937def3258c16e8f270fa797a853941f913c",
+      "compilerProfileReceiptSHA256": "18237179c11753b1d2af87e21e00a7115e1a62925f956683fcf54cb9236ffbe1",
+      "requestPath": "tools/OSDIModelQualification/CMG/requests.json",
+      "requestSHA256": "18b2874eb4d11b2f8db54c5051bebf963733669a71d421d91c0fafcaafceb22e",
+      "requiredCaseIDs": [
+        "cmg-n-loaded",
+        "cmg-n-reverse-loaded",
+        "cmg-n-hot-loaded",
+        "cmg-n-selfheat-series-loaded",
+        "cmg-p-loaded",
+        "cmg-p-reverse-loaded",
+        "cmg-p-hot-loaded",
+        "cmg-p-selfheat-series-loaded"
+      ],
+      "artifactSHA256": "8bde13c0f795ff72c820047549cbe643f4804700e2eae362fdc78f956cd66528"
+    },
+    "IMG-103.1.0": {
+      "family": "IMG",
+      "version": "103.1.0",
+      "libraryID": "img",
+      "descriptorIndex": 0,
+      "descriptorName": "bsimimg",
+      "sourceSHA256": {
+        "common_defs.include": "02252e3237c8cbd1e70b9eb1104a42fed6f085a0c6638722549cd95ef879f717",
+        "bsimimg.va": "a6bf4473b2b9c6ca15ecf090f70912364b4c7179b750cf27df5f92a0326aae74",
+        "bsimimg_binning.include": "eba3666cc36c03a7a61768346ce8c077daa828e3aac50ab5fd413e6b0907d7cb",
+        "bsimimg_sp_new.include": "913db561c6e7102a7f5139625262240b9f6ed982d848d04e7c66d4276ce98173",
+        "bsimimg_body.include": "9ca5a0dae5def51ee65c320199505f892036a4798e88d4a3c06a35969fee23e7"
+      },
+      "compilerSHA256": "386a0f9b52e083c3f15f3642ef76937def3258c16e8f270fa797a853941f913c",
+      "compilerProfileReceiptSHA256": "18237179c11753b1d2af87e21e00a7115e1a62925f956683fcf54cb9236ffbe1",
+      "requestPath": "tools/OSDIModelQualification/IMG/requests.json",
+      "requestSHA256": "ec26da000a0aaebfc7e64f83a51d9fba2910d784cfe4a410f839d1694ec11e0f",
+      "requiredCaseIDs": [
+        "img-n-forward",
+        "img-p-forward",
+        "img-n-reverse",
+        "img-p-reverse",
+        "img-n-backgate",
+        "img-p-backgate",
+        "img-n-hot",
+        "img-n-series",
+        "img-n-thermal",
+        "img-n-loaded"
+      ],
+      "artifactSHA256": "3b107bef58deb1871686f152f8b740cfa1e35e5b391d1ddde47174ae7f37252f"
+    },
+    "SOI-4.7.0": {
+      "family": "SOI",
+      "version": "4.7.0",
+      "libraryID": "soi",
+      "descriptorIndex": 0,
+      "descriptorName": "bsimsoi",
+      "sourceSHA256": {
+        "bsimsoi.va": "533d54b24f3e2708fc501d1c862264c4a81cf5ef7315a21468f0bfc3e1d2779b"
+      },
+      "compilerSHA256": "386a0f9b52e083c3f15f3642ef76937def3258c16e8f270fa797a853941f913c",
+      "compilerProfileReceiptSHA256": "18237179c11753b1d2af87e21e00a7115e1a62925f956683fcf54cb9236ffbe1",
+      "requestPath": "tools/OSDIModelQualification/SOI/requests.json",
+      "requestSHA256": "d8a703163fd904afdd5336c1c9b52c17527a127df17b2e6c77a81f5aca389820",
+      "requiredCaseIDs": [
+        "soi-n-forward",
+        "soi-n-reverse",
+        "soi-n-floating",
+        "soi-p-forward",
+        "soi-p-reverse",
+        "soi-p-floating",
+        "soi-n-body-backgate",
+        "soi-p-body-backgate",
+        "soi-n-hot",
+        "soi-n-series-thermal"
+      ],
+      "artifactSHA256": "d31057a56a07f9329408ebe2949deeb1acc4913c25939845d3793c8b8937e4ab"
+    },
+    "SOI-101.0.0": {
+      "family": "SOI",
+      "version": "101.0.0",
+      "libraryID": "soi101",
+      "descriptorIndex": 0,
+      "descriptorName": "bsimsoi",
+      "sourceSHA256": {
+        "bsimsoi.va": "cba0d2de068e86b026d9580c9d8ab78f592ccc3d9dc8efb98fb5d67182be0a87"
+      },
+      "compilerSHA256": "64632e38a4d4581e43f67c46c4e2ea06f046f7afab62c9995b4e294d35105ee5",
+      "compilerProfileReceiptSHA256": "2b573a2d6898513dd49c59b5ce896462aaf238220fee874c9d1456adba27c7e2",
+      "semanticProfileSHA256": "a85f38191b22ccf3b084f0892ee0fa51752d37f0defa6b62dee929935be35104",
+      "requestPath": "tools/OSDIModelQualification/SOI/requests101.json",
+      "requestSHA256": "f2533558c344ee028b30321b76e18582ac130324975cb9c3764933ebc66a2702",
+      "requiredCaseIDs": [
+        "soi101-n-pd-forward",
+        "soi101-n-pd-reverse",
+        "soi101-n-dd-forward",
+        "soi101-n-dd-reverse",
+        "soi101-n-dd-body-backgate",
+        "soi101-n-dd-hot-series-thermal",
+        "soi101-p-pd-forward",
+        "soi101-p-pd-reverse",
+        "soi101-p-dd-forward",
+        "soi101-p-dd-reverse",
+        "soi101-p-dd-body-backgate",
+        "soi101-p-dd-hot-series-thermal",
+        "soi101-n-dd-loaded"
+      ],
+      "retainedCompilationReceiptSHA256": "3cebbda878538ea298015795f34cd9432621e0acbdb217d6fbe68520fece501a",
+      "artifactSHA256": "a8f1fb4e3913eb70a62c0b9972c92cec775ef4d5344919f3c13beb896d4afe3c"
+    }
+  },
+  "profiles": {
+    "historical-soi47-v1": {
+      "BULK": "BULK-107.2.1",
+      "CMG": "CMG-112.1.0",
+      "IMG": "IMG-103.1.0",
+      "SOI": "SOI-4.7.0"
+    },
+    "latest-soi101-v1": {
+      "BULK": "BULK-107.2.1",
+      "CMG": "CMG-112.1.0",
+      "IMG": "IMG-103.1.0",
+      "SOI": "SOI-101.0.0"
+    }
+  },
+  "cliRepresentativeCaseIDs": {
+    "historical-soi47-v1": {
+      "prepared": [
+        "linear-current",
+        "mixed-collapse-private",
+        "flow-current",
+        "bsim-p-selfheat-loaded",
+        "cmg-n-selfheat-series-loaded",
+        "img-n-thermal",
+        "soi-n-series-thermal"
+      ],
+      "executable": [
+        "bsim-n-loaded",
+        "cmg-n-loaded",
+        "img-n-loaded",
+        "soi-n-series-thermal"
+      ]
+    },
+    "latest-soi101-v1": {
+      "prepared": [
+        "linear-current",
+        "mixed-collapse-private",
+        "flow-current",
+        "bsim-p-selfheat-loaded",
+        "cmg-n-selfheat-series-loaded",
+        "img-n-thermal",
+        "soi101-n-dd-hot-series-thermal"
+      ],
+      "executable": [
+        "bsim-n-loaded",
+        "cmg-n-loaded",
+        "img-n-loaded",
+        "soi101-n-dd-hot-series-thermal"
+      ]
+    }
+  }
+}

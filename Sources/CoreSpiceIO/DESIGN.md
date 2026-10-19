@@ -23,9 +23,13 @@ belongs to Analysis; numerical MOS preparation belongs to native composition.
 | [CoreSpice](../../DESIGN.md) | parent | Public package composition | Developer/CLI input | Missing policy is a typed failure |
 | [InitialConditions](InitialConditions/DESIGN.md) | child | Protocol-first same-session node-voltage resolution | Shared CLI/host assignment intake | Static expressions use the sole frontend session |
 | [SimulationPreparation](SimulationPreparation/DESIGN.md) | child | Actual source graph, effective intent and IC/nodeset preparation | Shared native CLI/host intake | Legacy exact loading is not whole-invocation capacity proof |
+| [ExternalModelPreparation](ExternalModelPreparation/DESIGN.md) | child | Resource-retaining external-M preparation | Explicit descriptor-bound source normalization | Source association does not prove model numerics |
+| [Touchstone](Touchstone/DESIGN.md) | child | Bounded network exchange | Imported and exported network data | Imported data has no DC/source provenance |
 | [Analysis](../CoreSpiceAnalysis/DESIGN.md) | depends on | TransientExecutionLimits and config | Whole-run admission | DC and recovery share the same budget |
 | [ParserSPICE](../CoreSpiceParserSPICE/DESIGN.md) | depends on | Parsed controls and PWL | Source intent preservation | Malformed sources cannot execute as DC |
 | [Lowering](../CoreSpiceLowering/DESIGN.md) | depends on | CompiledNetlist, exclusive session and LoweredCircuit | Sole scalar/MOS resolution authority | Preserve exact snapshot/graph and numeric pair order |
+
+The [Touchstone codec](Touchstone/DESIGN.md) owns bounded network-parameter exchange. Imported network records do not manufacture a DC operating point or source identity.
 
 ## Architecture
 
@@ -178,25 +182,6 @@ command shape preservation includes all parsed analysis cases and nested Monte
 Carlo, while an unused failing command must remain unevaluated. Component-owned
 resource and node-binding evidence is indexed in the corresponding child designs.
 
-
-## BSIM4 preparation policy composition
-
-SPICEAnalysisOptions resolves explicit `.options bsim4stressiterations=<positive UInt32>`
-once through its compiled scalar slot into [BSIM4PreparationPolicy](../CoreSpiceDevices/BSIM4/DESIGN.md). Missing
-policy remains nil and Level54 preparation fails typed. Malformed/zero/overflow
-values fail; no fallback selects a budget. The same options value supplies explicit native preparation conditions, including
-every CLI rebind. The standard registry is descriptor metadata only; it owns no MOS
-preparation policy. Lowering no longer performs cold numerical preparation. Runtime
-policy and kernel qualification diagnostics belong to execution provenance,
-not physical model IR. Other model families do not require this policy.
-
-## BSIM4 Noise Preparation Intent
-
-SPICEAnalysisOptions resolves parsed .noise intent into one explicit
-bsim4NoisePreparationRequested choice. The same options owner supplies explicit native preparation conditions, including
-CLI source overrides/Monte Carlo/sensitivity rebinds. The registry is metadata only. The choice is execution provenance, not model IR. Direct
-API callers may request noise capability before lowering/binding; late requests
-on electrical-only topology fail explicitly.
 
 ## Host capture policy
 
@@ -381,8 +366,8 @@ Its native evidence does not qualify WASM/Embedded or bounded grammar parsing.
 ## Capacitor Source Coverage
 
 Source coverage distinguishes preserved C declaration syntax from numerical
-capability. C model declarations and explicit model-backed C instances cannot be
-reported as native executable. Ambiguous bare C candidates require scoped source
+capability. Static C model and instance field capability follows the public
+`CapacitorDescriptor` admission profile; numerical domains remain Devices-owned. Ambiguous bare C candidates require scoped source
 resolution; coverage must not infer model-free success from a nil modelName.
 Visible parameter declarations retain their precedence over model names. Reporting
 uses lexical global/default/body parameter scope, without executing parameters or
@@ -415,10 +400,10 @@ Captured graph -> parse -> root intent admission -> LoadedSPICEDeck
 Actual options/overrides/seed -> one selected lowering -> compile/bind -> execution
 ```
 
-Q component coverage remains blocked until numerical charge support exists. The
-public source loader may retain unused Q bodies and unsupported model declarations;
-selecting them must fail in the lower/device owner. Loaders never relabel them as
-supported. Exact graph comparison, capture lifetime, source accounting and failure
+Q and runtime C source expression capability follows the distinct charge and
+differential-capacitance contracts. Coverage rejects conflicting roles, unsupported
+fields/models and malformed expressions. The public source loader can retain unused
+unsupported definitions; selecting those still fails in the lower/device owner. Exact graph comparison, capture lifetime, source accounting and failure
 propagation are unchanged.
 
 [SelectedExecutionAdmissionTests](../../Tests/CoreSpiceIOTests/SelectedExecutionAdmissionTests.swift)
@@ -447,3 +432,28 @@ when it materializes selected real or complex samples. Identity projection retur
 the original value. Output copies retain the existing native admission owner
 without reserving prepared topology twice. Native lifetime tests and full IO/CLI
 tests verify this output boundary.
+
+### Preferred transient integration method
+
+The SPICE `METHOD` option selects `SPICETransientOptions.preferredMethod`, which
+composes `TransientConfig.preferredMethod`. An absent option selects trapezoidal
+after the [Analysis checked startup contract](../CoreSpiceAnalysis/DESIGN.md#checked-variable-step-lte-and-startup).
+The renamed public field does not promise an unchecked first-step method; source
+option syntax remains unchanged. Effective-intent encoding binds the selected
+preferred method.
+
+## S3 Portable OSDI Source Entry
+
+`SPICEIO.parseAndLower` and `SPICEIO.lower` accept the same default-empty
+`osdiInstances` map as the [Frontend](../CoreSpiceLowering/Frontend/DESIGN.md#s3-explicit-typed-osdi-injection).
+The existing session remains the only scalar/environment owner. The
+[prepared source component](SimulationPreparation/DESIGN.md#s3-explicit-osdi-input-transport)
+owns retained source/configuration identity; native setup owns loading and execution.
+
+
+## Legacy Native BSIM Migration
+IO exposes no BSIM preparation policy or stress-iteration configuration.
+A supplied legacy bsim4stressiterations option is an explicit unsupported-option
+failure with OSDI migration guidance. Deck coverage marks legacy MOS 49/54 as
+blocked rather than counting them as supported classical devices. Explicit OSDI
+bindings retain their independent typed parameter and source contracts.

@@ -18,7 +18,7 @@ The module implements a layered architecture with:
 | `PhotonicComputeBackend.swift` | Extended protocol for photonic-specific operations (MZI layer dispatch) |
 | `MetalBackend.swift` | Concrete Metal implementation of both protocols; handles device initialization, command buffer management, and shader execution |
 | `BufferPool.swift` | Thread-safe buffer pooling with size-class bucketing for efficient GPU memory reuse |
-| `TypedBuffer.swift` | Type-safe wrapper around `MTLBuffer` providing element-typed access |
+| `TypedBuffer.swift` | Bounded typed view over a checked `MetalBuffer` lease |
 | `GridSize.swift` | Value type representing 1D/2D/3D compute grid dimensions |
 | `BackendConfiguration.swift` | Configuration options for backend initialization (buffer size limits, device selection, profiling) |
 | `BackendError.swift` | Typed error enum covering all backend failure modes |
@@ -35,11 +35,12 @@ public protocol ComputeBackend: Sendable {
     associatedtype BufferHandle: Sendable
     associatedtype KernelHandle: Sendable
 
-    func allocateBuffer<T: Sendable>(type: T.Type, count: Int, label: String) throws -> BufferHandle
-    func contents<T>(of buffer: BufferHandle, as type: T.Type) -> UnsafeMutableBufferPointer<T>
+    func allocateBuffer<T: GPUBufferElement>(type: T.Type, count: Int, label: String) throws -> BufferHandle
+    func withMutableContents<T: GPUBufferElement, Result>(of buffer: BufferHandle, as type: T.Type,
+        _ body: (UnsafeMutableBufferPointer<T>) throws -> Result) throws -> Result
     func releaseBuffer(_ buffer: BufferHandle)
     func loadKernel(named name: String) throws -> KernelHandle
-    func dispatch(kernel: KernelHandle, buffers: [BufferHandle], gridSize: GridSize, observer: EventDispatcher?, tag: String) throws
+    func dispatch(kernel: KernelHandle, buffers: [BufferHandle], gridSize: GridSize, observer: EventDispatcher?, tag: String) async throws
     func synchronize() async throws
     func prepare(configuration: BackendConfiguration) throws
     func reset()
@@ -56,7 +57,7 @@ public protocol PhotonicComputeBackend: ComputeBackend {
         batchSize: Int,
         observer: EventDispatcher?,
         tag: String
-    ) throws
+    ) async throws
 }
 ```
 
@@ -135,77 +136,16 @@ Where each matrix element and state value is complex (stored as `float2`).
 - Event observation for GPU dispatch timing
 - Synchronous command execution with error handling
 
-### Incomplete/Placeholder Features
-- `prepare(configuration:)` - Currently a no-op; configuration is applied at init time
-- `synchronize()` - Empty implementation; commands are committed synchronously
-- Async dispatch - All dispatches block until completion (`waitUntilCompleted()`)
-- Multi-device support - `preferredDevice` in configuration is not used
-- Profiling support - `enableProfiling` flag is not utilized
+### Execution constraints
 
-### Missing Features
-- CPU fallback backend
-- Async/non-blocking dispatch with completion handlers
-- Buffer transfer between devices
-- Kernel argument validation
-- Buffer size validation against `maxBufferSize`
-
-## Code Review Notes
-
-### Strengths
-
-1. **Clean Protocol Design**: The separation between `ComputeBackend` and `PhotonicComputeBackend` follows Interface Segregation Principle.
-
-2. **Thread Safety**: Proper use of `Mutex<T>` for concurrent access to shared state.
-
-3. **Error Handling**: Comprehensive error enum with specific cases for each failure mode.
-
-4. **Type Safety**: `TypedBuffer<T>` provides compile-time type checking for buffer contents.
-
-5. **Resource Management**: Buffer pooling reduces allocation pressure during simulation loops.
-
-6. **Event Integration**: GPU dispatches emit start/finish events for profiling and monitoring.
-
-### Issues and Concerns
-
-1. **Synchronous Dispatch Blocking**
-   - `dispatch()` and `dispatchMZILayer()` call `waitUntilCompleted()`, blocking the calling thread
-   - For high-performance scenarios, async dispatch with GPU-side synchronization would be preferable
-   - Mitigation: The `synchronize()` method exists but is currently empty
-
-2. **Buffer Pool Memory Leak Potential**
-   - `drain()` clears the available pool but doesn't track buffers that were acquired and not yet released
-   - The `allocated` counter is reset to 0, potentially causing incorrect tracking
-   - The `maxBytes` limit is tracked but never enforced
-
-3. **Hardcoded Grid Width in Shaders**
-   - `applyLayer512_even/odd` assume 512 elements per batch
-   - This limits flexibility for different circuit sizes
-
-4. **Missing Event Emission in MZI Dispatch**
-   - `dispatchMZILayer()` accepts an `observer` parameter but never emits events
-   - This is inconsistent with the generic `dispatch()` method
-
-5. **Kernel Loading Not Cached**
-   - `dispatchMZILayer()` calls `loadKernel()` on every invocation
-   - Pipeline state creation should be cached for performance
-
-6. **Configuration Not Applied**
-   - `BackendConfiguration` properties are defined but not utilized
-   - `maxBufferSize`, `preferredDevice`, and `enableProfiling` are effectively ignored
-
-7. **Potential Data Race in Buffer Contents**
-   - `contents(of:as:)` returns raw pointer without synchronization
-   - Caller must ensure GPU operations are complete before accessing
-
-### Recommendations
-
-1. Add kernel caching in `MetalBackend` to avoid repeated pipeline creation
-2. Implement async dispatch option using Metal's completion handler
-3. Emit GPU events in `dispatchMZILayer()` for consistency
-4. Enforce `maxBufferSize` limit in `BufferPool.acquire()`
-5. Consider making grid width configurable in shaders via buffer constants
-6. Add buffer state tracking to prevent access during GPU execution
-7. Implement the `prepare()` method to apply configuration options
+- Production photonic kernels operate on 512 ports and shared Metal storage.
+- The backend supports one selected Metal device and rejects foreign buffer/kernel handles.
+- Maximum rounded allocation size is enforced, including active-lease checks before shrinking limits.
+  This existing per-allocation limit is not an aggregate live-plus-cache memory budget.
+- Async dispatch and synchronization use completion handlers and checked continuations.
+- Custom kernels retain responsibility for their own ABI; known MZI kernels validate
+  descriptor, capacities, pattern and dispatch bounds before submission.
+- Pipeline creation currently occurs per `loadKernel` call.
 
 ## Dependencies
 
@@ -216,5 +156,37 @@ Where each matrix element and state value is complex (stored as `float2`).
 
 ## Platform Requirements
 
-- macOS 26.0+ (as specified in Package.swift)
+- macOS 27.0+ (as specified in Package.swift)
 - Metal-capable GPU device
+
+
+## Checked Metal storage
+
+`MetalBackend.BufferHandle` is `MetalBuffer`; its kernel handle is an immutable
+`MetalKernel` bound to the backend that compiled it. Allocate ABI values conforming to
+`GPUBufferElement` (`BitwiseCopyable`, `Sendable`, and a valid `gpuBufferZero`).
+The allocation records its exact type and logical element count and initializes
+that range. Rounded pool capacity is not exposed as additional typed elements.
+
+Use `try backend.withMutableContents(of:as:)` for a scoped exclusive CPU borrow.
+Pointers must remain inside that closure. Nested borrows and CPU access while a
+GPU submission is in flight throw `BackendError.bufferAccessConflict`.
+`TypedBuffer` initialization and access are also throwing and validate the logical
+capacity. The underlying raw `MTLBuffer` is private to the backend implementation.
+
+`releaseBuffer` invalidates a lease immediately and recycles storage after its
+last CPU/GPU use finishes. Retained released handles reject new work. Callback
+completion runs after GPU access tokens are returned; callbacks may read buffers
+or submit further work. `synchronize()` awaits submissions registered before the
+call and reports their retained errors. It does not wait for later callback-created
+submissions. Cancellation never frees storage before an already submitted GPU
+command finishes.
+
+MZI descriptors use `offset` as the first optical port. Offset parity matches
+`pattern` (0 even, 1 odd), and `offset + 2 * count` stays within 512 ports. State
+and coefficient logical byte capacities and Float element types are checked before
+command submission. Generic MZI dispatch captures an exclusive UInt32 descriptor
+borrow and binds the validated snapshot with setBytes; queued descriptor writers
+are rejected and later descriptor edits cannot alter the submitted layer.
+See [the owning design](MetalExecution/DESIGN.md) and
+[actual Metal regression tests](../../Tests/CoreSpiceBackendTests).

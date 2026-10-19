@@ -34,6 +34,7 @@ public enum MOSResolutionFailure: Error, Sendable, Equatable {
     case ambiguousModel(MOSSymbolID)
     case noMatchingBin(MOSSymbolID)
     case invalidBin(MOSDeclarationID)
+    case osdiBindingRequired(level: Int, version: String?, source: MOSSourceOccurrence)
     case schema(MOSSchemaFailure)
     case invalidResolvedInstance
     case poisonedSession

@@ -306,6 +306,7 @@ struct TransientAndNoiseCapabilityTests {
         guard let descriptor = registry.descriptor(for: typeName) else {
             throw CapabilityContractError.missingDescriptor(typeName)
         }
+        if typeName == "diode" { return try PreparedDiodeFixture().bind(instance: instance, context: &context) }
         return try descriptor.bind(instance: instance, context: &context)
     }
 

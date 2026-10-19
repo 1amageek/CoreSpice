@@ -7,6 +7,7 @@ import Foundation
 /// A captured, parsed source graph admitted for actual selected lowering.
 /// Successful loading does not establish numerical model/component capability.
 public struct LoadedSPICEDeck: Sendable {
+    private let retainedOwner: (any Sendable)?
     public let exactRequest: SPICEExactLoadRequest?
     public let exactSources: [SPICEExactSourceBinding]
     public let sourceWorkConsumption: [SPICESourceWorkKind: UInt64]
@@ -41,9 +42,11 @@ public struct LoadedSPICEDeck: Sendable {
         capturePolicy: SPICESourceCapturePolicy,
         exactRequest: SPICEExactLoadRequest? = nil,
         exactSources: [SPICEExactSourceBinding] = [],
-        sourceWorkConsumption: [SPICESourceWorkKind: UInt64] = [:]
+        sourceWorkConsumption: [SPICESourceWorkKind: UInt64] = [:],
+        retainedOwner: (any Sendable)? = nil
     ) {
         self.exactRequest = exactRequest
+        self.retainedOwner = retainedOwner
         self.exactSources = exactSources
         self.sourceWorkConsumption = sourceWorkConsumption
         self.source = source
@@ -78,6 +81,28 @@ extension SPICEDeckLoadError: LocalizedError {
 /// `CoreSpiceParserSPICE`, while lowering and device binding remain in their
 /// respective execution layers.
 public enum SPICEDeckLoader {
+
+    /// Loads local sources through the owned grammar with pre-read resource admission.
+    public static func loadFile(at path: String, includePaths: [String] = [],
+        capturePolicy: SPICESourceCapturePolicy, resources: any SPICESourceResourceAccounting,
+        sourceReader: any SPICESourceReading = LocalSPICESourceReader()) async throws -> LoadedSPICEDeck {
+        let configuration = ParserConfiguration(resolveIncludes: true, includePaths: includePaths)
+        let resolver = SPICEAccountedFileResolver(includePaths: includePaths, policy: capturePolicy,
+            reader: sourceReader, resources: resources)
+        let root = try await resolver.root(at: canonicalPath(path))
+        let environment = try SPICEPreprocessingEnvironment.empty(policyIdentity: "CoreSpice.local-file-profile.v1",
+            configuration: configuration, resources: resources, maximumPageByteCount: capturePolicy.maximumPageByteCount)
+        let parsed = try await SPICEParser().parseProfile(document: root, configuration: configuration,
+            environment: environment, resolver: resolver, resources: resources)
+        let coverageLease = try await resolver.reserveCoverage(parsed.netlist)
+        let coverage = SPICEDeckCoverageReport.generate(from: parsed.netlist)
+        let blocked = coverage.globalExecutionBlockers
+        guard blocked.isEmpty else { throw SPICEDeckLoadError.blockedExecutionIntent(items: blocked) }
+        let captures = try await resolver.capturedSources()
+        try resources.checkCancellation()
+        return LoadedSPICEDeck(source: root.text, netlist: parsed.netlist, coverage: coverage,
+            captures: captures, capturePolicy: capturePolicy, retainedOwner: (parsed, resolver, coverageLease))
+    }
 
     /// Loads a deck file and resolves every nested `.include` and `.lib`.
     public static func loadFile(

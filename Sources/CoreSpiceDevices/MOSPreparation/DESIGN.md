@@ -1,177 +1,92 @@
-# Native MOS Preparation
+# Native Classic MOS Preparation
 
 ## Purpose and Scope
 
-This component owns checked native preparation and consuming binding for L1/L2/L3,
-BSIM3 3.3.0, BSIM4 4.5 and BSIM4 4.8.3. Parent: [Devices](../DESIGN.md). No children.
-This is the approved S3 implementation target, not completed runtime evidence.
-Workspace PROGRESS.md owns migration status.
+This component owns checked native preparation and consuming binding for classic
+MOS L1/L2/L3. Parent: [CoreSpiceDevices](../DESIGN.md). It has no children.
+Native BSIM3/BSIM4.5/BSIM4.8 evaluators, descriptors, prepared cases, private
+node mappings and device implementations are removed. Compact models execute
+through the separate OSDI adapter with exact model artifact identity.
 
 ## Responsibilities and Boundaries
 
-`NativeMOSDevicePreparer` implements `MOSDevicePreparing`. It accepts an already
-checked `ResolvedMOSInstance`, constructs one fresh evaluator or classic parameter
-value, and returns `NativePreparedMOSDevice`. It does not evaluate source programs,
-select declarations, normalize geometry again, compile, solve or qualify a process.
-
-`PreparedMOSDevice` is a noncopyable Sendable protocol. Its receipt describes
-admitted inputs and topology; consuming `bind(instance:context:)` transfers the
-executable owner once into an existing BoundDevice. The concrete noncopyable enum
-has classic, BSIM3, BSIM45 and BSIM4 cases. Protocols returning BoundDevice belong here,
-rather than in the portable contracts target.
-
-The intended public signatures are:
-
-```swift
-public protocol MOSDevicePreparing: Sendable {
-    func prepare(
-        _ input: borrowing MOSPreparationInput,
-        limits: MOSPreparationLimits,
-        control: any MOSPreparationControlling
-    ) throws(MOSPreparationFailure) -> NativePreparedMOSDevice
-}
-
-public protocol PreparedMOSDevice: ~Copyable, Sendable {
-    var receipt: MOSPreparationReceipt { get }
-    consuming func bind(instance: Instance, context: inout BindingContext)
-        throws(MOSBindingFailure) -> any BoundDevice
-}
-```
+`NativeMOSDevicePreparer` implements `MOSDevicePreparing` for already checked
+classic `ResolvedMOSInstance` inputs. `NativePreparedMOSDevice` has only its
+classic case and preserves the existing consuming `PreparedMOSDevice` interface.
+It prepares and validates one immutable classic parameter value; it does not
+interpret source, select declarations, compile, solve, or qualify a process.
+Copyable receipts carry no executable authority.
 
 ## Related Designs
 
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
-| [Devices](../DESIGN.md) | parent | BindingContext and BoundDevice | Native composition | Fallible checks precede ownership claims |
-| [Portable preparation](../../CoreSpiceMOSContracts/Preparation/DESIGN.md) | depends on | Identity, conditions, topology, limits and failures | Semantic vocabulary | No kernel or Foundation reverse dependency |
-| [IR](../../CoreSpiceIR/DESIGN.md) | depends on | Typed resolved/prepared stage and private nodes | Retained receipt | Counts alone do not prove matching preparation |
-| [Classic devices](../Devices/DESIGN.md) | depends on | Parameter validation and existing stamps | L1/L2/L3 physics | Unsupported supplied semantics are refused |
-| [BSIM3](../BSIM3/DESIGN.md) | depends on | Exclusive 3.3.0 owner | Original topology/history | Evaluator cannot escape preparation |
-| [BSIM45](../BSIM45/DESIGN.md) | depends on | Separate exact 4.5 owner | Native provider extension | Separate numeric IDs and deficit coordinate |
-| [BSIM4](../BSIM4/DESIGN.md) | depends on | Exclusive 4.8.3 owner | Explicit stress/noise intent | 4.8.3 owner cannot substitute for 4.5 |
-| [Native execution](../../CoreSpice/NativeExecution/DESIGN.md) | used by | Concrete noncopyable owner | Aggregate resources and run ordering | No cold setup per DC point |
+| [CoreSpiceDevices](../DESIGN.md) | parent | BoundDevice and checked binding | Native composition | Validate before publication |
+| [Portable preparation](../../CoreSpiceMOSContracts/Preparation/DESIGN.md) | depends on | Identity, conditions, limits, failure | Exact source identity | Source/schema recognition does not authorize native BSIM execution |
+| [IR](../../CoreSpiceIR/DESIGN.md) | depends on | Prepared stage and receipt | Compiler admission | Full receipt equality is required |
+| [Classic devices](../Devices/DESIGN.md) | depends on | Parameter validators and stamps | L1/L2/L3 physics | No BSIM fallback |
+| [OSDI](../../CoreSpiceOSDI/DESIGN.md) | coordinates with | Exact compiled model adapter | Compact-model migration route | No release reinterpretation or parameter translation here |
+| [Native execution](../../CoreSpice/NativeExecution/DESIGN.md) | used by | Consuming prepared owner | Whole-run resources | OSDI and classic owners remain distinct |
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    Resolved[Checked resolved MOS] --> Prepare[NativeMOSDevicePreparer]
-    Conditions[Explicit conditions / limits / control] --> Prepare
-    Prepare --> Owner[Noncopyable prepared enum]
-    Owner --> Receipt[Copyable receipt / topology]
-    Receipt --> IR[IR / Compiler]
-    IR --> Bind[Consuming bind]
-    Owner --> Bind
-    Bind --> Bound[Existing BoundDevice]
-    Bound --> Analysis[Existing analysis algorithms]
+```text
+checked classic MOS + conditions/limits/control -> NativeMOSDevicePreparer
+    -> classic prepared value + receipt -> Compiler -> consuming bind
+    -> BoundNMOS/PMOS L1/L2/L3 -> Analysis
+source legacy BSIM selection -> frontend refusal / explicit OSDI model migration
 ```
 
 ## Contracts and Invariants
 
-The [portable preparation design](../../CoreSpiceMOSContracts/Preparation/DESIGN.md)
-owns complete identity, implementation identity, requested analysis capabilities,
-conditions, topology and limit definitions. This component preserves their meaning
-and compares the complete identity, rather than model name, declaration ID,
-process-random Hashable output or node count alone. Model and instance scopes,
-suppliedness, exact release and normalized geometry remain separate.
+Only L1/L2/L3 exist in the portable native MOS release/schema API and may publish
+a native prepared owner. Source legacy BSIM selection is rejected by source
+admission before preparation and must migrate explicitly to OSDI; it cannot
+become L1/L3 or another release. Registry contains no legacy native BSIM descriptors.
+The classic implementation identity is `CoreSpice.NativeMOS.L1-L3.v2`.
 
-| Release | Native admission |
-|---|---|
-| L1/L2/L3 | Existing defaults/validators; M absent or exactly 1; OFF absent or 0; any supplied terminal IC is unsupported, including zero; NF rejected by schema |
-| BSIM3 3.3.0 | Positive finite outer M, existing DS/GS/BS IC, original selectors and private topology; NF rejected by schema |
-| BSIM4 4.8.3 | Positive finite outer M, existing IC, original fractional NF in [1, Int32.max], explicit positive stress ceiling and analysis capabilities |
-| BSIM4 4.5 | Exact 4.5 schema, original-ID buffers, outer M / IC, explicit stress ceiling, separate deficit coordinate |
+Classic supplied M is absent or exactly one; OFF is absent or zero. Supplied
+terminal IC remains unsupported, including zero. W/L are not modified to emulate
+multiplicity. Existing classic physical equations and temperature/noise behavior
+are unchanged. Ambient and nominal temperatures and requested analysis
+capabilities remain part of exact preparation identity.
 
-Classic preparation builds and validates MOSFETModelParameters once. It does not
-alter W to approximate multiplicity, invent IC behavior or silently drop OFF.
-Existing classic equations use ambient temperature for noise and implement no
-nominal-temperature model law. Both conditions enter identity. No physics or
-solver algorithm is added by S3.
-
-Binding requires the exact prepared IR receipt, matching ambient and nominal
-conditions, four physical ports, exact local role aliases and private-node order.
-Every active non-ground index and required CSR pair must exist. Binding cannot
-reprepare, reinterpret supplied values or substitute a release.
-The unqualified `nmos` and `pmos` type aliases are admitted only when the receipt's
-resolved release is exactly L1, matching Compiler admission. Qualified type names
-retain their explicit release and polarity checks.
+Binding requires full receipt/identity equality, matching conditions, four ports,
+no private auxiliary nodes, and every active compiled index/CSR entry. Unqualified
+nmos/pmos aliases are allowed only for L1. Qualified names preserve release and
+polarity. Failures publish no partial bound device or ownership claim.
+`MOSPreparedTopology()` is the fixed classic value: four physical ports and zero
+auxiliary nodes. There are no selectable prime/body/gate/charge roles or variable
+native compact-model node counts to reconstruct during preparation or binding.
 
 ## Runtime Flows
 
-Preparation validates release/capabilities/limits, admits work/storage, projects
-kernel input, creates one fresh evaluator, obtains topology, completes cold
-numerical admission, checks cancellation and publishes owner/receipt.
-
-Binding validates identity/conditions, preflights nodes and CSR mappings, constructs
-terminal IC and the complete bound owner, then commits claims through the
-[BindingContext contract](../DESIGN.md#atomic-private-node-binding). It does not
-copy BindingContext. Failure destroys unpublished executable state and leaves the
-caller's context unchanged.
+Preparation checks cancellation, admits retained
+payload/work, validates existing parameters, then publishes a receipt/value.
+Consuming binding checks identity and compiled mapping before constructing the
+classic bound device. There is no compact-model projection or foreign cold setup.
 
 ## State, Ownership, and Lifecycle
 
-Prepared BSIM values privately retain fresh concrete evaluators. They expose no
-evaluator getter or initializer accepting an existing evaluator. Only consuming
-binding transfers the reference to the bound owner's private Mutex state. Copyable
-receipts carry no evaluator. Standalone CompactModels evaluator APIs remain usable.
-
-| State | Owner / lifetime | Isolation / access |
-|---|---|---|
-| Resolution, receipt, topology | Immutable retained values | Common Sendable contract |
-| Prepared evaluator | Noncopyable enum case until consume/drop | Exclusive cold setup; existing evaluator Mutex after publication |
-| Bound history/session sequence | Existing BoundBSIM after consume | Existing outer Mutex then evaluator Mutex |
-| Aggregate reservation / UniqueArray slots | Native execution composition | Root-owned invocation accounting; no Devices runtime wrapper |
-
-Drop, preparation failure and failed binding release the fresh evaluator exactly
-once. Successful transfer leaves it with one native executable owner. Existing
-transient begin/end and accepted-bias evaluate/commit semantics remain unchanged.
-No callback, I/O or await occurs under either history lock. Source synchronization
-and Sendable remain common across targets; native evidence does not qualify
-WASM/Embedded execution.
+Prepared parameters and receipts are immutable Sendable values. The noncopyable
+classic case transfers once into its existing concrete bound device. Existing
+classic transient history owners and synchronization are unchanged. This adapter
+owns no native compact-model allocation, evaluator pointer or foreign lifetime.
 
 ## Failure, Concurrency, and Constraints
 
-MOSPreparationFailure and MOSBindingFailure distinguish preparation admission
-from binding identity/conditions/topology failures. Failure publishes neither an
-empty successful device nor a partial receipt. Aggregate root admission and
-Devices per-owner limits are separate proof obligations.
-
-Local accounting includes exact safe-evaluator C allocation size, Swift owner
-storage, retained diagnostics and projected parameter capacities. Temporary
-accounting includes normalization sets, dictionary growth, sorting tuples and
-diagnostic conversion. Arithmetic is checked before allocation; actual capacity
-is checked before publication. Embedded C diagnostics/history/matrix/geometry
-are included in C sizeof and are not counted twice. Allocator metadata exclusions
-are explicit. Limit units belong to the portable preparation contract.
-
-Cancellation/work checks bracket allocation, each bounded projection loop, setup,
-cold preflight and publication. Existing synchronous C setup has no external
-cancellation callback; cancellation is observed when the bounded call returns.
-BSIM4 stress admission charges the explicit ceiling before original work. No
-background task or detached cleanup outlives preparation or binding.
+Typed MOSPreparationFailure and MOSBindingFailure retain their existing admission,
+identity, condition and mapping failures. Classic retained payload and per-parameter
+work are checked before publication. Classic preparation creates no projected
+parameter dictionary or retained diagnostic array; temporary projection payload
+is zero. Cancellation remains on the common control contract for every target.
 
 ## Verification and Change Impact
 
-Direct [CoreSpiceMOSPreparationTests](../../../Tests/CoreSpiceMOSPreparationTests) must reject receipt/implementation/condition/capability
-drift, missing node/CSR mappings, unsupported classic supplied values, insufficient
-capacity, overflow and cancellation without publication or partial claims. Lifetime
-fixtures prove drop, failed preparation/binding and successful transfer release
-exactly once. Counterexamples cover every supported release/polarity, auxiliary
-role and terminal IC ground/alias conflict. Compile-negative probes reject copying
-and second consuming bind. Root owns UniqueArray and actual run ordering proof.
-
-Existing BSIM integration/noise tests own unchanged physical behavior and history
-locks. S4 owns public parser/lowering/CLI/host adoption; task integration owns actual
-MOS DC/AC/transient composition. Changes to identity, topology, conditions or limits
-require rechecking this component, IR/Compiler and native composition, without
-repeating unchanged parser/resolver proof.
-
-The portable release no longer owns execution admission. Compiler validates
-prepared receipt level, identity and topology; NativeMOSDevicePreparer owns
-supported numerical releases including the separate BSIM4 4.5.0 owner.
-
-For 4.5 native preparation failures, preserve bounded original diagnostics and
-attach the resolved instance plus model/instance source occurrence at this
-boundary. The safe owner cannot infer caller source identity. Native stress
-ceiling exhaustion is `workLimitExceeded`; bounded diagnostic exhaustion is
-`capacityExceeded`. Neither failure publishes an owner or execution evidence.
+[CoreSpiceMOSPreparationTests](../../../Tests/CoreSpiceMOSPreparationTests)
+checks both polarities for L1/L2/L3 physical stamps, aliases, receipt/condition
+mismatch, mapping failure, cancellation, strict supplied values and exact retained
+capacity. Registry tests require absent legacy entries, preventing fallback. Source owners
+verify explicit legacy-source refusal before native preparation. OSDI execution and four-family qualification belong
+to the separate OSDI owner. API/IR/Compiler/native composition must revalidate
+changes to identity, topology or consuming interfaces.

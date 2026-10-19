@@ -18,29 +18,31 @@ import Synchronization
 @Suite("Ordinary CLI completed case evidence", .timeLimit(.minutes(1)))
 struct CaseExecutionTests {
     @Test(arguments: [MOSInputProfile.coreStrictV1, .pinnedNgspiceNormalV1])
-    func exactReleaseSpellingReachesProfileAdmissionAndNativeExecution(profile: MOSInputProfile) async throws {
-        for version in ["4.5", "4.5.0", "4.500000e+0", "4.500000E+0", "4.50", "4.5k", "4.62"] {
+    func nativeCompactModelDeclarationsRequireExplicitOSDIBinding(profile: MOSInputProfile) async throws {
+        for (level, version) in [(49, "3.3.0"), (54, "4.5"), (54, "4.8.3"), (54, "4.62")] {
             let root = try directory(); defer { cleanup(root) }
             let source = root.appendingPathComponent("deck.cir")
-            try "Exact version\n.options bsim4stressiterations=8\n.model n nmos level=54 version=\(version)\nVD d 0 1\nVG g 0 1\nM1 d g 0 0 n l=1u w=2u\n.op\n.end\n"
+            try "OSDI binding required\n.model n nmos level=\(level) version=\(version)\nVD d 0 1\nVG g 0 1\nM1 d g 0 0 n l=1u w=2u\n.op\n.end\n"
                 .write(to: source, atomically: true, encoding: .utf8)
             let output = root.appendingPathComponent("case")
             let args = ["-b", source.path, "--mos-profile", profile.rawValue,
-                "--case-output", output.path, "--case-id", "exact-version", "--json"]
-            let admitted = version == "4.5" || version == "4.5.0" ||
-                (version == "4.500000e+0" && profile == .pinnedNgspiceNormalV1)
+                "--case-output", output.path, "--case-id", "requires-osdi", "--json"]
             var session = try Session(policy: .developerV1(profile: profile))
             do {
                 _ = try await CLI(arguments: args).executeBatch(options: .init(arguments: args), session: &session)
-                #expect(admitted)
-                #expect(session.completedBSIM45Models.count == 1)
-                #expect(session.completedBSIM45Models[0].implementationIdentity.contains("BSIM45-4.5.0"))
+                Issue.record("Removed native compact model executed without OSDI binding")
             } catch let failure as MOSResolutionFailure {
-                #expect(!admitted)
-                #expect(failure == .schema(.unsupportedRelease(level: 54, version: version)))
+                guard case .osdiBindingRequired(let actualLevel, let actualVersion, let origin) = failure else {
+                    Issue.record("Missing explicit OSDI migration failure: \(failure)"); return
+                }
+                #expect(actualLevel == level && actualVersion == version)
+                #expect(origin.path == source.path && origin.line == 2)
+                let diagnostic = CoreSpiceCLIFailure(error: failure)
+                #expect(diagnostic.code == "mos.osdi-binding-required" && diagnostic.stage == "lower")
+                #expect(diagnostic.message.contains(source.path) && diagnostic.message.contains("OSDI"))
             }
-            #expect(FileManager.default.fileExists(atPath: output.appendingPathComponent("execution.json").path) == admitted)
-            #expect(FileManager.default.fileExists(atPath: output.appendingPathComponent("model-receipt-0.json").path) == admitted)
+            #expect(!FileManager.default.fileExists(atPath: output.appendingPathComponent("execution.json").path))
+            #expect(!FileManager.default.fileExists(atPath: output.appendingPathComponent("model-receipt-0.json").path))
         }
     }
 
@@ -112,11 +114,10 @@ struct CaseExecutionTests {
             .filter { $0.lastPathComponent.hasPrefix("model-receipt-") }.map {
                 try ToolQualificationModelExecutionReceipt.decodeCanonical(from: Data(contentsOf: $0))
             }
-        #expect(record.outputArtifacts.count == receipts.count + 1)
-        #expect(record.schemaVersion == .v2)
+        #expect(record.outputArtifacts.count == receipts.count + execution.metricDefinitionArtifacts.count + 2)
+        #expect(record.schemaVersion.major == (record.nativeDCResult == nil ? 3 : 5))
         let persisted = try JSONDecoder().decode(CoreSpiceCLIBatchRunRecord.self, from: JSONEncoder().encode(record))
-        #expect(persisted.bsim45Models == record.bsim45Models)
-        #expect(persisted.bsim45Models.map(\.device) == session.completedBSIM45Models.map(\.device))
+        #expect(persisted == record)
         let inventory = try JSONDecoder().decode(ToolQualificationCLIArtifactAvailabilityInventory.self,
             from: Data(contentsOf: output.appendingPathComponent("availability.json")))
         for availability in inventory.availabilities {
@@ -131,78 +132,49 @@ struct CaseExecutionTests {
     }
 
 
-    @Test func exact45PreparationFailureKeepsOriginalDiagnosticAndSource() async throws {
-        let root = try directory(); defer { cleanup(root) }
-        do {
-            _ = try await batch("""
-            Invalid oxide
-            .options bsim4stressiterations=8
-            .model n nmos level=54 version=4.5.0 toxe=-1
-            VD d 0 1
-            VG g 0 1
-            M7 d g 0 0 n l=1u w=10u
-            .op
-            .end
-            """, in: root)
-            Issue.record("Failed physical preparation published execution")
-        } catch SPICENativePreparationError.mosPreparation(.kernelRejected(let diagnostic)) {
-            #expect(diagnostic.contains("m7") && diagnostic.contains("Toxe") && diagnostic.contains("deck.cir"))
-        }
-        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("case/execution.json").path))
-    }
-
-    @Test func exact45CLICompletesDCACTransientAndNoiseWithExecutionEvidence() async throws {
+    @Test func classicMOSCLICompletesDCACTransientAndNoiseWithExecutionEvidence() async throws {
         for (analysis, command) in [("dc", ".dc VG 1 1.2 .1"), ("ac", ".ac lin 3 1k 10k"),
             ("tran", ".tran 10p 100p"), ("noise", ".noise V(d) VG lin 3 1k 10k")] {
             let root = try directory(); defer { cleanup(root) }
             let (execution, receipts, session) = try await batch("""
-            Exact 4.5 CLI phase
-            .options bsim4stressiterations=8
-            .model n nmos level=54 version=4.5 toxe=10n vth0=.7 u0=.05 tnoimod=1 fnoimod=0 kf=1e-25
+            Classic MOS CLI phase
+            .model n nmos level=1 vto=.7 kp=100u
             VD supply 0 2
             RL supply d 1k
             VG g 0 \(analysis == "tran" ? "sin(1.2 .01 10Meg)" : "1.2") ac 1
-            M1 d g 0 0 n l=1u w=10u nf=2 m=3 trnqsmod=1
+            M1 d g 0 0 n l=1u w=10u
             \(command)
             .end
             """, in: root)
             let phases = try #require(session.phaseCollector).phases
-            #expect(!phases.isEmpty && phases.allSatisfy { $0.facts.analysis == analysis && $0.facts.completedPointCount > 0 })
+            if analysis == "dc" {
+                #expect(!phases.isEmpty && phases.allSatisfy { $0.facts.analysis == "dc" && $0.facts.completedPointCount == 1 })
+            } else {
+                #expect(phases.map { $0.facts.analysis } == ["op", analysis])
+                #expect(phases.first?.facts.completedPointCount == 1)
+                #expect(phases.last?.facts.completedPointCount == session.lastWaveform?.pointCount)
+                let operatingPoint = try #require(phases.first?.facts.mosPreparationReceipts.first)
+                let outer = try #require(phases.last?.facts.mosPreparationReceipts.first)
+                #expect(operatingPoint == outer)
+                if analysis == "tran" {
+                    let initialGate = try #require(phases.first?.observations["last:V(g)"])
+                    let finalGate = try #require(phases.last?.observations["last:V(g)"])
+                    let expectedFinal = 1.2 + 0.01 * sin(2 * Double.pi * 10_000_000 * 100e-12)
+                    #expect(abs(initialGate - 1.2) < 1e-12)
+                    #expect(abs(finalGate - expectedFinal) < 1e-12)
+                    #expect(initialGate != finalGate)
+                }
+            }
             #expect(Set(execution.phaseIDs) == Set(phases.map(\.id)))
-            #expect(receipts.allSatisfy { $0.modelVersion == "4.5.0" && $0.selectedModelIdentifier == "n" })
+            #expect(receipts.allSatisfy { $0.modelVersion == nil && $0.selectedModelIdentifier == "n" })
             #expect(receipts.count == phases.count)
-            #expect(session.completedBSIM45Models.count == phases.count)
+            #expect(Set(receipts.map(\.phaseID)) == Set(phases.map(\.id)))
             for phase in phases {
                 let receipt = try #require(phase.facts.mosPreparationReceipts.first)
-                #expect(receipt.identity.resolved.release == .bsim4_4_5 && receipt.coldSetupCount == 1)
+                #expect(receipt.identity.resolved.release == .level1 && receipt.coldSetupCount == 1)
                 #expect(receipt.identity.conditions.analysisCapabilities.contains(analysis == "noise" ? .noise : analysis == "ac" ? .ac : analysis == "tran" ? .transient : .dc))
             }
         }
-    }
-
-    @Test func sourceWidthFlagChangesExecutedModelReceiptAndCurrent() async throws {
-        var currents: [Double] = []
-        for flag in [0, 1] {
-            let root = try directory(); defer { cleanup(root) }
-            let source = """
-            Actual MOS width selection
-            .options bsim4stressiterations=128 wnflag=\(flag)
-            .model n.1 nmos level=54 version=4.8.3 toxe=1e-8 vth0=.4 u0=.05 lmin=.1u lmax=2u wmin=.1u wmax=1.5u
-            .model n.2 nmos level=54 version=4.8.3 toxe=1e-8 vth0=.8 u0=.05 lmin=.1u lmax=2u wmin=2u wmax=5u
-            VD d 0 1
-            VG g 0 1
-            M1 d g 0 0 n l=1u w=4u nf=4
-            .op
-            .end
-            """
-            let (execution, receipts, _) = try await batch(source, in: root)
-            let receipt = try #require(receipts.first)
-            #expect(receipts.count == 1 && receipt.selectedModelIdentifier == (flag == 1 ? "n.1" : "n.2"))
-            #expect(receipt.consumedInstances["m1"]?["w"] == 4e-6)
-            #expect(receipt.consumedInstances["m1"]?["nf"] == 4)
-            currents.append(abs(try #require(execution.observedMetrics["op:last:I(vd)"])))
-        }
-        #expect(currents[1] > currents[0] * 2)
     }
 
     @Test func nonScalarMOSCoefficientNeverReachesExecution() async throws {
@@ -488,7 +460,7 @@ struct CaseExecutionTests {
         #expect(!phaseLimitedCollector.isComplete)
         var session = try Session(policy: .developerV1()); try session.loadNetlist(loaded)
         session.phaseCollector = try CoreSpiceCLIPhaseCollector(maximumRetainedBytes: 16 * 1024,
-            maximumEncodedBytes: 8192)
+            maximumEncodedBytes: 32 * 1024)
         _ = try await session.runParsed(try session.requiredDefaultRunnableAnalysis())
         let collector = try #require(session.phaseCollector)
         let measurements = (0..<40).map { index in
@@ -559,18 +531,19 @@ struct CaseExecutionTests {
         #expect(session.plan?.ir.instances.count == 3)
     }
 
-    @Test func selectedChargeAndPhysicalCapacitorPublishNoCompletedCase() async throws {
-        for component in ["Cq out 0 q={missing*v(out)}", "C1 out 0 cm\n.model cm C cap=1n"] {
+    @Test func selectedInvalidChargeAndUnsupportedCapacitorLevelPublishNoCompletedCase() async throws {
+        for component in ["Cq out 0 q={missing*v(out)}", "C1 out 0 cm\n.model cm C level=2 cap=1n"] {
             let root = try directory(); defer { cleanup(root) }
             do {
                 _ = try await batch("unsupported selected capacitor\nV1 out 0 1\nR1 out 0 1k\n\(component)\n.op\n.end\n", in: root)
-                Issue.record("Unsupported capacitor published success")
+                Issue.record("Invalid charge expression or unsupported capacitor level published success")
             } catch {
                 let failure = CoreSpiceCLIFailure(error: error)
                 #expect(failure.code == "deck.lower")
                 #expect(failure.stage == "lower")
             }
             #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("case").path))
+            #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).sorted() == ["deck.cir"])
         }
     }
 

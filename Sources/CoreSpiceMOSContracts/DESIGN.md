@@ -63,3 +63,12 @@ floor, not an IR/Devices dependency or a diode-law dependency.
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
 | [EvaluationContracts](../CoreSpiceEvaluationContracts/DESIGN.md) | depends on | Checked environment identity | D2 temperature meaning | Standard Library only; source policy stays outside this module |
+
+
+## Native Compact-Model Removal
+The native MOS release domain is now classical Levels 1/2/3 only. Legacy levels
+49/54 require an explicit OSDI binding and cannot default or fall back to a
+classical model. [Schema](../CoreSpiceMOSContracts/Schema/DESIGN.md) owns admission;
+the resolver retains the actual visited declaration source in its migration
+failure. OSDI model metadata and official four-family execution use the separate
+[OSDI binding contracts](../CoreSpiceOSDIContracts/DESIGN.md).

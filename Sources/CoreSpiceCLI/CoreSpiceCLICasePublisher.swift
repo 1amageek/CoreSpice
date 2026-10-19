@@ -26,6 +26,13 @@ struct CoreSpiceCLICasePublisher: Sendable {
     }
 
 
+    static func validateDestination(directory: String, protectedInputs: [String], otherOutputs: [String] = []) throws {
+        do { try CoreSpiceCLIOutputPathGuard.validate(inputs: protectedInputs + otherOutputs, outputs: [directory]) }
+        catch let failure as CoreSpiceCLIOutputPathGuard.Failure {
+            throw CoreSpiceCLICaseError.publication(failure.reason)
+        } catch { throw CoreSpiceCLICaseError.publication(error.localizedDescription) }
+    }
+
     private let publicationBoundary: @Sendable () -> Void
 
     init(publicationBoundary: @escaping @Sendable () -> Void = {}) {
@@ -39,11 +46,11 @@ struct CoreSpiceCLICasePublisher: Sendable {
 
     func publish(directory: String, caseID: String, loadedDeck: LoadedSPICEDeck,
                  phases: CoreSpiceCLIPhaseCollector, referencer: CoreSpiceCLIArtifactReferencer,
-                 executableCapture: ExecutableCapture? = nil) throws -> [ArtifactReference] {
+                 executableCapture: ExecutableCapture? = nil, additionalInputs: [CoreSpiceCLICaseCapturedInput] = []) throws -> [ArtifactReference] {
         do {
             return try publishComplete(directory: directory, caseID: caseID, loadedDeck: loadedDeck,
                 phases: phases, referencer: referencer,
-                executableCapture: try executableCapture ?? Self.captureExecutable())
+                executableCapture: try executableCapture ?? Self.captureExecutable(), additionalInputs: additionalInputs)
         } catch let error as CoreSpiceCLICaseError { throw error }
         catch is CancellationError { throw CancellationError() }
         catch { throw CoreSpiceCLICaseError.publication(error.localizedDescription) }
@@ -51,8 +58,9 @@ struct CoreSpiceCLICasePublisher: Sendable {
 
     private func publishComplete(directory: String, caseID: String, loadedDeck: LoadedSPICEDeck,
         phases: CoreSpiceCLIPhaseCollector, referencer: CoreSpiceCLIArtifactReferencer,
-        executableCapture: ExecutableCapture) throws -> [ArtifactReference] {
+        executableCapture: ExecutableCapture, additionalInputs: [CoreSpiceCLICaseCapturedInput]) throws -> [ArtifactReference] {
         try checkCancellation()
+        try Self.validateDestination(directory: directory, protectedInputs: loadedDeck.captures.compactMap(\.resolvedPath))
         guard phases.isComplete, !phases.phases.isEmpty, !phases.metrics.isEmpty else {
             throw CoreSpiceCLICaseError.incompleteOutput("execution or observations did not complete")
         }
@@ -115,6 +123,14 @@ struct CoreSpiceCLICasePublisher: Sendable {
                 try retain(reference, name: name)
             }
         }
+        for (index, input) in additionalInputs.enumerated() where !inputs.contains(input.reference) {
+            let name = "host-input-\(index)"
+            try write(input.bytes, name: name)
+            guard try CoreSpiceCLISourceCompletion.reference(input.bytes).id == input.reference.id else {
+                throw CoreSpiceCLICaseError.incompleteOutput("Additional captured input identity changed")
+            }
+            inputs.append(input.reference); try retain(input.reference, name: name)
+        }
         // The original executable is a distinct evidence input, never a path-only claim.
         let executable = executableCapture.reference
         try write(executableCapture.bytes, name: "executable")
@@ -131,6 +147,43 @@ struct CoreSpiceCLICasePublisher: Sendable {
             var groups: [String: [ModelGroup]] = [:]
             for instance in phase.instances {
                 try checkCancellation()
+                if instance.osdi != nil {
+                    guard let completed = phase.facts.osdiPreparationRecords.first(where: { $0.instanceName == instance.name }) else {
+                        throw CoreSpiceCLICaseError.incompleteOutput("Actual OSDI model completion is missing")
+                    }
+                    let projection = try CoreSpiceCLIOSDIRecord(phase: phase.facts.analysis, completed: completed,
+                        completedPointCount: phase.facts.completedPointCount)
+                    guard inputs.contains(projection.artifact) else {
+                        throw CoreSpiceCLICaseError.incompleteOutput("Actual OSDI library is not a captured case input")
+                    }
+                    var resolved: [String: Double] = [:], effective: [String: Double] = [:]
+                    for parameter in projection.resolvedParameters {
+                        let value: Double
+                        switch try parameter.assignment().value {
+                        case .real(let scalar): value = scalar
+                        case .integer(let scalar): value = Double(scalar)
+                        case .string: continue
+                        }
+                        guard value.isFinite else { throw CoreSpiceCLICaseError.incompleteOutput("Nonfinite OSDI consumed parameter") }
+                        if parameter.scope == "model" { resolved[parameter.name] = value }
+                        else { effective[parameter.name] = value }
+                    }
+                    effective["operating.temperatureKelvin"] = projection.effectiveKelvin
+                    effective["operating.nominalTemperatureKelvin"] = phase.conditions.nominalTemperatureKelvin
+                    try admitEncoded(8192 + inputs.count * 1024 + tokenCharge([caseID, executionID, phase.id,
+                        projection.instanceName, projection.modelName, projection.expectedDescriptorName]) + numericCharge(resolved) + numericCharge(effective))
+                    let receipt = ToolQualificationModelExecutionReceipt(caseID: caseID, executionID: executionID,
+                        producer: referencer.producer, phaseID: phase.id,
+                        modelID: "OSDI:" + projection.expectedDescriptorName + ":" + String(projection.descriptorIndex),
+                        sourceArtifact: projection.artifact, selectedModelIdentifier: projection.modelName,
+                        consumedInstances: [projection.instanceName: effective], inputArtifacts: inputs,
+                        resolvedParameters: resolved)
+                    let name = "model-receipt-\(receipts.count).json"
+                    try write(receipt.canonicalData(), name: name)
+                    let reference = try referencer.output(path: staging.appendingPathComponent(name).path, kind: .report, format: .json)
+                    receipts.append(reference); outputs.append(reference); try retain(reference, name: name)
+                    continue
+                }
                 let declaration: String
                 let modelName: String
                 let version: String?
@@ -138,7 +191,7 @@ struct CoreSpiceCLICasePublisher: Sendable {
                 let resolved: [String: Double]
                 if case .prepared(let receipt) = instance.mos {
                     let selected = receipt.identity.resolved
-                    guard let origin = try phase.compiled.modelOrigin(for: selected),
+                    guard let origin = try phase.modelOrigins?[instance.name] ?? phase.compiled.modelOrigin(for: selected),
                           origins[origin.declarationID] != nil else {
                         throw CoreSpiceCLICaseError.missingModelOrigin(instance.name)
                     }
@@ -157,6 +210,23 @@ struct CoreSpiceCLICasePublisher: Sendable {
                     effective["as"] = selected.normalizedGeometry.sourceArea
                     effective["pd"] = selected.normalizedGeometry.drainPerimeter
                     effective["ps"] = selected.normalizedGeometry.sourcePerimeter
+                } else if case .prepared(let receipt) = instance.diode {
+                    let selected = receipt.identity.resolved
+                    guard let origin = try phase.modelOrigins?[instance.name] ?? phase.compiled.modelOrigin(for: selected),
+                          origins[origin.declarationID] != nil, selected.orderedAssignmentEvidence,
+                          selected.model.orderedAssignmentEvidence else {
+                        throw CoreSpiceCLICaseError.missingModelOrigin(instance.name)
+                    }
+                    declaration = origin.declarationID
+                    modelName = try phase.diodeModelNames?[instance.name] ?? phase.compiled.modelName(for: selected)
+                    let projection = CoreSpiceCLIDiodeRecord(phase: phase.id, receipt: receipt,
+                        modelName: modelName, completedPointCount: phase.facts.completedPointCount)
+                    version = projection.law
+                    var coefficients = projection.modelParameters
+                    // Canonical receipt labels make Kelvin distinct from source Celsius.
+                    if let nominal = coefficients.removeValue(forKey: "tnom") { coefficients["tnom_kelvin"] = nominal }
+                    resolved = coefficients; effective = projection.instanceParameters
+                    effective["operating.effectiveTemperatureKelvin"] = projection.effectiveKelvin
                 } else {
                     switch instance.modelConsumption {
                     case .unrecorded: throw CoreSpiceCLICaseError.unrecordedModelConsumption(instance.name)
@@ -211,7 +281,65 @@ struct CoreSpiceCLICasePublisher: Sendable {
                 }
             }
         }
-        let executionCharge = 4096 + (inputs.count + receipts.count) * 1024
+        for (index, id) in phases.sourceCompletions.keys.sorted().enumerated() {
+            guard let completion = phases.sourceCompletions[id] else { throw CoreSpiceCLICaseError.incompleteOutput("Missing original source completion") }
+            let name = "source-completion-\(index).json"
+            try completion.withJSONBytes { try write($0, name: name) }
+            guard try referencer.output(path: staging.appendingPathComponent(name).path, kind: .report, format: .json) == completion.artifact else {
+                throw CoreSpiceCLICaseError.incompleteOutput("Published original source completion identity differs")
+            }
+            outputs.append(completion.artifact); try retain(completion.artifact, name: name)
+        }
+        var semantics = phases.metricSemantics
+        for (id, completion) in phases.sourceCompletions {
+            guard let metrics = phases.sourceCompletionMetricGroups[id], !metrics.isEmpty else {
+                throw CoreSpiceCLICaseError.incompleteOutput("Missing source completion metric binding")
+            }
+            for metric in metrics {
+                guard let meaning = semantics[metric] else { throw CoreSpiceCLICaseError.incompleteOutput("Missing original source metric") }
+                semantics[metric] = meaning.bindingSource(completion.artifact)
+            }
+        }
+        for (index, id) in phases.sensitivityArtifacts.keys.sorted().enumerated() {
+            guard let artifact = phases.sensitivityArtifacts[id],
+                  let upper = phases.sensitivityEncodedBounds[id], let metrics = phases.sensitivityMetricGroups[id] else {
+                throw CoreSpiceCLICaseError.incompleteOutput("Sensitivity artifact binding is incomplete")
+            }
+            try admitEncoded(upper)
+            let name = "sensitivity-\(index).json"
+            try artifact.withJSONBytes { try write($0, name: name) }
+            let reference = try referencer.output(path: staging.appendingPathComponent(name).path, kind: .report, format: .json)
+            outputs.append(reference); try retain(reference, name: name)
+            for metric in metrics {
+                guard let meaning = semantics[metric] else { throw CoreSpiceCLICaseError.incompleteOutput("Sensitivity metric binding is missing") }
+                semantics[metric] = meaning.binding(reference)
+            }
+        }
+        guard Set(semantics.keys) == Set(phases.metrics.keys) else {
+            throw CoreSpiceCLICaseError.incompleteOutput("metric meaning is missing")
+        }
+        let semanticCharge = 4096 + semantics.reduce(0) {
+            $0 + $1.key.utf8.count * 6 + ($1.value.unitID.utf8.count + $1.value.declaredUnit.utf8.count
+                + $1.value.quantity.utf8.count + $1.value.extractionID.utf8.count + $1.value.unitMeaning.utf8.count) * 6 + 2304
+        }
+        try admitEncoded(semanticCharge)
+        let semanticEncoder = JSONEncoder()
+        semanticEncoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        try write(semanticEncoder.encode(semantics), name: "metric-domain.json")
+        let domain = try referencer.output(path: staging.appendingPathComponent("metric-domain.json").path, kind: .report, format: .json)
+        outputs.append(domain); try retain(domain, name: "metric-domain.json")
+        var definitions: [String: ArtifactReference] = [:]
+        for (index, metric) in semantics.keys.sorted().enumerated() {
+            guard let meaning = semantics[metric] else { throw CoreSpiceCLICaseError.incompleteOutput("metric meaning changed") }
+            try admitEncoded(4096 + tokenCharge([metric, meaning.unitID, meaning.extractionID]))
+            let definition = ToolQualificationMetricDefinition(metricID: metric, unitID: meaning.unitID,
+                extractionID: meaning.extractionID, domainArtifact: domain)
+            let name = "metric-definition-\(index).json"
+            try write(definition.canonicalData(), name: name)
+            let reference = try referencer.output(path: staging.appendingPathComponent(name).path, kind: .report, format: .json)
+            definitions[metric] = reference; outputs.append(reference); try retain(reference, name: name)
+        }
+        let executionCharge = 4096 + (inputs.count + receipts.count + definitions.count) * 1024
             + tokenCharge([caseID, executionID]) + tokenCharge(phases.phases.map(\.id))
             + numericCharge(phases.metrics) + phases.metricPhases.reduce(2) {
                 $0 + $1.key.utf8.count * 6 + 8 + tokenCharge($1.value)
@@ -220,7 +348,7 @@ struct CoreSpiceCLICasePublisher: Sendable {
         let execution = ToolQualificationCaseExecution(caseID: caseID, executionID: executionID,
             producer: referencer.producer, executableArtifact: executable, inputArtifacts: inputs,
             phaseIDs: phases.phases.map(\.id), metricPhaseIDs: phases.metricPhases,
-            modelReceiptArtifacts: receipts, observedMetrics: phases.metrics)
+            metricDefinitionArtifacts: definitions, modelReceiptArtifacts: receipts, observedMetrics: phases.metrics)
         try write(execution.canonicalData(), name: "execution.json")
         let reference = try referencer.output(path: staging.appendingPathComponent("execution.json").path,
             kind: .report, format: .json)

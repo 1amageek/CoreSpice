@@ -1,0 +1,6 @@
+`include "dc_disciplines.vams"
+module no_root_dc(p, n);
+    inout p, n;
+    electrical p, n;
+    analog I(p, n) <+ 0.001;
+endmodule

@@ -337,14 +337,14 @@ Runtime hertz remains explicitly unsupported, including when a parameter has tha
 name. Runtime temper remains ambient Celsius supplied at binding/rebinding.
 
 The MOS branch bypasses legacy context.model, mapComponentType, model flattening,
-legacy geometry refusal and cold BSIM admission. resolveMOS supplies the exact
+legacy geometry refusal and classical native admission. resolveMOS supplies the exact
 selected source/release/schema and separate normalized values. Lowering emits
 Instance.mos.resolved with physical nodes and zero owned auxiliary nodes. Generic
 parameters, model and modelConsumption maps do not duplicate or override MOS
 truth. IR/compiler refuse resolved or legacy MOS as numerical admission. Execution
 composition alone prepares, allocates fresh auxiliary identities, replaces the
-stage with its receipt, compiles, and consumes binding. BSIM4.5 resolved inspection
-remains successful even though native preparation rejects that exact release.
+stage with its receipt, compiles, and consumes binding. Legacy native BSIM input
+is rejected with its actual declaration source and explicit OSDI migration guidance.
 
 ## Runtime Flows
 
@@ -399,7 +399,7 @@ release, family or backend.
 | Shared scalar composition | Global/header/body/X/non-MOS/MOS/control rand share one deterministic stream; repeated same slot does not draw twice; sibling slots do |
 | Model slot semantics | Enclosing coefficient names resolve as parameters; coefficient-only peer reference fails without publication/retry |
 | Runtime boundary | B/R V/I/time/temper and PWL survive; lexical functions, node/branch mapping and temperature rebinding remain exact |
-| MOS stage | Scale once, scoped exact/family selection, separate roles, actual selected origin, zero auxiliary nodes, successful independent BSIM4.5 inspection |
+| MOS stage | Scale once, scoped exact/family selection, separate roles, actual selected origin, zero auxiliary nodes, source-positioned legacy native BSIM refusal |
 | Public IO | Numeric options and analyses use the same session; option scale/rand are not re-evaluated; text options do not spuriously evaluate |
 | Public native composition | Resolved IR is refused by compiler; admitted preparation/receipt/owned topology/consuming bind execute through actual CPU path |
 | Reuse / failure | Same snapshot with fresh graph/constants/seed/session; wrong identity, cancellation, budgets and poison produce typed failure |
@@ -476,33 +476,30 @@ or zero. Unresolved/cyclic parameters fail before this choice; functions alone d
 count as bare parameter declarations. Reserved bare `c` does not resolve to a same-named model.
 
 For an actual model reference, missing and mismatched types are typed failures.
-Matching C models are also explicitly refused before model flattening, even with
-an explicit positive instance capacitance: model-backed C numerical preparation
-is not implemented. No model reference may silently become ideal C. Unused C
-declarations remain independent of this instance gate. Subcircuit remapping keeps
-source candidates. R source roles and URC-generated ideal capacitors retain their
-existing execution and selected-source provenance.
+Matching static C models retain `ResolvedDeviceModel` separately from instance
+parameters, so [Devices](../../CoreSpiceDevices/Devices/DESIGN.md) owns model/geometry
+capacitance, temperature and multiplicity semantics. Explicit instance capacitance
+and global-scaled source geometry retain their separate roles. Numerical binding
+uses the selected model and never silently discards it. Unused C declarations are
+not evaluated. R source roles and URC-generated ideal capacitors remain separate.
 
-Focused lowering/public IO tests own forward/include/scoped resolution, parameter
-precedence, explicit-value-plus-model refusal and
-unchanged ideal/URC execution. [Devices](../../CoreSpiceDevices/Devices/DESIGN.md#capacitor-model-binding-admission)
-owns direct IR binding refusal.
+## Charge and Runtime Capacitance Source Admission
 
-## Charge Capacitor Numerical Admission
+Selected `q` is always retained as `BehavioralExpression`, including a numeric
+constant. Its numerical meaning is total charge. Runtime `c` is retained under
+its distinct key as differential capacitance; it is not converted to `C*V` charge.
+The existing behavioral lowerer retains lexical parameter values, AST structure,
+canonical referenced nodes/branches, temperature binding and resource limits.
+Unselected subcircuit bodies remain unevaluated. Mixed Q/C or Q/model inputs fail;
+runtime C plus a model fails because that combined reference semantics is not
+admitted. Static model C follows the source model contract above.
 
-The actual selected-component validation rejects a capacitor containing `q` before
-passive-role resolution, parameter evaluation, model preparation or topology
-publication. This applies with or without an explicit C value, model or expression
-evaluation, including manually constructed parsed input. Unselected subcircuit Q
-bodies are retained without numerical evaluation. Q is not C or Q/V. No source
-coverage result bypasses this owner. The independent direct IR gate is owned by
-[Devices](../../CoreSpiceDevices/Devices/DESIGN.md#charge-capacitor-binding-admission).
-
-A future numerical implementation must supply i=dQ/dt, the complete dQ/dV
-Jacobian, AC linearization and accepted charge/current history with rejected-step
-isolation, plus independent successful and failing numerical tests. Until then
-public selected Q lowering is a marked typed refusal. Focused tests pair unused
-Q definitions with selected Q failure and direct parsed C+Q refusal.
+Inherited capacitor multiplicity uses the same admitted source expansion as
+resistors. Instance L/W uses document scale before Devices preparation. Functional
+C/Q fields and initial conditions do not become scalar sensitivity targets. The
+numerical owner verifies dQ/dt versus C*dV/dt, Jacobian, AC and trial/accepted history
+in its own tests; frontend tests prove source roles, expression/dependency retention
+and exact failure paths rather than claiming numerical qualification.
 
 ## Frontend Capacity Envelope and Inspection Link
 
@@ -607,8 +604,8 @@ IO profile preparation supplies ParserConfiguration.defaultTemperature explicitl
 The last ordered global .temp/.options temp wins for ambient, and the last global
 .options tnom wins for nominal; caller overrides precede source. All condition
 syntax is checked at compile time, including dead settings. Only winning condition
-programs are evaluated. Local condition controls and multiple-temperature sweeps
-are refused. Condition provenance retains selected control indices and origin;
+programs are evaluated. Local condition controls are refused; literal temperature
+families require the explicit selection contract below. Condition provenance retains selected control indices and origin;
 CompiledNetlist retains their actual source locations.
 
 Planning remains evaluation-free. beginEvaluation bootstraps/freeze using the same
@@ -629,3 +626,276 @@ The [D3 resolution owner](../DiodeResolution/DESIGN.md) defines occurrence admis
 evaluation, immutable result transport and explicit numerical refusal. This layer
 consumes that contract; D4 numerical preparation and D5 downstream adoption remain
 separate. Its affected production path and behavioral tests are verified in D3.
+
+07C checked diode modelOrigin/modelName inspection validates the actual frontend
+model index, lexical scope and captured occurrence against ResolvedDiodeInstance.
+It never interprets that index as a MOS declaration ID or selects by model name.
+Wrong identity throws the existing frontend conditionMismatch failure; missing
+origin stays absent and cannot authorize canonical source-bound receipt publication.
+
+## S3 Explicit Typed OSDI Injection
+
+```text
+coefficient-free N + lexical .model OSDI
+ + caller map: exact flattened instance name -> OSDIResolvedInstance
+ -> checked matching declaration/binding, bounded transport
+ -> Instance(typeName: "osdi", osdi: .resolved(...))
+ -> existing native setup and StandardCompiler
+```
+
+`NetlistLoweringSession.lower` accepts `osdiInstances: [String:
+OSDIResolvedInstance] = [:]`. Keys are exact fully flattened instance names;
+selection does not case-fold caller keys or infer model parameters. Every selected
+N must have a catalog value whose binding model name matches the selected lexical
+OSDI declaration under SPICE case-insensitive model lookup. Surplus catalog keys
+are refused, so a misspelled or unused requested binding cannot become apparent
+success. Direct ParsedIR with coefficients, levels, missing terminals, or
+hierarchical multiplier intent fails explicitly before circuit publication.
+
+OSDI emission bypasses generic model expansion and numeric scalar evaluation.
+Model/instance assignment scopes and kinds and previous state are retained
+unchanged in the immutable resolved value. The frontend storage ledger charges
+retained arrays and variable-sized strings before transport; native ownership
+separately charges runtime preparation. Circuit clone emission preserves the OSDI
+stage. The existing frozen evaluation environment remains the temperature
+authority; this source profile has no independent catalog temperature.
+
+`CoreSpiceOSDIFrontendTests` verifies parsed source through actual lowering,
+lexical selection and expanded port order, both assignment scopes, explicit state,
+clone transport, bounded failures, source diagnostics and strict X lookup. Native
+DC numerical and artifact loading evidence belongs to the native owners.
+
+## BJT Private Topology
+
+The non-MOS emitter materializes one owned intrinsic node for each finite positive
+`rc`, `rb`, `re`, in collector/base/emitter order. Physical ports remain unchanged.
+The bounded builder charges node names, node storage and owned-node storage before
+publication; compiler topology includes both ports and owned nodes. Invalid
+resistance types/domains fail before emission. Numerical meaning and atomic binding
+are owned by [native devices](../../CoreSpiceDevices/Devices/DESIGN.md#bjt-physical-parameter-ownership).
+
+## Fresh Source Reexecution and Temperature Families
+
+`NetlistLowering.compile` accepts checked `NetlistSourceScalarOverride` entries
+and an optional `NetlistSourceTemperature` selection. The immutable compiled owner
+retains the original parsed source and the explicit overlay/selection as separate
+provenance. Evaluated source scalar inventory is explicitly opt-in with
+`captureSourceScalars`; ordinary lowering leaves it off and retains no per-instance
+model inventory arrays/text. Sensitivity/Monte Carlo owners request capture once
+and share that evidence, separately from repeated numerical samples. Root parameter overrides remain invocation bindings and are not used
+to impersonate literal device assignments.
+
+| Input | Owner and effect | Failure contract |
+|---|---|---|
+| Full hierarchical instance plus scalar role/name/value | Compiler registers bounded constant programs; session replaces that instance's source binding before fresh resolution | Unknown instance, duplicate target, nonfinite value or unsupported role/kind fails |
+| Instance scalar | Target instance's original source-unit scalar before scale, selection and topology preparation | No stale resolved/prepared object mutation |
+| Model scalar | Per-instance effective model overlay; source declaration and other instances remain unchanged | [Selection admission](../../CoreSpiceMOSResolution/Selection/DESIGN.md#fresh-source-effective-model-overlay) |
+| Winning `.temp` numeric vector | `temperatureSchedule(in:)` returns ordered source control/value coordinates and checked Kelvin values | No implicit first/last selection |
+| Explicit family selection | Compiler verifies original control/value; only selected scalar enters the frozen environment | Missing/mismatched selection fails |
+
+```text
+Original ParsedNetlist + explicit overlay + exact temperature selection
+  -> fresh compiled snapshot and constant programs
+  -> fresh invocation/evaluation owner and frozen condition identity
+  -> instance bindings / effective model overlay
+  -> fresh resolved circuit -> numerical owner -> fresh topology and binding
+```
+
+The last global ambient control wins, including `.options temp`; superseded
+vectors do not create extra runs. Single scalar/expression source temperature uses
+the existing evaluation contract. Multi-temperature orchestration belongs to IO,
+which preserves each selection and its distinct frozen condition identity. The
+parser stores a literal list as `.numericVector`; expression-dependent families
+remain explicitly unsupported. All retained overlay names, arrays, programs and
+validation work use the existing bounded frontend storage ledger.
+
+Temperature discovery does not compile models or copy the parsed graph. Its
+control scan compares option names directly as ASCII case-insensitive UTF-8,
+without allocating lowercase strings. A missing or scalar winning control
+returns an empty array without reserving a dynamic buffer. For a winning vector,
+the optional synchronous `temperatureSchedule(..., reserveStorage:)` callback
+admits incremental selection-array capacity payload bytes: requested capacity
+before allocation, then any actual allocator capacity excess before appending
+or publishing selections. This follows the frontend budget's existing
+before-request/after-actual capacity contract; allocator metadata and fixed
+construction state are excluded. The caller owns reservation lifetime through
+the schedule's last use and releases reservations on failure. Callback refusal,
+frontend capacity/work refusal, cancellation or invalid temperature publishes no
+schedule. No model-compilation resource envelope applies to this operation.
+
+`SourceScalarOverrideTests` owns original-source retention, literal hierarchical
+W/L substitution, model cache isolation, invalid target rejection and exact raw
+value evidence. `SourceTemperatureFamilyTests` owns ordered selection, winning
+control policy, missing/mismatched selection and distinct frozen environments.
+Its storage cases verify zero reservation without a winning vector, exact actual
+array-capacity accounting, callback refusal and prestart cancellation.
+
+## Immutable Evaluation Provenance Capacity
+
+`NetlistEvaluationProvenance.retainedBytes` and `peakOwnedBufferBytes` preserve their
+session-ledger/statistical meaning. A separate package-only
+`retainedPayloadByteCount()` composes Evaluation's immutable provenance payload
+with the actual-capacity source-scalar buffer and its UTF-8 instance/parameter
+names. Temperature/profile/condition IDs and value headers remain inline. Shared
+source, compiled snapshot, invocation graph, evaluator caches and diagnostic
+buffers are not retained by this provenance value and do not enter its payload
+capacity. Checked arithmetic refuses overflow; measurement does not allocate.
+
+The active frontend owner continues to admit all compilation/evaluation storage.
+A longer-lived caller admits this result's header and dynamic payload before
+publishing the independent retained value. `ImmutableProvenanceStorageTests`
+verifies exact dynamic payload, source text/array capacity, unchanged evaluation
+facts and diagnostic-budget independence through actual lowering.
+
+
+## Classical and OSDI Model Separation
+Native MOS resolution accepts classical Levels 1/2/3. Legacy BSIM declarations
+fail with the actual model source occurrence and explicit OSDI binding guidance;
+no level/version conversion or classical fallback occurs. The OSDI emitter and
+its caller-supplied exact typed catalog are unchanged by native schema removal.
+
+### Explicit external preparation of original MOS source
+
+`ExternalMOSPreparing` is an opt-in source preparation boundary for an original
+`M` statement. A canonical full-instance-name selection is checked before the
+classic MOS resolver; absent selection preserves its original typed refusal.
+Neither source text nor `.model` type is rewritten to `N` or `.osdi`.
+
+```text
+Original M + scoped declaration programs + concrete invocation
+    -> Lowering-owned lexical candidates and nonescaping scalar/work callbacks
+    -> Explicit IO bin/normalization profile
+    -> Exact OSDIResolvedInstance + source/geometry/Given facts
+    -> Checked source association -> existing OSDI CircuitIR stage
+```
+
+The request retains the original parsed component, exact declaration snapshot and
+invocation graph, effective ordered instance/model overrides, inherited multiplier,
+terminal order and evaluation environment. Candidate ownership is selected once by
+`mosOwningCandidates`; no external profile may replace lexical scope or the shared
+scalar/RNG/budget owner. Scalar addresses are checked against those candidates and
+memoized within this preparation call. Every actual value is retained separately
+from profile claims. Non-escaping callbacks cannot retain the exclusive evaluator.
+
+The explicit profile owns original bin, geometry/scale/width/NF/multiplicity,
+Given and descriptor assignment semantics. Lowering owns association checks,
+finite numeric facts, terminal order, complete selection consumption and storage
+admission. Profile temporary storage uses the caller's source resource accounting;
+its work callback charges the same frontend cancellation/work ledger before each
+candidate/metadata step. Published facts and scalar trace capacity are charged to
+the frontend before publication. Failure poisons the run and publishes no circuit.
+
+`LoweredCircuit.externalMOSPreparations` retains the checked source association,
+actual evaluated scalar trace and typed preparation result. It is preparation
+provenance, not proof of foreign setup, numerical execution, range completeness,
+all roots, flow, history or timing. Model equations and descriptor semantics remain
+external-provider responsibilities. Tests must distinguish source-hook admission
+from actual provider qualification; a test preparer does not qualify a real PDK.
+
+### Exclusive component-template construction buffer
+
+`ParsedNetlistCompiler.compileBody` owns one initially empty local
+`[FrontendComponentTemplate]` while the noncopyable compiler is being consumed by
+`compile`. This buffer is distinct from the caller's parsed-component array. Its
+only mutation is append in the component loop. It is not passed to a callback,
+returned, read through a copied array or placed in a scope during that loop.
+Recursive child compilation uses separate local buffers. The first publication is
+one immutable `FrontendScopeTemplate.components` assignment after the loop and
+child construction; no mutation or reserve of the local buffer follows it.
+
+| Buffer phase | Owner | Reservation contract |
+|---|---|---|
+| Empty through final local append | Consuming noncopyable ParsedNetlistCompiler | Existing MOSStorageBudget.reserveExclusive, with cancellation even on capacity reuse |
+| First scope publication and compiled result | Immutable frontend scope / CompiledNetlist | No further mutation of that backing |
+| Any extracted/shared array, other array or dictionary | Existing caller | Conservative COW reserve remains unchanged |
+
+Only that local component-template buffer may use the frontend's narrowly named
+exclusive helper. The helper delegates to the existing MOSStorageBudget exclusive
+API; it introduces no new work or byte ceiling and does not infer uniqueness for
+other arrays. Growth still preadmits old plus requested capacity, then checks
+actual allocator capacity before append. Refusal/cancellation publishes no compiled
+result; consumed work remains charged. The general reserve path retains its
+conservative full-capacity charge because an input may share backing.
+
+The focused `FrontendExclusiveComponentBufferTests` use the public compile path
+for N and 2N components and measure the same MOSResolutionControlling retained-byte
+charges mapped to source projected-byte work by SPICEFrontendControl. A bound on
+cumulative compile work distinguishes geometric growth from repeated full-capacity
+charging. Exact retained source and expected ordered IR remain required. Additional
+focused ownership tests cover reused capacity, growth peak/refusal/cancellation,
+ledger release and general shared-array COW admission. This contract changes no
+parser, source selection, physical model or IR meaning; other private buffers are
+outside this optimization. The root owns red/green builds and actual full-PEX
+preparation under the unchanged caller quota.
+
+### Exclusive execution-job construction buffer
+
+`NetlistInvocationPlanner` is a noncopyable construction owner consumed by `plan`.
+The only caller constructs it within `NetlistLowering.beginEvaluation` and consumes
+it once. Its initially empty private `[FrontendExecutionJob]` is never extracted or
+copied during recursive `visit`: both the invocation-entry append and component
+append mutate that same private backing. Child visits mutate the same owner in
+depth-first order. After the last append, the scalar-override validation loop only
+reads jobs. The first publication is the immutable `FrontendPlan.jobs` assignment
+in the consuming return; no planner mutation follows publication. The session
+retains the published jobs read-only.
+
+| Phase | Owner | Storage contract |
+|---|---|---|
+| Entry/component append, including nested visits | Noncopyable planner within consuming plan | Narrowly named FrontendStorage.reserveExclusiveJobs delegates to existing reserveExclusive |
+| Final override scan | Same planner | Read-only; no append or reserve |
+| Plan/session publication | Immutable jobs array | No subsequent mutation of its backing |
+
+This exclusivity proof applies only to jobs. Invocation arrays, mapped nodes,
+actuals, dictionaries and all other reservations keep their existing conservative
+COW accounting. Capacity reuse still checks cancellation; growth still admits the
+old-plus-new peak and actual allocator capacity. Refusal/cancellation publishes no
+plan or session, releases construction-owned memory through normal lifetime, and
+does not reset cumulative work. The existing caller-owned outer resource lease
+continues to own source-budget refunds; this component does not add a refund or
+change any quota.
+
+`FrontendExclusiveJobBufferTests` measures the public beginEvaluation N/2N path
+separately from compile, then verifies unchanged retained source and exact ordered
+IR. It also covers both job kinds through nested invocation expansion, reuse and
+growth accounting, peak refusal, prestart/post-admission cancellation, explicit
+owned-capacity release and the unchanged general COW reservation. Central focused
+red/green and full-PEX preparation retain the original caller work/byte ceilings.
+
+### Exclusive circuit-instance construction buffer
+
+`BoundedFrontendNetlist` is a noncopyable construction owner local to
+`NetlistLoweringSession.lower`. Emitters receive only an `inout` borrow. Its private
+`instances` array is initially empty and never extracted, copied into another
+array, captured by a callback, or published while append remains possible.
+`build` consumes the builder, resolves forward branch names, replaces individual
+immutable `Instance` values, and publishes the array once in immutable `CircuitIR`.
+Copying an individual instance in that final loop shares only its immutable nested
+values, not the outer array backing. No builder survives publication.
+
+| Phase | Owner | Admission and publication |
+|---|---|---|
+| Append emitted instances | Private noncopyable builder | Narrow `reserveExclusiveInstances` uses existing `MOSStorageBudget.reserveExclusive` |
+| Resolve forward/deferred branch references | Consuming builder | Indexed replacement only; no outer array copy or append |
+| Published circuit, copied/read circuit values | Immutable `CircuitIR` | No further mutation through the builder; ordinary caller COW semantics remain |
+
+This proof applies only to the outer instance array. Node/branch/reference arrays,
+instance-index dictionaries, scalar memoization and every other generic reservation
+keep conservative COW accounting. Exclusive reuse checks cancellation without
+charging retained capacity again. Growth still preadmits old-plus-new capacity,
+charges actual allocator capacity, preserves peak accounting and consumes work;
+release never refunds cumulative work. The frontend adds no resource owner,
+quota reset or outer lease refund. Failure publishes no circuit and poisons the
+existing evaluation session under its established failure contract.
+
+`FrontendExclusiveInstanceBufferTests` owns the focused checks. N=256/512 helper
+admissions attribute geometric backing-growth work to the exact helper called by
+the production builder. The complete public `beginEvaluation -> lower -> finish`
+path separately measures whole-path work and verifies exact source, ordered
+instances, parameters, ports and immutable result sharing. It does not infer
+linear total lowering work while unrelated conservative reservations remain.
+Further checks cover reused-capacity polling, old-plus-new peak refusal, charged
+work after release, prestart/post-admission cancellation, public no-publication
+failure, unchanged generic shared-array COW, forward controlled-source references
+and source-deferred mutual-inductor references. The parent owns central red/green
+execution and actual full-circuit preparation within the unchanged caller budget.

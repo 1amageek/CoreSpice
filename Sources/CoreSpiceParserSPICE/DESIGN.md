@@ -27,6 +27,46 @@ flowchart LR
 
 ## Contracts and Invariants
 
+### Card symbols and expression operators
+
+Component names, connection nodes, subcircuit ports, model/subcircuit declaration
+names and references, and controlling-source references are card-symbol roles.
+Within one contiguous physical field these roles preserve `#`, `-`, and `/` along
+with existing identifier characters. Expression/value roles retain the existing
+operator tokens: subtraction, division and conditional grammar are unchanged.
+No global lexer identifier expansion or name sanitization is permitted.
+
+The parser consumes the existing located token stream through a single
+role-specific symbol reader. Its original-source span is anchored by the current
+token and the existing monotonic source cursor. It joins only adjacent tokens in
+that physical field; whitespace, assignment punctuation, delimiters and comments
+terminate the field. It does not rescan a card or create another parser/token
+stream. Existing one-token numeric node/suffix interpretation and configured case
+policy are preserved. Invalid numeric tokens remain invalid. The owned path
+pre-admits retained symbol bytes and uses the existing work/cancellation ledger;
+physical locations and immutable original statement byte offsets are unchanged.
+An already validated numeric token retains its full lexical extent, including an
+exponent `+`; its next located token and the physical field boundary delimit that
+extent. This does not admit `+` into generic card names or change numeric meaning.
+`params` and `params:` are section markers only when they occupy the complete
+physical field; a split first identifier cannot turn `params-0` or
+`params/branch#` into a marker. Controlled-card lookahead saves/restores the source
+cursor once around the complete lookahead, advances monotonically between its
+fields, and retains the existing arity decision. Its lexical work is linear in
+the inspected tail; no quota or accounting unit is weakened.
+
+X headers consume every valid symbol until a genuine parameter-section boundary.
+Unexpected punctuation cannot silently terminate node collection and reinterpret
+an earlier partial node as the subcircuit reference. Invalid headers or assignment
+tails throw located diagnostics. Inline comments and continuations keep their
+existing roles. Ordinary and accounted source paths share the same reader.
+
+Verification uses exact original Sky130 dfxtp/buf X lines and physical CTS/pin
+spellings, ordinary/accounted AST and source-coordinate parity, unchanged
+subtraction/division/conditional/numeric-suffix behavior, malformed-X failures,
+case policy, and owned quota/cancellation/refund tests. Finite original-source
+parsing is distinct from later model preparation or whole-cone numerical success.
+
 ### Quoted token spans
 
 The shared lexer owns the interior span of both quote delimiters. Its immutable
@@ -676,20 +716,40 @@ bytes and records the next boundary; intake success does not qualify its models.
 
 ## Designed Diode Source Admission
 
-Status: proposed. [DiodeResolution](../CoreSpiceLowering/DiodeResolution/DESIGN.md)
+Status: implemented in D3. [DiodeResolution](../CoreSpiceLowering/DiodeResolution/DESIGN.md)
 owns source roles; parser grammar must preserve every supplied named assignment
-and reject unsupported trailing positional/flag tokens with a location. Current
-D parsing can consume such tokens without retaining them; fix that grammar path
-before claiming unknown-parameter rejection through the public API. Do not expand
+and rejects unsupported trailing positional/flag tokens with a location. The D3
+public-path proof covers unknown-parameter and dropped-token refusal. Do not expand
 the MOS profile into a general SPICE/diode compatibility promise.
 
-D2 parses one scalar .temp value and refuses trailing temperature sweep values
-instead of discarding them. Expression bootstrap semantics belong to Lowering;
-Parser preserves expressions without evaluating them.
+The parser preserves one scalar `.temp` expression, or an ordered finite literal
+list as `.numericVector`. Mixed expression/literal families fail with a location.
+Lowering owns explicit family member selection and frozen condition identity;
+Parser never chooses or evaluates a member.
 
 ## D3 Change Impact
 
 The [D3 resolution owner](../CoreSpiceLowering/DiodeResolution/DESIGN.md) defines occurrence admission, frozen
-evaluation, immutable result transport and explicit numerical refusal. This layer
-consumes that contract; D4 numerical preparation and D5 downstream adoption remain
-separate. Its affected production path and behavioral tests are verified in D3.
+evaluation and immutable result transport. This layer consumes that contract;
+D4 numerical preparation and D5 API/CLI adoption are separate implemented owners
+linked by the package design. Its own affected path and tests remain the D3 proof.
+
+## S3 Coefficient-Free OSDI Source Profile
+
+```text
+N instance: ordered terminal tokens + final model symbol
+.model symbol OSDI: coefficient-free declaration
+ -> distinct ParsedIR OSDI forms -> explicit external typed instance catalog
+```
+
+`N` requires at least one terminal and a final identifier naming the model.
+Terminals retain their supplied order, including numeric ground names. Every
+source assignment, expression, flag, or other trailing token is refused at its
+source location. `.model <symbol> osdi` accepts no coefficient or level syntax.
+The typed external catalog supplies scoped model and instance assignments and
+explicit previous state. X retains strict subcircuit semantics. Directly
+constructed ParsedIR receives equivalent validation in Lowering.
+
+The frontend regression suite owns actual parse/lower success, retained port
+order, scoped typed parameter transport, missing/mismatched catalog refusal,
+source-coordinate failures and unchanged strict X behavior.

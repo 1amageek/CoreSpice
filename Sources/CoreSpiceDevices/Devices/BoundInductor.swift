@@ -6,7 +6,7 @@ import CoreSpiceIR
 /// AC: impedance `j * omega * L` (stamped via branch equation).
 /// Transient: companion model with equivalent resistance and
 /// history-dependent voltage source.
-public struct BoundInductor: BoundDevice, CurrentInitialConditionDevice, Sendable {
+public struct BoundInductor: BoundDevice, DCPhysicalResidualContributing, TransientPhysicalResidualContributing, TransientPhysicalResidualEnclosureContributing, CurrentInitialConditionDevice, TransientSessionDevice, Sendable {
 
     public let instance: Instance
     private let posNode: Node
@@ -31,6 +31,7 @@ public struct BoundInductor: BoundDevice, CurrentInitialConditionDevice, Sendabl
     public let initialCurrent: Double
 
     private let branch: Branch
+    private let committedDerivative = ReactiveResidualHistory()
 
     /// Whether this inductor has an explicit initial current set.
     public var hasInitialCondition: Bool {
@@ -69,6 +70,86 @@ public struct BoundInductor: BoundDevice, CurrentInitialConditionDevice, Sendabl
         self.stampNB = stampNB
         self.stampBN = stampBN
         self.stampBB = stampBB
+    }
+
+    public func accumulatePhysicalResidual(state: SolutionState, add: (Int, Double) -> Void) throws {
+        guard let branchIdx else { throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "branch", message: "Direct residual requires a bound branch") }
+        let current = try state.checkedBoundValue(at: branchIdx, for: .branchCurrent(branch))
+        if let index = posIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(posNode)) }
+        if let index = negIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(negNode)) }
+        let voltage = try state.checkedVoltage(at: posNode) - state.checkedVoltage(at: negNode)
+        try PhysicalResidualState.validate(current, voltage)
+        if let index = posIdx { add(index, current) }; if let index = negIdx { add(index, -current) }
+        add(branchIdx, voltage)
+    }
+
+    public func accumulateTransientPhysicalResidual(state: SolutionState, integration: IntegrationState, add: (Int, Double) -> Void) throws {
+        guard let branchIdx else { throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "branch", message: "Direct residual requires a bound branch") }
+        let previous = try PhysicalResidualState.previous(state)
+        let current = try state.checkedBoundValue(at: branchIdx, for: .branchCurrent(branch))
+        if let index = posIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(posNode)) }
+        if let index = negIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(negNode)) }
+        let voltage = try state.checkedVoltage(at: posNode) - state.checkedVoltage(at: negNode)
+        let oldVoltage = integration.method == .trapezoidal ? try previous.checkedVoltage(at: posNode) - previous.checkedVoltage(at: negNode) : 0
+        let residual = try voltage - unadjustedOrdinaryDerivative(state: state, integration: integration) + oldVoltage
+        try PhysicalResidualState.validate(current, residual, integration.timeStep)
+        guard integration.timeStep > 0 else { throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "timeStep", message: "Physical equation requires a positive timestep") }
+        if let index = posIdx { add(index, current) }; if let index = negIdx { add(index, -current) }
+        add(branchIdx, residual)
+    }
+
+    public func accumulateTransientPhysicalResidualEnclosure(
+        state: SolutionState, integration: IntegrationState, add: (Int, CompensatedValue, Double) -> Void
+    ) throws {
+        guard let branchIdx else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "branch",
+                message: "Enclosed inductor equation requires a bound branch")
+        }
+        let current = try PhysicalResidualState.current(state, branch: branch, index: branchIdx)
+        let voltage = try PhysicalResidualState.voltageDifference(state, positive: posNode, negative: negNode,
+            positiveIndex: posIdx, negativeIndex: negIdx)
+        let derivative = try unadjustedDerivative(state: state, integration: integration)
+        let adjusted = try integration.method == .trapezoidal
+            ? derivative.subtracting(committedDerivative.snapshot.enclosure) : derivative
+        let residual = try voltage.subtracting(adjusted)
+        if let index = posIdx { add(index, current.center, current.radius) }
+        if let index = negIdx { add(index, current.center.negated(), current.radius) }
+        add(branchIdx, residual.center, residual.radius)
+    }
+
+    private func unadjustedDerivative(state: SolutionState, integration: IntegrationState) throws -> CompensatedEnclosure {
+        guard let branchIdx else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "branch",
+                message: "Enclosed inductor equation requires a bound branch")
+        }
+        let current = try PhysicalResidualState.current(state, branch: branch, index: branchIdx)
+        let previous = try PhysicalResidualState.previous(state)
+        let oldCurrent = try PhysicalResidualState.current(previous, branch: branch, index: branchIdx)
+        return try PhysicalResidualState.derivative(current.subtracting(oldCurrent),
+            coefficient: inductance, integration: integration)
+    }
+
+    public func beginTransientSession(initialState: SolutionState) throws {
+        guard let branchIdx else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "branch",
+                message: "Enclosed inductor equation requires a bound branch")
+        }
+        _ = try PhysicalResidualState.current(initialState, branch: branch, index: branchIdx)
+        _ = try PhysicalResidualState.voltageDifference(initialState, positive: posNode, negative: negNode,
+            positiveIndex: posIdx, negativeIndex: negIdx)
+        try committedDerivative.begin(device: instance.name)
+    }
+
+    public func endTransientSession() { committedDerivative.end() }
+
+    public func commitTransientStep(state: SolutionState, integration: IntegrationState) throws {
+        let derivative = try unadjustedDerivative(state: state, integration: integration)
+        try committedDerivative.update { history in
+            let precise = try integration.method == .trapezoidal
+                ? derivative.subtracting(history.enclosure) : derivative
+            history.center = precise.center
+            history.radius = precise.radius
+        }
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
@@ -171,5 +252,70 @@ public struct BoundInductor: BoundDevice, CurrentInitialConditionDevice, Sendabl
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
         // Linear device always converges.
         .converged
+    }
+}
+
+extension BoundInductor: TransientPhysicalEquationDecomposing, TransientPhysicalEquationEnclosureDecomposing {
+    public var transientPhysicalEquationForm: TransientPhysicalEquationForm { .chargeDifference }
+    public func validateTransientPhysicalEquationDecomposition() throws {
+        guard branchIdx != nil else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "branch",
+                message: "Original inductor decomposition requires a bound branch")
+        }
+        try PhysicalResidualState.validate(inductance)
+    }
+    public func accumulateTransientStaticResidual(state: SolutionState, time: Double,
+        add: (Int, Double) -> Void) throws {
+        try PhysicalResidualState.validate(time)
+        try accumulatePhysicalResidual(state: state, add: add)
+    }
+    public func accumulateTransientPhysicalEquation(state: SolutionState, integration: IntegrationState,
+        add: (Int, TransientPhysicalEquationTerm, Double) -> Void) throws {
+        try validateTransientPhysicalEquationDecomposition()
+        let branchIdx = try decompositionBranchIndex()
+        let difference = try unadjustedOrdinaryDerivative(state: state, integration: integration)
+        try accumulateTransientStaticResidual(state: state, time: integration.currentTime) { add($0, .staticResidual, $1) }
+        add(branchIdx, .chargeDifference, -difference)
+    }
+    private func decompositionBranchIndex() throws -> Int {
+        guard let branchIdx else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "branch",
+                message: "Original inductor decomposition requires a bound branch")
+        }
+        return branchIdx
+    }
+    private func unadjustedOrdinaryDerivative(state: SolutionState, integration: IntegrationState) throws -> Double {
+        let branchIdx = try decompositionBranchIndex()
+        let previous = try PhysicalResidualState.previous(state)
+        let current = try state.checkedBoundValue(at: branchIdx, for: .branchCurrent(branch))
+        let oldCurrent = try previous.checkedBoundValue(at: branchIdx, for: .branchCurrent(branch))
+        let difference = inductance * integration.coefficient * (current - oldCurrent)
+        try PhysicalResidualState.validate(difference, integration.timeStep)
+        guard integration.timeStep > 0 else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "timeStep",
+                message: "Original inductor decomposition requires a positive timestep")
+        }
+        return difference
+    }
+    public func accumulateTransientStaticResidualEnclosure(state: SolutionState, time: Double,
+        add: (Int, CompensatedValue, Double) -> Void) throws {
+        try validateTransientPhysicalEquationDecomposition()
+        let branchIdx = try decompositionBranchIndex()
+        try PhysicalResidualState.validate(time)
+        let current = try PhysicalResidualState.current(state, branch: branch, index: branchIdx)
+        let voltage = try PhysicalResidualState.voltageDifference(state, positive: posNode, negative: negNode,
+            positiveIndex: posIdx, negativeIndex: negIdx)
+        if let posIdx { add(posIdx, current.center, current.radius) }
+        if let negIdx { add(negIdx, current.center.negated(), current.radius) }
+        add(branchIdx, voltage.center, voltage.radius)
+    }
+    public func accumulateTransientPhysicalEquationEnclosure(state: SolutionState, integration: IntegrationState,
+        add: (Int, TransientPhysicalEquationTerm, CompensatedValue, Double) -> Void) throws {
+        let difference = try unadjustedDerivative(state: state, integration: integration)
+        try accumulateTransientStaticResidualEnclosure(state: state, time: integration.currentTime) {
+            add($0, .staticResidual, $1, $2)
+        }
+        let branchIdx = try decompositionBranchIndex()
+        add(branchIdx, .chargeDifference, difference.center.negated(), difference.radius)
     }
 }

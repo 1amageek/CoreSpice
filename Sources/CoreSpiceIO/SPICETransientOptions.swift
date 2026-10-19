@@ -7,7 +7,7 @@ public struct SPICETransientOptions: Sendable {
     public var maxTimeStep: Double?
     public var initialTimeStep: Double?
     public var minTimeStep: Double?
-    public var initialMethod: IntegrationMethod?
+    public var preferredMethod: IntegrationMethod?
     public var lteTolerance: Double?
     public var maxTimeStepReductions: Int?
     public var shrinkFactor: Double?
@@ -18,7 +18,7 @@ public struct SPICETransientOptions: Sendable {
         maxTimeStep: Double? = nil,
         initialTimeStep: Double? = nil,
         minTimeStep: Double? = nil,
-        initialMethod: IntegrationMethod? = nil,
+        preferredMethod: IntegrationMethod? = nil,
         lteTolerance: Double? = nil,
         maxTimeStepReductions: Int? = nil,
         shrinkFactor: Double? = nil,
@@ -28,7 +28,7 @@ public struct SPICETransientOptions: Sendable {
         self.maxTimeStep = maxTimeStep
         self.initialTimeStep = initialTimeStep
         self.minTimeStep = minTimeStep
-        self.initialMethod = initialMethod
+        self.preferredMethod = preferredMethod
         self.lteTolerance = lteTolerance
         self.maxTimeStepReductions = maxTimeStepReductions
         self.shrinkFactor = shrinkFactor

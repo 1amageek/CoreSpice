@@ -17,8 +17,8 @@ and transient history. Non-MOS descriptors own parameter-domain admission. MOS
 descriptors retain registry metadata and refuse raw binding with
 MOSBindingFailure.missingPreparedReceipt. [MOSPreparation](../MOSPreparation/DESIGN.md)
 owns checked resolved-input admission and consuming binding for every MOS release.
-BSIM3/4 and
-foundry temperature/noise fidelity are not provided by this Level 3 model.
+Native BSIM devices are removed; compact models use the separate OSDI adapter.
+Foundry temperature/noise fidelity is not provided by this Level 3 model.
 
 ## Related Designs
 
@@ -28,6 +28,8 @@ foundry temperature/noise fidelity are not provided by this Level 3 model.
 | [IR](../../CoreSpiceIR/DESIGN.md) | depends on | ResolvedDeviceModel, Instance and BehavioralExpression | Separate model provenance and simulation dependencies | Reuse existing value boundaries; do not invent merged provenance |
 | [Lowering](../../CoreSpiceLowering/DESIGN.md) | used by | Model resolution and runtime expression lowering | Prepared numerical input and dependencies | The parser does not implement resistor physics |
 | [Analysis](../../CoreSpiceAnalysis/DESIGN.md) | used by | Checked stamping and noise execution | DC, AC, transient and noise consumers | Device binding does not declare an analysis successful |
+| [ContinuousEquationStructure](../ContinuousEquationStructure/DESIGN.md) | depends on | Complete bound-coordinate support and native R/C/V coefficient bits | Actual prepared-law witnesses | Unknown/custom devices remain unproved; source facts are not jets |
+| [TransientLifecycle](../TransientLifecycle/DESIGN.md) | depends on | Explicit original static/reactive decomposition | Native whole-circuit balance consumes scoped contributions | Preserve independent companion validation and typed capability admission |
 
 ## Architecture
 
@@ -48,6 +50,44 @@ flowchart LR
 ```
 
 ## Contracts and Invariants
+
+### Original transient equation decomposition
+
+The [TransientLifecycle contract](../TransientLifecycle/DESIGN.md#contracts-and-invariants)
+owns the original F / unadjusted alphaDeltaQ capability. R, independent V/I,
+static C, L, BJT, and behavioral charge capacitors reuse their existing physical
+kernels. R/V/I have identically zero Q; static C has identically zero F;
+inductor static KCL carries branch current and its branch equation has F=V and
+Q=-L*I. BJT static F includes intrinsic and series currents; its signed terminal
+Q is formed from the same BE/BC charge kernel. Behavioral charge Q includes the
+retained expression, scale, explicit time, and accepted-coordinate history.
+These trial queries never modify or promote accepted derivative history.
+
+Behavioral differential C retains its original Ccandidate*D(V) operator. Its
+same synchronized accepted history additionally retains the exact accepted C
+evaluated during session initialization/commit. Decomposition emits separate
+Ccandidate*alpha*DeltaV and TR (Caccepted-Ccandidate)*Daccepted terms. Native adds
+the retained previous global F for TR and separately checks the original device
+companion. This correction preserves a changing coefficient without inventing
+Q=C*V or claiming conservative charge. The accepted coordinate, derivative,
+coefficient, time and generation are promoted atomically; rejected queries do not
+write any of them.
+
+| Target | Accepted differential state | Isolation | Read | Publication / release |
+|---|---|---|---|---|
+| Native, WASM, Embedded | `BehavioralCapacitorHistory.State` V/D/optional C/time/generation | One common `Mutex<State>` | Immutable snapshot, evaluation and callbacks outside lock | Validated generation-checked commit; session end closes admission |
+
+The extension adds one optional scalar coefficient per behavioral capacitor,
+without dimension-sized buffers, per-trial arrays, extra locks, or retained
+callback borrows. Native composition accounts for its own dimension-based
+ordinary/paired row buffers before allocation. The device owner uses identical
+stored state and synchronization in all target configurations.
+
+R/V/I/C/L separately provide the paired enclosure capability through their
+existing compensated kernels. BJT and behavioral expressions do not advertise
+paired evaluation. No query allocates dimension-sized storage or invokes an
+external callback while holding a history Mutex. Native composition owns the
+bounded row buffers and acceptance. The ordinary companion remains unchanged.
 
 - Normalized drain/gate/body voltages use polarity +1 for NMOS and -1 for PMOS,
   relative to the effective source; reverse conduction swaps source and drain.
@@ -113,6 +153,27 @@ tests reproduced 56 violations before the implementation change.
 
 This evidence covers the native L3 implementation and analysis consumers on that
 host. It does not qualify BSIM3/4, Metal execution, WASM, or Embedded targets.
+
+## BJT Voltage Limiting
+
+`BoundBJT` owns polarity-normalized BE/BC limiting through `PNJunctionLimiter`.
+Ground is an allowed terminal and has no mutable solution coordinate. With a
+grounded base, emitter and collector corrections are referenced to that fixed
+base. With a grounded collector and a mutable emitter, base and emitter
+corrections use that fixed collector. If both collector and emitter are grounded,
+the mutable base receives a nonzero BE correction when present, otherwise the BC
+correction. Different emission coefficients can make only one junction require
+limiting; neither correction may silently disappear into a ground coordinate.
+The simultaneous admission probe retries until both device rules leave the
+candidate unchanged. Other topologies retain the existing emitter-referenced
+base/collector correction.
+
+The device owns junction rules and terminal mapping; Analysis only probes the
+device through `VoltageLimitingDevice`. This changes no BJT current, Jacobian,
+capacitance, history, or exponential evaluation rule. The NPN/PNP grounded-terminal
+regressions in
+[NewtonVoltageLimitingTests](../../../Tests/CoreSpiceAnalysisTests/NewtonVoltageLimitingTests.swift)
+verify first-iteration candidate admission and actual DC equation residuals.
 
 ## Independent Source Admission
 
@@ -468,29 +529,14 @@ the generic complex current-injection helper uses the opposite injection
 convention and must not be substituted for the source terminal law. Public
 nonlinear resistor AC correlation rejects a reversed stimulus sign.
 
-## Capacitor Model Binding Admission
+## Capacitor Binding Admission
 
-`CapacitorDescriptor.bind` owns the direct IR numerical-admission boundary. An
-`Instance.model` with a mismatched type fails with typed DeviceBindingError; a
-matching capacitor model also fails explicitly until model-backed C numerical
-preparation is implemented. Positive explicit `c` cannot bypass this gate or
-discard model coefficients. The refusal branch carries INCOMPLETE_IMPLEMENTATION.
-
-`Instance.model == nil` retains the existing ideal capacitor companion/stamp path.
-`ModelConsumption.selected` is provenance, not a physical model binding map:
-URC-generated ideal capacitors legitimately retain selected URC evidence while
-model is nil and must continue to bind/stamp. Tests reject same/wrong-type models
-with explicit values and exercise ideal transient stamps with selected URC
-provenance. No model-C physics qualification follows from declaration intake.
-
-## Charge Capacitor Binding Admission
-
-`CapacitorDescriptor.bind` rejects any direct IR capacitor with a `q` parameter
-before reading C or model values. A positive C cannot authorize dropping charge.
-The incomplete charge law is explicit and requires the numerical guarantees in
-[Lowering](../../CoreSpiceLowering/DESIGN.md#charge-capacitor-numerical-admission)
-before admission. Direct IR tests cover Q alone, Q plus C and Q plus a physical
-model. Existing ideal and URC-generated C stamping remains unchanged.
+[Static and Behavioral Capacitor Execution](#static-and-behavioral-capacitor-execution)
+is the numerical authority for ideal/model capacitance and charge/differential C
+expressions. Descriptor admission preserves explicit model/instance roles and
+refuses mismatched model types, mixed Q/C, behavioral-plus-model and unknown or
+mistyped parameters. `ModelConsumption.selected` remains provenance: URC-generated
+ideal capacitors retain URC source evidence without a physical capacitor model.
 
 ## Designed Diode Ownership Transfer
 
@@ -499,3 +545,315 @@ inputs. Their replacement authority is the proposed sibling
 [Diode component](../Diode/DESIGN.md). Move those files with implementation; this
 component will no longer own diode admission or numerical feature policy. The new
 path refuses unsupported features rather than inheriting today's silent acceptance.
+
+## S3 Original DC Residual Contributions
+
+Status: implemented. `DCPhysicalResidualContributing` is the small device-owned
+contract for original physical equations. Existing bound static resistor,
+independent voltage source and independent current source implementations expose
+`accumulatePhysicalResidual(state:add:)` using their actual admitted private
+coefficients and DC values. The resistor computes the voltage difference before
+multiplication, preserving large common-mode cancellation semantics. Source
+waveforms do not replace their DC value. Each contributor checks its bound state
+indices, finite physical quantities and callback row. Runtime expression resistors
+and other devices require their own direct equation implementation before joining
+this profile.
+
+The [OSDI adapter](../../CoreSpiceOSDI/DESIGN.md) refines this protocol for raw
+projected model residuals. The [native owner](../../CoreSpice/NativeExecution/DESIGN.md)
+combines contributions without knowing source parameters, model internals or device
+coefficients. A large-common-mode resistor counterexample distinguishes original
+physical current from independently rounded `G*vp - G*vn` arithmetic.
+
+[DirectDCPhysicalResidualTests](../../../Tests/CoreSpiceOSDINativeTests/DirectDCPhysicalResidualTests.swift)
+verify original resistor arithmetic at large common-mode voltage, source DC/branch
+semantics, shape failures and nonfinite state refusal. Full source-native four-family
+OSDI tests compose those same device-owned contributions with raw model residuals.
+
+## S4 Direct RLCVI Transient Equations
+
+The admitted bound RLCVI devices contribute original DC and transient equations through the
+generic physical-residual protocols. Sources evaluate their admitted waveform at candidate
+time. Capacitors use immutable accepted voltage/current history during trials; only accepted
+commit updates current. Inductors use admitted branch/terminal values and integration history.
+All residual reads validate bound indices, finite values and required previous-state width.
+No host reconstructs physical coefficients from source dictionaries. The initial waveform DC
+value remains its actual value at zero; explicit DC plus waveform syntax keeps its existing
+refusal. Component tests cover direct arithmetic, history and nonfinite failure.
+
+Independent AC sources admit finite magnitude and phase in degrees and stamp the corresponding
+complex excitation. This preserves nonzero imaginary source semantics through source preparation
+and existing AC analysis; direct physical transient/DC evaluation continues using its admitted
+waveform.
+
+### S4D Enclosed RLCVI Equations
+
+The five admitted ideal/static bound devices implement
+`TransientPhysicalResidualEnclosureContributing`. Every state-dependent term is
+read as a checked normalized pair with its exact bound node/branch identity.
+The original equations use `CompensatedEnclosure` operations, retaining their DD
+center and outward arithmetic radius until row accumulation. They never certify
+the rounded ordinary companion equation or project absolute coordinates into
+binary64 intervals before subtraction. The resistor's prepared binary64 G is the
+admitted static coefficient; no source resistance is reconstructed. Sources use
+their existing admitted waveform at the exact selected binary64 endpoint.
+
+```text
+paired current/accepted state + admitted G/C/L/source + paired exact interval
+  -> checked physical equation and DD center / outward radius
+  -> fresh row-enclosure gate
+accepted commit -> reactive derivative center / radius -> next trial
+rejected trial ---------------------------------------> unchanged history
+```
+
+| Device | Enclosed original equation | Accepted derivative history |
+|---|---|---|
+| R | `G * (Vp - Vn)` | None |
+| C | `Iq = k*C*(V - Vprev)/h - (TR ? Iqprev : 0)` | Computed Iq, seeded zero |
+| L | KCL branch I; branch equation `V - Iq`, with `Iq = k*L*(I - Iprev)/h - (TR ? Iqprev : 0)` | Computed Iq, seeded zero; never substitute prior terminal V |
+| V | KCL branch I; `Vp - Vn - waveform(time)` | None |
+| I | Positive/negative terminal waveform current | None |
+
+Here `k` is 1 for BE and 2 for TR. `h` is the represented exact
+`IntegrationState.compensatedTimeStep`, not `integration.coefficient` or the
+rounded high interval. BE ignores and replaces the old derivative; TR subtracts
+the last accepted derivative center and its radius. In particular, an allowed
+nonzero prior L equation residual cannot enter the recurrence as terminal V.
+
+`ReactiveResidualHistory` owns one `Mutex<State>` per bound C/L. State contains
+the ordinary capacitor current, precise derivative center/radius and session
+admission bit. Existing ordinary capacitor stamps/current and ordinary inductor
+stamps/terminal-voltage-history equations retain their arithmetic. Accepted
+commit computes both applicable histories before atomic publication; arithmetic
+failure preserves the prior state. Standalone manual commit remains supported.
+Begin rejects a concurrent session before mutation, validates its bound initial
+state, and seeds both histories to zero for OP and UIC. End clears and releases
+the session. The actual Analysis session lifecycle invokes these methods on all
+exit paths; trials do not publish history. Callbacks run after releasing Mutex.
+
+| Logical state | Native / WASM / Embedded storage | Isolation | Read / mutation | Release |
+|---|---|---|---|---|
+| C ordinary and precise current | Same `ReactiveResidualHistory.State` | Same `Mutex<State>` | Snapshot / accepted commit, begin, end | End clears state; final owner release |
+| L precise derivative voltage | Same `ReactiveResidualHistory.State` | Same `Mutex<State>` | Snapshot / accepted commit, begin, end | End clears state; final owner release |
+| R/V/I law and coefficients | Immutable bound values | Sendable value ownership | Checked paired reads / none | Bound value release |
+
+`CompensatedRLCVIResidualTests` owns binary-exact sub-ULP C/L and R/V/I
+counterexamples, exact interval-low retention, BE/TR recurrence/reset and rejected
+trial isolation, the nonzero prior inductor residual counterexample, finite/map
+refusals, session reset/concurrent admission and callback reentry. Root execution
+records the actual tested platform; common source declarations alone do not
+qualify WASM/Embedded synchronization runtime semantics. Numerical-state
+arithmetic changes require rechecking these equations and the Analysis/native
+enclosure gate; device history changes require rechecking their actual session
+initialization and accepted commit callers.
+
+### Enclosed Original DC RVI Equations
+
+`DCPhysicalResidualEnclosureContributing` exposes device-owned original DC equations
+at checked paired coordinates. Static R and independent V/I implement this contract;
+it does not infer a physical law from an assembled matrix. `sourceScale` must be finite
+and within `[0, 1]`, including recovery stages and the final unscaled equation. Invalid
+scales fail with `DeviceBindingError` before emitting any contribution. R ignores a
+valid scale and consumes its admitted prepared conductance. V/I multiply their admitted
+DC value by the scale with enclosed arithmetic, retaining the product's low component
+and outward radius. The source value is never replaced with a transient waveform.
+
+```text
+paired state + prepared G / admitted DC source + checked source scale
+  -> device-owned original DC law -> signed DD center / outward radius
+transient candidate time -> waveform value -> same source equation helper
+```
+
+V contributes checked branch current to KCL and `Vp - Vn - scaledDC` to its branch
+row. I preserves positive-to-negative SPICE current orientation. R shares its DC
+enclosure with transient; V/I share equation helpers while transient evaluates the
+waveform at the selected endpoint. All values are immutable and retain the existing
+common-target Sendable ownership without new shared state or conditional isolation.
+
+[CompensatedDCRVIResidualTests](../../../Tests/CoreSpiceDevicesTests/CompensatedDCRVIResidualTests.swift)
+owns low-component nearshort R current, paired V branch/terminal equations, exact
+scaled-product retention, valid/invalid scales, malformed state and transient waveform
+separation. NumericalState arithmetic changes require rechecking these fixtures and
+the consuming Analysis DC enclosure gate. This device contract does not declare an
+analysis converged or qualify unexecuted platforms.
+
+Static resistor flicker noise consumes the same prepared current law at the complete
+operating-point pair. When low components are present, terminal subtraction and
+conductance multiplication precede the final binary64 current projection used by
+the existing PSD formula. Ordinary states retain their existing arithmetic. Checked
+paired reads and arithmetic failures propagate; projection cannot silently discard
+a sub-ULP terminal difference before the nearshort conductance is applied.
+`StaticResistorTests.pairedNearshortCurrentReachesFlickerNoise` compares the actual
+noise contribution with the analytic nonzero current and an ordinary-state equivalent;
+`pairedFlickerNoiseRejectsInvalidStateAndOverflow` owns invalid-pair and overflow refusal.
+
+## Ideal Capacitor Multiplicity
+
+The default ideal capacitor path admits finite `c`, `ic`, and `m` values;
+`c` and `m` are positive. Its expanded static/profile admission is owned by
+[Static and Behavioral Capacitor Execution](#static-and-behavioral-capacitor-execution). Multiplicity denotes parallel identical devices, so
+`Ctotal = c*m` must remain finite and positive, and every AC, charge/residual,
+transient companion and accepted history consumes that same prepared total.
+Initial voltage is a voltage and is not multiplied. Invalid types, unknown
+parameters and underflow/overflow fail before a bound device is published.
+The capacitor has one existing synchronized history owner on every target; this
+change adds no mutable state or target-specific synchronization.
+Focused multiplicity tests independently reconstruct AC admittance and BE/trap
+currents; public source tests verify `m` survives lowering into actual execution.
+
+## BJT Physical Parameter Ownership
+
+RL1 replaces the legacy approximate BJT transport/Early and variable-capacitance
+companion with the pinned SPICE3 low-injection Gummel–Poon subset. The authority is
+ngspice46 `ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6`, `bjtload.c` and `bjtnoise.c`.
+This is an intentional numerical behavior correction, not an assertion that the
+previous tests qualified the original physical law. No high-injection, leakage,
+substrate, excess-phase or additional model parameter is admitted by this change.
+
+| Owner | Contract |
+|---|---|
+| Descriptor | Strict finite admitted parameters; model values then explicit instance overrides; model type must match polarity |
+| Frontend | Private nodes for nonzero `rc`, `rb`, `re`, in collector/base/emitter order; storage/count budget before append |
+| Binding | Exact private-node count, complete nonmutating claim validation, complete bound construction, final nonthrowing claim commit |
+| Bound model | Intrinsic normalized junction voltages; physical terminal current, charge, full analytic derivatives; polarity maps current/charge signs |
+| Series elements | Constant positive resistance from external to intrinsic terminal; identical DC/AC/transient conductance and `4*k*T/R` thermal-current PSD |
+| History | One Mutex owner for two accepted junction currents and session admission; trials never publish accepted history |
+
+```text
+external C/B/E -> optional rc/rb/re -> intrinsic C/B/E
+    -> normalized Vbe,Vbc -> I,Q,dI/dV,dQ/dV
+    -> DC / G+jωC / BE or trapezoidal ΔQ companion
+    -> accepted-step-only current commit
+```
+
+For normalized voltages `u=Vbe`, `v=Vbc`, define junction currents `F` and `R`
+from the SPICE exponential and its continuous deep-reverse continuation below
+`-3*n*Vt`. Define `a=1-v/VAF-u/VAR`, which must be finite and positive.
+Transport is `(F-R)*a`; `Ic=(F-R)*a-R/BR`,
+`Ib=F/BF+R/BR` and `Ie=-Ic-Ib`. All matrix entries differentiate
+these exact currents. Numerical gmin is owned by analysis continuation and is
+zero in the final original physical equation and oracle fixture.
+`Qbe=Qdepl(u)+TF*F*a` for `u>0`; the original reference uses `TF*F` for
+`u<=0`. `Qbc=Qdepl(v)+TR*R`. Depletion charge is integrated analytically;
+at `FC=.5`, its quadratic continuation has capacitance slope
+`2*M*C_half/Vj`. The BE diffusion cross derivative enters the full charge matrix.
+The zero-voltage TF branch uses the reference branch's own derivative.
+
+Transient current is `coefficient*(Qnew-Qaccepted)-Iaccepted` for trapezoidal,
+and omits `Iaccepted` for BE. Previous solution width/finite state, positive
+finite timestep, finite currents/charges/derivatives and valid base-width domain
+are checked with typed failure. Accepted currents change atomically only after
+complete evaluation. A fresh session resets currents; concurrent session begin
+fails before mutation and shutdown releases that admission. Ground and voltage
+limiting use intrinsic nodes; series resistances never alter junction law.
+
+Native, WASM and Embedded share identical immutable parameters and the same
+`Mutex` history owner/read/update/session boundaries. There is no target-specific
+raw mutable storage, conditional conformance, unchecked Sendable or unsafe pointer.
+Native runtime evidence does not qualify an unexecuted target.
+
+### BJT Temperature Preparation
+
+`BJTTemperaturePreparation` implements the pinned `bjttemp.c` default `TLEV=0`,
+`TLEVC=0` law with fixed unexposed defaults `EG=1.11 eV`, `XTI=3`, `XTB=0`,
+reference temperature 300.15 K, unit area and zero temperature coefficients.
+Model nominal temperature is explicit instance `tnom/tnom_k`, then model nominal,
+then circuit nominal. Same-source aliases must agree. Saturation current uses
+`Is(T)=Is(Tnom)*exp((T/Tnom-1)*EG/Vt + XTI*log(T/Tnom))`; forward/reverse share it.
+The original silicon bandgap/potential correction and grading-dependent depletion
+capacitance correction are applied separately to BE and BC. Beta, series R,
+transit times, emission coefficients and Early voltages remain unchanged under
+those fixed reference defaults. Thermal noise uses actual temperature. Derived
+nonpositive potentials/capacitance factors, underflow/overflow, nonfinite thermal
+voltage or derived conductance fail preparation instead of substituting defaults.
+This does not admit user-supplied EG/XTI/XTB or alternative temperature levels.
+
+Pinned BJT shot PSDs use the absolute intrinsic DC collector/base terminal
+currents, with the reference's numerical gmin set to zero, at collector/emitter
+and base/emitter intrinsic connections. Thermal PSDs attach to each physical
+series resistor; no series source is silently discarded.
+
+## Static and Behavioral Capacitor Execution
+
+RL1 completes two distinct capacitor responsibilities using pinned ngspice46
+`ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6` capacitor setup/temperature/parameter
+sources and `inpcom.c`'s behavioral C/Q rewrite. Parse success is separate from
+numerical admission. Selected model maps remain separate from instance maps.
+
+| Mode | Original equation | Linearization and accepted history |
+|---|---|---|
+| Static model or ideal | `Q=Ctotal*V` | Existing linear capacitor owner, total C in every path |
+| Charge expression | `I=d(scale*Qexpression)/dt` | Full node/branch gradient; BE/TR charge difference and accepted physical current |
+| Differential C expression | `I=scale*Cexpression*D(V)` | `C*gradient(D)+D*gradient(C)`; accepted unit-voltage derivative, not accepted physical current |
+
+C(state,time) is not silently reinterpreted as `Q=C*V`. General control-node
+C expressions need not have a path-independent scalar charge. At static bias
+`D(V)=0`, so AC C mode is the terminal differential admittance `jω*scale*C(OP)`;
+Q mode is `jω*scale*gradient(Q)`. Explicit-time expressions are transient-only;
+AC and finite pole-zero analyses report typed unsupported capability.
+
+Static preparation admits instance `c/ic/m/l/w/scale/temp/dtemp/tc1/tc2`; model
+`cap/cj/cox/cjsw/capsw/defw/w/narrow/short/del/di/thick/tnom` and `tc1/tc2`.
+Aliases within a role must agree. Explicit instance c wins over model cap; model
+cap wins over geometry. Geometry uses `(W-narrow)*(L-short)*cj` plus perimeter
+`2*((W-narrow)+(L-short))*cjsw`. Width defaults to model defw/w or 10um; length
+is source instance l or zero, matching original setup. Explicit del supplies
+2*del only for absent individual narrow/short. Without supplied cj/cox, positive
+thickness gives dielectric*eps0/thick, with original SiO2 permittivity when di
+is absent. Model defl/l is not consumed by the pinned runtime and is explicitly
+outside this implemented profile; no meaningless successful admission is added.
+Geometry is validated only when it determines C. Supplied unknown fields fail.
+
+Static C is multiplied by positive finite instance scale, m and temperature
+factor `1+tc1*ΔT+tc2*ΔT²`. Model nominal temperature defaults to circuit nominal;
+instance coefficients independently override model coefficients. Explicit absolute
+instance Celsius temp wins over dtemp; otherwise actual ambient plus dtemp is
+used. Source document scale applies to supplied instance l/w in lowering, not
+model defaults or instance capacitance scale. All effective/derived values must
+remain finite and in the positive passive domain. IC is a voltage, never scaled.
+
+Behavioral modes admit expression c or q exclusively, ic, m, tc/tc1 and tc2.
+The source grammar keeps its existing Q-only form; direct typed IR supports the
+same numerical law with explicit scalar settings. The pinned behavioral rewrite
+uses `scale=m/(1+tc1*(T-300.15)+tc2*(T-300.15)^2)` independently of static model
+nominal. Behavioral expressions with a model fail explicitly instead of discarding
+it. Canonical ASTs, complete dependency remapping and bounded node/depth/dependency/
+per-stamp work are admitted before evaluator/CSR preparation. Runtime C must be
+positive; Q may be signed. Evaluation/domain/nonfinite/history failure is typed.
+
+One Mutex owner retains active-session admission, initial/accepted scalar charge
+or terminal voltage, accepted derivative, and accepted time. Session begin checks
+all inputs before acquiring admission; concurrent begin fails before mutation.
+Candidate stamping reads an immutable snapshot. Commit reevaluates the complete
+accepted candidate and publishes exactly once after successful finite validation;
+a failed/rejected trial cannot alter history. End releases admission. External
+callbacks, AST evaluation, I/O and await run outside that lock. Native/WASM/Embedded
+use this same owner and access contract, without conditional raw state/conformance.
+Initial voltage is exposed through VoltageInitialConditionDevice; explicit zero
+is preserved as an initial condition. Time/shape/step mismatch fails before commit.
+
+Focused tests must reject `d(CV)/dt` by using nonlinear differential C, compare Q
+with an independent nonlinear antiderivative and finite differences, cover extra
+control nodes, m/temp, BE/TR rejected trials, zero IC, concurrency/session reset,
+static model geometry/temperature/precedence and source solver execution.
+
+### Pinned BJT Compatibility Constants
+
+All BJT physical/temperature/noise references are from the same ngspice46 commit
+`ebdaf58ec76a06ffaac7e0f138360dd1cf5ee4b6`: `bjtload.c`, `bjttemp.c`,
+`bjtsetup.c`, `bjtnoise.c` and `src/include/ngspice/const.h`. This is the
+low-injection GP subset at that revision, not bitwise SPICE3f5 qualification.
+BJT-only thermal/temperature/noise calculations use its declared
+`k=1.38064852e-23 J/K` and `q=1.6021766208e-19 C`; global constants and other
+device families are unchanged. This intentionally replaces the previous BJT SI
+constant convention to permit strict independently frozen reference comparison.
+
+CapacitorDescriptor publishes immutable static-instance, static-model and common
+behavioral-instance parameter-name sets as the single admission-profile authority.
+Both numerical preparers and IO coverage consume those same sets; coverage does
+not reproduce physical formulas, precedence or numerical validation.
+
+The selected source BJT profile is absent/level-1 GP only. Other parsed BJT
+levels fail in frontend admission before level metadata could be lost; capacitor
+models admit no level selector. Neither level selection nor numerical physics is
+inferred from declaration parsing alone.

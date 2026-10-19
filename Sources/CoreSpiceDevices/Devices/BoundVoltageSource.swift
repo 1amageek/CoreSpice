@@ -1,16 +1,18 @@
 import CoreSpiceIR
+import Foundation
 
 /// A voltage source bound to specific circuit nodes and a branch variable.
 ///
 /// The voltage source imposes `V(pos) - V(neg) = V` and introduces
 /// a branch current variable into the MNA system.
-public struct BoundVoltageSource: BoundDevice, Sendable {
+public struct BoundVoltageSource: BoundDevice, TransientPhysicalResidualContributing, TransientPhysicalResidualEnclosureContributing, DCPhysicalResidualContributing, DCPhysicalResidualEnclosureContributing, Sendable {
 
     public let instance: Instance
     private let posNode: Node
     private let negNode: Node
     private let dcVoltage: Double
     private let acMagnitude: Double
+    private let acPhaseDegrees: Double
     private let waveform: Waveform
     private let branch: Branch
 
@@ -31,6 +33,7 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
         negNode: Node,
         dcVoltage: Double,
         acMagnitude: Double,
+        acPhaseDegrees: Double = 0,
         waveform: Waveform,
         branch: Branch,
         posIdx: Int? = nil,
@@ -46,6 +49,7 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
         self.negNode = negNode
         self.dcVoltage = dcVoltage
         self.acMagnitude = acMagnitude
+        self.acPhaseDegrees = acPhaseDegrees.truncatingRemainder(dividingBy: 360)
         self.waveform = waveform
         self.branch = branch
         self.posIdx = posIdx
@@ -55,6 +59,63 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
         self.stampBP = stampBP
         self.stampNB = stampNB
         self.stampBN = stampBN
+    }
+
+    public func accumulatePhysicalResidual(state: SolutionState, add: (Int, Double) -> Void) throws {
+        if let index = posIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(posNode)) }
+        if let index = negIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(negNode)) }
+        guard let branchIdx else { throw DeviceBindingError.invalidParameterValue(device: instance.name,
+            parameter: "branch", message: "Direct DC residual requires a bound branch") }
+        let current = try state.checkedBoundValue(at: branchIdx, for: .branchCurrent(branch))
+        let residual = try state.checkedVoltage(at: posNode) - state.checkedVoltage(at: negNode) - dcVoltage
+        guard current.isFinite, residual.isFinite else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name,
+                parameter: "dcResidual", message: "Physical DC source equation is nonfinite")
+        }
+        if let index = posIdx { add(index, current) }
+        if let index = negIdx { add(index, -current) }
+        add(branchIdx, residual)
+    }
+
+    public func accumulateTransientPhysicalResidual(state: SolutionState, integration: IntegrationState, add: (Int, Double) -> Void) throws {
+        try accumulateStaticSourceResidual(state: state, time: integration.currentTime, add: add)
+    }
+
+    public func accumulateTransientPhysicalResidualEnclosure(
+        state: SolutionState, integration: IntegrationState, add: (Int, CompensatedValue, Double) -> Void
+    ) throws {
+        try PhysicalResidualState.validate(integration.currentTime)
+        try accumulateResidualEnclosure(state: state,
+            voltage: PhysicalResidualState.scalar(waveform.value(at: integration.currentTime)), add: add)
+    }
+
+    public func accumulatePhysicalResidualEnclosure(
+        state: SolutionState, sourceScale: Double, add: (Int, CompensatedValue, Double) -> Void
+    ) throws {
+        guard sourceScale.isFinite, (0...1).contains(sourceScale) else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "sourceScale",
+                message: "DC source scale must be finite and within zero and one")
+        }
+        let voltage = try PhysicalResidualState.scalar(dcVoltage)
+            .multiplied(by: PhysicalResidualState.scalar(sourceScale))
+        try accumulateResidualEnclosure(state: state, voltage: voltage, add: add)
+    }
+
+    private func accumulateResidualEnclosure(
+        state: SolutionState, voltage excitation: CompensatedEnclosure,
+        add: (Int, CompensatedValue, Double) -> Void
+    ) throws {
+        guard let branchIdx else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "branch",
+                message: "Enclosed source equation requires a bound branch")
+        }
+        let current = try PhysicalResidualState.current(state, branch: branch, index: branchIdx)
+        let voltage = try PhysicalResidualState.voltageDifference(state, positive: posNode, negative: negNode,
+            positiveIndex: posIdx, negativeIndex: negIdx)
+        let residual = try voltage.subtracting(excitation)
+        if let index = posIdx { add(index, current.center, current.radius) }
+        if let index = negIdx { add(index, current.center.negated(), current.radius) }
+        add(branchIdx, residual.center, residual.radius)
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
@@ -74,7 +135,7 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
         // the AC stimulus magnitude as a real-valued RHS.
         stamper.stampVoltageSource(
             posNode: posNode, negNode: negNode, branch: branch,
-            real: acMagnitude, imag: 0.0
+            real: acMagnitude * cos(acPhaseDegrees * .pi / 180), imag: acMagnitude * sin(acPhaseDegrees * .pi / 180)
         )
     }
 
@@ -121,5 +182,88 @@ public struct BoundVoltageSource: BoundDevice, Sendable {
         } else {
             stamper.stampVoltageSource(posNode: posNode, negNode: negNode, branch: branch, voltage: scaledVoltage)
         }
+    }
+}
+
+extension BoundVoltageSource: TransientPhysicalEquationDecomposing, TransientPhysicalEquationEnclosureDecomposing {
+    public var transientPhysicalEquationForm: TransientPhysicalEquationForm { .chargeDifference }
+    public func validateTransientPhysicalEquationDecomposition() throws {
+        guard branchIdx != nil else {
+            throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "branch",
+                message: "Original transient source decomposition requires a bound branch")
+        }
+    }
+    private func accumulateStaticSourceResidual(state: SolutionState, time: Double,
+        add: (Int, Double) -> Void) throws {
+        guard let branchIdx else { throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "branch", message: "Direct transient residual requires a bound branch") }
+        let current = try state.checkedBoundValue(at: branchIdx, for: .branchCurrent(branch))
+        if let index = posIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(posNode)) }
+        if let index = negIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(negNode)) }
+        let residual = try state.checkedVoltage(at: posNode) - state.checkedVoltage(at: negNode) - waveform.value(at: time)
+        try PhysicalResidualState.validate(current, residual, time)
+        if let index = posIdx { add(index, current) }; if let index = negIdx { add(index, -current) }
+        add(branchIdx, residual)
+    }
+    public func accumulateTransientStaticResidual(state: SolutionState, time: Double,
+        add: (Int, Double) -> Void) throws {
+        try accumulateStaticSourceResidual(state: state, time: time, add: add)
+    }
+    public func accumulateTransientPhysicalEquation(state: SolutionState, integration: IntegrationState,
+        add: (Int, TransientPhysicalEquationTerm, Double) -> Void) throws {
+        // Ideal source Q is identically zero; F uses the actual transient excitation.
+        try accumulateTransientPhysicalResidual(state: state, integration: integration) { add($0, .staticResidual, $1) }
+    }
+    public func accumulateTransientStaticResidualEnclosure(state: SolutionState, time: Double,
+        add: (Int, CompensatedValue, Double) -> Void) throws {
+        try PhysicalResidualState.validate(time)
+        try accumulateResidualEnclosure(state: state, voltage: PhysicalResidualState.scalar(waveform.value(at: time)), add: add)
+    }
+    public func accumulateTransientPhysicalEquationEnclosure(state: SolutionState, integration: IntegrationState,
+        add: (Int, TransientPhysicalEquationTerm, CompensatedValue, Double) -> Void) throws {
+        try accumulateTransientStaticResidualEnclosure(state: state, time: integration.currentTime) {
+            add($0, .staticResidual, $1, $2)
+        }
+    }
+}
+
+extension BoundVoltageSource: IndependentVoltageSourceFactProviding, ContinuousEquationLinearLawProviding {
+    package func independentVoltageSourceFact() throws -> IndependentVoltageSourceFact {
+        try .init(instance: instance, positiveNode: posNode, negativeNode: negNode, positiveRow: posIdx,
+            negativeRow: negIdx, branch: branch, branchRow: branchIdx, dcVoltage: dcVoltage, waveform: waveform)
+    }
+    package func visitContinuousEquationLinearLaw(checkpoint: () throws -> Void,
+        _ visit: (ContinuousEquationLinearTerm) throws -> Void) throws {
+        try checkpoint()
+        let fact = try independentVoltageSourceFact()
+        try visitContinuousEquationLinearTerm(plane: .staticResidual,
+            equation: .nodeVoltage(posNode), row: fact.positiveRow,
+            coordinate: .branchCurrent(branch), column: fact.branchRow,
+            coefficient: 1, device: instance.name, checkpoint: checkpoint, visit: visit)
+        try visitContinuousEquationLinearTerm(plane: .staticResidual,
+            equation: .branchCurrent(branch), row: fact.branchRow,
+            coordinate: .nodeVoltage(posNode), column: fact.positiveRow,
+            coefficient: 1, device: instance.name, checkpoint: checkpoint, visit: visit)
+        try visitContinuousEquationLinearTerm(plane: .staticResidual,
+            equation: .nodeVoltage(negNode), row: fact.negativeRow,
+            coordinate: .branchCurrent(branch), column: fact.branchRow,
+            coefficient: -1, device: instance.name, checkpoint: checkpoint, visit: visit)
+        try visitContinuousEquationLinearTerm(plane: .staticResidual,
+            equation: .branchCurrent(branch), row: fact.branchRow,
+            coordinate: .nodeVoltage(negNode), column: fact.negativeRow,
+            coefficient: -1, device: instance.name, checkpoint: checkpoint, visit: visit)
+    }
+    package func visitContinuousEquationStructure(checkpoint: () throws -> Void,
+        _ visit: (ContinuousEquationAccess, MNAVariable, Int) throws -> Void
+    ) throws {
+        try checkpoint()
+        let fact = try independentVoltageSourceFact()
+        try visitContinuousEquationNode(posNode, index: posIdx, device: instance.name, access: .readCoordinate, checkpoint: checkpoint, visit: visit)
+        try visitContinuousEquationNode(negNode, index: negIdx, device: instance.name, access: .readCoordinate, checkpoint: checkpoint, visit: visit)
+        try checkpoint()
+        try visit(.readCoordinate, .branchCurrent(fact.branch), fact.branchRow)
+        try visitContinuousEquationNode(posNode, index: posIdx, device: instance.name, access: .writeStaticResidual, checkpoint: checkpoint, visit: visit)
+        try visitContinuousEquationNode(negNode, index: negIdx, device: instance.name, access: .writeStaticResidual, checkpoint: checkpoint, visit: visit)
+        try checkpoint()
+        try visit(.writeStaticResidual, .branchCurrent(fact.branch), fact.branchRow)
     }
 }

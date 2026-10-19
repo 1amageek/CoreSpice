@@ -26,376 +26,221 @@ public struct BJTCSRIndices: Sendable {
     }
 }
 
-/// A Bipolar Junction Transistor bound to circuit nodes.
-///
-/// Implements the Ebers-Moll model with:
-/// - Transport model for collector and emitter currents
-/// - Early effect (base-width modulation)
-/// - Four operating regions: cutoff, forward active, reverse active, saturation
-///
-/// The device is linearised around the current operating point for
-/// Newton-Raphson iteration.
-public struct BoundBJT: BoundDevice, VoltageLimitingDevice, TransientStateCommittingDevice, NoisyDevice, Sendable {
-
+/// A polarity-normalized, low-injection SPICE3 BJT with explicit intrinsic topology.
+public struct BoundBJT: BoundDevice, VoltageLimitingDevice, TransientSessionDevice,
+    DCPhysicalResidualContributing, TransientPhysicalResidualContributing, NoisyDevice, Sendable {
     public let instance: Instance
     private let collector: Node
     private let base: Node
     private let emitter: Node
-    private let parameters: BJTModelParameters
-
-    /// Pre-resolved matrix index for the collector node (nil for ground).
     private let collectorIdx: Int?
-    /// Pre-resolved matrix index for the base node (nil for ground).
     private let baseIdx: Int?
-    /// Pre-resolved matrix index for the emitter node (nil for ground).
     private let emitterIdx: Int?
-
-    /// Pre-resolved CSR value indices for O(1) stamping.
+    private let parameters: BJTModelParameters
     private let csrIndices: BJTCSRIndices
-    private let capacitanceStore: TransientCapacitanceStore
+    private let series: [BJTSeriesElement]
+    private let history = BJTChargeHistory()
+    private var polarity: Double { parameters.polarity == .npn ? 1 : -1 }
 
-    /// Convergence tolerance for terminal voltages (V).
-    private static let voltageTolerance: Double = 1e-6
-
-    /// Maximum exponential argument to prevent overflow.
-    private static let maxExpArg: Double = 40.0
-
-    /// Minimum conductance to ensure matrix non-singularity.
-    private static let gmin: Double = 1e-12
-
-    init(
-        instance: Instance,
-        collector: Node,
-        base: Node,
-        emitter: Node,
-        collectorIdx: Int?,
-        baseIdx: Int?,
-        emitterIdx: Int?,
-        parameters: BJTModelParameters,
-        csrIndices: BJTCSRIndices = BJTCSRIndices()
-    ) {
-        self.instance = instance
-        self.collector = collector
-        self.base = base
-        self.emitter = emitter
-        self.collectorIdx = collectorIdx
-        self.baseIdx = baseIdx
-        self.emitterIdx = emitterIdx
-        self.parameters = parameters
-        self.csrIndices = csrIndices
-        self.capacitanceStore = TransientCapacitanceStore()
+    init(instance: Instance, collector: Node, base: Node, emitter: Node,
+        collectorIdx: Int?, baseIdx: Int?, emitterIdx: Int?, parameters: BJTModelParameters,
+        csrIndices: BJTCSRIndices = BJTCSRIndices(), series: [BJTSeriesElement] = []) {
+        self.instance = instance; self.collector = collector; self.base = base; self.emitter = emitter
+        self.collectorIdx = collectorIdx; self.baseIdx = baseIdx; self.emitterIdx = emitterIdx
+        self.parameters = parameters; self.csrIndices = csrIndices; self.series = series
     }
 
-    // MARK: - Index-Based Voltage Helpers
-
-    /// Returns the voltage at a node using a pre-resolved index, avoiding dictionary lookup.
-    @inline(__always)
-    private func nodeVoltage(_ idx: Int?, state: SolutionState) -> Double {
-        if let idx { return state.value(at: idx) }
-        return 0.0
+    private func voltageVbe(state: SolutionState) -> Double {
+        polarity * ((baseIdx.map { state.value(at: $0) } ?? 0) - (emitterIdx.map { state.value(at: $0) } ?? 0))
     }
-
-    // MARK: - BoundDevice
-
-    public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
-        let op = operatingPoint(state: state)
-        stampLinearized(into: &stamper, op: op, state: state)
+    private func voltageVbc(state: SolutionState) -> Double {
+        polarity * ((baseIdx.map { state.value(at: $0) } ?? 0) - (collectorIdx.map { state.value(at: $0) } ?? 0))
     }
-
-    public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) {
-        let op = operatingPoint(state: state)
-
-        let cIdx = stamper.nodeIndex(collector)
-        let bIdx = stamper.nodeIndex(base)
-        let eIdx = stamper.nodeIndex(emitter)
-
-        // Transconductance gm: dIc/dVbe
-        if op.gm != 0 {
-            if let cIdx, let bIdx {
-                stamper.stampMatrix(cIdx, bIdx, op.gm, 0.0)
-            }
-            if let cIdx, let eIdx {
-                stamper.stampMatrix(cIdx, eIdx, -op.gm, 0.0)
-            }
-            if let eIdx, let bIdx {
-                stamper.stampMatrix(eIdx, bIdx, -op.gm, 0.0)
-            }
-            if let eIdx {
-                stamper.stampMatrix(eIdx, eIdx, op.gm, 0.0)
-            }
+    private func evaluate(_ state: SolutionState) throws -> BJTModelEvaluation {
+        if let collectorIdx { _ = try state.checkedBoundValue(at: collectorIdx, for: .nodeVoltage(collector)) }
+        if let baseIdx { _ = try state.checkedBoundValue(at: baseIdx, for: .nodeVoltage(base)) }
+        if let emitterIdx { _ = try state.checkedBoundValue(at: emitterIdx, for: .nodeVoltage(emitter)) }
+        for element in series {
+            if let index = element.externalIndex { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(element.external)) }
+            let current = element.conductance * (try state.checkedVoltage(at: element.external)
+                - state.checkedVoltage(at: element.intrinsic))
+            guard current.isFinite else { throw invalid("seriesCurrent", "BJT series current must be finite") }
         }
-
-        // Output conductance go: dIc/dVce
-        if op.go != 0 {
-            if let cIdx {
-                stamper.stampMatrix(cIdx, cIdx, op.go, 0.0)
-            }
-            if let eIdx {
-                stamper.stampMatrix(eIdx, eIdx, op.go, 0.0)
-            }
-            if let cIdx, let eIdx {
-                stamper.stampMatrix(cIdx, eIdx, -op.go, 0.0)
-                stamper.stampMatrix(eIdx, cIdx, -op.go, 0.0)
-            }
-        }
-
-        // Input conductance gpi: dIb/dVbe
-        if op.gpi != 0 {
-            if let bIdx {
-                stamper.stampMatrix(bIdx, bIdx, op.gpi, 0.0)
-            }
-            if let eIdx {
-                stamper.stampMatrix(eIdx, eIdx, op.gpi, 0.0)
-            }
-            if let bIdx, let eIdx {
-                stamper.stampMatrix(bIdx, eIdx, -op.gpi, 0.0)
-                stamper.stampMatrix(eIdx, bIdx, -op.gpi, 0.0)
-            }
-        }
-
-        // Base-collector junction conductance gmu: between B and C
-        if op.gmu != 0 {
-            if let bIdx {
-                stamper.stampMatrix(bIdx, bIdx, op.gmu, 0.0)
-            }
-            if let cIdx {
-                stamper.stampMatrix(cIdx, cIdx, op.gmu, 0.0)
-            }
-            if let bIdx, let cIdx {
-                stamper.stampMatrix(bIdx, cIdx, -op.gmu, 0.0)
-                stamper.stampMatrix(cIdx, bIdx, -op.gmu, 0.0)
-            }
-        }
-
-        // Junction capacitance susceptance stamps
-        let caps = bjtCapacitances(state: state)
-        stampACCapacitance(into: &stamper, node1: bIdx, node2: eIdx, cap: caps.cbe, omega: omega)
-        stampACCapacitance(into: &stamper, node1: bIdx, node2: cIdx, cap: caps.cbc, omega: omega)
+        return try BJTModelEvaluation(parameters: parameters, be: voltageVbe(state: state),
+            bc: voltageVbc(state: state), device: instance.name)
     }
 
-    public func stampTransient(
-        into stamper: inout MatrixStamper,
-        state: SolutionState,
-        integration: IntegrationState
-    ) {
-        // DC (quasi-static I-V) part
-        stampDC(into: &stamper, state: state)
-
-        // Junction capacitance companion models
-        let caps = bjtCapacitances(state: state)
-
-        let bIdx = stamper.nodeIndex(base)
-        let eIdx = stamper.nodeIndex(emitter)
-        let cIdx = stamper.nodeIndex(collector)
-
-        // Cbe: between base and emitter
-        capacitanceStore.stamp(
-            key: "cbe",
-            into: &stamper,
-            node1: bIdx,
-            node2: eIdx,
-            capacitance: caps.cbe,
-            state: state,
-            integration: integration
-        )
-
-        // Cbc: between base and collector
-        capacitanceStore.stamp(
-            key: "cbc",
-            into: &stamper,
-            node1: bIdx,
-            node2: cIdx,
-            capacitance: caps.cbc,
-            state: state,
-            integration: integration
-        )
+    public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) throws {
+        let op = try evaluate(state)
+        for element in series { element.stamp(into: &stamper) }
+        try stampCurrentRows(op, state: state, into: &stamper)
     }
 
-    public func commitTransientStep(state: SolutionState, integration: IntegrationState) {
-        let caps = bjtCapacitances(state: state)
-        capacitanceStore.commit(
-            key: "cbe",
-            node1: baseIdx,
-            node2: emitterIdx,
-            capacitance: caps.cbe,
-            state: state,
-            integration: integration
-        )
-        capacitanceStore.commit(
-            key: "cbc",
-            node1: baseIdx,
-            node2: collectorIdx,
-            capacitance: caps.cbc,
-            state: state,
-            integration: integration
-        )
+    private func stampCurrentRows(_ op: BJTModelEvaluation, state: SolutionState, into stamper: inout MatrixStamper) throws {
+        try stampRow(op.collector, row: collectorIdx, csr: (csrIndices.cc, csrIndices.cb, csrIndices.ce), state: state, into: &stamper)
+        try stampRow(op.base, row: baseIdx, csr: (csrIndices.bc, csrIndices.bb, csrIndices.be), state: state, into: &stamper)
+        try stampRow(op.emitter, row: emitterIdx, csr: (csrIndices.ec, csrIndices.eb, csrIndices.ee), state: state, into: &stamper)
     }
 
+    private func stampRow(_ quantity: BJTModelEvaluation.Quantity, row: Int?,
+        csr: (Int?, Int?, Int?), state: SolutionState, scale: Double = 1, into stamper: inout MatrixStamper) throws {
+        guard let row else { return }
+        let c = -scale * quantity.bc, b = scale * (quantity.be + quantity.bc), e = -scale * quantity.be
+        let equivalent = scale * polarity * (quantity.be * voltageVbe(state: state)
+            + quantity.bc * voltageVbc(state: state) - quantity.value)
+        guard c.isFinite, b.isFinite, e.isFinite, equivalent.isFinite else {
+            throw invalid("linearization", "BJT linearized current and Jacobian must be finite")
+        }
+        if let sv = stamper.stampValue, csr.0 != nil || csr.1 != nil || csr.2 != nil {
+            if let index = csr.0 { sv(index, c) }; if let index = csr.1 { sv(index, b) }; if let index = csr.2 { sv(index, e) }
+        } else {
+            if let collectorIdx { stamper.stampMatrix(row, collectorIdx, c) }
+            if let baseIdx { stamper.stampMatrix(row, baseIdx, b) }
+            if let emitterIdx { stamper.stampMatrix(row, emitterIdx, e) }
+        }
+        stamper.stampRHS(row, equivalent)
+    }
+
+    public func stampAC(into stamper: inout ComplexMatrixStamper, state: SolutionState, omega: Double) throws {
+        guard omega.isFinite else { throw invalid("omega", "BJT frequency must be finite") }
+        let op = try evaluate(state)
+        for element in series { stamper.stampAdmittance(node1: element.external, node2: element.intrinsic,
+            real: element.conductance, imag: 0) }
+        try stampACRow(op.collector, row: collectorIdx, imaginary: false, scale: 1, into: &stamper)
+        try stampACRow(op.base, row: baseIdx, imaginary: false, scale: 1, into: &stamper)
+        try stampACRow(op.emitter, row: emitterIdx, imaginary: false, scale: 1, into: &stamper)
+        try stampACRow(op.beCharge, row: baseIdx, imaginary: true, scale: omega, into: &stamper)
+        try stampACRow(op.beCharge, row: emitterIdx, imaginary: true, scale: -omega, into: &stamper)
+        try stampACRow(op.bcCharge, row: baseIdx, imaginary: true, scale: omega, into: &stamper)
+        try stampACRow(op.bcCharge, row: collectorIdx, imaginary: true, scale: -omega, into: &stamper)
+    }
+
+    private func stampACRow(_ quantity: BJTModelEvaluation.Quantity, row: Int?, imaginary: Bool,
+        scale: Double, into stamper: inout ComplexMatrixStamper) throws {
+        guard let row else { return }
+        func stamp(_ column: Int?, _ value: Double) throws {
+            guard value.isFinite else { throw invalid("admittance", "BJT admittance must be finite") }
+            guard let column else { return }
+            stamper.stampMatrix(row, column, imaginary ? 0 : value, imaginary ? value : 0)
+        }
+        try stamp(collectorIdx, -scale * quantity.bc)
+        try stamp(baseIdx, scale * (quantity.be + quantity.bc))
+        try stamp(emitterIdx, -scale * quantity.be)
+    }
+
+    public func stampTransient(into stamper: inout MatrixStamper, state: SolutionState,
+        integration: IntegrationState) throws {
+        let op = try evaluate(state), previous = try evaluate(state.checkedPreviousSnapshot())
+        try validate(integration)
+        let stored = history.snapshot
+        let be = chargeCurrent(op.beCharge, old: previous.beCharge, accepted: stored.beCurrent, integration: integration)
+        let bc = chargeCurrent(op.bcCharge, old: previous.bcCharge, accepted: stored.bcCurrent, integration: integration)
+        try validate(be); try validate(bc)
+        for element in series { element.stamp(into: &stamper) }
+        try stampCurrentRows(op, state: state, into: &stamper)
+        try stampRow(be, row: baseIdx, csr: (csrIndices.bc, csrIndices.bb, csrIndices.be), state: state, into: &stamper)
+        try stampRow(be, row: emitterIdx, csr: (csrIndices.ec, csrIndices.eb, csrIndices.ee), state: state, scale: -1, into: &stamper)
+        try stampRow(bc, row: baseIdx, csr: (csrIndices.bc, csrIndices.bb, csrIndices.be), state: state, into: &stamper)
+        try stampRow(bc, row: collectorIdx, csr: (csrIndices.cc, csrIndices.cb, csrIndices.ce), state: state, scale: -1, into: &stamper)
+    }
+
+    private func chargeCurrent(_ charge: BJTModelEvaluation.Quantity, old: BJTModelEvaluation.Quantity,
+        accepted: Double, integration: IntegrationState) -> BJTModelEvaluation.Quantity {
+        let difference = chargeDifference(charge, old: old, integration: integration)
+        return .init(value: difference.value - (integration.method == .trapezoidal ? accepted : 0),
+            be: difference.be, bc: difference.bc)
+    }
+    private func chargeDifference(_ charge: BJTModelEvaluation.Quantity, old: BJTModelEvaluation.Quantity,
+        integration: IntegrationState) -> BJTModelEvaluation.Quantity {
+        .init(value: integration.coefficient * (charge.value - old.value),
+            be: integration.coefficient * charge.be, bc: integration.coefficient * charge.bc)
+    }
+    private func validate(_ integration: IntegrationState) throws {
+        guard integration.timeStep.isFinite, integration.timeStep > 0, integration.coefficient.isFinite else {
+            throw invalid("timeStep", "BJT charge integration requires a finite positive timestep and coefficient")
+        }
+    }
+    private func validate(_ value: BJTModelEvaluation.Quantity) throws {
+        guard value.value.isFinite, value.be.isFinite, value.bc.isFinite else {
+            throw invalid("chargeCurrent", "BJT integrated charge and derivatives must be finite")
+        }
+    }
+    private func invalid(_ parameter: String, _ message: String) -> DeviceBindingError {
+        .invalidParameterValue(device: instance.name, parameter: parameter, message: message)
+    }
+
+    public func beginTransientSession(initialState: SolutionState) throws {
+        _ = try evaluate(initialState)
+        try history.begin(device: instance.name)
+    }
+    public func endTransientSession() { history.end() }
+    public func commitTransientStep(state: SolutionState, integration: IntegrationState) throws {
+        let generation = history.snapshot.generation
+        let op = try evaluate(state), previous = try evaluate(state.checkedPreviousSnapshot())
+        try validate(integration)
+        try history.update(expectedGeneration: generation, device: instance.name) {
+            let be = chargeCurrent(op.beCharge, old: previous.beCharge, accepted: $0.beCurrent, integration: integration)
+            let bc = chargeCurrent(op.bcCharge, old: previous.bcCharge, accepted: $0.bcCurrent, integration: integration)
+            try validate(be); try validate(bc)
+            $0.beCurrent = be.value; $0.bcCurrent = bc.value
+        }
+    }
+
+    public func accumulatePhysicalResidual(state: SolutionState, add: (Int, Double) -> Void) throws {
+        let op = try evaluate(state)
+        try accumulateStaticResidual(op, state: state, add: add)
+    }
+    private func accumulateStaticResidual(_ op: BJTModelEvaluation, state: SolutionState,
+        add: (Int, Double) -> Void) throws {
+        if let collectorIdx { add(collectorIdx, polarity * op.collector.value) }
+        if let baseIdx { add(baseIdx, polarity * op.base.value) }
+        if let emitterIdx { add(emitterIdx, polarity * op.emitter.value) }
+        for element in series {
+            let external = try state.checkedVoltage(at: element.external)
+            let intrinsic = try state.checkedVoltage(at: element.intrinsic)
+            let current = element.conductance * (external - intrinsic)
+            guard current.isFinite else { throw invalid("seriesCurrent", "BJT series current must be finite") }
+            if let index = element.externalIndex { add(index, current) }
+            add(element.intrinsicIndex, -current)
+        }
+    }
+    public func accumulateTransientPhysicalResidual(state: SolutionState, integration: IntegrationState,
+        add: (Int, Double) -> Void) throws {
+        let op = try evaluate(state), previous = try evaluate(state.checkedPreviousSnapshot())
+        try validate(integration)
+        let stored = history.snapshot
+        let be = chargeCurrent(op.beCharge, old: previous.beCharge, accepted: stored.beCurrent, integration: integration)
+        let bc = chargeCurrent(op.bcCharge, old: previous.bcCharge, accepted: stored.bcCurrent, integration: integration)
+        try validate(be); try validate(bc)
+        try accumulatePhysicalResidual(state: state, add: add)
+        if let baseIdx { add(baseIdx, polarity * (be.value + bc.value)) }
+        if let emitterIdx { add(emitterIdx, -polarity * be.value) }
+        if let collectorIdx { add(collectorIdx, -polarity * bc.value) }
+    }
     public func checkConvergence(state: SolutionState, previousState: SolutionState) -> ConvergenceResult {
-        let vbeNew = voltageVbe(state: state)
-        let vbeOld = voltageVbe(state: previousState)
-        let vbcNew = voltageVbc(state: state)
-        let vbcOld = voltageVbc(state: previousState)
-
-        let deltaVbe = abs(vbeNew - vbeOld)
-        let deltaVbc = abs(vbcNew - vbcOld)
-        let maxDelta = max(deltaVbe, deltaVbc)
-
-        if maxDelta < Self.voltageTolerance {
-            return .converged
-        }
-        return .notConverged(maxDelta: maxDelta, deviceName: instance.name)
+        let delta = max(abs(voltageVbe(state: state) - voltageVbe(state: previousState)),
+            abs(voltageVbc(state: state) - voltageVbc(state: previousState)))
+        return delta < 1e-6 ? .converged : .notConverged(maxDelta: delta, deviceName: instance.name)
     }
-
-    public func noiseContributions(state: SolutionState, frequency: Double) -> [NoiseSource] {
-        let op = operatingPoint(state: state)
-        let q = 1.602176634e-19
+    public func noiseContributions(state: SolutionState, frequency: Double) throws -> [NoiseSource] {
+        guard frequency.isFinite, frequency > 0 else { throw invalid("frequency", "BJT noise frequency must be finite and positive") }
+        let op = try evaluate(state)
         var sources: [NoiseSource] = []
-        let collectorShot = 2.0 * q * abs(op.ic)
-        if collectorShot > 0 {
-            sources.append(NoiseSource(
-                name: "\(instance.name)_collector_shot",
-                positiveNode: collector,
-                negativeNode: emitter,
-                currentSpectralDensity: collectorShot
-            ))
-        }
-        let baseShot = 2.0 * q * abs(op.ib)
-        if baseShot > 0 {
-            sources.append(NoiseSource(
-                name: "\(instance.name)_base_shot",
-                positiveNode: base,
-                negativeNode: emitter,
-                currentSpectralDensity: baseShot
-            ))
+        let collectorShot = 2 * 1.6021766208e-19 * abs(op.collector.value)
+        let baseShot = 2 * 1.6021766208e-19 * abs(op.base.value)
+        if collectorShot > 0 { sources.append(NoiseSource(name: "\(instance.name)_collector_shot",
+            positiveNode: collector, negativeNode: emitter, currentSpectralDensity: collectorShot)) }
+        if baseShot > 0 { sources.append(NoiseSource(name: "\(instance.name)_base_shot",
+            positiveNode: base, negativeNode: emitter, currentSpectralDensity: baseShot)) }
+        for (offset, element) in series.enumerated() {
+            let density = 4 * 1.38064852e-23 * parameters.operatingTemperature * element.conductance
+            guard density.isFinite else { throw invalid("thermalNoise", "BJT thermal noise must be finite") }
+            sources.append(NoiseSource(name: "\(instance.name)_series_\(offset)_thermal",
+                positiveNode: element.external, negativeNode: element.intrinsic, currentSpectralDensity: density))
         }
         return sources
     }
 
-    // MARK: - Internal Model
-
-    private struct OperatingPointResult {
-        let ic: Double   // collector current
-        let ib: Double   // base current
-        let ie: Double   // emitter current
-        let gm: Double   // transconductance dIc/dVbe
-        let go: Double   // output conductance dIc/dVce
-        let gpi: Double  // input conductance dIb/dVbe
-        let gmu: Double  // reverse transconductance dIc/dVbc
-        let vbe: Double  // base-emitter voltage
-        let vbc: Double  // base-collector voltage
-        let vce: Double  // collector-emitter voltage
-    }
-
-    /// Returns the base-emitter voltage, accounting for polarity.
-    private func voltageVbe(state: SolutionState) -> Double {
-        let vb = nodeVoltage(baseIdx, state: state)
-        let ve = nodeVoltage(emitterIdx, state: state)
-        switch parameters.polarity {
-        case .npn: return vb - ve
-        case .pnp: return ve - vb
-        }
-    }
-
-    /// Returns the base-collector voltage, accounting for polarity.
-    private func voltageVbc(state: SolutionState) -> Double {
-        let vb = nodeVoltage(baseIdx, state: state)
-        let vc = nodeVoltage(collectorIdx, state: state)
-        switch parameters.polarity {
-        case .npn: return vb - vc
-        case .pnp: return vc - vb
-        }
-    }
-
-    /// Returns the collector-emitter voltage, accounting for polarity.
-    private func voltageVce(state: SolutionState) -> Double {
-        let vc = nodeVoltage(collectorIdx, state: state)
-        let ve = nodeVoltage(emitterIdx, state: state)
-        switch parameters.polarity {
-        case .npn: return vc - ve
-        case .pnp: return ve - vc
-        }
-    }
-
-    private func operatingPoint(state: SolutionState) -> OperatingPointResult {
-        let vbe = voltageVbe(state: state)
-        let vbc = voltageVbc(state: state)
-        let vce = voltageVce(state: state)
-
-        let vt = parameters.thermalVoltage
-        let nf = parameters.forwardEmissionCoefficient
-        let nr = parameters.reverseEmissionCoefficient
-        let isat = parameters.saturationCurrent
-        let bf = parameters.forwardBeta
-        let br = parameters.reverseBeta
-        let vaf = parameters.forwardEarlyVoltage
-        // let var_ = parameters.reverseEarlyVoltage  // Reserved for future use
-
-        let nfVt = nf * vt
-        let nrVt = nr * vt
-
-        // Limit exponential arguments
-        let expArgBE = min(vbe / nfVt, Self.maxExpArg)
-        let expArgBC = min(vbc / nrVt, Self.maxExpArg)
-
-        let expBE = exp(expArgBE)
-        let expBC = exp(expArgBC)
-
-        // Ebers-Moll transport currents
-        // Icc = Is * (exp(Vbe/nfVt) - 1) : forward collector current
-        // Iec = Is * (exp(Vbc/nrVt) - 1) : reverse emitter current
-        let icc = isat * (expBE - 1)
-        let iec = isat * (expBC - 1)
-
-        // Collector and emitter currents (transport model)
-        // Ic = Icc - Iec/br
-        // Ie = -Icc/bf + Iec
-        var ic = icc - iec / br
-        let ie = -icc / bf + iec
-
-        // Early effect (base-width modulation)
-        var earlyFactor = 1.0
-        if vaf.isFinite && vaf > 0 {
-            earlyFactor = 1.0 + vce / vaf
-            ic *= earlyFactor
-        }
-
-        // Base current: sum of forward and reverse base recombination
-        let ib = icc / bf + iec / br
-
-        // Small-signal parameters
-        // gm = dIc/dVbe = (Is/nfVt) * exp(Vbe/nfVt) * earlyFactor
-        var gm = isat / nfVt * expBE * earlyFactor
-
-        // go = dIc/dVce = Ic / Vaf (Early effect)
-        var go = 0.0
-        if vaf.isFinite && vaf > 0 {
-            go = abs(ic) / vaf
-        }
-
-        // gpi = dIb/dVbe = Is/(bf*nfVt)*exp(Vbe/nfVt)
-        // Base current Ib = Icc/bf does NOT depend on Vce, so no Early factor.
-        var gpi = isat / (bf * nfVt) * expBE
-
-        // gmu = dIc/dVbc (reverse transconductance for saturation)
-        var gmu = isat / (br * nrVt) * expBC
-
-        // Add gmin for numerical stability
-        gm = max(gm, Self.gmin)
-        gpi = max(gpi, Self.gmin)
-        gmu = max(gmu, Self.gmin)
-        go += Self.gmin
-
-        return OperatingPointResult(
-            ic: ic, ib: ib, ie: ie,
-            gm: gm, go: go, gpi: gpi, gmu: gmu,
-            vbe: vbe, vbc: vbc, vce: vce
-        )
-    }
-
-    // MARK: - VoltageLimitingDevice
-
-    /// BJT junctions are exponential and must be limited from the first iteration.
     public var limitsFirstIteration: Bool { true }
 
     public func limitVoltages(solution: inout [Double], previousSolution: [Double]) {
@@ -439,6 +284,29 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, TransientStateCommit
         let bcCorrection = vbcLimited - vbcNew
 
         if beCorrection != 0 || bcCorrection != 0 {
+            if baseIdx == nil {
+                // Grounded base fixes the reference; move the other junction terminals.
+                let polarity = isNPN ? 1.0 : -1.0
+                if let eIdx = emitterIdx {
+                    solution[eIdx] -= polarity * beCorrection
+                }
+                if let cIdx = collectorIdx {
+                    solution[cIdx] -= polarity * bcCorrection
+                }
+                return
+            }
+            if collectorIdx == nil, let bIdx = baseIdx {
+                let polarity = isNPN ? 1.0 : -1.0
+                if let eIdx = emitterIdx {
+                    // Grounded collector fixes BC; preserve the requested BE correction through E.
+                    solution[bIdx] += polarity * bcCorrection
+                    solution[eIdx] += polarity * (bcCorrection - beCorrection)
+                } else {
+                    // Both fixed terminals share one base coordinate; either active rule must reject the probe.
+                    solution[bIdx] += polarity * (beCorrection != 0 ? beCorrection : bcCorrection)
+                }
+                return
+            }
             // Fix emitter node, adjust base and collector to achieve
             // the desired junction voltage corrections exactly.
             //
@@ -467,203 +335,31 @@ public struct BoundBJT: BoundDevice, VoltageLimitingDevice, TransientStateCommit
         }
     }
 
-    // MARK: - BJT Capacitance Model
+}
 
-    private struct BJTCapacitances {
-        let cbe: Double  // total base-emitter capacitance (depletion + diffusion)
-        let cbc: Double  // total base-collector capacitance (depletion + diffusion)
+extension BoundBJT: TransientPhysicalEquationDecomposing {
+    public var transientPhysicalEquationForm: TransientPhysicalEquationForm { .chargeDifference }
+    public func validateTransientPhysicalEquationDecomposition() throws {
+        // Checked binding admits the complete low-injection GP static and charge kernel.
     }
-
-    /// Computes voltage-dependent junction capacitances.
-    ///
-    /// Each junction has two components:
-    /// - Depletion capacitance: `Cj = Cj0 / (1 - V/Vj)^M` (linear extrapolation above 0.5*Vj)
-    /// - Diffusion capacitance: `Cd = transit_time * g` (charge storage from minority carriers)
-    private func bjtCapacitances(state: SolutionState) -> BJTCapacitances {
-        let op = operatingPoint(state: state)
-
-        // --- Base-Emitter junction ---
-        let cje0 = parameters.baseEmitterCapacitance
-        let vje = parameters.baseEmitterPotential
-        let mje = parameters.baseEmitterGradingCoeff
-        let tf = parameters.forwardTransitTime
-
-        // Depletion capacitance
-        let cjeDepl: Double
-        if cje0 > 0 {
-            if op.vbe < 0.5 * vje {
-                cjeDepl = cje0 / pow(1.0 - op.vbe / vje, mje)
-            } else {
-                // Linear extrapolation above 0.5*Vje to prevent singularity
-                let cHalf = cje0 / pow(0.5, mje)
-                let slope = cHalf * mje / vje
-                cjeDepl = cHalf + slope * (op.vbe - 0.5 * vje)
-            }
-        } else {
-            cjeDepl = 0
-        }
-
-        // Forward diffusion capacitance: Cd_f = tau_f * gm
-        let cdF = tf * op.gm
-
-        // --- Base-Collector junction ---
-        let cjc0 = parameters.baseCollectorCapacitance
-        let vjc = parameters.baseCollectorPotential
-        let mjc = parameters.baseCollectorGradingCoeff
-        let tr = parameters.reverseTransitTime
-
-        // Depletion capacitance
-        let cjcDepl: Double
-        if cjc0 > 0 {
-            if op.vbc < 0.5 * vjc {
-                cjcDepl = cjc0 / pow(1.0 - op.vbc / vjc, mjc)
-            } else {
-                let cHalf = cjc0 / pow(0.5, mjc)
-                let slope = cHalf * mjc / vjc
-                cjcDepl = cHalf + slope * (op.vbc - 0.5 * vjc)
-            }
-        } else {
-            cjcDepl = 0
-        }
-
-        // Reverse diffusion capacitance: Cd_r = tau_r * gmu
-        let cdR = tr * op.gmu
-
-        return BJTCapacitances(
-            cbe: cjeDepl + cdF,
-            cbc: cjcDepl + cdR
-        )
+    public func accumulateTransientStaticResidual(state: SolutionState, time: Double,
+        add: (Int, Double) -> Void) throws {
+        try PhysicalResidualState.validate(time)
+        try accumulatePhysicalResidual(state: state, add: add)
     }
-
-    // MARK: - Capacitance Stamping Helpers
-
-    /// Stamp a capacitance as jomegaC admittance for AC analysis.
-    private func stampACCapacitance(
-        into stamper: inout ComplexMatrixStamper,
-        node1: Int?, node2: Int?,
-        cap: Double, omega: Double
-    ) {
-        guard cap > 0 else { return }
-        let susceptance = omega * cap
-        if let n1 = node1 {
-            stamper.stampMatrix(n1, n1, 0.0, susceptance)
-        }
-        if let n2 = node2 {
-            stamper.stampMatrix(n2, n2, 0.0, susceptance)
-        }
-        if let n1 = node1, let n2 = node2 {
-            stamper.stampMatrix(n1, n2, 0.0, -susceptance)
-            stamper.stampMatrix(n2, n1, 0.0, -susceptance)
-        }
-    }
-
-    /// Stamp the linearized model around the operating point.
-    ///
-    /// The Jacobian w.r.t. external node voltages is identical for NPN and PNP
-    /// because the polarity flips in both currents and voltages cancel out.
-    /// Only the RHS equivalent current sources need a sign flip for PNP.
-    ///
-    /// SPICE3F5 Jacobian (matches AC stamps):
-    ///   J[C,B] = gm - gmu    J[C,C] = go + gmu    J[C,E] = -gm - go
-    ///   J[B,B] = gpi + gmu   J[B,C] = -gmu        J[B,E] = -gpi
-    ///   J[E,B] = -gm - gpi   J[E,C] = -go         J[E,E] = gm + gpi + go
-    private func stampLinearized(into stamper: inout MatrixStamper, op: OperatingPointResult, state: SolutionState) {
-        let sign: Double = parameters.polarity == .npn ? 1.0 : -1.0
-
-        // Fast path: use pre-resolved CSR indices for O(1) stamping
-        if let sv = stamper.stampValue, csrIndices.cc != nil || csrIndices.bb != nil || csrIndices.ee != nil {
-            // Combined Jacobian values for each position
-            if let idx = csrIndices.cc { sv(idx, op.go + op.gmu) }
-            if let idx = csrIndices.cb { sv(idx, op.gm - op.gmu) }
-            if let idx = csrIndices.ce { sv(idx, -op.gm - op.go) }
-            if let idx = csrIndices.bc { sv(idx, -op.gmu) }
-            if let idx = csrIndices.bb { sv(idx, op.gpi + op.gmu) }
-            if let idx = csrIndices.be { sv(idx, -op.gpi) }
-            if let idx = csrIndices.ec { sv(idx, -op.go) }
-            if let idx = csrIndices.eb { sv(idx, -op.gm - op.gpi) }
-            if let idx = csrIndices.ee { sv(idx, op.gm + op.gpi + op.go) }
-        } else {
-            // Fallback to dictionary-based stamping
-            let cIdx = stamper.nodeIndex(collector)
-            let bIdx = stamper.nodeIndex(base)
-            let eIdx = stamper.nodeIndex(emitter)
-
-            // Transconductance gm: Ic depends on Vbe (no sign needed)
-            if op.gm != 0 {
-                if let cIdx, let bIdx {
-                    stamper.stampMatrix(cIdx, bIdx, op.gm)
-                }
-                if let cIdx, let eIdx {
-                    stamper.stampMatrix(cIdx, eIdx, -op.gm)
-                }
-                if let eIdx, let bIdx {
-                    stamper.stampMatrix(eIdx, bIdx, -op.gm)
-                }
-                if let eIdx {
-                    stamper.stampMatrix(eIdx, eIdx, op.gm)
-                }
-            }
-
-            // Output conductance go: between C and E (no sign needed)
-            if op.go != 0 {
-                if let cIdx {
-                    stamper.stampMatrix(cIdx, cIdx, op.go)
-                }
-                if let eIdx {
-                    stamper.stampMatrix(eIdx, eIdx, op.go)
-                }
-                if let cIdx, let eIdx {
-                    stamper.stampMatrix(cIdx, eIdx, -op.go)
-                    stamper.stampMatrix(eIdx, cIdx, -op.go)
-                }
-            }
-
-            // Input conductance gpi: between B and E (no sign needed)
-            if op.gpi != 0 {
-                if let bIdx {
-                    stamper.stampMatrix(bIdx, bIdx, op.gpi)
-                }
-                if let eIdx {
-                    stamper.stampMatrix(eIdx, eIdx, op.gpi)
-                }
-                if let bIdx, let eIdx {
-                    stamper.stampMatrix(bIdx, eIdx, -op.gpi)
-                    stamper.stampMatrix(eIdx, bIdx, -op.gpi)
-                }
-            }
-
-            // Reverse transconductance gmu: between B and C (no sign needed)
-            // gmu stamps in B and C rows — NOT E row (matches AC stamps and SPICE3F5)
-            if op.gmu != 0 {
-                if let bIdx {
-                    stamper.stampMatrix(bIdx, bIdx, op.gmu)
-                }
-                if let cIdx {
-                    stamper.stampMatrix(cIdx, cIdx, op.gmu)
-                }
-                if let bIdx, let cIdx {
-                    stamper.stampMatrix(bIdx, cIdx, -op.gmu)
-                    stamper.stampMatrix(cIdx, bIdx, -op.gmu)
-                }
-            }
-        }
-
-        // Equivalent current sources from linearization
-        // In direct NR form G*x = b, RHS = conductance_part - I_device
-        // SPICE3F5: rhs[C] += (-ic + gm*vbe + go*vce + gmu*vbc) = -icq
-        // Terminal current = sign * internal current (sign = -1 for PNP)
-        let icq = sign * (op.ic - op.gm * op.vbe - op.go * op.vce + op.gmu * op.vbc)
-        let ibq = sign * (op.ib - op.gpi * op.vbe - op.gmu * op.vbc)
-
-        // Use pre-resolved indices for RHS stamping
-        if let cIdx = collectorIdx {
-            stamper.stampRHS(cIdx, -icq)
-        }
-        if let eIdx = emitterIdx {
-            stamper.stampRHS(eIdx, icq + ibq)
-        }
-        if let bIdx = baseIdx {
-            stamper.stampRHS(bIdx, -ibq)
-        }
+    public func accumulateTransientPhysicalEquation(state: SolutionState, integration: IntegrationState,
+        add: (Int, TransientPhysicalEquationTerm, Double) -> Void) throws {
+        try PhysicalResidualState.validate(integration.currentTime)
+        try validate(integration)
+        let op = try evaluate(state), previous = try evaluate(state.checkedPreviousSnapshot())
+        let be = chargeDifference(op.beCharge, old: previous.beCharge, integration: integration)
+        let bc = chargeDifference(op.bcCharge, old: previous.bcCharge, integration: integration)
+        try validate(be); try validate(bc)
+        let baseCharge = polarity * (be.value + bc.value)
+        try PhysicalResidualState.validate(baseCharge)
+        try accumulateStaticResidual(op, state: state) { add($0, .staticResidual, $1) }
+        if let baseIdx { add(baseIdx, .chargeDifference, baseCharge) }
+        if let emitterIdx { add(emitterIdx, .chargeDifference, -polarity * be.value) }
+        if let collectorIdx { add(collectorIdx, .chargeDifference, -polarity * bc.value) }
     }
 }

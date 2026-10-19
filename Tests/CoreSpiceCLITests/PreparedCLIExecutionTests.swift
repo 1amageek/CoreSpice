@@ -68,6 +68,31 @@ struct PreparedCLIExecutionTests {
         }
     }
 
+    @Test func preparedSolverIdentityReloadsAndRejectsExplicitLegacyIdentity() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("prepared-solver-\(UUID().uuidString).cir")
+        defer {
+            do { try FileManager.default.removeItem(at: root) }
+            catch { Issue.record("Temporary fixture cleanup failed: \(error)") }
+        }
+        try "solver identity\nV1 out 0 1\nR1 out 0 1k\n.op\n.end\n".write(to: root, atomically: true, encoding: .utf8)
+        let completed = try await CoreSpicePreparedCommand(arguments: [root.path]).executeWithRecord()
+        let bytes = Data(try CoreSpiceCLIJSON.encode(completed.record).utf8)
+        let restored = try JSONDecoder().decode(CoreSpiceCLIPreparedRunRecord.self, from: bytes)
+        #expect(restored.solverIdentity == "CoreSpice.SparseLU.SwiftCSC.v2")
+        #expect(restored.configurationIdentity == completed.output.configurationIdentity.hexadecimalValue)
+        var fields = try #require(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        fields.removeValue(forKey: "solverIdentity")
+        let legacy = try JSONDecoder().decode(CoreSpiceCLIPreparedRunRecord.self,
+            from: JSONSerialization.data(withJSONObject: fields))
+        #expect(legacy.solverIdentity == nil)
+        #expect(legacy.executionProfile == nil && legacy.executionProfileReference == nil)
+        fields["solverIdentity"] = "CoreSpice.SparseLU.Accelerate.v1"
+        let wrongIdentity = try JSONSerialization.data(withJSONObject: fields)
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(CoreSpiceCLIPreparedRunRecord.self, from: wrongIdentity)
+        }
+    }
+
     @Test func preparedJSONExecutesInsteadOfRejectingOutputFlag() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("prepared-json-\(UUID().uuidString).cir")
         defer {

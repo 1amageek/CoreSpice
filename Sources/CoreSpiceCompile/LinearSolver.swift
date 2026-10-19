@@ -4,6 +4,9 @@
 /// one or more right-hand-side vectors using the stored factorization.
 public protocol LinearSolver: Sendable {
 
+    /// Install run-owned admission before bounded execution. Nil selects unbounded use.
+    mutating func configureExecution(_ control: (any LinearSolverExecutionControlling)?) throws
+
     /// Factorizes the given matrix.
     ///
     /// After a successful call the solver is ready to accept
@@ -23,8 +26,9 @@ public protocol LinearSolver: Sendable {
     /// Solves `A * x = rhs` using the stored factorization, writing
     /// the result into a pre-allocated buffer.
     ///
-    /// This is the zero-allocation variant of ``solve(rhs:)``.
     /// The `result` array must have length equal to the matrix dimension.
+    /// Conformers can reuse it as workspace; the default implementation allocates.
+    /// Swift value semantics may still copy shared caller storage on mutation.
     ///
     /// - Parameters:
     ///   - rhs: Right-hand-side vector.
@@ -33,6 +37,9 @@ public protocol LinearSolver: Sendable {
 }
 
 extension LinearSolver {
+    public mutating func configureExecution(_ control: (any LinearSolverExecutionControlling)?) throws {
+        guard control == nil else { throw SparseSolverError.executionControlUnsupported }
+    }
     /// Default implementation delegates to the allocating ``solve(rhs:)`` variant.
     public mutating func solve(rhs: [Double], into result: inout [Double]) throws {
         let r = try solve(rhs: rhs)
@@ -43,17 +50,23 @@ extension LinearSolver {
 /// A solver for complex-valued sparse linear systems.
 public protocol ComplexLinearSolver: Sendable {
 
+    /// Install run-owned admission before bounded execution. Nil selects unbounded use.
+    mutating func configureExecution(_ control: (any LinearSolverExecutionControlling)?) throws
+
     /// Factorizes the given complex matrix.
     mutating func factorize(matrix: ComplexSparseMatrix) throws
 
     /// Solves `A * x = rhs` using the stored factorization.
     func solve(rhs: [ComplexPair]) throws -> [ComplexPair]
 
-    /// Solves `A * x = rhs` into a pre-allocated buffer (zero-allocation).
+    /// Solves into caller storage; allocation behavior is defined by the conformer.
     mutating func solve(rhs: [ComplexPair], into result: inout [ComplexPair]) throws
 }
 
 extension ComplexLinearSolver {
+    public mutating func configureExecution(_ control: (any LinearSolverExecutionControlling)?) throws {
+        guard control == nil else { throw SparseSolverError.executionControlUnsupported }
+    }
     /// Default implementation delegates to the allocating ``solve(rhs:)`` variant.
     public mutating func solve(rhs: [ComplexPair], into result: inout [ComplexPair]) throws {
         let r = try solve(rhs: rhs)

@@ -24,7 +24,7 @@ enum IndependentSourceWaveformParser {
         let amplitude = current ? "ia" : "va"
         let pulseKeys = [first, second, "tr", "tf", "pw", "per"]
         let sineKeys = [offset, amplitude, "freq", "phase"]
-        let known = Set([dc, "ac", "td", "pwl"] + pulseKeys + sineKeys)
+        let known = Set([dc, "ac", "acphase", "td", "pwl"] + pulseKeys + sineKeys)
         for key in instance.parameters.keys where !known.contains(key) {
             throw invalid(instance, key, "Unsupported independent source parameter")
         }
@@ -36,6 +36,7 @@ enum IndependentSourceWaveformParser {
             throw invalid(instance, "waveform", "Source waveform families must be exclusive")
         }
         _ = try real("ac", instance: instance, defaultValue: 0)
+        _ = try real("acphase", instance: instance, defaultValue: 0)
         if pwl {
             guard case .realVector(let values) = instance.parameters["pwl"] else {
                 throw DeviceBindingError.invalidParameterType(device: instance.name, parameter: "pwl", expected: "realVector")

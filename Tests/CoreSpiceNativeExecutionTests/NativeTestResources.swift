@@ -9,7 +9,10 @@ internal final class SourceBoundaryTestResources: SPICESourceResourceAccounting 
     private struct State {
         var live: UInt64 = 0
         var temporary: UInt64 = 0
+        var temporaryLimitOverride: UInt64?
         var peakLive: UInt64 = 0
+        var peakTemporary: UInt64 = 0
+        var reservations = 0
         var releases = 0
         var hashed: UInt64 = 0
         var totalWork: UInt64 = 0
@@ -37,10 +40,14 @@ internal final class SourceBoundaryTestResources: SPICESourceResourceAccounting 
         }
     }
     func setCheckFailure(_ failure: SourceBoundaryTestError) { state.withLock { $0.checkFailure = failure } }
+    func setTemporaryLimit(_ limit: UInt64) { state.withLock { $0.temporaryLimitOverride = limit } }
     func setCancelled(_ value: Bool) { state.withLock { $0.cancelled = value } }
     func used(_ kind: SPICESourceStorageKind) -> UInt64 { state.withLock { kind == .liveOwnedBytes ? $0.live : $0.temporary } }
     var hashedBytes: UInt64 { state.withLock { $0.hashed } }
     var peakLiveBytes: UInt64 { state.withLock { $0.peakLive } }
+    var peakTemporaryBytes: UInt64 { state.withLock { $0.peakTemporary } }
+    var reservationCount: Int { state.withLock { $0.reservations } }
+    func resetTemporaryPeak() { state.withLock { $0.peakTemporary = $0.temporary } }
     var releaseCount: Int { state.withLock { $0.releases } }
     func work(_ kind: SPICESourceWorkKind) -> UInt64 { state.withLock { $0.work[kind, default: 0] } }
 
@@ -64,11 +71,12 @@ internal final class SourceBoundaryTestResources: SPICESourceResourceAccounting 
         try checkCancellation()
         try state.withLock { value in
             let current = kind == .liveOwnedBytes ? value.live : value.temporary
-            let limit = kind == .liveOwnedBytes ? liveLimit : temporaryLimit
+            let limit = kind == .liveOwnedBytes ? liveLimit : value.temporaryLimitOverride ?? temporaryLimit
             let (next, overflow) = current.addingReportingOverflow(byteCount)
             guard !overflow, next <= limit else { throw SourceBoundaryTestError.limit(kind) }
             if kind == .liveOwnedBytes { value.live = next; value.peakLive = max(value.peakLive, next) }
-            else { value.temporary = next }
+            else { value.temporary = next; value.peakTemporary = max(value.peakTemporary, next) }
+            value.reservations += 1
         }
         return SPICESourceStorageReservation(kind: kind, byteCount: byteCount) { [self] in
             state.withLock { value in

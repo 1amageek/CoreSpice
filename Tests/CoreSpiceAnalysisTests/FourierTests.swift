@@ -288,6 +288,208 @@ struct FourierTests {
         #expect(result[4].value == 0.0)
     }
 
+    @Test func extractLastPeriodInterpolatesBoundary() {
+        let result = FourierAnalysis.extractLastPeriod(
+            timePoints: [0.0, 0.8, 1.2, 1.7, 2.0],
+            values: [0.0, 8.0, 12.0, 17.0, 20.0],
+            period: 1.0
+        )
+        #expect(result.map(\.time) == [1.0, 1.2, 1.7, 2.0])
+        #expect(abs(result[0].value - 10.0) < 1e-14)
+        #expect(result.map(\.value).dropFirst() == [12.0, 17.0, 20.0])
+    }
+
+    @Test func irregularConstantHasNoHarmonicLeakage() {
+        let analysis = FourierAnalysis(
+            fundamentalFrequency: 1.0, harmonicCount: 5, outputNodes: [],
+            transientConfig: TransientConfig(stopTime: 2.0, executionLimits: .validationFixture)
+        )
+        let waveform = FourierAnalysis.extractLastPeriod(
+            timePoints: [0.0, 0.8, 1.2, 1.7, 2.0],
+            values: [2.5, 2.5, 2.5, 2.5, 2.5], period: 1.0
+        )
+        let components = analysis.computeHarmonics(waveform: waveform, period: 1.0)
+        #expect(abs(components[0].magnitude - 2.5) < 1e-14)
+        for component in components.dropFirst() {
+            #expect(component.magnitude < 1e-14)
+        }
+    }
+
+    @Test func shiftedAffineSignalMatchesClosedForm() {
+        let start = 0.137
+        let slope = 1.2
+        let offset = 2.5
+        let waveform = [start, start + 0.03, start + 0.23, start + 0.71, start + 1.0].map {
+            (time: $0, value: offset + slope * $0)
+        }
+        let analysis = FourierAnalysis(
+            fundamentalFrequency: 1.0, harmonicCount: 5, outputNodes: [],
+            transientConfig: TransientConfig(stopTime: 2.0, executionLimits: .validationFixture)
+        )
+        let components = analysis.computeHarmonics(waveform: waveform, period: 1.0)
+        #expect(abs(components[0].magnitude - (offset + slope * (start + 0.5))) < 1e-14)
+        for component in components.dropFirst() {
+            let omega = 2.0 * .pi * Double(component.harmonic)
+            // Integration by parts over one period gives these independent coefficients.
+            let expectedCosine = 2.0 * slope * sin(omega * start) / omega
+            let expectedSine = -2.0 * slope * cos(omega * start) / omega
+            let phase = component.phase * .pi / 180.0
+            #expect(abs(component.magnitude * cos(phase) - expectedCosine) < 1e-14)
+            #expect(abs(-component.magnitude * sin(phase) - expectedSine) < 1e-14)
+        }
+    }
+
+    @Test func tinyLinearSegmentPreservesPhase() {
+        let duration = 1e-10
+        let analysis = FourierAnalysis(
+            fundamentalFrequency: 1.0, harmonicCount: 1, outputNodes: [],
+            transientConfig: TransientConfig(stopTime: 1.0, executionLimits: .validationFixture)
+        )
+        let components = analysis.computeHarmonics(
+            waveform: [(time: 0.0, value: 0.0), (time: duration, value: 1.0 / duration)],
+            period: 1.0
+        )
+        #expect(abs(components[0].magnitude - 0.5) < 1e-15)
+        #expect(abs(components[1].magnitude - 1.0) < 1e-15)
+        // The ramp's centroid is 2*duration/3; higher phase terms are O(duration^3).
+        #expect(abs(components[1].phase + 240.0 * duration) < 1e-22)
+    }
+
+    @Test(arguments: [0.0, 1e15, 1e16])
+    func largeAbsoluteTimeRampPreservesPhase(start: Double) {
+        let analysis = FourierAnalysis(
+            fundamentalFrequency: 0.5, harmonicCount: 3, outputNodes: [],
+            transientConfig: TransientConfig(stopTime: 2.0, executionLimits: .validationFixture)
+        )
+        let components = analysis.computeHarmonics(
+            waveform: [(time: start, value: 0.0), (time: start + 2.0, value: 1.0)],
+            period: 2.0
+        )
+        #expect(abs(components[0].magnitude - 0.5) < 1e-14)
+        for component in components.dropFirst() {
+            // Each start is an exact whole number of periods; the ramp has a_k=0 and b_k=-1/(k*pi).
+            let expectedMagnitude = 1.0 / (Double(component.harmonic) * .pi)
+            #expect(abs(component.magnitude - expectedMagnitude) < 1e-14)
+            #expect(abs(component.phase - 90.0) < 1e-12)
+        }
+    }
+
+    @Test func largeAbsoluteTimePreservesFractionalProductPhase() {
+        let analysis = FourierAnalysis(
+            fundamentalFrequency: 0.1, harmonicCount: 1, outputNodes: [],
+            transientConfig: TransientConfig(stopTime: 10.0, executionLimits: .validationFixture)
+        )
+        let components = analysis.computeHarmonics(
+            waveform: [(time: 1e15, value: 0.0), (time: 1e15 + 10.0, value: 1.0)],
+            period: 10.0
+        )
+        // Independent 100-digit integration uses the exact binary64 frequency, including its fractional product.
+        #expect(abs(components[1].magnitude - 0.31830988618379065) < 1e-14)
+        #expect(abs(components[1].phase - 88.00159855567472) < 1e-12)
+    }
+
+    private struct CancelOnTransientCompletion: AnalysisObserver {
+        let cancellation: CancellationToken
+
+        func onEvent(_ event: AnalysisEvent) {
+            if case .analysisFinished(let info) = event,
+               info.type == .tran, info.status == .completed {
+                cancellation.cancel()
+            }
+        }
+    }
+
+    @Test func cancellationAfterTransientPreventsFourierCompletion() async throws {
+        let (netlist, output) = try CircuitFactory.resistiveDivider(v: 5.0, r1: 1000.0, r2: 1000.0)
+        let (plan, devices) = try CircuitFactory.compile(netlist)
+        let cancellation = CancellationToken()
+        let buffered = try BufferingObserver(capacity: 10_000)
+        let observer = EventDispatcher(observers: [
+            CancelOnTransientCompletion(cancellation: cancellation), buffered
+        ])
+        let analysis = FourierAnalysis(
+            fundamentalFrequency: 1000.0, harmonicCount: 3, outputNodes: [output],
+            transientConfig: TransientConfig(stopTime: 0.002, executionLimits: .validationFixture)
+        )
+        do {
+            _ = try await analysis.run(plan: plan, devices: devices, solver: SparseLUSolver(),
+                observer: observer, cancellation: cancellation)
+            Issue.record("Fourier analysis completed after cancellation at the transient boundary")
+        } catch let error as AnalysisError {
+            guard case .cancelled = error else { throw error }
+        }
+        #expect(cancellation.isCancelled)
+        let finished = buffered.events.compactMap { event -> AnalysisFinishedInfo? in
+            if case .analysisFinished(let info) = event, info.type == .fourier { return info }
+            return nil
+        }
+        #expect(finished.count == 1)
+        #expect(finished.first?.status == .cancelled)
+    }
+
+    @Test func overflowingHarmonicCountFailsBeforeTransient() async throws {
+        let (netlist, output) = try CircuitFactory.resistiveDivider(v: 5.0, r1: 1000.0, r2: 1000.0)
+        let (plan, devices) = try CircuitFactory.compile(netlist)
+        let buffered = try BufferingObserver(capacity: 100)
+        let analysis = FourierAnalysis(
+            fundamentalFrequency: 1000.0, harmonicCount: .max, outputNodes: [output],
+            transientConfig: TransientConfig(stopTime: 0.002, executionLimits: .validationFixture)
+        )
+        do {
+            _ = try await analysis.run(plan: plan, devices: devices, solver: SparseLUSolver(),
+                observer: EventDispatcher(observers: [buffered]), cancellation: CancellationToken())
+            Issue.record("Fourier analysis accepted an overflowing component count")
+        } catch let error as TransientExecutionError {
+            guard case .arithmeticOverflow(let operation) = error else { throw error }
+            #expect(operation == "Fourier component count")
+        }
+        #expect(!buffered.events.contains { event in
+            if case .analysisStarted(let info) = event { return info.type == .tran }
+            return false
+        })
+    }
+
+    @Test func offsetTwoToneOnIrregularGrid() {
+        let start = 0.137
+        var waveform: [(time: Double, value: Double)] = []
+        for i in 0...2000 {
+            let fraction = Double(i) / 2000.0
+            let time = start + fraction * fraction
+            let angle = 2.0 * .pi * time
+            waveform.append((time: time, value: 2.5 + sin(angle + 0.4) + 0.3 * cos(2.0 * angle - 0.2)))
+        }
+        let analysis = FourierAnalysis(
+            fundamentalFrequency: 1.0, harmonicCount: 5, outputNodes: [],
+            transientConfig: TransientConfig(stopTime: 2.0, executionLimits: .validationFixture)
+        )
+        let components = analysis.computeHarmonics(waveform: waveform, period: 1.0)
+        #expect(abs(components[0].magnitude - 2.5) < 1e-5)
+        #expect(abs(components[1].magnitude - 1.0) < 1e-5)
+        #expect(abs(components[1].phase - (0.4 * 180.0 / .pi - 90.0)) < 1e-3)
+        #expect(abs(components[2].magnitude - 0.3) < 1e-5)
+        #expect(abs(components[2].phase + 0.2 * 180.0 / .pi) < 1e-3)
+        for component in components.dropFirst(3) {
+            #expect(component.magnitude < 1e-5)
+        }
+    }
+
+    @Test func insufficientPeriodFailsExplicitly() async throws {
+        let (netlist, output) = try CircuitFactory.resistiveDivider(v: 5.0, r1: 1000.0, r2: 1000.0)
+        let (plan, devices) = try CircuitFactory.compile(netlist)
+        let analysis = FourierAnalysis(
+            fundamentalFrequency: 1.0, outputNodes: [output],
+            transientConfig: TransientConfig(stopTime: 0.5, executionLimits: .validationFixture)
+        )
+        do {
+            _ = try await analysis.run(plan: plan, devices: devices, solver: SparseLUSolver(),
+                observer: nil, cancellation: CancellationToken())
+            Issue.record("Fourier analysis accepted less than one complete period")
+        } catch let error as AnalysisError {
+            guard case .invalidConfiguration(let message) = error else { throw error }
+            #expect(message == "Transient stop time must cover at least one Fourier period")
+        }
+    }
+
     /// Test extractLastPeriod accepts a strided SolutionTrace column view.
     @Test func extractLastPeriodFromSolutionTraceColumn() throws {
         let timePoints = [0.0, 0.5, 1.0, 1.5, 2.0]

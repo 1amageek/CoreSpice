@@ -7,13 +7,15 @@ public struct MOSResolutionRequest: Sendable, Hashable {
     public let profile: MOSInputProfile
     /// Supplied instance parameters remain expression programs, including omitted-value absence.
     public let bindings: [MOSExpressionBinding]
+    /// Explicit effective model scalar programs for this concrete instance only.
+    public let modelOverrides: [MOSExpressionBinding]
     public let geometryScale: Double
     public let seed: UInt64
     public let globalWidthPerFinger: Bool
     public let retainedBytes: UInt64
     public init(source: MOSSourceOccurrence? = nil, instance: String, scope: MOSScopeID, scopeInstantiation: UInt64,
                 modelReference: MOSSymbolID, profile: MOSInputProfile,
-                bindings: [MOSExpressionBinding],
+                bindings: [MOSExpressionBinding], modelOverrides: [MOSExpressionBinding] = [],
                 geometryScale: Double, seed: UInt64, globalWidthPerFinger: Bool = false,
                 limits: MOSResolutionLimits) throws(MOSResolutionFailure) {
         guard !instance.isEmpty, geometryScale.isFinite, geometryScale > 0 else { throw .invalidRequest }
@@ -21,10 +23,16 @@ public struct MOSResolutionRequest: Sendable, Hashable {
             maximumSteps: limits.maximumEvaluationSteps)
         try budget.add(UInt64(MemoryLayout<Self>.stride))
         try budget.addSource(source); try budget.addText(instance)
-        try budget.addArray(bindings)
+        try budget.addArray(bindings); try budget.addArray(modelOverrides)
         var symbols = Set<MOSSymbolID>()
         try budget.reserveSet(&symbols, required: bindings.count)
         for value in bindings {
+            try budget.spend()
+            guard symbols.insert(value.symbol).inserted else { throw .duplicateParameter(value.symbol) }
+        }
+        symbols.removeAll(keepingCapacity: true)
+        try budget.reserveSet(&symbols, required: modelOverrides.count)
+        for value in modelOverrides {
             try budget.spend()
             guard symbols.insert(value.symbol).inserted else { throw .duplicateParameter(value.symbol) }
         }
@@ -32,7 +40,7 @@ public struct MOSResolutionRequest: Sendable, Hashable {
         self.retainedBytes = budget.bytes
         self.source = source
         self.instance = instance; self.scope = scope; self.scopeInstantiation = scopeInstantiation
-        self.modelReference = modelReference; self.profile = profile; self.bindings = bindings
+        self.modelReference = modelReference; self.profile = profile; self.bindings = bindings; self.modelOverrides = modelOverrides
         self.geometryScale = geometryScale; self.seed = seed
         self.globalWidthPerFinger = globalWidthPerFinger
     }
@@ -41,14 +49,14 @@ public struct MOSResolutionRequest: Sendable, Hashable {
     public static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.source == rhs.source && lhs.instance == rhs.instance && lhs.scope == rhs.scope &&
         lhs.scopeInstantiation == rhs.scopeInstantiation && lhs.modelReference == rhs.modelReference &&
-        lhs.profile == rhs.profile && lhs.bindings == rhs.bindings && lhs.geometryScale == rhs.geometryScale &&
+        lhs.profile == rhs.profile && lhs.bindings == rhs.bindings && lhs.modelOverrides == rhs.modelOverrides && lhs.geometryScale == rhs.geometryScale &&
         lhs.seed == rhs.seed && lhs.globalWidthPerFinger == rhs.globalWidthPerFinger
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(source); hasher.combine(instance); hasher.combine(scope)
         hasher.combine(scopeInstantiation); hasher.combine(modelReference); hasher.combine(profile)
-        hasher.combine(bindings); hasher.combine(geometryScale); hasher.combine(seed)
+        hasher.combine(bindings); hasher.combine(modelOverrides); hasher.combine(geometryScale); hasher.combine(seed)
         hasher.combine(globalWidthPerFinger)
     }
 

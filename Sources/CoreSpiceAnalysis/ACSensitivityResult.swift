@@ -1,40 +1,67 @@
 import CoreSpiceCompile
+import CoreSpiceDevices
+import CoreSpiceIR
+import CoreSpiceDiodeContracts
 
 /// Frequency-dependent sensitivity of one output voltage to circuit parameters.
 public struct ACSensitivityResult: Sendable, AnalysisResultStorageRetaining {
     package let retainedStorage: (any Sendable)?
     public struct ParameterSensitivity: Sendable {
+        public let diodePreparation: DiodePreparationReceipt?
         public let deviceName: String
         public let parameterName: String
         public let nominalValue: Double
         public let sensitivities: [ComplexPair]
         public let normalizedSensitivities: [ComplexPair?]
+        public let perturbedValue: Double?
+        public let effectiveIncrement: CompensatedValue?
+        public let perturbedValues: [ComplexPair]?
+        public let outputPositiveNode: Node?
+        public let outputReferenceNode: Node?
 
         public init(
             deviceName: String,
             parameterName: String,
             nominalValue: Double,
             sensitivities: [ComplexPair],
-            normalizedSensitivities: [ComplexPair?]
+            normalizedSensitivities: [ComplexPair?],
+            perturbedValue: Double? = nil,
+            effectiveIncrement: CompensatedValue? = nil,
+            perturbedValues: [ComplexPair]? = nil,
+            outputPositiveNode: Node? = nil,
+            outputReferenceNode: Node? = nil,
+            diodePreparation: DiodePreparationReceipt? = nil
         ) {
+            self.diodePreparation = diodePreparation
             self.deviceName = deviceName
             self.parameterName = parameterName
             self.nominalValue = nominalValue
             self.sensitivities = sensitivities
             self.normalizedSensitivities = normalizedSensitivities
+            self.perturbedValue = perturbedValue
+            self.effectiveIncrement = effectiveIncrement
+            self.perturbedValues = perturbedValues
+            self.outputPositiveNode = outputPositiveNode
+            self.outputReferenceNode = outputReferenceNode
         }
     }
 
     public let outputVariable: String
     public let frequencies: [Double]
     public let baselineValues: [ComplexPair]
+    public let operatingPoint: DCResult?
     public let sensitivities: [ParameterSensitivity]
+    public let outputPositiveNode: Node?
+    public let outputReferenceNode: Node?
 
     public init(
         outputVariable: String,
         frequencies: [Double],
         baselineValues: [ComplexPair],
-        sensitivities: [ParameterSensitivity]
+        sensitivities: [ParameterSensitivity],
+        outputPositiveNode: Node? = nil,
+        outputReferenceNode: Node? = nil,
+        operatingPoint: DCResult? = nil
     ) throws {
         guard !outputVariable.isEmpty else {
             throw AnalysisResultValidationError.emptyOutputVariable
@@ -83,6 +110,17 @@ public struct ACSensitivityResult: Sendable, AnalysisResultStorageRetaining {
                     "AC sensitivity data count for \(entry.deviceName).\(entry.parameterName) must match the frequency count"
                 )
             }
+            let hasObservation = entry.perturbedValue != nil || entry.effectiveIncrement != nil
+                || entry.perturbedValues != nil || entry.outputPositiveNode != nil || entry.outputReferenceNode != nil
+            if hasObservation {
+                guard let value = entry.perturbedValue, value.isFinite, let increment = entry.effectiveIncrement,
+                      let values = entry.perturbedValues, entry.outputPositiveNode != nil,
+                      values.count == frequencies.count, values.allSatisfy({ $0.real.isFinite && $0.imag.isFinite }),
+                      increment != .zero,
+                      try CompensatedValue(high: value).subtracting(CompensatedValue(high: entry.nominalValue)) == increment else {
+                    throw AnalysisError.invalidConfiguration("AC sensitivity child observation is incomplete or has an inconsistent increment")
+                }
+            }
             guard entry.nominalValue.isFinite else {
                 throw AnalysisResultValidationError.nonFiniteValue(
                     field: "\(entry.deviceName).\(entry.parameterName).nominalValue",
@@ -111,7 +149,10 @@ public struct ACSensitivityResult: Sendable, AnalysisResultStorageRetaining {
         self.outputVariable = outputVariable
         self.frequencies = frequencies
         self.baselineValues = baselineValues
+        self.operatingPoint = operatingPoint
         self.sensitivities = sensitivities
+        self.outputPositiveNode = outputPositiveNode
+        self.outputReferenceNode = outputReferenceNode
         self.retainedStorage = nil
     }
 
@@ -124,7 +165,10 @@ public struct ACSensitivityResult: Sendable, AnalysisResultStorageRetaining {
         self.outputVariable = result.outputVariable
         self.frequencies = result.frequencies
         self.baselineValues = result.baselineValues
+        self.operatingPoint = result.operatingPoint?.retainingStorage(owner)
         self.sensitivities = result.sensitivities
+        self.outputPositiveNode = result.outputPositiveNode
+        self.outputReferenceNode = result.outputReferenceNode
         self.retainedStorage = owner
     }
 }

@@ -2,6 +2,8 @@ import CircuiteFoundation
 import CoreSpiceIO
 import CoreSpiceCompile
 import CoreSpiceDevices
+import CoreSpiceOSDI
+import CoreSpiceEvent
 
 /// Exclusive executable state; inspection records never expose device history.
 public struct PreparedNativeSPICESimulation: ~Copyable, Sendable {
@@ -18,5 +20,14 @@ public struct PreparedNativeSPICESimulation: ~Copyable, Sendable {
         self.record = record; self.circuit = circuit
     }
 
+    public func close() throws(OSDIAdapterFailure) { try circuit.close() }
+    /// Uses the same actual bound-source inspection with this preparation's exact SPICE identities.
+    public borrowing func withIndependentVoltageSources<Result>(cancellation: CancellationToken,
+        _ body: (borrowing NativeVoltageSourceInspectionView) throws -> Result)
+        throws(NativeVoltageSourceInspectionFailure) -> Result {
+        try circuit.inspectIndependentVoltageSources(origin: .spice(sourceInputIdentity: input.sourceInputIdentity,
+            sourceConfigurationIdentity: input.configuration.identity, nativeConfigurationIdentity: configurationIdentity),
+            cancellation: cancellation, body)
+    }
     internal consuming func takeCircuit() -> PreparedNativeCircuit { circuit }
 }

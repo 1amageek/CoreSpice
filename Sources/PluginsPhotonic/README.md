@@ -170,7 +170,7 @@ PhotonicExecutor().execute(
 - [ ] Thermal crosstalk simulation
 - [ ] Multi-wavelength parallel dispatch (currently sequential)
 - [ ] AC mode matrix stamping for mixed photonic-electronic simulation
-- [ ] Chromatic dispersion coefficient usage (parameter exists but not fully utilized)
+- [x] Local second-order chromatic dispersion with explicit SI convention
 - [ ] Waveguide device wavelength-dependent simulation
 
 ## Code Review Notes
@@ -215,11 +215,38 @@ The code demonstrates solid software engineering practices with clear documentat
 
 ### Potential Bugs
 
-1. **Coefficient buffer contents method**: In `PhotonicExecutor.swift` line 98-100, after calling `backend.contents()` and populating the buffer, there should ideally be a memory barrier or synchronization before dispatch. The current code assumes immediate visibility which may not hold on all GPU architectures.
+1. **Buffer visibility**: The executor uses checked CPU borrows over shared Metal storage. Dispatch begins after initialization completes, and readback waits for GPU completion.
 
-2. **Result averaging**: The result averaging for repetitions (lines 121-132) averages complex amplitudes directly, which may not be physically meaningful for incoherent averaging scenarios. Consider documenting whether this represents coherent or incoherent averaging.
+2. **Result averaging**: Repetitions produce a coherent complex-amplitude average. The executor does not model incoherent power averaging or inject noise.
 
 ### Performance Considerations
 
 - The module compiles the mesh per-wavelength. For dense wavelength sweeps, caching or pre-computing wavelength-independent components could improve throughput.
 - Metal shaders use float2 for complex numbers (single precision). This is appropriate for photonic simulations but may need double precision for extreme dynamic range requirements.
+
+
+## GPU result and allocation contracts
+
+The executor accumulates repeated complex amplitudes in `Double` and returns
+finite `Float` means. Non-finite GPU readback fails the sweep before any completed
+event. Optical power, amplitude and total power use `Double`, so finite Float
+amplitudes retain finite metrics across the supported 512-port mesh.
+Cancellation is checked after final GPU completion and before terminal success.
+
+Coefficient preparation writes eight Float fields per matrix directly into its
+retained GPU buffer once per wavelength/layer, without an intermediate packing
+array. The exact 32-byte field order is checked against the C ABI and executed by
+both production Metal kernels. Imported C structs do not acquire unsafe
+retroactive POD conformances.
+
+`PhotonicGPUResources` enforces `maxBatchSize`, positive port/batch dimensions,
+checked multiplication and the 1...256 coefficient allocation range. Allocation
+errors propagate as typed failures. The [module design](DESIGN.md) links each
+responsibility to its verification owner.
+
+
+`WavelengthModel.dispersion` is the conventional chromatic dispersion
+`D = (1/c) d(n_g)/dλ` at the center wavelength, in SI seconds/metre²
+(`1 ps/(nm*km) = 1e-6 s/m²`). The [IR design](IR/DESIGN.md) owns the
+local second-order propagation-phase equation, including geometric wavelength
+curvature at D=0. This is not a broadband material-dispersion qualification.

@@ -1042,7 +1042,7 @@ private extension AnalysisKind {
             return .transient
         case .noise:
             return .noise
-        case .transferFunction, .poleZero, .sensitivity, .fourier, .monteCarlo:
+        case .transferFunction, .poleZero, .sensitivity, .fourier, .monteCarlo, .networkParameters:
             return nil
         }
     }

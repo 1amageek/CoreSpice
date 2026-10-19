@@ -13,7 +13,9 @@ public struct WavelengthModel: Sendable {
     /// Group refractive index of the waveguide.
     public let groupIndex: Double
 
-    /// Chromatic dispersion coefficient.
+    /// Chromatic dispersion D = (1/c) * d(groupIndex)/d(wavelength) at the center.
+    /// Units are seconds per square meter (SI); 1 ps/(nm*km) is 1e-6 s/m².
+    /// This parameter defines a local second-order propagation-phase model.
     public let dispersion: Double
 
     /// Arm length imbalance in meters.
@@ -34,18 +36,6 @@ public struct WavelengthModel: Sendable {
         self.armLengthImbalance = armLengthImbalance
     }
 
-    /// Computes the effective phase at a specific wavelength.
-    ///
-    /// The phase shift due to wavelength deviation is:
-    /// `Δφ = -2π · n_g · ΔΛ · L / λ₀²`
-    ///
-    /// The negative sign reflects that increasing wavelength decreases
-    /// the effective refractive index, reducing the accumulated phase.
-    ///
-    /// - Parameters:
-    ///   - basePhase: The nominal phase at center wavelength (radians).
-    ///   - wavelength: The actual operating wavelength (meters).
-    /// - Returns: Adjusted phase accounting for group index shift.
     public func validate() throws {
         guard centerWavelength.isFinite, centerWavelength > 0 else {
             throw PhotonicExecutionError.invalidWavelengthModel(
@@ -67,16 +57,30 @@ public struct WavelengthModel: Sendable {
         }
     }
 
+    /// Evaluate a local second-order Taylor model of propagation phase β(λ)*L.
+    ///
+    /// With Δλ = λ - λ₀ and c = 299792458 m/s:
+    /// Δφ = L * [-2π*n_g*Δλ/λ₀² + (2π*n_g/λ₀³ - π*c*D/λ₀²)*Δλ²].
+    /// This model does not claim higher-order or broadband material accuracy.
+    /// Zero imbalance and the center wavelength return the base phase exactly.
     public func effectivePhase(basePhase: Double, wavelength: Double) throws -> Double {
         try validate()
-        guard basePhase.isFinite, wavelength.isFinite, wavelength > 0 else {
+        guard basePhase.isFinite else {
+            throw PhotonicExecutionError.invalidWavelengthModel("basePhase must be finite")
+        }
+        guard wavelength.isFinite, wavelength > 0 else {
             throw PhotonicExecutionError.invalidWavelength(
                 index: 0,
                 value: wavelength
             )
         }
-        let deltaLambda = wavelength - centerWavelength
-        let phaseShift = -2.0 * .pi * groupIndex * deltaLambda * armLengthImbalance / (centerWavelength * centerWavelength)
+        guard armLengthImbalance != 0, wavelength != centerWavelength else { return basePhase }
+        let relativeDeviation = (wavelength - centerWavelength) / centerWavelength
+        let groupSlope = 2 * Double.pi * groupIndex / centerWavelength
+        let dispersionCurvature = Double.pi * 299_792_458 * dispersion
+        let phaseShift = armLengthImbalance * (
+            -groupSlope * relativeDeviation +
+            (groupSlope - dispersionCurvature) * relativeDeviation * relativeDeviation)
         let phase = basePhase + phaseShift
         guard phase.isFinite else {
             throw PhotonicExecutionError.invalidWavelengthModel(

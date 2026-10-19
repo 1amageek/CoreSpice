@@ -35,7 +35,9 @@ Artifact references remain exact input/output data; caller-declared references d
 not prove what a backend consumed. NativeExecution owns its actual observed input
 and configuration identities. This module does not parse expected PDK contracts.
 Package.swift explicitly depends on CoreSpiceIO and CoreSpiceWaveform, with no
-reverse IO-to-CoreSpice edge.
+reverse IO-to-CoreSpice edge. The electrical umbrella does not depend on or
+reexport CoreSpiceBackend. GPU clients explicitly select that optional product;
+its implementation is independent of the native Swift circuit algorithms.
 
 ## Verification and Change Impact
 

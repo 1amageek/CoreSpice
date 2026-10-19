@@ -79,30 +79,25 @@ struct FrontendSessionTests {
         #expect(throws: MOSResolutionFailure.self) { _ = try resolved(missing) }
     }
 
-    @Test func familySelectionBSIM45AndExactSourceRemainInspectable() async throws {
+    @Test func classicalSelectedSourceAndScaledGeometryRemainInspectable() async throws {
         let source = """
-        inspect model family
+        inspect classical model
         .options scale=1u
-        .model nm.1 NMOS level=54 version=4.5 lmin=0 lmax=1u wmin=0 wmax=1u
-        .model nm.2 NMOS level=54 version=4.5 lmin=1u lmax=2u wmin=0 wmax=1u
+        .model nm NMOS level=3 vto=.7
         M1 d g 0 0 nm l=1.5 w=.5
         .end
         """
-        let parsed = try await SPICEParser().parse(document: .init(text: source, resolvedPath: "family.cir", captureID: "family-capture"),
+        let parsed = try await SPICEParser().parse(document: .init(text: source, resolvedPath: "classic.cir", captureID: "classic-capture"),
             configuration: .default, fileResolver: NullFileResolver()).get()
         let limits = try FrontendTestLowering.limits()
         let result = try resolved(parsed)
         guard case .resolved(let mos) = result.circuit.instances[0].mos else { Issue.record("Missing MOS"); return }
-        #expect(mos.symbolNames[Int(mos.selectedName.rawValue)] == "nm.2")
-        #expect(mos.release == .bsim4_4_5)
+        #expect(mos.release == .level3)
         #expect(abs(try #require(mos.normalizedGeometry.length) - 1.5e-6) < 1e-20)
-        let inspection = try inspectResolvedMOS(mos, from: result.snapshot, limits: limits)
-        #expect(inspection.declaration == mos.declaration)
-        #expect(mos.source.captureID == "family-capture")
-        #expect(mos.source.line == 4)
-        #expect(try result.compiled.modelOrigin(for: mos) == parsed.models[1].origin)
-        #expect(result.circuit.instances[0].parameters.isEmpty)
-        #expect(result.circuit.instances[0].model == nil)
+        #expect(try inspectResolvedMOS(mos, from: result.snapshot, limits: limits).declaration == mos.declaration)
+        #expect(mos.source.captureID == "classic-capture" && mos.source.line == 3)
+        #expect(try result.compiled.modelOrigin(for: mos) == parsed.models[0].origin)
+        #expect(result.circuit.instances[0].parameters.isEmpty && result.circuit.instances[0].model == nil)
     }
 
     @Test func compileOnceSupportsDistinctRootActualsAndSeeds() async throws {
@@ -226,52 +221,19 @@ struct FrontendSessionTests {
         #expect(try session.evaluateScalar(controlled.scalarSlot(at: .initialCondition(node: "A"))) == 3)
     }
 
-    @Test func MOSInitialConditionOperandsUseSourceOrderAndOneSharedEvaluation() async throws {
-        let parsed = try await SPICEParser().parse(source: """
-        initial condition operands
-        M1 d g 0 0 nm l=1u w=1u nqsmod=1 ic={rand()},{rand()},{rand()}
-        .model nm NMOS level=49 version=3.3.0
-        .end
-        """).get()
-        #expect(parsed.components[0].parameterAssignments.last?.name.lowercased() == "ic")
-        #expect(parsed.components[0].parameterAssignments.last?.additionalValues.count == 2)
-        let result = try resolved(parsed)
-        guard case .resolved(let mos) = result.circuit.instances[0].mos else { Issue.record("Missing resolved MOS"); return }
-        let reference = try await SPICEParser().parse(source: "reference\nR1 a 0 {rand()}\nR2 a 0 {rand()}\nR3 a 0 {rand()}\n.end\n").get()
-        let expected = try resolved(reference)
-        for (index, name) in ["ic_vds", "ic_vgs", "ic_vbs"].enumerated() {
-            let actual = mos.instanceParameters.first { mos.symbolNames[Int($0.symbol.rawValue)] == name }?.value
-            #expect(actual == scalar(expected.circuit.instances[index].parameters["r"]))
-        }
-        #expect(result.evaluationProvenance.randomDraws == 3)
-        #expect(mos.instanceParameters.count == 6)
-    }
 
-    @Test func MOSInitialConditionOmissionAndReleaseAdmissionRemainExplicit() async throws {
-        for (level, version) in [(49, "3.3.0"), (54, "4.5"), (54, "4.8.3")] {
-            for operands in [".5", ".5,1.1"] {
-                let parsed = try await SPICEParser().parse(source: "initial omission\nM1 d g 0 0 nm l=1u w=1u ic=\(operands)\n.model nm NMOS level=\(level) version=\(version)\n.end\n").get()
-                let result = try resolved(parsed)
-                guard case .resolved(let mos) = result.circuit.instances[0].mos else { Issue.record("Missing resolved MOS"); return }
-                let names = mos.instanceParameters.map { mos.symbolNames[Int($0.symbol.rawValue)] }
-                #expect(names.contains("ic_vds"))
-                #expect(names.contains("ic_vgs") == operands.contains(","))
-                #expect(!names.contains("ic_vbs"))
-            }
-        }
-        let simple = try await SPICEParser().parse(source: "release refusal\nM1 d g 0 0 nm l=1u w=1u ic=.5\n.model nm NMOS level=1\n.end\n").get()
-        #expect(throws: MOSResolutionFailure.self) { _ = try resolved(simple) }
-    }
+
+
 
     @Test func MOSInitialConditionVectorAndCanonicalAssignmentsCannotCollide() async throws {
         for assignments in ["ic=.5,1.1 ic_vgs=2", "ic_vgs=2 ic=.5", "ic=.5 ic=1.1"] {
-            let parsed = try await SPICEParser().parse(source: "initial collision\nM1 d g 0 0 nm l=1u w=1u \(assignments)\n.model nm NMOS level=49 version=3.3.0\n.end\n").get()
+            let parsed = try await SPICEParser().parse(source: "initial collision\nM1 d g 0 0 nm l=1u w=1u \(assignments)\n.model nm NMOS level=1\n.end\n").get()
             #expect(throws: LoweringError.self) { _ = try resolved(parsed) }
         }
         let malformed = ParsedComponent(name: "M1", type: .mosfet, nodes: ["d", "g", "0", "0"], modelName: "nm",
             parameters: ["l": .numeric(1e-6), "w": .numeric(1e-6)],
             parameterAssignments: [.init(name: "ic", value: .numeric(1), additionalValues: [.numeric(2), .numeric(3), .numeric(4)])])
-        let input = ParsedNetlist(components: [malformed], models: [.init(name: "nm", type: .nmos, level: 49, parameters: ["version": .string("3.3.0")])])
+        let input = ParsedNetlist(components: [malformed], models: [.init(name: "nm", type: .nmos, level: 1)])
         #expect(throws: LoweringError.self) { _ = try resolved(input) }
     }
 

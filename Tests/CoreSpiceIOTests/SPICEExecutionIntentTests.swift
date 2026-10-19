@@ -25,7 +25,7 @@ struct SPICEExecutionIntentTests {
         #expect(options.convergence.maxIterations == 80)
         #expect(approximately(options.convergence.gmin, 1e-13))
         #expect(options.temperatureCelsius == 42)
-        #expect(options.transient.initialMethod == .trapezoidal)
+        #expect(options.transient.preferredMethod == .trapezoidal)
         #expect(approximately(options.transient.maxTimeStep, 5e-9))
         #expect(approximately(options.transient.minTimeStep, 1e-12))
         #expect(approximately(options.transient.lteTolerance, 0.25))
@@ -42,7 +42,7 @@ struct SPICEExecutionIntentTests {
         #expect(approximately(transient.maxTimeStep, 5e-9))
         #expect(approximately(transient.initialTimeStep, 1e-9))
         #expect(approximately(transient.minTimeStep, 1e-12))
-        #expect(transient.initialMethod == .trapezoidal)
+        #expect(transient.preferredMethod == .trapezoidal)
         #expect(approximately(transient.lteTolerance, 0.25))
     }
 
@@ -675,7 +675,7 @@ struct SPICEExecutionIntentTests {
         #expect(item(named: "model:dmod", in: report)?.status == .blocked)
         #expect(item(named: "model:nch", in: report)?.status == .supported)
         #expect(item(named: "model:sky", in: report)?.status == .blocked)
-        #expect(item(named: "model:sky", in: report)?.message.contains("4.8.3") == true)
+        #expect(item(named: "model:sky", in: report)?.message.contains("OSDI") == true)
         #expect(item(named: "model:swmod", in: report)?.status == .supported)
         #expect(item(named: "model:cswmod", in: report)?.status == .supported)
         #expect(item(named: "model:jmod", in: report)?.status == .supported)

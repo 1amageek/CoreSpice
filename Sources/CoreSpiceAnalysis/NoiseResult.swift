@@ -1,4 +1,5 @@
 import CoreSpiceIR
+import CoreSpiceDevices
 
 /// The result of a noise (.noise) analysis.
 ///
@@ -15,11 +16,16 @@ public struct NoiseResult: Sendable, AnalysisResultStorageRetaining {
         public let noiseName: String
         /// The output-referred noise spectral density at each frequency (V²/Hz).
         public let spectralDensity: [Double]
+        /// Present for a canonical residual source; source PSD is in residual-unit squared per Hz.
+        public let residualSource: ResidualNoiseSource?
+        public let sourceSpectralDensity: [Double]?
 
-        public init(deviceName: String, noiseName: String, spectralDensity: [Double]) {
+        public init(deviceName: String, noiseName: String, spectralDensity: [Double],
+                    residualSource: ResidualNoiseSource? = nil, sourceSpectralDensity: [Double]? = nil) {
             self.deviceName = deviceName
             self.noiseName = noiseName
             self.spectralDensity = spectralDensity
+            self.residualSource = residualSource; self.sourceSpectralDensity = sourceSpectralDensity
         }
     }
 
@@ -29,7 +35,7 @@ public struct NoiseResult: Sendable, AnalysisResultStorageRetaining {
     /// The total output noise spectral density at each frequency (V²/Hz).
     public let outputNoiseDensity: [Double]
 
-    /// The input-referred noise spectral density at each frequency (V²/Hz).
+    /// The input-referred noise spectral density, V²/Hz or A²/Hz according to inputQuantity.
     /// Computed as outputNoiseDensity / |gain|².
     public let inputReferredNoiseDensity: [Double]
 
@@ -41,6 +47,8 @@ public struct NoiseResult: Sendable, AnalysisResultStorageRetaining {
 
     /// The variable map from the DC operating point.
     public let variableMap: [MNAVariable: Int]
+    public let inputQuantity: NoiseInputQuantity
+    public let operatingPoint: DCResult?
 
     public init(
         frequencies: [Double],
@@ -48,7 +56,9 @@ public struct NoiseResult: Sendable, AnalysisResultStorageRetaining {
         inputReferredNoiseDensity: [Double],
         integratedOutputNoise: Double,
         deviceContributions: [DeviceNoiseContribution],
-        variableMap: [MNAVariable: Int]
+        variableMap: [MNAVariable: Int],
+        inputQuantity: NoiseInputQuantity = .voltage,
+        operatingPoint: DCResult? = nil
     ) throws {
         let count = frequencies.count
         guard count > 0 else {
@@ -79,6 +89,17 @@ public struct NoiseResult: Sendable, AnalysisResultStorageRetaining {
                     expected: count,
                     actual: contribution.spectralDensity.count
                 )
+            }
+        }
+        for contribution in deviceContributions {
+            guard (contribution.residualSource == nil) == (contribution.sourceSpectralDensity == nil) else {
+                throw AnalysisError.invalidConfiguration("Noise residual metadata and source PSD must be supplied together")
+            }
+            if let density = contribution.sourceSpectralDensity {
+                guard density.count == count else {
+                    throw AnalysisResultValidationError.countMismatch(field: "sourceSpectralDensity", expected: count, actual: density.count)
+                }
+                try Self.validateNonNegativeFinite(density, field: "sourceSpectralDensity")
             }
         }
         try Self.validateNonNegativeFinite(frequencies, field: "frequencies")
@@ -116,12 +137,16 @@ public struct NoiseResult: Sendable, AnalysisResultStorageRetaining {
                 value: integratedOutputNoise
             )
         }
+        if let operatingPoint, operatingPoint.variableMap != variableMap {
+            throw AnalysisResultValidationError.variableMapMismatch
+        }
         self.frequencies = frequencies
         self.outputNoiseDensity = outputNoiseDensity
         self.inputReferredNoiseDensity = inputReferredNoiseDensity
         self.integratedOutputNoise = integratedOutputNoise
         self.deviceContributions = deviceContributions
         self.variableMap = variableMap
+        self.inputQuantity = inputQuantity; self.operatingPoint = operatingPoint
         self.retainedStorage = nil
     }
 
@@ -137,6 +162,7 @@ public struct NoiseResult: Sendable, AnalysisResultStorageRetaining {
         self.integratedOutputNoise = result.integratedOutputNoise
         self.deviceContributions = result.deviceContributions
         self.variableMap = result.variableMap
+        self.inputQuantity = result.inputQuantity; self.operatingPoint = result.operatingPoint?.retainingStorage(owner)
         self.retainedStorage = owner
     }
 

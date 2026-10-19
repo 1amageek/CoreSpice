@@ -7,86 +7,129 @@ import CoreSpiceMOSResolution
 import Testing
 
 extension PreparedNativeExecutionTests {
-    @Test(arguments: [MOSModelRelease.level1, .bsim3_3_3_0, .bsim4_4_8_3, .bsim4_4_5])
+    @Test(arguments: [MOSModelRelease.level1, .level2, .level3])
     func actualMOSRowsOwnMatrixAdmissionAndLeaseLifetime(release: MOSModelRelease) async throws {
-        for privateNodes in release == .level1 ? [false] : [false, true] {
-            let input = try await mosInput(release: release, sweep: false, privateNodes: privateNodes)
-            let resources = SourceBoundaryTestResources()
-            var numerical = TransientExecutionLimits(maximumAcceptedSteps: 100, maximumSolveAttempts: 1000,
-                maximumNewtonIterations: 10_000, maximumSavedScalars: 1000,
-                maximumMatrixDimension: 32, maximumWorkUnits: 100_000_000, maximumBreakpoints: 100)
-            let probe = try SPICENativeSimulation().prepare(input, limits: mosLimits())
-            let dimension = probe.record.plan.topology.dimension
-            #expect((probe.record.mosPreparationReceipts[0].topology.auxiliaryNodeCount > 0) == privateNodes)
-            let base = try mosLimits()
-            let native = SPICENativeExecutionLimits(maximumDeviceCount: base.maximumDeviceCount,
-                maximumMatrixDimension: dimension, maximumAllocationBytes: base.maximumAllocationBytes,
-                mosPreparationLimits: base.mosPreparationLimits, mosPreparationConditions: base.mosPreparationConditions)
-            numerical.maximumMatrixDimension = dimension
-            do {
-                let owner = try NativeCircuitPreparer().prepare(ir: input.circuit, registry: .standard(),
-                    operatingConditions: input.configuration.options.operatingConditions(), limits: native,
-                    numericalLimits: numerical, resources: resources)
-                #expect(owner.plan.topology.dimension == dimension)
-                #expect(owner.record.mosPreparationReceipts.allSatisfy { $0.coldSetupCount == 1 })
-                let run = try await DCAnalysis().run(circuit: owner, solver: SparseLUSolver(), observer: nil, cancellation: .init())
-                #expect(run.result.variables.count == dimension)
+        let input = try await mosInput(release: release, sweep: false)
+        let resources = SourceBoundaryTestResources()
+        var numerical = TransientExecutionLimits(maximumAcceptedSteps: 100, maximumSolveAttempts: 1000,
+            maximumNewtonIterations: 10_000, maximumSavedScalars: 1000,
+            maximumMatrixDimension: 32, maximumWorkUnits: 100_000_000, maximumBreakpoints: 100)
+        let probe = try SPICENativeSimulation().prepare(input, limits: mosLimits())
+        let dimension = probe.record.plan.topology.dimension
+        #expect(probe.record.mosPreparationReceipts[0].topology.localNodeCount == 4)
+        #expect(probe.record.mosPreparationReceipts[0].topology.auxiliaryNodeCount == 0)
+        #expect(probe.record.plan.ir.instances.allSatisfy { $0.ownedNodes.isEmpty })
+        let base = try mosLimits()
+        let native = SPICENativeExecutionLimits(maximumDeviceCount: base.maximumDeviceCount,
+            maximumMatrixDimension: dimension, maximumAllocationBytes: base.maximumAllocationBytes,
+            mosPreparationLimits: base.mosPreparationLimits, mosPreparationConditions: base.mosPreparationConditions)
+        numerical.maximumMatrixDimension = dimension
+        do {
+            let owner = try NativeCircuitPreparer().prepare(ir: input.circuit, registry: .standard(),
+                operatingConditions: input.configuration.options.operatingConditions(), limits: native,
+                numericalLimits: numerical, resources: resources)
+            #expect(owner.plan.topology.dimension == dimension)
+            #expect(owner.record.mosPreparationReceipts.allSatisfy { $0.coldSetupCount == 1 })
+            let run = try await DCAnalysis().run(circuit: owner, solver: SparseLUSolver(), observer: nil, cancellation: .init())
+            #expect(run.result.variables.count == dimension)
+        }
+        #expect(resources.used(.liveOwnedBytes) == 0)
+        #expect(resources.used(.temporaryBytes) == 0)
+        for restrictNative in [false, true] {
+            var limitedNative = native, limitedNumerical = numerical
+            if restrictNative { limitedNative = .init(maximumDeviceCount: native.maximumDeviceCount,
+                maximumMatrixDimension: dimension - 1, maximumAllocationBytes: native.maximumAllocationBytes,
+                mosPreparationLimits: native.mosPreparationLimits, mosPreparationConditions: native.mosPreparationConditions) }
+            else { limitedNumerical.maximumMatrixDimension = dimension - 1 }
+            #expect(throws: SPICENativePreparationError.self) {
+                _ = try NativeCircuitPreparer().prepare(ir: input.circuit, registry: .standard(),
+                    operatingConditions: input.configuration.options.operatingConditions(), limits: limitedNative,
+                    numericalLimits: limitedNumerical, resources: resources)
             }
             #expect(resources.used(.liveOwnedBytes) == 0)
             #expect(resources.used(.temporaryBytes) == 0)
-            for restrictNative in [false, true] {
-                var limitedNative = native, limitedNumerical = numerical
-                if restrictNative { limitedNative = .init(maximumDeviceCount: native.maximumDeviceCount,
-                    maximumMatrixDimension: dimension - 1, maximumAllocationBytes: native.maximumAllocationBytes,
-                    mosPreparationLimits: native.mosPreparationLimits, mosPreparationConditions: native.mosPreparationConditions) }
-                else { limitedNumerical.maximumMatrixDimension = dimension - 1 }
-                #expect(throws: SPICENativePreparationError.self) {
-                    _ = try NativeCircuitPreparer().prepare(ir: input.circuit, registry: .standard(),
-                        operatingConditions: input.configuration.options.operatingConditions(), limits: limitedNative,
-                        numericalLimits: limitedNumerical, resources: resources)
-                }
-                #expect(resources.used(.liveOwnedBytes) == 0)
-                #expect(resources.used(.temporaryBytes) == 0)
-            }
-            let refused = SourceBoundaryTestResources(liveLimit: probe.record.compileCapacity - 1)
-            #expect(throws: SPICENativePreparationError.self) {
-                _ = try NativeCircuitPreparer().prepare(ir: input.circuit, registry: .standard(),
-                    operatingConditions: input.configuration.options.operatingConditions(), limits: native,
-                    numericalLimits: numerical, resources: refused)
-            }
-            #expect(refused.used(.liveOwnedBytes) == 0)
-            #expect(refused.used(.temporaryBytes) == 0)
         }
+        let refused = SourceBoundaryTestResources(liveLimit: probe.record.compileCapacity - 1)
+        #expect(throws: SPICENativePreparationError.self) {
+            _ = try NativeCircuitPreparer().prepare(ir: input.circuit, registry: .standard(),
+                operatingConditions: input.configuration.options.operatingConditions(), limits: native,
+                numericalLimits: numerical, resources: refused)
+        }
+        #expect(refused.used(.liveOwnedBytes) == 0)
+        #expect(refused.used(.temporaryBytes) == 0)
     }
 
-    func mosInput(release: MOSModelRelease = .level1, sweep: Bool = true, privateNodes: Bool = false,
+    @Test(arguments: [MOSModelRelease.level1, .level2, .level3])
+    func resolvedClassicOwnershipIsRejectedWithoutSanitizingOrLeaking(release: MOSModelRelease) async throws {
+        let input = try await mosInput(release: release, sweep: false)
+        let circuit = input.circuit
+        let index = try #require(circuit.instances.firstIndex { $0.mos != nil })
+        let original = circuit.instances[index]
+        let physicalPort = try #require(original.nodes.first)
+        let existingBranch = try #require(circuit.branches.first)
+        let resources = SourceBoundaryTestResources()
+        let limits = try mosLimits()
+        let operating = try input.configuration.options.operatingConditions()
+        for suppliedNodeOwnership in [true, false] {
+            var instances = circuit.instances
+            instances[index] = Instance(name: original.name, typeName: original.typeName,
+                nodes: original.nodes, parameters: original.parameters, model: original.model,
+                mos: original.mos, diode: original.diode, osdi: original.osdi,
+                modelConsumption: original.modelConsumption,
+                ownedNodes: suppliedNodeOwnership ? [physicalPort] : [],
+                ownedBranches: suppliedNodeOwnership ? [] : [existingBranch],
+                referencedBranches: original.referencedBranches, referencedNodes: original.referencedNodes,
+                opticalNodes: original.opticalNodes)
+            let malformed = CircuitIR(nodes: circuit.nodes, branches: circuit.branches, instances: instances,
+                groundNode: circuit.groundNode, nodeNames: circuit.nodeNames, branchNames: circuit.branchNames,
+                opticalNodes: circuit.opticalNodes, opticalConnections: circuit.opticalConnections,
+                evaluationEnvironment: circuit.evaluationEnvironment)
+            do {
+                _ = try NativeCircuitPreparer().prepare(ir: malformed, registry: .standard(),
+                    operatingConditions: operating, limits: limits,
+                    numericalLimits: input.configuration.numericalLimits, resources: resources)
+                Issue.record("Supplied classic ownership was sanitized or admitted")
+            } catch SPICENativePreparationError.mosBinding(.topologyMismatch) {}
+            #expect(resources.used(.liveOwnedBytes) == 0)
+            #expect(resources.used(.temporaryBytes) == 0)
+            #expect(resources.reservationCount == resources.releaseCount)
+        }
+        do {
+            let retry = try NativeCircuitPreparer().prepare(ir: circuit, registry: .standard(),
+                operatingConditions: operating, limits: limits,
+                numericalLimits: input.configuration.numericalLimits, resources: resources)
+            #expect(retry.record.mosPreparationReceipts.count == 1)
+            #expect(retry.record.plan.ir.instances.allSatisfy { $0.mos == nil ||
+                ($0.ownedNodes.isEmpty && $0.ownedBranches.isEmpty) })
+            withExtendedLifetime(retry) {}
+        }
+        #expect(resources.used(.liveOwnedBytes) == 0)
+        #expect(resources.used(.temporaryBytes) == 0)
+        #expect(resources.reservationCount == resources.releaseCount)
+    }
+
+    func mosInput(release: MOSModelRelease = .level1, sweep: Bool = true,
                   resources: SourceBoundaryTestResources = .init()) async throws -> PreparedSPICESimulation {
         let analysis = sweep ? ".dc VG 0 1 0.5" : ".op"
-        var physicalParameters: String
-        switch release {
-        case .level1, .level2, .level3: physicalParameters = "vto=0.4 kp=1e-4"
-        case .bsim3_3_3_0: physicalParameters = "tox=1e-8 vth0=0.4 u0=0.05"
-        case .bsim4_4_5, .bsim4_4_8_3: physicalParameters = "toxe=1e-8 vth0=0.4 u0=0.05"
-        }
-        if privateNodes { physicalParameters += " rsh=100" }
+        let physicalParameters = "vto=0.4 kp=1e-4"
         let version = release.exactVersion.map { " version=\($0)" } ?? ""
         return try await input("native MOS\nVDD d 0 1\nVG g 0 1 AC 1\nR1 d 0 1k\n" +
             ".model n NMOS level=\(release.level)\(version) \(physicalParameters)\n" +
-            "M1 d g 0 0 n l=1u w=10u\(privateNodes ? " nrd=1 nrs=1" : "")\n.options bsim4stressiterations=128\n\(analysis)\n.end\n", resources: resources)
+            "M1 d g 0 0 n l=1u w=10u\n\(analysis)\n.end\n", resources: resources)
     }
 
     func mosLimits(ambient: Double = 300.15, nominal: Double = 300.15,
-                           capabilities: MOSAnalysisCapabilities = [.dc], stress: UInt32 = 128,
+                           capabilities: MOSAnalysisCapabilities = [.dc],
                            allocation: UInt64 = 32 * 1024 * 1024) throws -> SPICENativeExecutionLimits {
         .init(maximumDeviceCount: 100, maximumMatrixDimension: 32, maximumAllocationBytes: allocation,
             mosPreparationLimits: try .init(maximumRetainedBytes: 1024 * 1024,
                 maximumTemporaryBytes: 1024 * 1024, maximumDiagnosticBytes: 4096, maximumWorkUnits: 1_000_000),
             mosPreparationConditions: try .init(ambientKelvin: ambient, nominalKelvin: nominal,
-                analysisCapabilities: capabilities, maximumStressIterations: stress))
+                analysisCapabilities: capabilities))
     }
 
     @Test func mosPreparationRunsOnceAcrossSweepAndFreshRerun() async throws {
-        for release in [MOSModelRelease.level1, .bsim3_3_3_0, .bsim4_4_8_3, .bsim4_4_5] {
+        for release in [MOSModelRelease.level1, .level2, .level3] {
             let resources = SourceBoundaryTestResources()
             let input = try await mosInput(release: release, resources: resources)
             let prepared = try SPICENativeSimulation().prepare(input, limits: mosLimits())
@@ -123,13 +166,13 @@ extension PreparedNativeExecutionTests {
         }
     }
 
-    @Test(arguments: [MOSModelRelease.bsim4_4_5, .bsim4_4_8_3])
+    @Test(arguments: [MOSModelRelease.level1, .level2, .level3])
     func mosConditionsAndCapacityFailBeforePublicationAndReleaseReservations(release: MOSModelRelease) async throws {
         let resources = SourceBoundaryTestResources()
         let input = try await mosInput(release: release, resources: resources)
         let baseline = resources.used(.liveOwnedBytes)
         for limits in [try mosLimits(ambient: 301.15), try mosLimits(nominal: 301.15),
-                       try mosLimits(capabilities: [.dc, .noise]), try mosLimits(stress: 127)] {
+                       try mosLimits(capabilities: [.dc, .noise])] {
             do {
                 _ = try SPICENativeSimulation().prepare(input, limits: limits)
                 Issue.record("Mismatched MOS conditions accepted")

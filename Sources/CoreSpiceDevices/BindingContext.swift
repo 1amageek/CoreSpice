@@ -116,6 +116,27 @@ public struct BindingContext: Sendable {
         for node in instance.ownedNodes { claimedOwnedNodes.insert(node) }
     }
 
+    /// Checks every explicit branch proposal without changing ownership.
+    package func validateOwnedBranches(for instance: Instance) throws {
+        for (offset, branch) in instance.ownedBranches.enumerated() {
+            guard let index = variableMap[.branchCurrent(branch)],
+                  (0..<matrixDimension).contains(index) else {
+                throw DeviceBindingError.missingBranchVariable(
+                    device: instance.name, ownedIndex: offset)
+            }
+            guard !instance.ownedBranches[..<offset].contains(branch),
+                  !claimedBranches.contains(branch) else {
+                throw DeviceBindingError.duplicateBranchOwnership(
+                    device: instance.name, branchID: branch.id)
+            }
+        }
+    }
+
+    /// Commits only after both node and branch proposals and construction succeed.
+    package mutating func commitValidatedOwnedBranches(for instance: Instance) {
+        for branch in instance.ownedBranches { claimedBranches.insert(branch) }
+    }
+
     /// Atomically validates and claims all private nodes.
     public mutating func claimOwnedNodes(for instance: Instance) throws {
         try validateOwnedNodes(for: instance)
@@ -147,6 +168,8 @@ public struct BindingContext: Sendable {
     public func inductance(for branch: Branch) -> Double? {
         inductanceByBranch[branch]
     }
+
+    package var hasStampIndexResolver: Bool { stampIndexResolver != nil }
 
     /// Pre-resolves the CSR value index for a matrix position.
     ///

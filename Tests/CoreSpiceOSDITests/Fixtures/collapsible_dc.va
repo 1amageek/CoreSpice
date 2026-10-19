@@ -1,0 +1,11 @@
+`include "dc_disciplines.vams"
+module collapsible_dc(p, n);
+    inout p, n;
+    electrical p, n, x;
+    parameter integer collapse = 1 from [0:1];
+    analog begin
+        if (collapse == 1) V(x, n) <+ 0;
+        else I(x, n) <+ 0.002 * V(x, n);
+        I(p, x) <+ 0.001 * V(p, x);
+    end
+endmodule

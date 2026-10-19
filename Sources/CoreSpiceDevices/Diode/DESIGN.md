@@ -2,12 +2,11 @@
 
 ## Purpose and Scope
 
-Status: proposed component. Parent: [Devices module](../DESIGN.md). No children.
-It will own the diode implementation currently in Devices/DiodeDescriptor.swift,
-Devices/DiodeModelParameters.swift and Devices/BoundDiode.swift; move those production
-files here when implementing this boundary. This document defines the new checked
-path, not a claim that today's descriptor implements it. No solver replacement or
-Sky130 Level-3 physics is included.
+Status: D4 preparation and 07N generic numerical law implemented and verified on native CPU. Parent: [Devices module](../DESIGN.md). No children.
+It owns DiodeDescriptor.swift, DiodeModelParameters.swift, BoundDiode.swift and the
+checked preparation owner in this directory. No solver replacement or Sky130
+Level-3 physics is included. Generic numerical graduation requires the independent success/failure and
+accepted-history evidence defined by 07N below.
 
 ## Responsibilities and Boundaries
 
@@ -44,7 +43,7 @@ flowchart TD
 ## Contracts and Invariants
 
 ```swift
-// Proposed APIs, not existing declarations.
+// Implemented preparation and executable ownership boundary.
 public protocol DiodeDevicePreparing: Sendable {
     associatedtype Prepared: PreparedDiodeDevice & ~Copyable
     func prepare(_ input: borrowing DiodePreparationInput,
@@ -53,10 +52,9 @@ public protocol DiodeDevicePreparing: Sendable {
         throws(DiodePreparationFailure) -> Prepared
 }
 public protocol PreparedDiodeDevice: ~Copyable, Sendable {
-    associatedtype Bound: BoundDevice
     var receipt: DiodePreparationReceipt { get }
-    consuming func bind(_ mapping: borrowing DiodeBindingMapping)
-        throws(DiodeBindingFailure) -> Bound
+    consuming func bind(instance: Instance, context: inout BindingContext)
+        throws(DiodePreparationFailure) -> any BoundDevice
 }
 ```
 
@@ -92,23 +90,10 @@ KCL, equal/opposite terminal charge and consistent derivatives must survive scal
 Numerical stabilization is separately identified and excluded from physical noise
 and replication proofs; a numerical gmin is not a model leakage coefficient.
 
-Current baseline has unused rs, questionable reverse/breakdown derivative branches,
-and a variable-C companion without an explicit charge law. Existing shape/stamp
-checks cannot qualify these features. The first admitted native feature set is
-explicitly restricted to area-scaled Shockley/temperature, zero rs, breakdown
-disabled, zero tt and zero cjo, with zero pj. It still exercises direct A/M roles
-through DC, AC, memoryless transient and shot noise. Its I and G must come from the
-same finite analytic evaluation (no exp clamp with an unclamped derivative, and no
-constant reverse current with an unrelated slope). Nonfinite I/G fails explicitly.
-No legacy branch may execute behind this new preparation path.
-
-Nonzero rs, explicit breakdown, depletion/diffusion charge and sidewall remain
-recognized feature refusals until their respective diode-law units have independent
-proof. In particular cjo>0 cannot silently run the existing variable-C transient
-companion; requesting an unsupported analysis fails before execution. Feature
-support is a static, implementation-identity-bound capability table, not a runtime
-"tests passed" flag or a caller-controlled whitelist. Adding support requires the
-owning physics design and tests before changing that table.
+The restricted coreJunctionV1 law supports zero Rs, disabled breakdown, zero Cjo/Tt
+and zero perimeter. The distinct genericJunctionV1 law supports depletion/diffusion
+charge and calibrated breakdown as specified below. Rs and sidewall remain explicit
+feature refusals. Support is implementation-owned, not a caller whitelist.
 
 ## State, Ownership, and Lifecycle
 
@@ -123,7 +108,7 @@ Use UniqueArray<NativePreparedDiodeDevice?> for mixed-circuit staging, independe
 of MOS owners. No C owner is needed for this Swift junction law. Borrow spans only
 synchronously; no pointer/view escapes its backing owner or an await.
 
-When charge is implemented, use a diode-owned typed charge/current history with
+Charge uses a diode-owned typed charge/current history with
 Mutex<State> and the existing TransientSessionDevice/TransientStateCommittingDevice
 protocols. Trial stamping does not commit history; acceptance commits exactly once,
 rejection/cancel preserves the last accepted state, and end clears the session.
@@ -154,15 +139,15 @@ contract. No callback, I/O or await executes under the history Mutex.
 
 ## Verification and Change Impact
 
-Proposed DiodePreparationTests in CoreSpiceDevicesTests owns identity, feature
+DiodePreparationTests in CoreSpiceDevicesTests owns identity, feature
 refusals, exact effective temperature/A/M values, topology and consuming binding,
 budget boundary, cancellation at each stage and cleanup after partial batches.
 DiodeExecutionConsistencyTests checks independent analytic I/G, finite differences,
 KCL, AC Y=G+jwC, M parallel-array equivalence and PSD scaling for the admitted set.
-Future charge proofs require Q conservation, C=dQ/dV, BE/trapezoidal accepted/rejected
+Charge proofs require Q conservation, C=dQ/dV, BE/trapezoidal accepted/rejected
 steps and lifecycle/concurrent release tests before nonzero cjo/tt admission.
 Future Rs proofs require actual current reduction, internal-node mapping and thermal
-noise; future breakdown proofs require current/derivative continuity and reference
+noise; breakdown proofs require current/derivative continuity and reference
 comparison. The rs=0 vs1000 equal-current CLI counterexample must turn into an exact
 unsupported-feature result first, or a proven physical difference once implemented.
 Public raw-source/typed API tests must cover both outcomes and prevent registry bypass.
@@ -173,3 +158,143 @@ The [D3 resolution owner](../../CoreSpiceLowering/DiodeResolution/DESIGN.md) def
 evaluation, immutable result transport and explicit numerical refusal. This layer
 consumes that contract; D4 numerical preparation and D5 downstream adoption remain
 separate. Its affected production path and behavioral tests are verified in D3.
+
+## D4 Preparation Boundary
+
+D4 owns coreDiodeV1/coreJunctionV1 and genericDiodeV1/genericJunctionV1 checked
+preparation and consuming binding. Generic Cjo/Tt/breakdown inputs remain admitted;
+their numerical law and qualification are owned by 07N below. This restricted exact
+law does not remove those existing public cells.
+
+| Boundary | Owner | Falsifying evidence |
+|---|---|---|
+| Checked input and frozen environment | DiodePreparationInput | Mixed model/instance/environment refusal |
+| Effective thermal current and AREA/M | NativeDiodeDevicePreparer | Independent formula, overflow/underflow, unsupported feature refusal |
+| Receipt and executable authority | NativePreparedDiodeDevice | Forged/mismatched receipt or raw descriptor cannot bind |
+| Exact terminals and sparse mapping | Consuming bind | Missing/reordered terminal, mismatched conditions and matrix mapping refusal |
+| Native circuit composition | NativeCircuitPreparer | Mixed MOS/diode preparation, cancellation and batch storage release |
+
+Preparation capabilities name DC, AC, transient and noise explicitly. Admission
+is implementation-owned and cannot be enlarged by the caller. Input/receipt
+construction validates the environment before numerical work. The prepared owner
+retains one immutable resolved input and effective values; no source map merging,
+coefficient copies or model-name lookup occurs in bind/evaluation. Each owner
+performs one setup and moves into one bound device. The restricted core profile
+evaluates finite Shockley I/G with no physical gmin or inconsistent exponent clamp. Its physical law has no
+charge or private nodes; its memoryless transient is the same law at the
+trial voltage. Its shot-noise output is validated before publication.
+
+Caller limits bound preparation retained bytes, temporary bytes and work. The
+native batch reserves storage before preparing and transfers that reservation
+through binding. Failure/cancellation publishes no partial owner array. All shared
+state remains under the existing common resource owner; no target-specific raw
+state or Sendable branch is introduced. Portable values are verified separately
+from the Native-only numerical backend.
+
+### D4 Ownership and Verification Scope
+
+| State | Native | Ordinary WASM | Embedded WASM | Owner/lifetime |
+|---|---|---|---|---|
+| Checked input, identity and receipt | Immutable Sendable | Same declarations | Same declarations | Shared immutable source/typed backing |
+| Prepared diode owner | Noncopyable immutable value | Native evaluator not claimed | Native evaluator not claimed | Consumed once into binding |
+| Generic charge history | Diode-owned common Mutex store | Numerical backend not claimed | Numerical backend not claimed | Bound device; session lifecycle proved by 07N |
+| Native batch resources | Existing common synchronized accounting | Numerical backend not claimed | Numerical backend not claimed | Reservation transferred to run/results |
+
+Preparation work and retained/temporary byte facts describe admitted owner value
+capacity, not measured allocator utilization. Native circuit capacity separately
+owns bound arrays, compiled topology and result storage. Generic history is not
+qualified by the immutable portable value probe. Generic numerical success requires the 07N evidence below; unsupported Rs/sidewall
+remain explicit feature refusals.
+
+## 07N Generic Numerical Law
+
+This component owns CoreSpice's genericJunctionV1 law, identified by
+`CoreSpice.NativeDiode.Preparation.v2`. It is not ngspice equation parity. The
+restricted coreJunctionV1 remains memoryless Shockley with zero Rs/charge/breakdown.
+The generic schema retains its existing positive BV/IBV inputs; numerical admission
+checks the relationship required by this nonnegative avalanche coefficient law.
+
+Let u=N*k*T/q, S=Is(T)*AREA*M, J=IBV*AREA*M, b=BV/u, r=-expm1(-b),
+B=J/r-S. Explicit BV requires finite b>0, r>0, finite J>0, representable S*r>0 and finite B>=0.
+B=0 is valid. J<S*r fails with typed invalidEffectiveValue(breakdownCurrent):
+that combination is incompatible with this law, not universally physically invalid.
+No coefficient adjustment or silent underflow fallback occurs. Omitted BV disables
+avalanche. Preparation computes and freezes B once alongside the other effective
+values. Stable exponential differences avoid cancellation near V=0.
+
+I_f=S*expm1(V/u), G_f=S/u*exp(V/u).
+I_av=-B*(exp(-(V+BV)/u)-exp(-BV/u)), G_av=B/u*exp(-(V+BV)/u).
+I=I_f+I_av and G=G_f+G_av give I(0)=0, I(-BV)=-J and G=dI/dV>=0,
+with continuous I/G. Physical stamps contain no gmin or exponential clamp. Solver
+voltage limiting remains separate and also limits the reverse exponential argument.
+Nonfinite I/G, equivalent RHS, capacitance, charge or frequency products fail before
+emitting stamps. Shot noise is 2*q*abs(I); no solver gmin enters it. This is the
+declared shot-noise law, not an avalanche excess-noise/multiplication model.
+
+For depletion, a=1-m, Vf=Vj/2, Cf=Cjo*2^m, L=2*m*Cf/Vj:
+Q_dep=-Cjo*Vj/a*expm1(a*log1p(-V/Vj)) below Vf. Above Vf use
+Q_dep(Vf)+Cf*(V-Vf)+L*(V-Vf)^2/2. C_dep=dQ_dep/dV is the existing
+continuous depletion/forward-linear capacitance. Q_diff=Tt*I_f and
+C_diff=Tt*G_f use only the forward junction, excluding avalanche and numerical
+stabilization. Q=Q_dep+Q_diff is stamped equal/opposite at physical terminals.
+
+```text
+begin(Q_initial, I_dynamic=0, time=0) -> trial read -> accept(Q, I_dynamic, time)
+                                   -> rejected trial leaves history unchanged
+end clears history; a concurrent begin fails before replacing the active owner
+```
+
+BoundDiode implements TransientSessionDevice. One common Mutex<State> holds the
+optional accepted Q/current/time. BE dynamic current is (Qtrial-Qaccepted)/dt;
+TR is 2*(Qtrial-Qaccepted)/dt-Iaccepted. The Newton Jacobian is coefficient*Ctrial
+and equivalent current is Idynamic-Jacobian*Vtrial. Trials and DC/AC/noise never
+mutate accepted history. Commit validates positive finite dt, increasing finite
+accepted time and finite next values before atomic publication. Missing/concurrent
+sessions and duplicate acceptance fail explicitly. end releases history on success,
+throw and cancellation through Analysis's existing acquired-session defer. External
+stamper callbacks execute after releasing the lock. Memoryless devices need no
+history for a direct transient stamp. Fixed-size history capacity is accounted in
+preparation; no per-step array, dictionary or borrowed pointer is retained.
+
+| Invariant | Owner/test |
+|---|---|
+| I/G continuity and BV/IBV calibration | DiodeExecutionConsistencyTests independent expressions and finite differences |
+| Q conservation, C=dQ/dV, AC Y | Same suite, independent integral and terminal stamp checks |
+| BE/TR acceptance/rejection/restart and concurrency | Same suite, actual TransientSessionDevice lifecycle |
+| AREA/M scaling and physical shot noise | Same suite, parallel replication and PSD ratios |
+| Actual DC/AC/transient/noise and failures | DiodeNumericalAnalysisTests, existing affected Analysis tests |
+| Portable synchronization declarations | Common immutable owner and Mutex history; native CPU numerical execution only |
+
+The original generic incomplete markers may be removed only after these success,
+failure and lifecycle counterexamples pass. The shared TransientCapacitanceStore
+and unrelated device laws are outside this responsibility. Full CLI profile/receipt
+emission remains 07C; portable preparation evidence is not numerical qualification.
+
+### 07N Completion Evidence
+
+DiodeExecutionConsistencyTests supplies eleven behavioral cells; the charge finite-difference
+cell uses h=1e-5 because recovering Q from terminal stamps subtracts
+conductive currents. Its original relative tolerance is unchanged. At V=0.5,m=0,
+an independent IEEE arithmetic reproduction yields the prior h=1e-6 error exactly;
+the corrected stencil lowers roundoff while preserving the analytic reference.
+DiodeNumericalAnalysisTests supplies four actual CPU solver/cancellation/refusal
+cells. Existing diode/temperature28, diode convergence/sensitivity/MonteCarlo7 and
+source-to-native5 cells pass. No incomplete generic numerical branch remains.
+The immutable portable preparation evidence is unaffected; this evidence does not
+qualify a WASM/Embedded or Metal numerical backend, Rs/sidewall or CLI07C receipts.
+
+## 07C Checked Numeric Perturbations
+
+DiodeNumericPerturbation owns a typed role, canonical value, immutable original
+basis and checked replacement resolved input. Construction revalidates the same
+schema/profile and environment, reconstructs only originally supplied assignments
+plus the explicit replacement, preserving raw geometry/scale and model/instance
+roles. Canonical Kelvin overrides convert through source Celsius at this checked
+input boundary. No parser lookup, expression reevaluation, dictionary merging or
+raw descriptor binding occurs. Perturbed source-assignment evidence is false;
+original declaration/occurrence/environment/seed remain the basis. Sensitivity
+names use model.<sourceName> / instance.<sourceName> to prevent M role collision.
+Fresh checked preparation owns feature/physical admission, limits and executable
+lifetime. DiodeCLIAdmissionTests and native sensitivity tests falsify model/instance
+role collision, stale-owner reuse and unmodified-parameter masquerading as a fresh
+perturbation. Immutable perturbation values have no history or resource release.

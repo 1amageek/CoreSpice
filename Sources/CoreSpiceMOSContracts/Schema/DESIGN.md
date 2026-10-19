@@ -1,99 +1,47 @@
-# MOS Release Schema
+# Classical MOS Input Schema
 
 ## Purpose and Scope
-
-Parent: [Contracts](../DESIGN.md). This component owns exact release admission,
-parameter roles/kinds and parameter-specific geometry scaling. No children.
+Parent: [Contracts](../DESIGN.md). Own exact Level 1/2/3 input admission,
+parameter roles, kinds and parameter-specific geometry scaling. No children.
 
 ## Responsibilities and Boundaries
-
-Schemas describe Level 1/2/3, BSIM3 3.3.0, BSIM4 4.5 and BSIM4 4.8.3. BSIM4 4.5
-is inspect-only; current native numerical evaluators admit exact 3.3.0 and 4.8.3.
-Schema does not implement device physics or choose a model declaration.
+Only native classical MOS levels 1, 2 and 3 are supported by these schemas.
+Legacy BSIM levels 49 and 54 have no schema, selector catalog or executable
+release identity here. They require an explicit OSDI model/catalog binding.
+[OSDIContracts](../../CoreSpiceOSDIContracts/DESIGN.md) owns foreign model binding;
+its actual loaded OSDI metadata owns official-family parameter types and aliases.
+No legacy schema is repurposed as OSDI model authority.
 
 ## Related Designs
-
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
-| [Values](../Values/DESIGN.md) | used by | Release/schema identity | Checked resolution result | No string version rounding |
-| [BSIM3](../../CoreSpiceDevices/BSIM3/DESIGN.md) | coordinates with | Exact 3.3.0 admission | Current executable release | Revalidate original parameter kinds |
-| [BSIM4](../../CoreSpiceDevices/BSIM4/DESIGN.md) | coordinates with | Exact 4.8.3 admission | Current executable release | 4.5 cannot substitute 4.8.3 |
+| [Contracts](../DESIGN.md) | parent | Portable value boundary | Classical native inputs | No device physics |
+| [Values](../Values/DESIGN.md) | used by | Release/schema identity | Checked result | No release substitution |
+| [OSDIContracts](../../CoreSpiceOSDIContracts/DESIGN.md) | coordinates with | Explicit OSDI binding | Separate model authority | No parameter inference from legacy cards |
 
 ## Architecture
-
-```text
-exact release -> schema identity -> parameter role/kind/scale rule
-                                      |
-                            resolver normalization only
+```mermaid
+flowchart LR
+ Card[Native MOS card] --> Level{Level}
+ Level -->|1 / 2 / 3| Schema[Classical schema]
+ Level -->|49 / 54| Failure[Explicit OSDI-binding-required failure]
+ Schema --> Resolver[Checked normalization]
 ```
 
 ## Contracts and Invariants
+Classical releases reject supplied version strings. Omitted level defaults to L1;
+no BSIM release or missing-version default exists in either input profile.
+Instance l/w/pd/ps use S, ad/as use S squared; multiplicity remains unscaled.
+Only actually supported classical parameter names are admitted. BSIM bin bounds,
+finger fields and compact-model selector aliases are not added to classical
+schemas to preserve obsolete fixtures. Nonfinite, overflow and positive-to-zero
+conversion fail explicitly.
 
-Model coefficients, model bin bounds and BINUNIT are never scaled. Instance
-l/w/pd/ps use S, ad/as use S squared; BSIM4 sa/sb/sd/sc use S. Multiplicity,
-finger count, squares and sca/scb/scc remain unscaled. Aliases retain their original IFparm selector identity through canonicalName;
-source order and profile-specific duplicate policy remain resolver-owned.
-Rules use exact parameter
-names, never dimensional/name heuristics. Release-specific selectors retain their
-integer/flag kinds. Unknown names fail schema lookup explicitly.
+`supportsScalarPerturbation` admits source-supplied real scalars and excludes
+initial-condition fields. It does not invent a value for omitted or derived inputs.
 
 ## Verification and Change Impact
-
-CoreSpiceMOSContractsTests owns release exactness, input authority and scale
-rules. Parameter tables are checked against current original native C kernels;
-the pinned normal-profile scale evidence is retained in the parent verification
-run. Device preparation remains the final numerical admission owner.
-
-## Exact 4.5 Input Schema
-
-Status: B45-1 input contracts implemented for the [4.5 adoption](../../../DESIGN.md);
-numerical execution remains unavailable. [Research](../../../docs/bsim45-research/RESEARCH.md) pins the original
-33 instance / 746 model input table and the SC dispatch defect. This component
-owns the input schema changes; kernel physics remains separate.
-
-Canonical physical release identity becomes `4.5.0`. Preserve the declaration's
-original version spelling and explicit/default origin. Register exact spellings
-`4.5` and `4.5.0`; the explicit normal-ngspice profile additionally admits the
-observed Sky130 spelling `4.500000e+0`. No floating-point version rounding,
-prefix matching or arbitrary spelling inference. Unknown releases, including
-`4.62`, remain failures. Profile-owned omission defaults remain unchanged.
-
-Generate portable parameter IDs/kinds/canonical aliases from a pinned source
-manifest, and independently check them against the compiled C table. Do not make
-the portable build depend on C, Foundation or build-time network access. The
-manifest records the deliberate SC->SC correction; SC is length-scaled and SCA
-is unscaled. Numeric original selector values alone are not semantic identities.
-
-Every accepted non-original instance field must name its owner: outer M belongs
-to Devices parallel stamping; IC scalar aliases lower into the original IC vector;
-spelling aliases preserve the same semantic ID. Current simulator extensions
-`mulu0` and `dtemp` have no original-table authority and must be refused for this
-exact-source implementation until a separate explicit extension contract owns
-their effects and preparation conditions. Do not silently forward or discard them.
-This intentional admission narrowing needs successful original inputs and explicit
-extension-failure tests. Original physical defaults stay in the kernel; family
-selection cannot fabricate missing L/W.
-
-Remove the portable release-wide `isExecutable` decision. Portable schema describes
-meaning; a native provider reports executable release/feature/analysis capabilities.
-Resolution can succeed independently of an available native implementation.
-Update direct consumers and tests of that property in the adoption unit.
-
-Proposed verification owner: `CoreSpiceMOSContractsTests` for every original input
-ID/kind/alias, exact version spellings and units, and `CoreSpiceMOSResolutionTests`
-for normalized SC/SCA, NF/M, missing dimensions and preserved release origin.
-Test a later-only parameter against 4.5 and a 4.62 declaration explicitly. Native,
-ordinary WASM and Embedded WASM must compile, link and execute these pure contracts
-on exact Swift 6.4.0 and matching SDKs, independent of any numerical kernel.
-
-## B45-1 Implementation Contract
-
-The generated portable catalog records original numeric selectors as
-`MOSParameterID` (schema identity + role + selector), distinct from frontend
-multiplicity and initial-condition projections. `MOSParameterDefinition.authority`
-exposes that ownership. Other releases retain schema-owned admission. A checked-in
-manifest and deterministic generator own the 4.5 table; no build-time generator
-or C import is required. Schema revision 2 identifies the narrowed 4.5 admission.
-`resolve(level:version:profile:)` admits registered spellings under an explicit
-profile. The compiler checks receipt structure and level; only the native provider
-admits execution capabilities. This unit does not enable 4.5 numerical execution.
+[Contract tests](../../../Tests/CoreSpiceMOSContractsTests) verify classical
+parameter admission, exact release refusal and scaling. Resolver tests verify
+source-positioned OSDI migration errors and no fallback. Actual OSDI runtime
+parameter metadata and official model execution remain independently verified.

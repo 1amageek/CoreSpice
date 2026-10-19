@@ -77,7 +77,9 @@ struct StiffCircuitConvergenceTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 
@@ -204,7 +206,9 @@ struct StiffCircuitConvergenceTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 
@@ -231,10 +235,9 @@ struct StiffCircuitConvergenceTests {
 
     // MARK: - Test 4: Multiple Time Constants
 
-    /// Verifies convergence with three distinct time constants.
-    ///
-    /// Circuit has fast (ns), medium (µs), and slow (ms) time constants.
-    @Test("Circuit with three distinct time constants")
+    /// Verifies stationary transient convergence with three separated nominal RC scales.
+    /// A constant source and the default DC initialization fully charge every capacitor before t=0.
+    @Test("DC-initialized ladder preserves its equilibrium across three RC scales")
     func multipleTimeConstants() async throws {
         // Fast: R1=1k, C1=1pF → τ1 = 1ns
         // Medium: R2=10k, C2=10nF → τ2 = 100µs
@@ -282,14 +285,17 @@ struct StiffCircuitConvergenceTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 
-        // Simulate long enough to see the medium time constant settle
+        // Exercise the differently conditioned companions while preserving the exact DC equilibrium.
         let tau_medium = 100e-6
         let config = TransientConfig(stopTime: 10 * tau_medium, executionLimits: .validationFixture, maxTimeStep: tau_medium / 100)
-        let analysis = TransientAnalysis(config: config)
+        let convergence = ConvergenceConfig()
+        let analysis = TransientAnalysis(config: config, convergenceConfig: convergence)
         let solver = SparseLUSolver()
         let token = CancellationToken()
 
@@ -298,18 +304,17 @@ struct StiffCircuitConvergenceTests {
             observer: nil, cancellation: token
         )
 
-        // Fast node should be fully charged
-        let v1 = try result.voltage(at: n1, timeIndex: result.timePoints.count - 1)
-        #expect(v1 > 0.99, "Fast node should be ~1V: got \(v1)")
-
-        // Medium node should be significantly charged
-        let v2 = try result.voltage(at: n2, timeIndex: result.timePoints.count - 1)
-        #expect(v2 > 0.95, "Medium node should be well charged: got \(v2)")
-
-        // Slow node should just be starting to charge
-        let v3 = try result.voltage(at: n3, timeIndex: result.timePoints.count - 1)
-        // τ_slow = 10ms, simulation = 1ms → about 10% charged
-        #expect(v3 > 0, "Slow node should have started charging: got \(v3)")
-        #expect(v3 < v2, "Slow node should be behind medium node: \(v3) < \(v2)")
+        // Capacitors are open at DC and the resistor ladder is unloaded: every node is 1 V.
+        // No voltage step or UIC discharge is present, so there is no physical charging order.
+        #expect(result.timePoints.first == 0)
+        #expect(result.timePoints.last == config.stopTime)
+        for node in [n1, n2, n3] {
+            let initial = try result.voltage(at: node, timeIndex: 0)
+            let final = try result.voltage(at: node, timeIndex: result.timePoints.count - 1)
+            #expect(abs(initial - 1) < convergence.vntol,
+                "DC-initialized node must start at the unloaded 1 V equilibrium: \(initial)")
+            #expect(abs(final - 1) < convergence.vntol,
+                "Stationary transient must preserve the unloaded 1 V equilibrium: \(final)")
+        }
     }
 }

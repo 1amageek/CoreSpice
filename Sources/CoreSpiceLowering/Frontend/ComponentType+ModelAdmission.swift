@@ -3,7 +3,7 @@ import CoreSpiceParsedIR
 extension ComponentType {
     var requiresModelForNativeExecution: Bool {
         switch self {
-        case .diode, .bjt, .jfet, .mosfet, .mesfet, .uniformRC, .switch_, .currentSwitch:
+        case .diode, .bjt, .jfet, .mosfet, .mesfet, .uniformRC, .switch_, .currentSwitch, .osdi:
             return true
         default:
             return false
@@ -12,6 +12,8 @@ extension ComponentType {
 
     func accepts(model: ParsedModel) -> Bool {
         switch self {
+        case .osdi:
+            return model.type == .osdi
         case .resistor:
             return model.type == .resistor
         case .capacitor:

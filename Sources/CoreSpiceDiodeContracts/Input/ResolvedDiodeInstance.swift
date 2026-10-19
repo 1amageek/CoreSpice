@@ -25,4 +25,18 @@ public struct ResolvedDiodeInstance: Sendable {
         environment = input.environmentIdentity
         self.orderedAssignmentEvidence = orderedAssignmentEvidence
     }
+    /// Checked programmatic input; source coordinates are explicitly unavailable.
+    public static func sourceFree(instance: String, model: DiodeModelInput,
+                                  input: DiodeInstanceInput, profile: DiodeInputProfile)
+        throws(DiodeSchemaFailure) -> Self {
+        guard !instance.isEmpty, model.schemaIdentity.law == (try profile.modelLaw(level: nil, version: nil)) else {
+            throw .schemaUnavailable(model.schemaIdentity.law)
+        }
+        let declaration = DiodeDeclarationIdentity(declaration: 0, scope: 0, invocation: 0,
+            sourcePath: nil, captureID: nil, occurrence: nil, line: nil, statementOrdinal: nil)
+        return try Self(instance: instance, scope: 0, invocation: 0,
+            model: .init(declaration: declaration, input: model, orderedAssignmentEvidence: false),
+            input: input, profile: profile, seed: 0, evaluatorVersion: "CoreSpice.TypedDiodeInput.v1",
+            randomGeneratorVersion: "none", orderedAssignmentEvidence: false)
+    }
 }

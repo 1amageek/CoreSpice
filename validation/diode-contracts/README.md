@@ -12,7 +12,7 @@ EvaluationContracts/Environment -> DiodeContracts/Input
 
 ## Reproduce
 
-Use Swift 6.4.0 release (`org.swift.640202609131a`) and its matching SDKs
+Use the default Swift 6.4.0 release compiler and its matching SDKs
 `swift-6.4.0-RELEASE_wasm` and `swift-6.4.0-RELEASE_wasm-embedded`.
 Node.js 24.19.0 runs WASI Preview 1 in the recorded environment.
 From the CoreSpice root, choose one output directory and run the phases in order:

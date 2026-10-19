@@ -569,7 +569,7 @@ to this lane only.
 ## Canonical Original Case Evidence
 
 Use `corespice -b <deck.cir> --case-output <new-directory> --case-id <id> --json`
-to publish canonical original execution and model-receipt schema v2 artifacts.
+to publish canonical original execution schema3, metric-definition schema1 and model-receipt schema2 artifacts.
 The directory contains the exact parser inputs, the executable captured before
 execution, `execution.json`, `model-receipt-*.json`, and a ToolQualification CLI
 `availability.json` inventory. Existing destinations and incomplete publication
@@ -599,3 +599,92 @@ capacity refusals report the owning boundary, configured limit and requested
 count; shared invocation work/storage/hash failures remain distinct. Inspect the
 [policy and ownership contract](DESIGN.md) before choosing an explicit API caller
 policy. CLI admission refusal does not establish model execution or process accuracy.
+
+
+## Checked Diode Execution
+
+The named developerV1 policy selects `genericDiodeV1` for ordinary batch, REPL and
+prepared-source execution. `--diode-profile coreDiodeV1|genericDiodeV1` overrides
+that selection; duplicate/unknown selections fail. The restricted core law is
+memoryless Shockley. Generic retains calibrated breakdown and Cjo/Tt charge laws.
+Nonzero Rs/perimeter, unsupported level/version/selectors and incompatible numerical
+coefficient combinations fail explicitly. The source-selected environment is frozen
+before expressions/model resolution; AREA and instance M stay separate from model m.
+
+```text
+source profile -> checked resolved input -> bounded preparation -> consuming bind
+ -> numerical completion -> source/model/profile receipt -> output/canonical case
+```
+
+Diode preparation uses 64 KiB retained, 4 KiB temporary and 1024 logical work per
+owner under the existing invocation/analysis ceilings. Exceeding limits is a failure,
+not a hardware sizing or physical qualification statement. Generic ordinary CLI
+keeps op/DC/AC/tran/noise/TF/PZ/Fourier/seeded Monte Carlo and DC/AC sensitivity.
+Sensitivity names are role-qualified (`model.is`, `model.m`, `instance.m`); every
+changed diode gets fresh checked values and a fresh executable owner. Its receipt
+retains the original source basis and explicitly marks numeric perturbation evidence.
+Source DC/AC sensitivity retains actual fresh child observations and model inputs,
+including MOS/OSDI parameters, in canonical source-completion and derivation artifacts.
+The prepared-source command retains every selected temperature case for
+op/DC/AC/transient/noise/TF/PZ/sensitivity/Fourier. The admitted source `.mc`
+profile has transient, AC and DC inner analyses; `.mc ... tf` is unsupported.
+
+Batch JSON schema3 requires `diodeResolutionProfile` and `diodeModels`; model and
+instance dictionaries are separate, with canonical units/origins/dispositions,
+local/effective temperatures, source occurrence and preparation implementation/facts.
+Prepared JSON schema2 includes completed diode receipts and rejects unsupported
+schema/status on reload. Decoding an inspection record grants no execution authority.
+Original case execution uses current ToolQualification schema3 with one retained
+metric definition per observation and a retained domain meaning/extraction artifact.
+Waveform header units are identified as declared metadata; unavailable noise PSD
+physical units are explicit and cannot claim physical noise qualification. No original
+case artifact or successful model receipt is published for failed/unsupported runs.
+
+### Compensated DC output
+
+Operating-point and DC source sweeps can retain normalized binary64 high/low pairs.
+Their completed JSON uses envelope version 5 and `nativeDCResult` version 1 with
+exact `highBits` / `lowBits`, ordered node/branch identities and sweep coordinates.
+Reload validates pair normalization and dimensions. `SPICENativeSimulationOutput`
+exposes both the original DC result/sweep and its immutable `storedDCResult`.
+Binary64-only CLI records retain their existing schema versions.
+
+CSV, RAW and waveform summaries are **binary64 display projections**. Save the
+JSON completion record to preserve compensated DC state; CSV alone cannot reload
+its low components. DC state has no OSDI transient precision receipt.
+
+### Prepared temperature and Monte Carlo families
+
+The prepared command captures the declared source catalog once and runs every
+selected `.temp` value and `.mc` seed through fresh source evaluation. JSON schema6
+retains all cases in temperature/iteration order with exact configuration
+identities, complete waveform values, measurements, and actual model receipts.
+A failed case refuses the whole result and output publication. `--csv` exports a
+long-form family table with case, temperature and seed columns. Ordinary single
+waveform CSV output retains its existing format.
+
+Prepared TF, PZ, sensitivity and Fourier use the same checked Native analysis
+implementations. General case completion uses schema7 inside the family envelope.
+Sensitivity evidence includes the exact fresh source patches and consumed model
+values for every child solve. These execution records do not issue model
+qualification or release authorization.
+
+Ordinary `--case-output` sensitivity emits selected baseline/child physical
+observations and `sensitivity-N.json`, linked from each metric domain definition.
+The artifact records the exact fresh source scalar replacement, effective
+increment and directly solved outputs. Undefined normalized sensitivities remain
+unavailable. Prepared sensitivity includes the same complete derivation evidence.
+
+Prepared precision Fourier uses completion schema8 with a required underlying
+transient high/low trace, separate from its Fourier waveform. Family CSV includes
+`phase` and `low` columns for complete physical precision traces. A paired CSV
+request supports exactly one prepared case; multiple selected cases fail before
+execution without publishing partial files.
+
+
+TF completion JSON includes exact gain and typed finite/open input/output port
+impedances. Its saved finite waveform and CSV always include gain; `Zin`/`Zout`
+columns exist only for finite ports. Explicit port flags remain in saved waveform
+metadata. Column absence alone does not establish an open circuit: use canonical
+JSON or the typed API. Ordinary declared TF uses batch schema 7 with the same
+bounded source-completion bytes retained in canonical case output.

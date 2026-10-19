@@ -1,3 +1,5 @@
+import CoreSpiceIR
+
 /// Fatal run admission failures; these must never be retried as nonconvergence.
 public enum TransientExecutionError: Error, Sendable, Equatable, CustomStringConvertible {
     case missingExecutionLimits
@@ -7,6 +9,7 @@ public enum TransientExecutionError: Error, Sendable, Equatable, CustomStringCon
     case invalidTimeStep(Double)
     case nonProgressingTime(time: Double, timeStep: Double)
     case nonFiniteLTE(Double)
+    case unknownErrorControlVariable(MNAVariable)
 
     public var description: String {
         switch self {
@@ -17,6 +20,7 @@ public enum TransientExecutionError: Error, Sendable, Equatable, CustomStringCon
         case .invalidTimeStep(let step): "Invalid transient timestep: \(step)"
         case .nonProgressingTime(let time, let step): "Transient time cannot advance from \(time) by \(step)"
         case .nonFiniteLTE(let value): "Nonfinite transient LTE: \(value)"
+        case .unknownErrorControlVariable(let variable): "Transient error-control variable is not in the execution plan: \(variable)"
         }
     }
 }

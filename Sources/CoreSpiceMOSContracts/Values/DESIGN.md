@@ -22,7 +22,7 @@ package-only checked constructor.
 
 | Design | Relationship | Contract Used | Summary | Cautions |
 |---|---|---|---|---|
-| [Schema](../Schema/DESIGN.md) | depends on | Release/schema identities | Validates result identity | BSIM4 4.5 remains inspect-only |
+| [Schema](../Schema/DESIGN.md) | depends on | Release/schema identities | Validates result identity | Classical native releases only |
 | [Declarations](../../CoreSpiceMOSResolution/Declarations/DESIGN.md) | used by | IDs and expression graph | Immutable indexed snapshot | No borrowed pointer escapes |
 
 ## Architecture
@@ -118,11 +118,11 @@ provide their own explicit validation ledger; resolution never resets it.
 
 Selected candidate bounds and missing masks are owned by
 [Selection](../../CoreSpiceMOSResolution/Selection/DESIGN.md). Classic explicit
-level selectors retain explicitLevel origin independently of BSIM version origin.
+level selectors retain explicitLevel origin; supplied version strings are rejected.
 
-Explicit release origin retains source spelling. Checked construction resolves
-that spelling using the recorded input profile and requires the same exact
-release, rather than comparing it to the canonical display spelling.
+Classical explicit level origin must equal its selected level. Omitted levels
+retain their input profile and default only to Level 1; no compact-model version
+or omission default is reconstructed by checked result construction.
 
 ## Designed Environment-Bound Evaluation Identity
 
@@ -138,3 +138,18 @@ evaluation session. Plain source-free resolver values can remain unstamped;
 temperature-aware source resolution is stamped. This field participates in
 preparation semantic identity and follows the resolved value through instance
 clones and inspection. It does not change model/instance temperature coefficients.
+
+## Fresh Source Scalar Perturbations
+
+`MOSResolutionRequest.modelOverrides` owns explicit per-instance scalar model
+programs separately from the immutable declaration. It participates in request
+identity and bounded retention; duplicate symbols fail. The original declaration,
+source identity and shared model memo are not rewritten. [Selection](../../CoreSpiceMOSResolution/Selection/DESIGN.md#fresh-source-effective-model-overlay)
+owns validation, candidate selection and effective value construction.
+
+Resolver-produced `ResolvedMOSInstance.rawInstanceParameters` retains the exact
+pre-scale evaluated instance values. This optional evidence is absent only on
+manually constructed legacy values; callers requiring fresh source perturbation
+must reject absence. It avoids inverting rounded SI geometry or reevaluating
+random expressions to recover a sensitivity nominal value. Raw and normalized
+parameter arrays are independently accounted immutable evidence.

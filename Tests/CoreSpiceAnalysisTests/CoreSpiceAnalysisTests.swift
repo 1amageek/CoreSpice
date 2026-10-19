@@ -37,7 +37,9 @@ struct CoreSpiceAnalysisTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 
@@ -182,24 +184,17 @@ struct CoreSpiceAnalysisTests {
         #expect(abs(first - 0.1) < 1e-10)
     }
 
-    @Test func lteEstimatorBasic() {
+    @Test func lteEstimatorBasic() throws {
         let estimator = LTEEstimator()
 
-        // With insufficient history (no twoPrevious), LTE should be 0
-        // because the 3-point formula cannot be evaluated.
-        let lteNoHistory = estimator.estimate(
-            current: [1.0, 2.0],
-            previous: [0.9, 1.8],
-            twoPrevious: nil,
-            timeStep: 1e-3,
-            previousTimeStep: nil,
-            method: .backwardEuler
-        )
-        #expect(lteNoHistory == 0)
+        #expect(throws: LTEEstimator.EstimationError.insufficientHistory) {
+            try estimator.estimate(current: [1.0, 2.0], previous: [0.9, 1.8],
+                twoPrevious: nil, timeStep: 1e-3, previousTimeStep: nil, method: .backwardEuler)
+        }
 
         // With full 3-point history, LTE should be positive when
         // the second derivative is non-zero.
-        let lteWithHistory = estimator.estimate(
+        let lteWithHistory = try estimator.estimate(
             current: [1.0, 2.0],
             previous: [0.9, 1.8],
             twoPrevious: [0.85, 1.7],
@@ -298,7 +293,9 @@ struct CoreSpiceAnalysisTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 
@@ -355,7 +352,9 @@ struct CoreSpiceAnalysisTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 
@@ -406,7 +405,9 @@ struct CoreSpiceAnalysisTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 
@@ -476,7 +477,9 @@ struct CoreSpiceAnalysisTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 
@@ -549,7 +552,9 @@ struct CoreSpiceAnalysisTests {
         var devices: [any BoundDevice] = []
         for instance in ir.instances {
             guard let desc = registry.descriptor(for: instance.typeName) else { continue }
-            let bound = try desc.bind(instance: instance, context: &context)
+            let bound = try (instance.typeName == "diode"
+                ? PreparedDiodeFixture().bind(instance: instance, context: &context)
+                : desc.bind(instance: instance, context: &context))
             devices.append(bound)
         }
 

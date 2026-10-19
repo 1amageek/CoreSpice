@@ -1,5 +1,6 @@
 public enum DiodeInputProfile: Sendable, Hashable {
     case coreDiodeV1
+    case genericDiodeV1
 
     public func modelLaw(level: Double?, version: String?) throws(DiodeSchemaFailure) -> DiodeModelLaw {
         if version != nil { throw .unsupportedVersionSelector }
@@ -7,6 +8,6 @@ public enum DiodeInputProfile: Sendable, Hashable {
             guard level.isFinite else { throw .invalidSelector }
             guard level == 1 else { throw .unsupportedLevel(level) }
         }
-        return .coreJunctionV1
+        return self == .coreDiodeV1 ? .coreJunctionV1 : .genericJunctionV1
     }
 }

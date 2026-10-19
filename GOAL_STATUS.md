@@ -1,76 +1,45 @@
 # CoreSpice Goal Status
 
-Updated: 2026-07-26
+Updated: 2026-10-19
 
-| Goal | Status | Evidence |
-|---|---|---|
-| Independent Swift package | Complete | Existing multi-target CoreSpice package builds independently. |
-| CircuiteFoundation dependency | Complete | `Package.swift` depends on `../CircuiteFoundation`; public APIs use shared types directly without re-exporting the module. |
-| Foundation simulation request boundary | Complete | `CoreSpiceSimulationRequest`. |
-| Foundation simulation result boundary | Complete | `CoreSpiceSimulationResult` implements artifact, diagnostic, and evidence protocols. |
-| Foundation engine protocol | Complete | `CoreSpiceSimulating`. |
-| Existing simulation domain retained | Complete | SPICE, device, optoelectronic, photonic, analysis, and I/O targets remain unchanged in ownership. |
-| Structured artifact/provenance hand-off | Complete | The execution boundary retains invocation, sanitized environment fingerprint, input/output artifacts, diagnostics, and timestamps. |
-| Reproducible CLI artifact contract | Verified | Batch and measurement JSON records use digest-backed `ArtifactReference` inputs and outputs, include replayable `ExecutionInvocation` data, identify CoreSpiceCLI as the output producer, and are covered by the aggregate package test. |
-| Build after Foundation integration | Verified | The workspace package verifier completed the aggregate Xcode package build. |
-| Regression tests after Foundation integration | Verified | The aggregate Xcode package test passed, including the 31-case numerical regression corpus. |
-| Concrete asynchronous simulation engine | Complete | `CoreSpiceSimulator` directly conforms to the engine protocol, preserves cancellation, and emits Foundation provenance, artifacts, and diagnostics. |
-| Isolated production process backend | Complete | `CoreSpiceExternalProcessBackend` verifies declared inputs, requires an explicit seed, executes the real CLI in an isolated run directory, checks exact consumed inputs, verifies outputs, preserves stdout/stderr evidence, and propagates cancellation. |
-| Pole-zero execution | Complete | Differential voltage/current inputs and outputs use generalized eigenvalue analysis with typed malformed/non-finite failures. |
-| DC and AC sensitivity | Complete | Dedicated DC and AC sensitivity engines use deterministic perturbations, including zero-nominal parameters, with strict parser/CLI contracts. |
-| PEX-scale sparse topology | Verified quality gate | Canonical per-instance owned/referenced branch connectivity avoids global branch coupling; the 1,000-device fixture asserts 4,000 structural nonzeros. |
-| Numerical false-success prevention | Complete | Newton iteration rejects non-finite solution/residual values and validates the physical KCL residual before reporting convergence. |
-| Public analysis result validation | Complete | DC, AC, transient, noise, transfer-function, pole-zero, and sensitivity result constructors reject malformed dimensions and non-finite values with typed errors. |
-| Optical/electrical execution boundary | Complete | Optical-network analyses pass evaluated optical state explicitly; intentional electrical-only device calls use a zero-power state sized to the device's declared optical nodes, without out-of-bounds fallback. |
-| Stateful switch hysteresis | Complete | SW and both CSW bindings implement non-zero `VH`/`IH`; Newton candidates read committed state without mutation, and only accepted DC/transient states commit threshold crossings. |
-| Independent numerical correlation | Verified | Regression-fixture and live-ngspice runs both pass 31/31; live evidence retains executable/input/output digests without rewriting the fixture. |
-| Behavioral source execution | Complete | Parsed B voltage/current outputs lower to canonical runtime expressions, execute in DC/AC/transient analyses, support `V()`, `I()`, `time`, deterministic functions and non-recursive `.func`, and fail malformed or non-finite paths explicitly. |
-| Explicit compact-model backend | Complete | `NgspiceExternalProcessBackend` exposes digest-bound model/analysis capability, preserves native/external identity, verifies and stages declared inputs, emits RAW/log evidence, and passes live BSIM3 level 49 and BSIM4 level 54 operating-region/derivative fixtures. |
-| Foundry compact-model production claim | Blocked by contract | Native Level 1/2/3 execution cannot issue production qualification; a qualified external foundry-model simulator is required. |
+| Boundary | Current evidence and remaining limitation |
+|---|---|
+| Public dependency closure | Fixed public dependencies resolve in the isolated candidate; distribution license compatibility and published-tag consumer qualification remain open |
+| Native numerical simulation | Original-equation and accepted-history repairs pass focused tests, the original full ordinary DC/AC/noise compositions and complete four-family compensated transient schedules |
+| Four official OSDI families | BULK107.2.1, CMG112.1.0, IMG103.1.0 and SOI101.0.0 passed 13 original full transient circuits and independent replay of all 6,304 accepted steps; this is finite numerical evidence, not foundry qualification |
+| API/CLI and persistence | Full ordinary and compensated model candidates pass API/actual CLI, complete saved/reloaded records and independent comparison; source-condition, export and quota repairs have focused behavioral evidence |
+| Real extracted PEX performance | The current 1,766-unknown candidate passes all 6,965,104 saved values per API/CLI against a fresh exact-time oracle. Cold totals were 64.59/54.41 s and peak RSS 331.2/255.8 MiB, single observations under external load rather than a new causal speedup comparison |
+| Metal/photonic execution | Checked buffer and synchronization repairs passed actual Metal execution on the fixed macOS/Swift toolchain; this does not establish another platform's GPU behavior |
+| Full phase/history guarantees | Source-bound branch/continuation, entire-history tube and complete corner proof remain open; finite traces cannot substitute |
+| Production release | Not ready until all applicable PR01–PR20 gates close |
 
-## Explicitly blocked native capabilities
+[DESIGN.md](DESIGN.md#released-osdi-adoption-and-semiconductor-production-gates) is the requirement authority.
+[PROGRESS.md](PROGRESS.md) is the sole current task-control record. Historic
+reports retain their original finite qualification scope.
+The retained pre-retirement finite qualification is bound to committed compiled source
+`7b654ae12ed19af9543bf249a2e358cb90311276`, fixed public dependencies and retained
+executables in `.verification/production-release-20261018/finite-qualification.json`
+(SHA-256 `520698204599f291b6cc43a285157d9b62bb30a8acfbe6dd3cb01443e28b8150`).
+Pre-existing uncommitted enclosure work is excluded. The receipt explicitly sets
+`releaseReady` to false. Source/solver identity admission and independent oracle
+capacity profiles are recorded separately from physical trajectory results.
 
-The supported-model envelope is complete for the capabilities marked complete
-above. BSIM3/4, lossy LTRA, unsupported JFET parameters, and other unsupported
-compact models remain typed failures. Their
-production call paths and implementation completion
-conditions are marked with `FIXME(INCOMPLETE_IMPLEMENTATION)` in the lowering
-or binding boundary; they are not silently accepted and are not part of the
-native supported-model completion claim.
+## Model Boundary Correction
 
-## Execution boundary
+The obsolete embedded BSIM3/4/4.5 kernels, custom Swift compact-model wrappers,
+source-specific enclosure and associated native schemas/records are removed.
+The independent BSIM-BULK-swift repository is retired from the active package
+inventory with unpublished history, pending changes and evidence preserved.
+Compact-model physics now has one production boundary: swift-osdi.
+Historical native-BSIM/Sky130 receipts do not establish current OSDI model support.
 
-`CoreSpiceSimulator` composes the existing analysis types behind
-`CoreSpiceSimulating`. Numerical backends remain responsible for execution
-orchestration, artifact materialization, and diagnostic creation; project/run
-lifecycle and physical signoff responsibilities remain outside CoreSpice.
+CoreSpice must own its circuit/solver/analysis algorithms in Swift. Newton vDSP
+and PZ LAPACK remain explicit replacement gaps until the next numerical sprint is
+qualified. Model-boundary cleanup alone does not complete PR20, PVT, RF or release.
 
-`CoreSpiceExternalProcessBackend` is a separate composition adapter. It owns
-process lifecycle and artifact verification but does not own SPICE parsing,
-analysis algorithms, project lifecycle, or release qualification.
-
-`NgspiceExternalProcessBackend` is the compact-model adapter. Its capability
-records the ngspice identity, executable digest, supported MOS levels, analyses,
-and reproducibility limitations. It stages only declared inputs and emits an
-external-process invocation; it does not weaken or bypass the native
-unsupported-model gate. `ToolQualification` remains the authority for
-foundry-production trust.
-
-## Switch-state isolation review
-
-| Target | Storage | Isolation | Read entry point | Mutation entry point | Release |
-|---|---|---|---|---|---|
-| Native | `Mutex<Bool>` | `Synchronization.Mutex` | `position(for:threshold:hysteresis:)` | accepted DC or transient `commit` only | owner release |
-| WASM | `Mutex<Bool>` | `Synchronization.Mutex` | same implementation | same implementation | owner release |
-| Embedded WASM | `Mutex<Bool>` | `Synchronization.Mutex` | same implementation | same implementation | owner release |
-
-The switch state has no target-conditional declaration, conformance, read, or
-mutation path. Stamping never commits state, so a rejected Newton candidate or
-transient retry cannot contaminate the next attempt. No I/O, callback, event
-emission, or suspension occurs while the state lock is held.
-
-The aggregate `CoreSpice-Package` Xcode test run passes on macOS arm64 with no
-failures. `CoreSpiceDevices` also builds for the pinned Swift 6.4 WASM SDK, and
-the switch-state source type-checks with the matching Embedded WASM SDK.
-The complete Embedded target remains outside the current package envelope
-because the pre-existing `CoreSpiceEvent` target imports Foundation.
+The post-removal candidate passed all 1,378 tests in fifteen affected owner
+products and all eight selected actual-model Native/API and production CLI
+compositions, including full ordinary DC/AC/noise candidates and saved/reloaded
+artifacts. The exact post-removal source and executable are recorded in
+`.verification/native-bsim-retirement-20261019/verification.json`. These results
+qualify removal and migration, not the pending numerical replacement or PR20.

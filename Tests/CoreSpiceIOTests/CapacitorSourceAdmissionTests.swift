@@ -46,7 +46,7 @@ struct CapacitorSourceAdmissionTests {
         #expect(abs(result.imag + 1000 * factor / (1 + factor * factor)) < 1e-5)
     }
 
-    @Test func coverageNeverPromotesModelDeclarationOrExplicitModelInstance() async throws {
+    @Test func coverageUsesTheAdmittedModelProfile() async throws {
         let parsed = try await SPICEIO.parse("""
         capacitor model coverage
         Cbare a 0 cm
@@ -57,10 +57,25 @@ struct CapacitorSourceAdmissionTests {
         let report = SPICEDeckCoverageReport.generate(from: parsed)
         for name in ["model:cm", "component:cbare", "component:cexplicit"] {
             let item = try #require(report.items.first { $0.name == name })
-            #expect(item.status == .blocked)
-            #expect(item.message.contains("not implemented"))
+            #expect(item.status == .supported)
         }
-        #expect(report.hasBlockedItems)
+        #expect(!report.hasBlockedItems)
+    }
+
+    @Test func coverageBlocksUnknownFieldsAndConflictingRuntimeModels() async throws {
+        let parsed = try await SPICEIO.parse("""
+        precise capacitor profiles
+        .model good C cap=1n
+        .model bad C invented=1
+        Cq a 0 q={1n*v(a)}
+        Cruntime b 0 good c={1n*v(b)}
+        .end
+        """).get()
+        let report = SPICEDeckCoverageReport.generate(from: parsed)
+        #expect(try #require(report.items.first { $0.name == "model:good" }).status == .supported)
+        #expect(try #require(report.items.first { $0.name == "model:bad" }).status == .blocked)
+        #expect(try #require(report.items.first { $0.name == "component:cq" }).status == .supported)
+        #expect(try #require(report.items.first { $0.name == "component:cruntime" }).status == .blocked)
     }
 
     @Test func coverageUsesGlobalAndSubcircuitParameterPresenceBeforeModelNames() async throws {
@@ -81,6 +96,6 @@ struct CapacitorSourceAdmissionTests {
         for name in ["component:croot", "subckt:cell/component:cparent", "subckt:cell/component:clocal"] {
             #expect(try #require(report.items.first { $0.name == name }).status == .supported)
         }
-        #expect(try #require(report.items.first { $0.name == "model:cv" }).status == .blocked)
+        #expect(try #require(report.items.first { $0.name == "model:cv" }).status == .supported)
     }
 }

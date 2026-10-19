@@ -17,6 +17,8 @@ private func resolveAdmittedMOS(_ request: MOSResolutionRequest, from snapshot: 
     var normalizedValues: [MOSNumericParameter] = []
     var candidates: [MOSCandidateEvidence] = []
     var rules: [MOSResolutionRule] = []
+    var effectiveValues: [MOSNumericParameter] = []
+    var selectedEffectiveValues: [MOSNumericParameter] = []
     var ownsRaw = false
     // Cleanup is allowed even after the first failure poisons evaluation.
     defer {
@@ -24,6 +26,8 @@ private func resolveAdmittedMOS(_ request: MOSResolutionRequest, from snapshot: 
         do { try session.releaseStorage(for: normalizedValues) } catch { session.poison(error) }
         do { try session.releaseStorage(for: candidates) } catch { session.poison(error) }
         do { try session.releaseStorage(for: rules) } catch { session.poison(error) }
+        do { try session.releaseStorage(for: effectiveValues) } catch { session.poison(error) }
+        do { try session.releaseStorage(for: selectedEffectiveValues) } catch { session.poison(error) }
     }
     if let cached = try session.cachedInstance(for: request) { rawValues = cached }
     else {
@@ -89,8 +93,40 @@ private func resolveAdmittedMOS(_ request: MOSResolutionRequest, from snapshot: 
             profile: request.profile, snapshot: snapshot, session: &session)
         try validateRawValues(rawValues, schema: schema, profile: request.profile,
             snapshot: snapshot, session: &session)
-        let values = try modelValues(model, owner: owner, schema: schema,
+        let baseValues = try modelValues(model, owner: owner, schema: schema,
             profile: request.profile, snapshot: snapshot, session: &session)
+        let values: [MOSNumericParameter]
+        if request.modelOverrides.isEmpty { values = baseValues }
+        else {
+            try validateAssignments(request.modelOverrides, role: .model, schema: schema,
+                profile: .coreStrictV1, snapshot: snapshot, session: &session)
+            effectiveValues.removeAll(keepingCapacity: true)
+            try session.reserve(&effectiveValues, required: baseValues.count)
+            for value in baseValues {
+                try session.spend(.bindings, units: 1)
+                effectiveValues.append(value)
+            }
+            for binding in request.modelOverrides {
+                try chargeSymbol(binding.symbol, snapshot: snapshot, session: &session)
+                let definition = try MOSSelectionPolicy.parameter(binding.symbol, role: .model, schema: schema, snapshot: snapshot)
+                guard definition.supportsScalarPerturbation else {
+                    throw .schema(.invalidValue(name: definition.name))
+                }
+                var supplied = false
+                for original in baseValues {
+                    try session.spend(.bindings, units: 1)
+                    let sourceDefinition = try MOSSelectionPolicy.parameter(original.symbol, role: .model, schema: schema, snapshot: snapshot)
+                    if sourceDefinition.canonicalName == definition.canonicalName { supplied = true; break }
+                }
+                guard supplied else { throw .schema(.invalidValue(name: definition.name)) }
+                let value = try evaluateMOSProgram(binding.program, invocation: request.scopeInstantiation,
+                    lexicalScope: request.scope, from: snapshot, session: &session)
+                try MOSSelectionPolicy.validate(value, definition: definition)
+                try install(parameter: .init(symbol: binding.symbol, value: value), definition: definition,
+                    into: &effectiveValues, role: .model, schema: schema, snapshot: snapshot, session: &session)
+            }
+            values = effectiveValues
+        }
         normalizedValues.removeAll(keepingCapacity: true)
         try session.reserve(&normalizedValues, required: rawValues.count)
         for parameter in rawValues {
@@ -128,6 +164,10 @@ private func resolveAdmittedMOS(_ request: MOSResolutionRequest, from snapshot: 
             if selected != nil { throw .ambiguousModel(request.modelReference) }
             selected = model; selectedRelease = release; selectedOrigin = origin
             selectedSchema = schema; selectedValues = values; normalized = si; selection = choice
+            if !request.modelOverrides.isEmpty {
+                selectedEffectiveValues = effectiveValues
+                effectiveValues = []
+            }
             if request.profile == .pinnedNgspiceNormalV1 || !family { break }
         }
     }
@@ -154,7 +194,7 @@ private func resolveAdmittedMOS(_ request: MOSResolutionRequest, from snapshot: 
         scope: model.scope, scopeInstantiation: request.scopeInstantiation, instance: request.instance,
         declaration: model.id, polarity: model.polarity, release: release, releaseOrigin: origin,
         schema: schema.identity, modelCoefficients: selectedValues, instanceParameters: normalizedValues,
-        rawGeometry: raw, normalizedGeometry: si, selectionGeometry: choice, profile: request.profile,
+        rawInstanceParameters: rawValues, rawGeometry: raw, normalizedGeometry: si, selectionGeometry: choice, profile: request.profile,
         geometryScale: request.geometryScale,
         rules: rules, candidates: candidates, limits: limits, workBudget: &workBudget)
     }

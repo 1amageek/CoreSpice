@@ -1,12 +1,13 @@
 {
-  "originHash" : "a1ed3d6340b7ee91d63384bc16042f939fbfde89459f2b81721a0c7794ecd4b6",
+  "originHash" : "ea507ccf0ff2bd72842904d22f86450cd038800fdb09ba8f649c22972db35a37",
   "pins" : [
     {
       "identity" : "circuitefoundation",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/1amageek/CircuiteFoundation.git",
       "state" : {
-        "revision" : "ae88104c556f5802819713ed741f5b2fffffc2d9"
+        "revision" : "5f132c58209123433e0e479e1ea61096e46061ba",
+        "version" : "26.1018.0"
       }
     },
     {
@@ -14,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/1amageek/SignoffToolSupport.git",
       "state" : {
-        "revision" : "5220613a31c472a29eb687211f7f7e9330c9b582",
-        "version" : "26.812.0"
+        "revision" : "e15ea6cd60ca1957297aafbba839e51a478d735e",
+        "version" : "26.1018.0"
       }
     },
     {
@@ -23,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-asn1.git",
       "state" : {
-        "revision" : "a9a5efd40eaf558a2bcd48d64b1d1646be686008",
-        "version" : "1.7.1"
+        "revision" : "3b6410f7dee09eb33cdd26260c5fd47fda19b0e2",
+        "version" : "1.7.3"
       }
     },
     {
@@ -37,11 +38,21 @@
       }
     },
     {
+      "identity" : "swift-osdi",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/1amageek/swift-osdi.git",
+      "state" : {
+        "revision" : "e17d3bcca1224c8ab9ccfaddea7a47580b29b748",
+        "version" : "1.2.0"
+      }
+    },
+    {
       "identity" : "toolqualification",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/1amageek/ToolQualification.git",
       "state" : {
-        "revision" : "7a69d2ba4e3c4c2262478312f9217de4293a7ab7"
+        "revision" : "601ff5933396be4ba62c77b8bb0502e2f601f159",
+        "version" : "26.1018.0"
       }
     }
   ],

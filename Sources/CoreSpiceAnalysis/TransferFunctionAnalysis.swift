@@ -18,6 +18,7 @@ import CoreSpiceEvent
 /// and output impedance (Zout).
 public struct TransferFunctionAnalysis: Analysis, Sendable {
     package var executionBudget: TransientExecutionBudget?
+    package var resultStorage: (any AnalysisResultStorageAccounting)?
 
     public typealias Result = TransferFunctionResult
 
@@ -29,15 +30,24 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
 
     /// Convergence configuration for the DC operating point solve.
     public let dcConfig: ConvergenceConfig
+    public let equationPolicy: DCEquationPolicy?
+    public let physicalResidualValidator: (any DCPhysicalResidualValidating)?
+    public let completionFinalizer: (any AnalysisCompletionFinalizing)?
 
     public init(
         outputNode: Node,
         inputSourceName: String,
-        dcConfig: ConvergenceConfig = ConvergenceConfig()
+        dcConfig: ConvergenceConfig = ConvergenceConfig(),
+        equationPolicy: DCEquationPolicy? = nil,
+        physicalResidualValidator: (any DCPhysicalResidualValidating)? = nil,
+        completionFinalizer: (any AnalysisCompletionFinalizing)? = nil
     ) {
         self.outputNode = outputNode
         self.inputSourceName = inputSourceName
         self.dcConfig = dcConfig
+        self.equationPolicy = equationPolicy
+        self.physicalResidualValidator = physicalResidualValidator
+        self.completionFinalizer = completionFinalizer
     }
 
     public func run(
@@ -63,8 +73,10 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
 
         do {
             // Phase 1: DC operating point
-            var dcAnalysis = DCAnalysis(config: dcConfig)
+            var dcAnalysis = DCAnalysis(config: dcConfig, equationPolicy: equationPolicy,
+                physicalResidualValidator: physicalResidualValidator)
             dcAnalysis.executionBudget = executionBudget
+            dcAnalysis.resultStorage = resultStorage
             try executionBudget?.admitSavedPoint(accepted: false)
             let dcResult = try await dcAnalysis.run(
                 plan: plan,
@@ -76,7 +88,8 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
 
             let dcState = SolutionState(
                 variables: dcResult.variables,
-                variableMap: variableMap
+                variableMap: variableMap,
+                variableLowComponents: dcResult.variableLowComponents
             )
 
             // Find the input source branch index
@@ -91,6 +104,9 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
                     "Output node \(outputNode.id) not found in variable map"
                 )
             }
+
+            try equationPolicy?.requireElectricalEndpoint(outputNode, variableMap: variableMap,
+                context: "Transfer-function voltage output")
 
             try executionBudget?.beginLinearSolve()
 
@@ -116,17 +132,17 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
                 try device.stampDC(into: &stamper, state: dcState)
             }
 
-            // Add Gmin to diagonal for numerical stability
-            for i in 0..<dim {
-                gMatrix.addValue(row: i, col: i, value: dcConfig.gmin)
-            }
-
             // Phase 3: Factor the matrix
             var mutableSolver = solver
+            if executionBudget != nil || resultStorage != nil {
+                try mutableSolver.configureExecution(AnalysisLinearSolverControl.make(budget: executionBudget,
+                    cancellation: cancellation, storage: resultStorage))
+            }
             do {
                 try mutableSolver.factorize(matrix: gMatrix)
             } catch {
-                throw AnalysisError.singularMatrix
+                if case CompileError.singularMatrix = error { throw AnalysisError.singularMatrix }
+                throw error
             }
 
             // Phase 4: Solve for gain and input impedance
@@ -138,9 +154,7 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
             do {
                 gainSolution = try mutableSolver.solve(rhs: gainRHS)
             } catch {
-                throw AnalysisError.internalError(
-                    "Failed to solve for gain: \(error)"
-                )
+                throw error
             }
 
             let gain = gainSolution[outputNodeIndex]
@@ -148,16 +162,11 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
             // flowing INTO the positive terminal. The input current flowing through
             // the external circuit is the negation of this.
             let branchCurrent = gainSolution[inputBranchIndex]
-            let inputImpedance: Double
-            if abs(branchCurrent) > 1e-30 {
-                inputImpedance = -1.0 / branchCurrent
-            } else {
-                inputImpedance = .infinity
-            }
+            let inputImpedance = try PortImpedance(reciprocalOf: -branchCurrent)
 
             // Phase 5: Solve for output impedance
             // Inject unit current at the output node (input source is shorted: rhs[branch] = 0)
-            try executionBudget?.beginLinearSolve()
+            try executionBudget?.beginRefinementSolve()
             var zoutRHS = [Double](repeating: 0, count: dim)
             zoutRHS[outputNodeIndex] = 1.0
 
@@ -165,14 +174,22 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
             do {
                 zoutSolution = try mutableSolver.solve(rhs: zoutRHS)
             } catch {
-                throw AnalysisError.internalError(
-                    "Failed to solve for output impedance: \(error)"
-                )
+                throw error
             }
 
             let outputImpedance = zoutSolution[outputNodeIndex]
             try executionBudget?.admitSavedScalars(3)
 
+            let result = try TransferFunctionResult(
+                gain: gain,
+                inputPortImpedance: inputImpedance,
+                outputPortImpedance: .finite(outputImpedance),
+                dcOperatingPoint: dcResult,
+                variableMap: variableMap
+            )
+            if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
+            try completionFinalizer?.finalizeCompletion()
+            if cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
             await observer?.emit(.analysisFinished(AnalysisFinishedInfo(
                 id: analysisID,
                 type: .tf,
@@ -181,13 +198,7 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
                 wallTime: Timestamp().elapsed(since: startTimestamp)
             )))
 
-            return try TransferFunctionResult(
-                gain: gain,
-                inputImpedance: inputImpedance,
-                outputImpedance: outputImpedance,
-                dcOperatingPoint: dcResult,
-                variableMap: variableMap
-            )
+            return result
         } catch {
             let status: AnalysisStatus
             if let analysisError = error as? AnalysisError,
@@ -214,14 +225,30 @@ public struct TransferFunctionAnalysis: Analysis, Sendable {
 
     /// Finds the matrix index of the branch current variable for the named input voltage source.
     ///
-    /// Branch variables are allocated sequentially during device binding. This method
-    /// reconstructs the branch-to-device mapping by scanning instances in IR order
-    /// and tracking which device types allocate branches.
+    /// Explicit source ownership is authoritative. Ownership-free legacy IR retains
+    /// its historical sequential allocation compatibility path.
     private func findInputSourceBranchIndex(
         plan: ExecutionPlan,
         devices: [any BoundDevice]
     ) throws -> Int {
         let variableMap = plan.topology.variableMap
+
+        guard let source = plan.ir.instances.first(where: {
+            $0.name.caseInsensitiveCompare(inputSourceName) == .orderedSame
+        }), source.typeName == "vsource" else {
+            throw AnalysisError.invalidConfiguration(
+                "Input source '\(inputSourceName)' must name an independent voltage source"
+            )
+        }
+        if let branch = source.ownedBranches.first {
+            guard source.ownedBranches.count == 1,
+                  let index = variableMap[.branchCurrent(branch)] else {
+                throw AnalysisError.invalidConfiguration(
+                    "Owned branch for input source '\(inputSourceName)' is invalid"
+                )
+            }
+            return index
+        }
 
         // Device types that allocate branches during binding
         let branchAllocatingTypes: Set<String> = [

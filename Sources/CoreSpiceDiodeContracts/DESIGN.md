@@ -3,8 +3,9 @@
 ## Purpose and Scope
 
 Status: D1 checked scalar inputs/schema and D3 immutable resolved values are
-implemented. Preparation receipts and numerical adoption remain D4/D5 work.
-Parent: [CoreSpice](../../DESIGN.md). Child: [Input](Input/DESIGN.md).
+implemented. D4 preparation values/receipts are implemented in the Preparation child;
+native numerical and API/CLI adoption are owned by Devices and NativeExecution.
+Parent: [CoreSpice](../../DESIGN.md). Children: [Input](Input/DESIGN.md), [Preparation](Preparation/DESIGN.md).
 Own checked diode input/schema/stage contracts independently of numerical devices.
 
 ## Responsibilities and Boundaries
@@ -31,7 +32,7 @@ and kernels, and its diode component can be tested without IO or an external too
 
 ```text
 Current: EvaluationContracts -> DiodeContracts/Input
-Planned D3-D5: DiodeContracts/Input -> IR, Lowering, Devices
+Implemented D3-D5 contract composition: DiodeContracts/Input -> IR, Lowering, Devices
 ```
 
 ## Contracts and Invariants
@@ -47,3 +48,5 @@ memberwise initializers; those stages require their own adversarial integration 
 runtime. Verify fixed Swift 6.4.0 Native/WASM/Embedded compile/link/minimal runtime,
 with no claim of portable numerical diode execution. Schema changes require both
 resolver and Devices consumer evidence before public admission changes.
+
+D4 preparation contracts are owned by [Preparation](Preparation/DESIGN.md).
