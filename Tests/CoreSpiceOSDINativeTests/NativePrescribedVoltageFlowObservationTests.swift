@@ -203,19 +203,27 @@ struct NativePrescribedVoltageFlowObservationTests {
         #expect(resources.live == 0 && resources.temporary == 0)
     }
 
-    @Test func cancellationDuringOriginalStorageAdmissionCannotPublishAndLeavesFlowReusable() async throws {
-        let resources = CancelOnReserve()
+    @Test(arguments: [1, 2])
+    func cancellationDuringOriginalStorageAdmissionCannotPublishAndLeavesFlowReusable(reservation: Int) async throws {
+        let resources = CancelOnReserve(), preparationToken = CancellationToken()
         do {
-            let owner = try prepareFloating(resources: resources)
+            let owner = try prepareFloating(resources: resources, cancellation: preparationToken)
             do {
                 let flow = try await base.flow(owner, floatingRequest())
                 let baseline = resources.base.live + resources.base.temporary
                 let pairs: [Pair] = [.init(positive: base.p, reference: .ground)]
                 let token = CancellationToken()
-                resources.arm(token)
+                resources.arm(token, atReservation: reservation)
                 do { _ = try flow.observeVoltages(pairs: pairs.span, limits: limits(), cancellation: token); Issue.record("Admission-time cancellation published observations") }
                 catch Failure.cancelled {}
+                #expect(token.isCancelled && !preparationToken.isCancelled)
+                let events = resources.events
+                #expect(events.reservations == reservation)
+                #expect(events.cancelledReservation == reservation)
+                #expect(events.reservationsAfterCancellation == 0)
+                #expect(events.workAfterCancellation == 0)
                 #expect(resources.base.live + resources.base.temporary == baseline)
+                resources.disarm()
                 do {
                     let observed = try flow.observeVoltages(pairs: pairs.span, limits: limits(), cancellation: .init())
                     base.contains(try observed.observation(at: 0).initialVoltage, 1.5)

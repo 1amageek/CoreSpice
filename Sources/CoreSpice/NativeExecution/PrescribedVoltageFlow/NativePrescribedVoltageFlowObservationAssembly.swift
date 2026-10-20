@@ -75,6 +75,7 @@ internal enum NativePrescribedVoltageFlowObservationAssembly {
                 throw Failure.capacityExceeded
             }
             let lease = try control.reserveNativeStorage(kind: .liveOwnedBytes, byteCount: UInt64(bytes.retained))
+            guard !cancellation.isCancelled, !Task.isCancelled else { throw Failure.cancelled }
             let metadata = try control.reserveStorage(byteCount: bytes.metadata)
             defer { withExtendedLifetime(metadata) {} }
             try tick(p)
