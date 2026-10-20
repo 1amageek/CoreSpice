@@ -200,3 +200,29 @@ charged to the snapshot control as a nonrefundable scheduled upper allowance.
 This is not actual-consumption telemetry. Control failure closes the unpublished
 model through the existing cleanup path; no child is started after failed admission.
 The same request control later governs every conditional capture and query.
+
+## Canonical Simulation Inputs
+
+The public additive preparation requirement accepts an explicit simulation array.
+Its default for legacy conformers delegates only an empty array to the previous
+requirement; nonempty input refuses as unsupported rather than being ignored.
+The package snapshot path resolves optional runtime/snapshot selections using the
+[Native selection contract](../../CoreSpice/NativeExecution/DESIGN.md#canonical-osdi-simulation-parameters)
+before acquisition. The SAME canonical array enters actual `OSDIPreparationOptions`,
+native model setup and optional point/controlled snapshot. Receipts store that
+actual array; ambient Kelvin is independent. Old public calls still use empty input.
+
+Before options/receipt name validation, adapter capacity admits the temporary name
+Set and shared-input array/header ownership from actual counts/capacity. Controlled
+validation also uses its original request control and lexical temporary lease,
+including exact comparison/name walks; no new control or quota is created. SDK
+evaluation limits continue to bound the native bridge's name/string/table copies.
+All arithmetic is checked before construction, cancellation closes unpublished
+owners, and receipt copies retain shared immutable input backing. No callback or
+foreign call is placed under a lock. The four focused preparation cases passed
+without skips, including the actual numeric/string setup callback compared with
+independent direct SDK evaluation, mismatch refusal, capacity, cancellation,
+refund and a fresh legacy/nonempty rerun. The receipt contract case and scoped
+review also passed. This finite transport/setup qualification does not establish
+official-model numerical qualification, actual whole-Sky130 or global/history
+claims.

@@ -19,6 +19,15 @@ package enum OSDIAdapterCapacity {
         return count.bytes
     }
 
+    static func simulationParameters(_ parameters: [OSDISimulationParameter]?) throws(OSDIAdapterFailure) -> UInt64 {
+        guard let parameters, !parameters.isEmpty else { return 0 }
+        var count = Counter()
+        try count.add(parameters.capacity, stride: MemoryLayout<OSDISimulationParameter>.stride)
+        try count.addBytes(table(entries: parameters.count, key: MemoryLayout<String>.stride, value: 0))
+        try count.add(2, stride: MemoryLayout<[OSDISimulationParameter]>.stride)
+        return count.bytes
+    }
+
     static func noiseNames(_ sources: [OSDINoiseSourceInfo]) throws(OSDIAdapterFailure) -> UInt64 {
         var count = Counter()
         for source in sources { try count.add(source.name.utf8.count, stride: 1, factor: 2) }

@@ -23,11 +23,22 @@ public struct OSDICircuitPreparer: OSDICircuitPreparing, OSDIConstitutiveCircuit
             loadLimits: loadLimits, evaluationLimits: evaluationLimits, maximumInstanceCount: maximumInstanceCount,
             maximumAdapterBytes: maximumAdapterBytes, transientPrecision: transientPrecision, constitutiveSnapshot: nil)
     }
+    public func prepare(ir: CircuitIR, operatingConditions: OperatingConditions,
+        provider: any OSDILibraryProviding, loadLimits: OSDILoadLimits,
+        evaluationLimits: OSDIEvaluationLimits, maximumInstanceCount: Int,
+        maximumAdapterBytes: UInt64, transientPrecision: OSDITransientPrecisionInputs? = nil,
+        simulationParameters: [OSDISimulationParameter]) async throws(OSDIAdapterFailure) -> OSDIPreparedCircuit {
+        try await prepare(ir: ir, operatingConditions: operatingConditions, provider: provider,
+            loadLimits: loadLimits, evaluationLimits: evaluationLimits, maximumInstanceCount: maximumInstanceCount,
+            maximumAdapterBytes: maximumAdapterBytes, transientPrecision: transientPrecision,
+            constitutiveSnapshot: nil, simulationParameters: simulationParameters)
+    }
     package func prepare(ir: CircuitIR, operatingConditions: OperatingConditions,
         provider: any OSDILibraryProviding, loadLimits: OSDILoadLimits,
         evaluationLimits: OSDIEvaluationLimits, maximumInstanceCount: Int,
         maximumAdapterBytes: UInt64, transientPrecision: OSDITransientPrecisionInputs?,
-        constitutiveSnapshot: OSDIConstitutiveSnapshotInputs?) async throws(OSDIAdapterFailure) -> OSDIPreparedCircuit {
+        constitutiveSnapshot: OSDIConstitutiveSnapshotInputs?,
+        simulationParameters explicit: [OSDISimulationParameter]? = nil) async throws(OSDIAdapterFailure) -> OSDIPreparedCircuit {
         if let snapshot = constitutiveSnapshot {
             do { try snapshot.control.checkpoint(workUnits: 0) }
             catch { throw .runtime(.host(operation: "controlled precision snapshot", underlying: error)) }
@@ -38,8 +49,17 @@ public struct OSDICircuitPreparer: OSDICircuitPreparing, OSDIConstitutiveCircuit
             }
         }
         guard maximumInstanceCount >= 0, maximumAdapterBytes > 0 else { throw .capacityExceeded }
-        let initialBytes = try OSDIAdapterCapacity.initial(ir: ir)
-        guard initialBytes <= maximumAdapterBytes else { throw .capacityExceeded }
+        let initial = try OSDIAdapterCapacity.initial(ir: ir)
+        let explicitBytes = try OSDIAdapterCapacity.simulationParameters(explicit)
+        let snapshotBytes = try OSDIAdapterCapacity.simulationParameters(constitutiveSnapshot?.simulationParameters)
+        let (withExplicit, firstOverflow) = initial.addingReportingOverflow(explicitBytes)
+        let (initialBytes, secondOverflow) = withExplicit.addingReportingOverflow(snapshotBytes)
+        guard !firstOverflow, !secondOverflow, initialBytes <= maximumAdapterBytes else { throw .capacityExceeded }
+        if let snapshot = constitutiveSnapshot {
+            // Both selections can coexist during exact comparison; no merged array is made.
+            try Self.admitSimulationComparison(explicit, snapshot.simulationParameters, snapshot: snapshot)
+        }
+        let simulationParameters = try Self.resolveSimulationParameters(explicit, constitutiveSnapshot?.simulationParameters)
         let nodeSet = Set(ir.nodes)
         guard ir.groundNode == .ground, nodeSet.count == ir.nodes.count,
               ir.nodes.allSatisfy({ $0.id >= 0 }),
@@ -85,13 +105,13 @@ public struct OSDICircuitPreparer: OSDICircuitPreparing, OSDIConstitutiveCircuit
                     let options: OSDIPreparationOptions
                     do {
                         let validationLease: (any Sendable)?
-                        if let snapshot = constitutiveSnapshot, !snapshot.simulationParameters.isEmpty {
+                        if let snapshot = constitutiveSnapshot, !simulationParameters.isEmpty {
                             validationLease = try OSDIConstitutiveCapacity.simulationValidation(
-                                snapshot.simulationParameters, control: snapshot.control)
+                                simulationParameters, control: snapshot.control)
                         } else { validationLease = nil }
                         defer { withExtendedLifetime(validationLease) {} }
                         options = try OSDIPreparationOptions(parameters: resolved.binding.modelParameters + resolved.instanceParameters,
-                            simulationParameters: constitutiveSnapshot?.simulationParameters ?? [],
+                            simulationParameters: simulationParameters,
                             temperatureKelvin: operatingConditions.temperatureKelvin,
                             connectedTerminalCount: instance.nodes.count, limits: evaluationLimits)
                     }
@@ -112,9 +132,15 @@ public struct OSDICircuitPreparer: OSDICircuitPreparing, OSDIConstitutiveCircuit
                         let (withNames, nameOverflow) = admittedBytes.addingReportingOverflow(nameBytes)
                         guard !nameOverflow, withNames <= maximumAdapterBytes else { throw OSDIAdapterFailure.capacityExceeded }
                         admittedBytes = withNames
+                        let receiptValidation: (any Sendable)?
+                        if let snapshot = constitutiveSnapshot, !simulationParameters.isEmpty {
+                            receiptValidation = try OSDIConstitutiveCapacity.simulationValidation(simulationParameters, control: snapshot.control)
+                        } else { receiptValidation = nil }
+                        defer { withExtendedLifetime(receiptValidation) {} }
                         receipt = try OSDIPreparationReceipt(resolved: resolved,
                             effectiveTemperatureKelvin: operatingConditions.temperatureKelvin,
-                            topology: model.topology, resolvedParameters: model.resolvedParameters)
+                            topology: model.topology, resolvedParameters: model.resolvedParameters,
+                            simulationParameters: simulationParameters)
                         projection = try OSDITopologyProjection(topology: model.topology, terminals: instance.nodes,
                             nextNodeID: &nextNode, nextBranchID: &nextBranch)
                         noiseSources = try OSDINoiseProjection.project(sources: model.noiseSources,
@@ -226,6 +252,31 @@ public struct OSDICircuitPreparer: OSDICircuitPreparing, OSDIConstitutiveCircuit
             catch { throw .cleanupPending(cause: .cleanup(primary: primary, secondary: error), owner: lifetime) }
             throw primary
         }
+    }
+    package static func resolveSimulationParameters(_ explicit: [OSDISimulationParameter]?,
+        _ snapshot: [OSDISimulationParameter]?) throws(OSDIAdapterFailure) -> [OSDISimulationParameter] {
+        if let explicit, let snapshot {
+            guard OSDIPreparationReceipt.simulationParametersEqual(explicit, snapshot) else { throw .conditionsMismatch }
+        }
+        return explicit ?? snapshot ?? []
+    }
+    private static func admitSimulationComparison(_ explicit: [OSDISimulationParameter]?,
+        _ values: [OSDISimulationParameter]?, snapshot: OSDIConstitutiveSnapshotInputs) throws(OSDIAdapterFailure) {
+        do {
+            func scan(_ parameters: [OSDISimulationParameter]?) throws {
+                guard let parameters else { return }
+                for parameter in parameters {
+                    try snapshot.control.checkpoint(workUnits: 2)
+                    for _ in parameter.name.utf8 { try snapshot.control.checkpoint(workUnits: 2) }
+                    if case .string(let text) = parameter.value {
+                        for _ in text.utf8 { try snapshot.control.checkpoint(workUnits: 2) }
+                    }
+                }
+            }
+            try scan(explicit)
+            try scan(values)
+            try snapshot.control.checkpoint(workUnits: 0)
+        } catch { throw .runtime(.host(operation: "simulation parameter comparison", underlying: error)) }
     }
     private static func hasName(_ generated: String, in names: some Sequence<String>) -> Bool {
         for name in names {

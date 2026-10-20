@@ -14,6 +14,8 @@ struct CoreSpiceCLIOSDICatalog: Decodable, Sendable {
     let transientPrecision: PrecisionInput?
     let executionBudget: CoreSpiceCLIPrecisionExecutionBudget?
     let schemaVersion: Int
+    let baseCatalogSchemaVersion: Int?
+    let simulationParameters: [CoreSpiceCLIOSDISimulationParameterRecord]?
     let libraryRootPath: String
     let stagingParentDirectory: String
     let artifacts: [Artifact]
@@ -23,6 +25,42 @@ struct CoreSpiceCLIOSDICatalog: Decodable, Sendable {
     let maximumInstanceCount: Int
     let maximumAdapterBytes: UInt64
     let tolerances: Tolerances
+
+    private enum CodingKeys: String, CodingKey {
+        case transientPrecision, executionBudget, schemaVersion, baseCatalogSchemaVersion, simulationParameters
+        case libraryRootPath, stagingParentDirectory, artifacts, instances, loadLimits, evaluationLimits
+        case maximumInstanceCount, maximumAdapterBytes, tolerances
+    }
+
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
+        if schemaVersion == 3 {
+            let base = try c.decode(Int.self, forKey: .baseCatalogSchemaVersion)
+            let parameters = try c.decode([CoreSpiceCLIOSDISimulationParameterRecord].self, forKey: .simulationParameters)
+            guard [1, 2].contains(base), !parameters.isEmpty,
+                  Set(parameters.map(\.name)).count == parameters.count else {
+                throw CoreSpiceCLIOSDIError.invalidCatalog("Invalid explicit simulation catalog base or parameters")
+            }
+            baseCatalogSchemaVersion = base; simulationParameters = parameters
+        } else {
+            guard !c.contains(.baseCatalogSchemaVersion), !c.contains(.simulationParameters) else {
+                throw CoreSpiceCLIOSDIError.invalidCatalog("Simulation parameters require catalog schema 3")
+            }
+            baseCatalogSchemaVersion = nil; simulationParameters = nil
+        }
+        transientPrecision = try c.decodeIfPresent(PrecisionInput.self, forKey: .transientPrecision)
+        executionBudget = try c.decodeIfPresent(CoreSpiceCLIPrecisionExecutionBudget.self, forKey: .executionBudget)
+        libraryRootPath = try c.decode(String.self, forKey: .libraryRootPath)
+        stagingParentDirectory = try c.decode(String.self, forKey: .stagingParentDirectory)
+        artifacts = try c.decode([Artifact].self, forKey: .artifacts)
+        instances = try c.decode([InstanceInput].self, forKey: .instances)
+        loadLimits = try c.decode(LoadLimits.self, forKey: .loadLimits)
+        evaluationLimits = try c.decode(EvaluationLimits.self, forKey: .evaluationLimits)
+        maximumInstanceCount = try c.decode(Int.self, forKey: .maximumInstanceCount)
+        maximumAdapterBytes = try c.decode(UInt64.self, forKey: .maximumAdapterBytes)
+        tolerances = try c.decode(Tolerances.self, forKey: .tolerances)
+    }
 
     struct PrecisionInput: Decodable, Sendable {
         let workerRootPath: String
@@ -126,13 +164,14 @@ struct CoreSpiceCLIOSDICatalog: Decodable, Sendable {
         // CLI developer catalog policy v1 bounds UTF-8 decoding and all JSON collection materialization.
         let bytes = try LocalSPICESourceReader().read(at: path, maximumByteCount: 4 * 1024 * 1024, maximumPageByteCount: 4096)
         let catalog = try JSONDecoder().decode(Self.self, from: bytes)
-        guard [1, 2].contains(catalog.schemaVersion), catalog.libraryRootPath.hasPrefix("/"),
+        guard [1, 2, 3].contains(catalog.schemaVersion), catalog.libraryRootPath.hasPrefix("/"),
               catalog.stagingParentDirectory.hasPrefix("/"), !catalog.instances.isEmpty,
               catalog.instances.count <= catalog.maximumInstanceCount, !catalog.artifacts.isEmpty,
               catalog.artifacts.count <= catalog.instances.count else {
             throw CoreSpiceCLIOSDIError.invalidCatalog("Invalid catalog schema, root paths, counts or explicit bounds")
         }
-        if catalog.schemaVersion == 1 {
+        let baseSchema = catalog.baseCatalogSchemaVersion ?? catalog.schemaVersion
+        if baseSchema == 1 {
             guard catalog.transientPrecision == nil && catalog.executionBudget == nil else {
                 throw CoreSpiceCLIOSDIError.invalidCatalog("Schema1 cannot request precision or a replacement execution budget")
             }
@@ -171,7 +210,8 @@ struct CoreSpiceCLIOSDICatalog: Decodable, Sendable {
             maximumAdapterBytes: catalog.maximumAdapterBytes, tolerances: .init(
                 temperatureAbsoluteKelvin: catalog.tolerances.temperatureAbsoluteKelvin,
                 thermalResidualAbsoluteWatts: catalog.tolerances.thermalResidualAbsoluteWatts),
-            transientPrecision: try catalog.transientPrecision?.checked(stagingParentDirectory: catalog.stagingParentDirectory))
+            transientPrecision: try catalog.transientPrecision?.checked(stagingParentDirectory: catalog.stagingParentDirectory),
+            simulationParameters: try catalog.simulationParameters?.map { try $0.simulationParameter() })
         let digest = try SHA256ContentDigester().digest(using: .sha256,
             limits: .init(maximumChunkByteCount: UInt64(max(1, bytes.count)), maximumTotalByteCount: UInt64(max(1, bytes.count)), maximumUpdateCount: 1)) {
                 (lease: borrowing ContentDigestUpdateLease) throws(ContentDigestError) in

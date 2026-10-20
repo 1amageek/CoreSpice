@@ -1007,3 +1007,14 @@ entry retains its own analysis, waveform summary, original DC result and OSDI
 receipt where applicable; no final phase substitutes for earlier evidence.
 Single-phase schema v3/v4/v5 contracts are preserved. This version is distinct
 from other domain record schemas with the same numeric version.
+
+## Explicit OSDI simulation parameters
+
+The Native runtime now carries an optional explicit simulation-parameter selection.
+The [Native owner](Sources/CoreSpice/NativeExecution/DESIGN.md#canonical-osdi-simulation-parameters)
+owns canonical selection; [adapter preparation](Sources/CoreSpiceOSDI/Preparation/DESIGN.md#canonical-simulation-inputs)
+forwards it to the unchanged SDK 1.2.0 setup. This is host input/identity plumbing,
+not compact-model physics or an implicit nominal-temperature default. Focused
+API/CLI preparation, exact-identity, persistence, refusal, resource, cancellation
+and lifetime tests qualify this transport boundary with its scoped review.
+Actual model-family and whole-candidate guarantees are not enlarged.

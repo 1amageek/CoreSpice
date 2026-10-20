@@ -39,7 +39,7 @@ public struct CoreSpiceCLIOSDIVariableRecord: Codable, Sendable, Hashable {
     }
     static func validate(models: [CoreSpiceCLIOSDIRecord]?, variables: [Self]?) throws {
         if models == nil && variables == nil { return }
-        guard let models, !models.isEmpty, models.allSatisfy({ $0.schemaVersion == 1 && $0.phase == "op" }), let variables, !variables.isEmpty,
+        guard let models, !models.isEmpty, models.allSatisfy({ $0.phaseSchemaVersion == 1 && $0.phase == "op" }), let variables, !variables.isEmpty,
               Set(models.map(\.instanceName)).count == models.count,
               variables.map(\.row).sorted() == Array(0..<variables.count) else {
             throw CoreSpiceCLIOSDIError.incompleteReceipt("Missing or duplicate saved OSDI execution rows")

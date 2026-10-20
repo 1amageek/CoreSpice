@@ -275,6 +275,10 @@ public struct CoreSpiceCLIOSDIExecutionRecord: Codable, Sendable, Hashable {
         for model in models {
             try text(model.instanceName); try text(model.modelName); try text(model.expectedDescriptorName)
             for name in model.rawNodeNames { try text(name) }
+            for parameter in model.simulationParameters {
+                try text(parameter.name)
+                if let value = parameter.stringValue { try text(value) }
+            }
             for parameter in model.modelParameters + model.instanceParameters + model.resolvedParameters {
                 try text(parameter.name)
                 if case .string(let value) = try parameter.assignment().value { try text(value) }
@@ -288,7 +292,7 @@ public struct CoreSpiceCLIOSDIExecutionRecord: Codable, Sendable, Hashable {
         try require(models.count == op.count + outer.count)
         for pointModel in op {
             guard let model = outer.first(where: { $0.instanceName == pointModel.instanceName }) else { throw CoreSpiceCLIOSDIError.incompleteReceipt("Missing outer model binding") }
-            try require(pointModel.artifact == model.artifact && pointModel.descriptorIndex == model.descriptorIndex && pointModel.modelName == model.modelName && pointModel.rawNodeGlobalRows == model.rawNodeGlobalRows && pointModel.rawNodeNames == model.rawNodeNames && pointModel.modelParameters == model.modelParameters && pointModel.instanceParameters == model.instanceParameters && pointModel.effectiveKelvin == model.effectiveKelvin && pointModel.expectedDescriptorName == model.expectedDescriptorName && pointModel.rawNodeUnits == model.rawNodeUnits && pointModel.rawEquationUnits == model.rawEquationUnits && pointModel.previousState == model.previousState && pointModel.resolvedParameters == model.resolvedParameters)
+            try require(pointModel.artifact == model.artifact && pointModel.descriptorIndex == model.descriptorIndex && pointModel.modelName == model.modelName && pointModel.rawNodeGlobalRows == model.rawNodeGlobalRows && pointModel.rawNodeNames == model.rawNodeNames && pointModel.modelParameters == model.modelParameters && pointModel.instanceParameters == model.instanceParameters && pointModel.effectiveKelvin == model.effectiveKelvin && pointModel.expectedDescriptorName == model.expectedDescriptorName && pointModel.rawNodeUnits == model.rawNodeUnits && pointModel.rawEquationUnits == model.rawEquationUnits && pointModel.previousState == model.previousState && pointModel.resolvedParameters == model.resolvedParameters && pointModel.simulationParameters == model.simulationParameters)
         }
         for model in models {
             for (index, row) in model.rawNodeGlobalRows.enumerated() {

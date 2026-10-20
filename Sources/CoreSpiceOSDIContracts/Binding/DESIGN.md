@@ -72,3 +72,17 @@ Contract tests cover each constructor failure and distinct model/instance same-n
 assignments. Receipt equality distinguishes binding, descriptor, typed assignments,
 previous state, temperature, topology and effective facts. Host tests additionally
 verify that receipts come from real setup and match consumed executable owners.
+
+### Actual simulation setup facts
+
+`OSDIPreparationReceipt.simulationParameters` records the actual ordered SDK
+simulation inputs, separately from model/instance assignments and ambient Kelvin.
+Its source-compatible initializer defaults to empty. Duplicate names retain SDK
+name-validation semantics. Exact receipt comparison uses name/value UTF8 bytes,
+scalar type and real bit patterns, not floating equality or Unicode normalization.
+The public comparison helper is also used by the preparation resolver; it performs
+no allocation, sorting or coercion. Receipt arrays share immutable input backing
+and carry no execution authority. Adapter-owned admission precedes validation.
+
+Tests distinguish empty/nonempty, signed zero, order, type and distinct UTF8 text,
+and actual setup tests must show that ordinary and snapshot options agree.

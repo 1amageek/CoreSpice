@@ -34,6 +34,19 @@ struct NativePrecisionConfigurationTests {
             Issue.record("Legacy solver identity was silently upgraded")
         } catch NativePrecisionConfigurationVerification.Failure.invalidFacts {}
         let model = try #require(facts.coldModels.first)
+        let plusZero = try OSDISimulationParameter(name: "value", value: .real(0))
+        let minusZero = try OSDISimulationParameter(name: "value", value: .real(-0.0))
+        let composed = try OSDISimulationParameter(name: "label", value: .string("é"))
+        let decomposed = try OSDISimulationParameter(name: "label", value: .string("e\u{301}"))
+        var simulationIdentities: [ContentDigest] = []
+        for selection in [[plusZero, composed], [minusZero, composed], [composed, plusZero], [plusZero, decomposed]] {
+            let changed = replacing(facts, model: replacing(model, simulationParameters: selection))
+            let identity = try NativePrecisionConfigurationVerification().identity(changed, binding: binding,
+                maximumEncodingBytes: 1024 * 1024, resources: resources())
+            #expect(identity != expected)
+            #expect(!simulationIdentities.contains(identity))
+            simulationIdentities.append(identity)
+        }
         let zeroDigest = try ContentDigest(algorithm: .sha256, hexadecimalValue: String(repeating: "0", count: 64))
         let otherWorker = try ArtifactReference(digest: zeroDigest, byteCount: model.workerReference.byteCount,
             descriptor: model.workerReference.descriptor)
@@ -198,13 +211,15 @@ struct NativePrecisionConfigurationTests {
     }
     private func replacing(_ m: NativePrecisionConfigurationFacts.ColdModel, bits: UInt32? = nil, options: OSDIPrecisionOptions? = nil,
                            worker: ArtifactReference? = nil, numeric: ContentDigest? = nil, modelName: String? = nil,
-                           modelParameters: [OSDIParameterAssignment]? = nil) -> NativePrecisionConfigurationFacts.ColdModel {
+                           modelParameters: [OSDIParameterAssignment]? = nil,
+                           simulationParameters: [OSDISimulationParameter]? = nil) -> NativePrecisionConfigurationFacts.ColdModel {
         .init(instanceName: m.instanceName, modelName: modelName ?? m.modelName, modelReference: m.modelReference,
             descriptorIndex: m.descriptorIndex, expectedDescriptorName: m.expectedDescriptorName, modelParameters: modelParameters ?? m.modelParameters,
             instanceParameters: m.instanceParameters, previousState: m.previousState, resolvedParameters: m.resolvedParameters,
             effectiveKelvin: m.effectiveKelvin, topology: m.topology, rawNodeGlobalRows: m.rawNodeGlobalRows, programDigest: m.programDigest,
             programByteCount: m.programByteCount, setupDigest: m.setupDigest, setupByteCount: m.setupByteCount, semanticProfile: m.semanticProfile,
-            workerReference: worker ?? m.workerReference, numericProfile: numeric ?? m.numericProfile, options: options ?? m.options, precisionBits: bits ?? m.precisionBits)
+            workerReference: worker ?? m.workerReference, numericProfile: numeric ?? m.numericProfile, options: options ?? m.options, precisionBits: bits ?? m.precisionBits,
+            simulationParameters: simulationParameters ?? m.simulationParameters)
     }
     private func replacing(_ r: NativeCircuitPreparationRecord, maximumBytes: UInt64,
         resources: (any SPICESourceResourceAccounting)? = nil) -> NativeCircuitPreparationRecord {

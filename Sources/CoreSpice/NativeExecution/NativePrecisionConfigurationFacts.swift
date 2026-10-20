@@ -146,12 +146,15 @@ public struct NativePrecisionConfigurationFacts: Sendable {
         public let numericProfile: ContentDigest
         public let options: OSDIPrecisionOptions
         public let precisionBits: UInt32
+        public let simulationParameters: [OSDISimulationParameter]
         public init(instanceName: String, modelName: String, modelReference: ArtifactReference, descriptorIndex: UInt32,
                     expectedDescriptorName: String, modelParameters: [OSDIParameterAssignment], instanceParameters: [OSDIParameterAssignment],
                     previousState: [Double], resolvedParameters: [ResolvedParameter], effectiveKelvin: Double,
                     topology: Topology, rawNodeGlobalRows: [Int?], programDigest: ContentDigest, programByteCount: UInt64,
                     setupDigest: ContentDigest, setupByteCount: UInt64, semanticProfile: ContentDigest,
-                    workerReference: ArtifactReference, numericProfile: ContentDigest, options: OSDIPrecisionOptions, precisionBits: UInt32) {
+                    workerReference: ArtifactReference, numericProfile: ContentDigest, options: OSDIPrecisionOptions, precisionBits: UInt32,
+                    simulationParameters: [OSDISimulationParameter] = []) {
+            self.simulationParameters = simulationParameters
             self.instanceName = instanceName; self.modelName = modelName; self.modelReference = modelReference
             self.descriptorIndex = descriptorIndex; self.expectedDescriptorName = expectedDescriptorName
             self.modelParameters = modelParameters; self.instanceParameters = instanceParameters; self.previousState = previousState
@@ -262,7 +265,8 @@ extension NativePrecisionConfigurationFacts {
                 topology: Topology(nodes: nodes, activeUnknownCount: program.topology.activeUnknownCount, stateCount: program.topology.stateCount),
                 rawNodeGlobalRows: value.rawNodeGlobalRows, programDigest: program.programDigest, programByteCount: UInt64(program.programByteCount),
                 setupDigest: program.setupDigest, setupByteCount: UInt64(program.setupByteCount), semanticProfile: program.semanticProfile,
-                workerReference: precision.workerReference, numericProfile: precision.numericProfile, options: precision.options, precisionBits: precision.precisionBits)
+                workerReference: precision.workerReference, numericProfile: precision.numericProfile, options: precision.options, precisionBits: precision.precisionBits,
+                simulationParameters: receipt.simulationParameters)
         }
         let result = Self(sourceInputIdentity: input.sourceInputIdentity, algorithmIdentity: SPICENativeSimulationRecord.algorithmIdentity(for: common),
             solverIdentity: SparseLUSolver.implementationIdentity, settings: settings, rootKey: occurrences.first?.key ?? "",

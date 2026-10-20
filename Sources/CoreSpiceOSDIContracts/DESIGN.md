@@ -45,3 +45,8 @@ names and nonfinite previous state. Receipt checks require exact state dimension
 and copied parameter-fact uniqueness. IR tests preserve both stages through builder
 reconstruction. Native execution tests own actual setup, binding, resource lifetime,
 and numerical behavior. Compile-only checks do not prove those runtime contracts.
+
+Simulation setup facts extend the existing
+[Binding receipt](Binding/DESIGN.md#actual-simulation-setup-facts), preserving the
+portable value-only dependency boundary and the default empty initializer. They
+are distinct from model/instance parameter assignments and execution authority.

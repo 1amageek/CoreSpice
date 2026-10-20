@@ -56,7 +56,8 @@ extension CoreSpiceCLIPrecisionExecution {
                 topology: topology, rawNodeGlobalRows: model.rawNodeGlobalRows,
                 programDigest: digest(p.programSHA256), programByteCount: UInt64(p.programBytes.count),
                 setupDigest: digest(p.setupSHA256), setupByteCount: UInt64(p.setupBytes.count), semanticProfile: digest(p.semanticProfileSHA256),
-                workerReference: receipt.workerReference, numericProfile: digest(receipt.numericProfileSHA256), options: receipt.options.checked(), precisionBits: receipt.precisionBits)
+                workerReference: receipt.workerReference, numericProfile: digest(receipt.numericProfileSHA256), options: receipt.options.checked(), precisionBits: receipt.precisionBits,
+                simulationParameters: model.simulationParameters.map { try $0.simulationParameter() })
         }
         return try Facts(sourceInputIdentity: digest(sourceInputIdentity), algorithmIdentity: algorithmIdentity, solverIdentity: solverIdentity,
             settings: values, rootKey: sources.rootKey, captures: sources.captures.map { .init(key: $0.key, reference: $0.reference) },

@@ -232,7 +232,7 @@ struct CoreSpiceCLIPreparedRunRecord: Codable, Sendable {
         for point in 0..<points {
             let selected = osdiModels.filter { $0.sourcePointIndex == point }
             guard selected.count == instances.count, Set(selected.map(\.instanceName)) == instances,
-                  selected.allSatisfy({ $0.schemaVersion == 4 && $0.phase == "dc" && $0.completedPointCount == 1 &&
+                  selected.allSatisfy({ $0.phaseSchemaVersion == 4 && $0.phase == "dc" && $0.completedPointCount == 1 &&
                       $0.sourceName == nativeDCResult.parameterName && $0.sourceValueBits == coordinates[point] }) else {
                 throw CoreSpiceCLIOSDIError.incompleteReceipt("OSDI DC receipt differs from its actual source point")
             }
@@ -312,11 +312,12 @@ struct CoreSpiceCLIPreparedRunRecord: Codable, Sendable {
                 }
                 for baseline in (osdiModels ?? []).filter({ $0.phase == "op" }) {
                     guard let completed = osdiModels?.first(where: { $0.phase == "network" && $0.instanceName == baseline.instanceName }),
-                          completed.schemaVersion == 5, completed.artifact == baseline.artifact,
+                          completed.phaseSchemaVersion == 5, completed.artifact == baseline.artifact,
                           completed.modelName == baseline.modelName, completed.descriptorIndex == baseline.descriptorIndex,
                           completed.expectedDescriptorName == baseline.expectedDescriptorName,
                           completed.modelParameters == baseline.modelParameters, completed.instanceParameters == baseline.instanceParameters,
-                          completed.resolvedParameters == baseline.resolvedParameters, completed.previousState == baseline.previousState,
+                          completed.resolvedParameters == baseline.resolvedParameters,
+                          completed.simulationParameters == baseline.simulationParameters, completed.previousState == baseline.previousState,
                           completed.effectiveKelvin.bitPattern == baseline.effectiveKelvin.bitPattern,
                           completed.rawNodeGlobalRows == baseline.rawNodeGlobalRows,
                           completed.rawNodeNames == baseline.rawNodeNames, completed.rawNodeUnits == baseline.rawNodeUnits,

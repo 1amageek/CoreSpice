@@ -599,9 +599,9 @@ struct CLI {
         are size-weighted operation counts, not wall time or measured FLOPS.
 
       OSDI native analysis:
-        --osdi-catalog selects schema1 ordinary bindings or schema2 explicit precision/budgets.
+        --osdi-catalog selects schema1 ordinary bindings, schema2 explicit precision/budgets, or schema3 explicit simulation parameters with required baseCatalogSchemaVersion 1/2.
         Precision output paths must be fresh; existing files and input/output aliases are refused.
-        --paired-csv saves canonical high/low transient components with exact bit patterns; requires catalog schema2.
+        --paired-csv saves canonical high/low transient components with exact bit patterns; requires catalog schema2 or schema3 base 2.
         N instances use coefficient-free .model name osdi; catalog keys are exact normalized names.
         Ordinary OSDI supports .op, .ac, .tran, .noise, .tf and source DC/AC .sens.
         Prepared OSDI additionally supports .dc, .pz and .four; other analyses fail explicitly.

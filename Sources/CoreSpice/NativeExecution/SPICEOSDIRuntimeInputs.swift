@@ -9,15 +9,24 @@ public struct SPICEOSDIRuntimeInputs: Sendable {
     public let maximumInstanceCount: Int
     public let maximumAdapterBytes: UInt64
     public let tolerances: SPICEOSDITolerances
+    public let simulationParameters: [OSDISimulationParameter]?
     public let transientPrecision: OSDITransientPrecisionInputs?
     public init(provider: any OSDILibraryProviding, loadLimits: OSDILoadLimits,
                 evaluationLimits: OSDIEvaluationLimits, maximumInstanceCount: Int,
                 maximumAdapterBytes: UInt64, tolerances: SPICEOSDITolerances,
-                transientPrecision: OSDITransientPrecisionInputs? = nil) throws(OSDIAdapterFailure) {
+                transientPrecision: OSDITransientPrecisionInputs? = nil,
+                simulationParameters: [OSDISimulationParameter]? = nil) throws(OSDIAdapterFailure) {
         guard maximumInstanceCount > 0, maximumAdapterBytes > 0 else { throw .capacityExceeded }
         self.provider = provider; self.loadLimits = loadLimits; self.evaluationLimits = evaluationLimits
         self.maximumInstanceCount = maximumInstanceCount; self.maximumAdapterBytes = maximumAdapterBytes
         self.tolerances = tolerances
+        self.simulationParameters = simulationParameters
         self.transientPrecision = transientPrecision
     }
+    package func retainingSimulationParameters(_ parameters: [OSDISimulationParameter]) throws(OSDIAdapterFailure) -> Self {
+        try Self(provider: provider, loadLimits: loadLimits, evaluationLimits: evaluationLimits,
+            maximumInstanceCount: maximumInstanceCount, maximumAdapterBytes: maximumAdapterBytes,
+            tolerances: tolerances, transientPrecision: transientPrecision, simulationParameters: parameters)
+    }
+
 }

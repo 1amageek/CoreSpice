@@ -143,11 +143,16 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing, NativeConstitutiveC
             batch = try await OSDICircuitPreparer().prepare(ir: ir, operatingConditions: operatingConditions,
                 provider: osdi.provider, loadLimits: osdi.loadLimits, evaluationLimits: osdi.evaluationLimits,
                 maximumInstanceCount: osdi.maximumInstanceCount, maximumAdapterBytes: osdi.maximumAdapterBytes,
-                transientPrecision: osdi.transientPrecision, constitutiveSnapshot: snapshot)
+                transientPrecision: osdi.transientPrecision, constitutiveSnapshot: snapshot,
+                simulationParameters: osdi.simulationParameters)
             try resources.checkCancellation()
+            // Fresh reruns retain the actual effective setup, including a selection
+            // supplied only through the constitutive compatibility input.
+            guard let firstReceipt = batch?.receipts.first else { throw OSDIAdapterFailure.identityMismatch }
+            let retainedRuntime = try osdi.retainingSimulationParameters(firstReceipt.simulationParameters)
             return try checkedPrepare(ir: ir, registry: registry, operatingConditions: operatingConditions,
                 limits: limits, numericalLimits: numericalLimits, resources: resources,
-                osdiBatch: &batch, osdiInputs: osdi, osdiReservation: reservation, osdiCapacity: capacity,
+                osdiBatch: &batch, osdiInputs: retainedRuntime, osdiReservation: reservation, osdiCapacity: capacity,
                 constitutiveControl: control)
         } catch {
             let pending: OSDIExecutionLifetime?

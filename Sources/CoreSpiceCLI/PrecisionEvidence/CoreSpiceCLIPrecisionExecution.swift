@@ -309,6 +309,11 @@ public struct CoreSpiceCLIPrecisionExecution: Codable, Sendable, Hashable {
                 for name in model.rawNodeNames + model.rawNodeUnits + model.rawEquationUnits { try text(name) }
                 let rawCount = try Self.multiply(UInt64(model.rawNodeGlobalRows.count), 96)
                 metadata = try Self.add(metadata, rawCount)
+                for parameter in model.simulationParameters {
+                    try text(parameter.name)
+                    if let value = parameter.stringValue { try text(value) }
+                    metadata = try Self.add(metadata, 512)
+                }
                 for parameter in model.modelParameters + model.instanceParameters + model.resolvedParameters {
                     try text(parameter.name)
                     if case .string(let value) = try parameter.assignment().value { try text(value) }

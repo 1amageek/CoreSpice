@@ -181,8 +181,9 @@ conditional source-linear identities.
 A package `OSDIConstitutiveSnapshotInputs` selects snapshot-only preparation with
 an explicit snapshot preparer, semantic profile, precision options and mandatory
 caller execution control. `OSDIConstitutiveCircuitPreparing` declares the package
-factory requirement, implemented by `OSDICircuitPreparer`; the public ordinary
-protocol remains unchanged. The factory passes the actual prepared model and exact
+factory requirement, implemented by `OSDICircuitPreparer`; existing public ordinary
+requirements retain their source-compatible nil behavior. The additive explicit
+simulation requirement is owned by the preparation component. The factory passes the actual prepared model and exact
 native preparation options to the SDK controlled snapshot requirement before
 transferring the native model to its ordinary owner. No point helper is opened.
 
@@ -197,8 +198,7 @@ its temporary Set table using the parent adapter's bucket/generation rule and
 charges an ASCII name walk plus the worst-case bounded pairwise String comparison
 payload. Non-ASCII names refuse this controlled profile before the constructor.
 No input name/value payload is copied. This temporary lease ends after validation;
-SDK construction accounts its own serialization/copy/hash scratch. The public nil ordinary/point
-lane keeps its existing empty simulation-parameter array.
+SDK construction accounts its own serialization/copy/hash scratch. The default unspecified ordinary/point lane keeps its existing empty simulation-parameter array; explicit input uses the canonical selection below.
 
 A stateless Sendable bridge converts SDK UInt64 work/byte counts to Int exactly
 and delegates to the same `LinearSolverExecutionControlling`; unrepresentable
@@ -566,3 +566,12 @@ records additionally admitted. Exact original-baseline comparisons occur after
 the capture's final scope release; retained result scopes independently keep
 their admitted source/query facts alive. No budget, lifetime or production
 behavior changed to make those test assertions pass.
+
+### Canonical runtime/snapshot selection
+
+Snapshot simulation selection is optional so omission is distinct from an explicit
+empty assertion. The [preparation owner](../Preparation/DESIGN.md#canonical-simulation-inputs)
+resolves it with ordinary runtime selection before loading a model. Snapshot and
+point factories receive the exact same actual model/options; existing SDK setup
+digests bind those ordered simulation facts. The previous empty ordinary path is
+unchanged, and no model-visible nominal-temperature value is invented.

@@ -40,6 +40,67 @@ exit code 2. No resource policy is increased, no partial result is serialized.
 
 ## Contracts and Invariants
 
+### Exact OSDI simulation-parameter persistence
+
+The Native receipt owns the actual effective ordered `OSDISimulationParameter`
+array. CLI evidence projects that array without defaults, sorting, deduplication,
+or an ambient-temperature interpretation. The host record remains inspection
+only; decoding does not create executable model authority.
+
+```text
+actual Native receipt -> CLI model evidence -> bounded save -> cold decoder
+  -> original phase validation + exact typed simulation facts
+  -> existing phase joins / Native canonical configuration verification
+```
+
+Empty arrays retain the original model-record schemas 1–5 and profiles, and omit
+all new keys. Nonempty arrays use schema 6 and profile
+`nativeOSDI.simulation-parameters.v6`, with required `phaseSchemaVersion`,
+`phaseProfile`, and nonempty `simulationParameters`. One phase-contract owner
+checks the original mapping: op=1, ac/tran/noise=2, tf/pz/sens/sens-ac/fourier=3,
+dc=4, network=5, with their original profiles. Missing/unknown base contracts,
+phase disagreement, schema-6 missing/empty arrays, or old schemas carrying
+extension keys are typed refusals. Consumers use that checked base contract;
+optional evidence never selects a phase.
+
+The existing `--osdi-catalog` input owns explicit command conditions. Catalog
+schemas 1 (ordinary) and 2 (precision) retain their original meaning. Schema 3
+requires `baseCatalogSchemaVersion` equal to 1 or 2 and nonempty typed
+`simulationParameters`; the selected base runs the original ordinary/precision
+checks unchanged. Missing/null/empty facts, unknown bases, duplicate names, and
+legacy catalogs carrying extension keys are refused before provider/model
+acquisition. The exact array goes to `SPICEOSDIRuntimeInputs`, so Batch and
+Prepared reuse the same actual binding path without a new flag or nominal
+temperature default. Catalog input grants parameter intent, never completed
+receipt authority.
+
+Each simulation fact stores its name, explicit `real`/`string` type, and exactly
+one `realValueBits: UInt64` or `stringValue: String`. Integer values, nonfinite
+real bit patterns, invalid names, and conflicting payloads are refused by the
+existing SDK scalar contract. Names and string values compare by UTF-8 bytes;
+real values compare by binary64 bits, including signed zero. Array order is
+retained in phase joins and Native canonical configuration verification. A
+self-consistent decoded record alone cannot attest that its facts were actually
+executed; only the existing retained source/configuration receipts supply that
+binding. OP/outer and network phase joins refuse mismatched arrays.
+
+New facts participate in the existing metadata and precision-serialization
+ceilings before persistence. Existing resource owners, cancellation, output
+staging and close behavior are reused. Tests in
+`OSDISimulationParameterPersistenceTests` cover typed receipt projection, all
+original phase contracts, cold JSON roundtrips, signed zero, decomposed UTF-8,
+order/type/value tampering, missing base fields, legacy empty output, and the
+existing serialization upper-bound/cancellation boundary. One actual qualified
+linear-image Native preparation to saved/cold CLI record and one genuine tiny
+OP command with a schema-3 catalog cover the higher-owner integration; this
+fixture may ignore simulation values physically and is not the lower numeric/
+string callback oracle or whole-circuit qualification. The ten focused CLI
+cases passed without skips: genuine Prepared and Batch executable requests,
+actual Native preparation through file/cold validation and a fresh retained-input
+rerun, exact typed/order/UTF-8/bit joins, legacy empty encoding, malformed catalog
+refusals, serialization ceilings and cancellation. These finite fixture results
+do not establish actual whole-Sky130, global initial-cover or history guarantees.
+
 ### Exclusive source evaluation and native execution
 
 The CLI explicitly selects `CoreSpiceCLIExecutionPolicy.developerV1` or a caller

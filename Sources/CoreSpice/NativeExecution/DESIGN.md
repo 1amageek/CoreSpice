@@ -1691,3 +1691,48 @@ authority. Each actual-family source/setup request keeps its own unchanged ceili
 all point/capture sessions and boxes within that request share the original owner.
 
 The [Conditional Initial Cover](PrescribedVoltageInitialCover/DESIGN.md) child checks finite explicit-domain root coverage using the actual strong plane and existing root/value witnesses. Global initial-set inclusion remains separate.
+
+## Canonical OSDI Simulation Parameters
+
+`SPICEOSDIRuntimeInputs.simulationParameters` and the existing constitutive input
+selection are optional: nil means unspecified; an explicit empty array asserts
+empty input. Neither specified resolves to the legacy empty array. One selection
+is forwarded unchanged. Two selections must match in order, exact UTF8 names,
+scalar type, real bit pattern (including signed zero), and string UTF8 bytes; a
+mismatch is `OSDIAdapterFailure.conditionsMismatch` before library acquisition.
+The adapter owns that single resolver; Native passes both original selections to
+it rather than reconstructing parameter semantics. No sorting, alias inference,
+merging, coercion or default `tnom` is performed. Ambient temperature remains the
+independent OperatingConditions Kelvin value.
+
+```text
+optional runtime + optional constitutive -> exact conflict check -> canonical array
+ -> ordinary native setup -> optional point/controlled snapshot of SAME options
+ -> per-instance receipt -> configuration identity and retained rerun inputs
+```
+
+Input and receipt copies share immutable caller value backing. Native retains the
+actual resolved selection from prepared receipts for reruns, including when only
+the compatibility constitutive input supplied it; effective parameters are recorded
+per instance. A nonempty receipt adds a versioned simulation-parameter section to
+configuration encoding; empty receipts retain legacy bytes and point behavior.
+The existing Native envelope and adapter capacity own host temporary/header
+storage; SDK limits still own native string/workspace copying. The execution-owner
+and cancellation/cleanup contracts are unchanged. All state remains invocation-
+exclusive or immutable Sendable with no target/synchronization branch.
+
+The focused Native input case and affected existing cold-configuration case
+passed without skips, including exact ordered real/string facts, signed zero,
+UTF-8 identity mutations, omission/empty/conflicting selections and fresh rerun.
+The scoped source review found no remaining issue. Actual model callback/SDK
+comparison and capacity/cancellation/refund evidence belong to the adapter
+preparation owner; CLI persistence is owned separately. This finite qualification
+does not enlarge model-family, actual whole-Sky130 or global/history guarantees.
+
+| State in this delta | Native | WASM / Embedded | Isolation and lifetime |
+|---|---|---|---|
+| Runtime / receipt / cold facts | immutable Sendable values | portable contracts use identical immutable values; Native adapter remains unavailable | caller COW backing retained by actual result copies |
+| Preparation temporaries | invocation-local | no new target lane | sequential setup; lexical validation lease |
+| Test acquisition counter | Mutex<Int> | no target-specific raw-state branch | callbacks update same lock; no foreign call inside lock |
+
+No shared mutable production storage or synchronization implementation is changed.

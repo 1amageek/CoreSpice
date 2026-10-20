@@ -73,6 +73,18 @@ extension SPICENativeSimulation {
                 guard let precision = record.transientPrecision else { throw OSDIAdapterFailure.identityMismatch }
                 try encodePrecision(precision, encoding: &encoding)
             }
+            if !receipt.simulationParameters.isEmpty {
+                try encoding.field("OSDI.simulation-parameters.v1")
+                try encoding.integer(UInt64(receipt.simulationParameters.count))
+                for parameter in receipt.simulationParameters {
+                    try encoding.field(parameter.name)
+                    switch parameter.value {
+                    case .real(let value): try encoding.integer(0); try encoding.integer(value.bitPattern)
+                    case .string(let value): try encoding.integer(2); try encoding.field(value)
+                    case .integer: throw OSDIAdapterFailure.identityMismatch
+                    }
+                }
+            }
         }
     }
 

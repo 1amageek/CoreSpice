@@ -153,6 +153,18 @@ public struct NativePrecisionConfigurationVerification: Sendable {
         for value in [o.maximumProgramBytes, o.maximumMappingBytes, o.arenaBytes, o.maximumWorkUnits,
                       UInt64(o.minimumPrecisionBits), UInt64(o.maximumPrecisionBits), o.startupTimeoutNanoseconds,
                       o.evaluationTimeoutNanoseconds, o.cleanupTimeoutNanoseconds, o.pollNanoseconds] { try e.integer(value) }
+        if !model.simulationParameters.isEmpty {
+            try e.field("OSDI.simulation-parameters.v1")
+            try count(model.simulationParameters.count, into: &e)
+            for parameter in model.simulationParameters {
+                try e.field(parameter.name)
+                switch parameter.value {
+                case .real(let value): try e.field("real"); try e.integer(value.bitPattern)
+                case .string(let value): try e.field("string"); try e.field(value)
+                case .integer: throw Failure.invalidFacts("Simulation parameter has an invalid scalar type")
+                }
+            }
+        }
     }
     private static func assignment(_ value: OSDIParameterAssignment, into e: inout SPICEPreparationEncoding) throws {
         try e.field(value.name); try e.integer(UInt64(value.scope.rawValue))

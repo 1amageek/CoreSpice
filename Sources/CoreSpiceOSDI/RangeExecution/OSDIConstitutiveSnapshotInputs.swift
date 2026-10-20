@@ -8,11 +8,11 @@ package struct OSDIConstitutiveSnapshotInputs: Sendable {
     package let preparer: any OSDIPrecisionSessionPreparing
     package let semanticProfile: ContentDigest
     package let options: OSDIPrecisionOptions
-    package let simulationParameters: [OSDISimulationParameter]
+    package let simulationParameters: [OSDISimulationParameter]?
     package let control: any LinearSolverExecutionControlling
     package init(preparer: any OSDIPrecisionSessionPreparing, semanticProfile: ContentDigest,
         options: OSDIPrecisionOptions, control: any LinearSolverExecutionControlling,
-        simulationParameters: [OSDISimulationParameter] = []) {
+        simulationParameters: [OSDISimulationParameter]? = nil) {
         self.preparer = preparer; self.semanticProfile = semanticProfile
         self.options = options; self.control = control; self.simulationParameters = simulationParameters
     }
