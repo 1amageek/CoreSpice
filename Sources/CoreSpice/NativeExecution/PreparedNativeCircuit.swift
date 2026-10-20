@@ -80,6 +80,14 @@ public struct PreparedNativeCircuit: ~Copyable, Sendable {
             limits: limits, cancellation: cancellation)
     }
 
+    /// Checks the actual initial B/L plane without requiring a root to exist.
+    package borrowing func preparePrescribedVoltageInitialStructure(values: NativePrescribedVoltageValues,
+        algebraicRows: [Int], capture: OSDIConstitutiveCaptureInputs?, limits: NativePrescribedVoltageChartLimits,
+        cancellation: CancellationToken) async throws -> NativePrescribedVoltageInitialStructure {
+        try await NativePrescribedVoltageInitialStructure.prepare(record: record, devices: devices, values: values,
+            algebraicRows: algebraicRows, capture: capture, limits: limits, cancellation: cancellation)
+    }
+
     /// Checks an explicit initial coordinate set, then queries its actual source charge.
     package borrowing func certifyPrescribedVoltageInitialRoot(values: NativePrescribedVoltageValues,
         algebraicRows: [Int], dynamicInitialCoordinates: [CompensatedEnclosure], center: [CompensatedValue],

@@ -120,7 +120,7 @@ let package = Package(
                                .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation"),
                                .product(name: "OSDIContracts", package: "swift-osdi"),
                                .product(name: "OSDIRuntime", package: "swift-osdi")],
-                exclude: ["DESIGN.md", "NativeExecution/DESIGN.md", "NativeExecution/GlobalChargeKernel/DESIGN.md", "NativeExecution/PrescribedVoltageValues/DESIGN.md", "NativeExecution/PrescribedVoltageReconstruction/DESIGN.md", "NativeExecution/PrescribedVoltageMass/DESIGN.md", "NativeExecution/PrescribedVoltageChart/DESIGN.md", "NativeExecution/PrescribedVoltageEvolution/DESIGN.md", "NativeExecution/PrescribedVoltageFlow/DESIGN.md"],
+                exclude: ["DESIGN.md", "NativeExecution/DESIGN.md", "NativeExecution/GlobalChargeKernel/DESIGN.md", "NativeExecution/PrescribedVoltageValues/DESIGN.md", "NativeExecution/PrescribedVoltageReconstruction/DESIGN.md", "NativeExecution/PrescribedVoltageMass/DESIGN.md", "NativeExecution/PrescribedVoltageChart/DESIGN.md", "NativeExecution/PrescribedVoltageInitialCover/DESIGN.md", "NativeExecution/PrescribedVoltageEvolution/DESIGN.md", "NativeExecution/PrescribedVoltageFlow/DESIGN.md"],
                 swiftSettings: [.enableExperimentalFeature("Lifetimes"), .enableExperimentalFeature("LifetimeDependence")]),
 
         // --- Production external-process simulation backend ---

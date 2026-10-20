@@ -38,12 +38,7 @@ internal enum NativePrescribedVoltageInitialRootAssembly {
             guard capture != nil else { throw NativePrescribedVoltageChartFailure.missingCaptureCapability }
             guard range != nil else { throw NativePrescribedVoltageChartFailure.missingSmoothCapture }
         }
-        for index in algebraicRows.indices {
-            try tick()
-            guard (0..<k).contains(algebraicRows[index]), index == 0 || algebraicRows[index - 1] < algebraicRows[index] else {
-                throw NativePrescribedVoltageChartFailure.invalidInput
-            }
-        }
+        try NativePrescribedVoltageInitialStructure.validateRows(algebraicRows, count: k, checkpoint: { try tick() })
         for row in 0..<k {
             try tick()
             let bounds = try A.bounds(source.reducedCoordinates[row])
@@ -86,18 +81,13 @@ internal enum NativePrescribedVoltageInitialRootAssembly {
         let empty = T(row: 0, column: 0, value: zero)
         var entries = [T](repeating: empty, count: capacity), scratch = entries
         var algebraic = [Int](repeating: -1, count: k), dynamicSlot = algebraic, equation = algebraic
-        for index in algebraicRows.indices { try tick(); algebraic[algebraicRows[index]] = index }
+        try NativePrescribedVoltageInitialStructure.fillAlgebraic(rows: algebraicRows, algebraic: &algebraic, checkpoint: { try tick() })
         var dynamic: [Int] = []; dynamic.reserveCapacity(k - b)
-        for row in 0..<k {
-            try tick()
-            if algebraic[row] < 0 { dynamicSlot[row] = dynamic.count; dynamic.append(row); equation[row] = dynamicSlot[row] }
-            else { equation[row] = k - b + algebraic[row] }
-        }
+        try NativePrescribedVoltageInitialStructure.fillDynamic(algebraic: algebraic, count: b,
+            dynamicSlot: &dynamicSlot, equation: &equation, dynamic: &dynamic, checkpoint: { try tick() })
         var reduced = [Int](repeating: -1, count: n), globalAlgebraic = reduced
-        for row in 0..<n {
-            try tick()
-            if let value = try source.plan.reducedCoordinate(at: row) { reduced[row] = value; globalAlgebraic[row] = algebraic[value] }
-        }
+        try NativePrescribedVoltageInitialStructure.fillProjection(source: source, algebraic: algebraic,
+            reduced: &reduced, globalAlgebraic: &globalAlgebraic, checkpoint: { try tick() })
         // The lower check uses these represented endpoints, not the unexpanded CE proposal.
         var lower: [CompensatedValue] = [], upper = lower
         lower.reserveCapacity(k); upper.reserveCapacity(k)
@@ -142,29 +132,9 @@ internal enum NativePrescribedVoltageInitialRootAssembly {
             guard count < capacity else { throw NativePrescribedVoltageChartFailure.capacityExceeded }
             entries[count] = .init(row: row, column: column, value: value); count += 1
         }
-        // A zero outward sum is an exact zero proof. A nonzero enclosure is never rounded to zero.
-        for term in source.terms {
-            try tick()
-            if term.plane == .charge, globalAlgebraic[term.row] >= 0 {
-                try append(row: globalAlgebraic[term.row], column: term.column,
-                    value: E(center: .init(high: Double(bitPattern: term.coefficientBits))))
-            }
-        }
-        let nonzeroNative = try T.canonicalize(&entries, scratch: &scratch, count: count, checkpoint: { try tick() })
-        guard nonzeroNative == 0 else { throw NativePrescribedVoltageChartFailure.unprovedNullRow }
-        var identities: [NativeGlobalChargeKernel.LocalProof] = []; identities.reserveCapacity(foreign)
-        let exact = try ExactRowAlgebra(limits: limits.exact, control: control)
-        var foreignIndex = 0
-        for device in devices where device.instance.osdi != nil {
-            try tick()
-            guard let capture else { throw NativePrescribedVoltageChartFailure.missingCaptureCapability }
-            let identity = try await NativePrescribedVoltageChartSourceIdentity.check(device: device,
-                preparation: record.osdiPreparationRecords[foreignIndex], values: source,
-                original: source.captures[foreignIndex], globalAlgebraic: globalAlgebraic, inputs: capture,
-                limits: limits, exact: exact, retained: &retained, control: control, checkpoint: { try tick() })
-            identities.append(identity); foreignIndex += 1
-        }
-        guard foreignIndex == foreign else { throw NativePrescribedVoltageChartFailure.invalidBinding }
+        let identities = try await NativePrescribedVoltageInitialStructure.checkPlane(record: record, devices: devices,
+            source: source, globalAlgebraic: globalAlgebraic, zero: zero, entries: &entries, scratch: &scratch,
+            capture: capture, limits: limits, retained: &retained, control: control, checkpoint: { try tick() })
         count = 0
         let one = try E(center: .init(high: 1))
         for index in dynamic.indices { try append(row: index, column: dynamic[index], value: one) }
@@ -185,7 +155,7 @@ internal enum NativePrescribedVoltageInitialRootAssembly {
             }
         }
         var smooth: [OSDISmoothRangeScope] = []; smooth.reserveCapacity(foreign)
-        foreignIndex = 0
+        var foreignIndex = 0
         for device in devices where device.instance.osdi != nil {
             try tick()
             guard let range else { throw NativePrescribedVoltageChartFailure.missingSmoothCapture }

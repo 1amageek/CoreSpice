@@ -172,6 +172,23 @@ smooth scopes, lower root result and all leases. Arbitrary public records cannot
 construct successful chart authority. Indexed values or synchronous borrowed
 views may inspect the result; no executable claim is made by construction alone.
 
+### Independently Checked Initial Plane
+
+The package-only `NativePrescribedVoltageInitialStructure` is an immutable,
+private-init witness of the existing actual B/L forest layout and strong B P Q=0
+checks on one complete original D and exact initial context. It retains actual
+Values, source identity proofs, original preparation/control and leases. It does
+not require a root to exist. Preparation uses only the same actual native terms
+and source identities as InitialRoot; it adds no model equation or global rank
+claim. InitialRoot calls the factored validation/layout/strong-plane routines at
+their original points, preserving its arithmetic, order and cumulative control.
+The independent package factory admits its own metadata before allocation.
+
+[Conditional Initial Cover](../PrescribedVoltageInitialCover/DESIGN.md) uses this
+witness to exclude genuinely empty cells without assuming a successful root.
+It remains conditional on an explicit finite target; it is not global initial-set
+inclusion or all-history authority.
+
 ### Same-Owner Initial Coordinate Chart
 
 This additional package operation does not change the existing charge-chart

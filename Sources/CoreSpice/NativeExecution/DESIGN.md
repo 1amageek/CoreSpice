@@ -1689,3 +1689,5 @@ Local qualification records are indexed by
 This evidence grants no global constant-linear-kernel, rank, root, flow or history
 authority. Each actual-family source/setup request keeps its own unchanged ceiling;
 all point/capture sessions and boxes within that request share the original owner.
+
+The [Conditional Initial Cover](PrescribedVoltageInitialCover/DESIGN.md) child checks finite explicit-domain root coverage using the actual strong plane and existing root/value witnesses. Global initial-set inclusion remains separate.

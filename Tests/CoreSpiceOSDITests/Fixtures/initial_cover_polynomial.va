@@ -1,0 +1,6 @@
+// Analytic initial-cover verification fixture; follows the CoreSpice repository license.
+`include "disciplines.vams"
+module initial_cover_polynomial(inout w);
+  electrical w;
+  analog I(w) <+ V(w)*V(w)-1;
+endmodule
