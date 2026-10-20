@@ -1,0 +1,8 @@
+// Analytic verification fixture; follows the CoreSpice repository license.
+`include "disciplines.vams"
+module global_charge_nonsmooth(inout p, n);
+electrical p, n;
+analog begin
+    I(p, n) <+ ddt(abs(V(p, n)));
+end
+endmodule

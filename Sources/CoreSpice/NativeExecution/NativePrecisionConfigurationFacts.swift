@@ -260,8 +260,8 @@ extension NativePrecisionConfigurationFacts {
                 modelParameters: binding.modelParameters, instanceParameters: receipt.resolved.instanceParameters,
                 previousState: receipt.resolved.previousState, resolvedParameters: resolved, effectiveKelvin: receipt.effectiveTemperatureKelvin,
                 topology: Topology(nodes: nodes, activeUnknownCount: program.topology.activeUnknownCount, stateCount: program.topology.stateCount),
-                rawNodeGlobalRows: value.rawNodeGlobalRows, programDigest: program.programDigest, programByteCount: UInt64(program.programBytes.count),
-                setupDigest: program.setupDigest, setupByteCount: UInt64(program.setupBytes.count), semanticProfile: program.semanticProfile,
+                rawNodeGlobalRows: value.rawNodeGlobalRows, programDigest: program.programDigest, programByteCount: UInt64(program.programByteCount),
+                setupDigest: program.setupDigest, setupByteCount: UInt64(program.setupByteCount), semanticProfile: program.semanticProfile,
                 workerReference: precision.workerReference, numericProfile: precision.numericProfile, options: precision.options, precisionBits: precision.precisionBits)
         }
         let result = Self(sourceInputIdentity: input.sourceInputIdentity, algorithmIdentity: SPICENativeSimulationRecord.algorithmIdentity(for: common),

@@ -7,7 +7,7 @@ import OSDIContracts
 /// Bounds immutable foreign facts independently of executable model/workspace ownership.
 internal enum NativeOSDIValueEvidence {
     static func byteCount(records: [NativeOSDIPreparationRecord],
-                          resources: any SPICESourceResourceAccounting) throws -> UInt64 {
+                          resources: any SPICESourceResourceAccounting, controlledProgramBacking: Bool = false) throws -> UInt64 {
         guard !records.isEmpty else { return 0 }
         var count = Counter(resources: resources)
         // Full four-receipt preparation backing plus fixed construction coexistence.
@@ -21,8 +21,13 @@ internal enum NativeOSDIValueEvidence {
             try count.receipt(record.receipt)
             if let precision = record.transientPrecision {
                 let program = precision.program
-                try count.array(program.programBytes)
-                try count.array(program.setupBytes)
+                if !controlledProgramBacking {
+                    // Legacy Arrays have no original controlled reservation and retain their actual capacity.
+                    try count.array(program.programBytes)
+                    try count.array(program.setupBytes)
+                }
+                // Controlled P/U backing stays under its original SDK lease; inspecting metadata
+                // neither extracts a public Array nor reserves that shared payload a second time.
                 try count.topology(program.topology)
                 try count.reference(program.modelReference)
                 try count.digest(program.programDigest)

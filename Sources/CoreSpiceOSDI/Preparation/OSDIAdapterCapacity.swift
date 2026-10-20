@@ -61,13 +61,15 @@ package enum OSDIAdapterCapacity {
         return count.bytes
     }
 
-    package static func precision(nodeCount: Int, options: OSDIPrecisionOptions) throws(OSDIAdapterFailure) -> UInt64 {
+    package static func precision(nodeCount: Int, options: OSDIPrecisionOptions, includeProgramBacking: Bool = true) throws(OSDIAdapterFailure) -> UInt64 {
         var count = Counter()
         // Candidate/accepted low, accepted/trial Iq/F, plus facts candidate-low and F/delta-Q low/radius.
         try count.add(nodeCount, stride: MemoryLayout<Double>.stride, factor: 19)
         try count.add(1, stride: MemoryLayout<OSDITransientPrecisionReceipt>.stride)
-        try count.addBytes(options.maximumProgramBytes)
-        try count.addBytes(options.maximumMappingBytes)
+        if includeProgramBacking {
+            try count.addBytes(options.maximumProgramBytes)
+            try count.addBytes(options.maximumMappingBytes)
+        }
         return count.bytes
     }
 

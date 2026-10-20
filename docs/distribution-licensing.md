@@ -1,9 +1,9 @@
 # Distribution licensing
 
-Current inventory: 2026-10-20 prerequisite source candidate based on the exact
-`bb754369fd2e4796eb4ac44ba07856565529a797` implementation tree. Historical
-qualification records retain their original dependency versions and scope. This
-describes source and distribution obligations, not complete simulation release
+Current dependency inventory checked: 2026-10-20, after public swift-osdi 1.2.0
+adoption, removal of the native compact models and addition of translated
+Reference-LAPACK QZ algorithms. This describes
+source and distribution obligations, not release
 readiness or permission clearance for external artifacts.
 
 ## Current boundary
@@ -73,8 +73,7 @@ define the relevant source/object conveyance and recipient-rights conditions.
 
 ## Selected release: source-only Swift package
 
-The selected prerequisite publication conveys the committed post-removal
-CoreSpice source snapshot and
+This release conveys the committed post-removal CoreSpice source snapshot and
 the exact dependency source manifest below. It does not bundle compiled
 CoreSpice executables, external model libraries, an OpenVAF compiler, a precision
 worker or GMP/MPFR binaries. These remain explicitly supplied external artifacts
@@ -102,11 +101,12 @@ The release owner must:
 
 ### Exact dependency source manifest
 
-The historical 2026-10-19 availability check covered the then-selected dependency
-inventory, including swift-osdi 1.0.1. The current lock instead selects published
-swift-osdi 1.2.0 at the exact revision below; historical checks are not reused as
-evidence for its different endpoints. Fresh public dependency resolution is required to qualify source availability
-for this candidate; it does not inspect archive contents or guarantee future hosting. Preserve source/license files in any archives conveyed.
+On 2026-10-20, all six current primary-license URLs and the three linked NOTICE
+URLs were retrieved anonymously with HTTP 200; each body matched its exact
+revision's Git blob. All six archive URLs answered anonymous HTTPS HEAD with
+HTTP 200. This confirms
+endpoint availability at that time, not inspection of archive contents or a
+guarantee of future hosting. Preserve source/license files in any archives conveyed.
 This is the resolved inventory; it does not assert every package is linked into
 every product (`swift-asn1`, for example, is not used by the selected `Crypto`
 product).
@@ -115,10 +115,16 @@ product).
 |---|---|---|---|
 | CircuiteFoundation 26.1018.0 | `5f132c58209123433e0e479e1ea61096e46061ba` | [Archive](https://codeload.github.com/1amageek/CircuiteFoundation/tar.gz/5f132c58209123433e0e479e1ea61096e46061ba) | [MIT](https://raw.githubusercontent.com/1amageek/CircuiteFoundation/5f132c58209123433e0e479e1ea61096e46061ba/LICENSE) |
 | SignoffToolSupport 26.1018.0 | `e15ea6cd60ca1957297aafbba839e51a478d735e` | [Archive](https://codeload.github.com/1amageek/SignoffToolSupport/tar.gz/e15ea6cd60ca1957297aafbba839e51a478d735e) | [MIT](https://raw.githubusercontent.com/1amageek/SignoffToolSupport/e15ea6cd60ca1957297aafbba839e51a478d735e/LICENSE) |
-| swift-asn1 1.7.3 | `3b6410f7dee09eb33cdd26260c5fd47fda19b0e2` | [Archive](https://codeload.github.com/apple/swift-asn1/tar.gz/3b6410f7dee09eb33cdd26260c5fd47fda19b0e2) | [Apache-2.0](https://raw.githubusercontent.com/apple/swift-asn1/3b6410f7dee09eb33cdd26260c5fd47fda19b0e2/LICENSE.txt) |
-| swift-crypto 4.5.1 | `47d3869a7291f085c1fb9fb1e6d3b97a793f45c6` | [Archive](https://codeload.github.com/apple/swift-crypto/tar.gz/47d3869a7291f085c1fb9fb1e6d3b97a793f45c6) | [Apache-2.0](https://raw.githubusercontent.com/apple/swift-crypto/47d3869a7291f085c1fb9fb1e6d3b97a793f45c6/LICENSE.txt) |
+| swift-asn1 1.7.3 | `3b6410f7dee09eb33cdd26260c5fd47fda19b0e2` | [Archive](https://codeload.github.com/apple/swift-asn1/tar.gz/3b6410f7dee09eb33cdd26260c5fd47fda19b0e2) | [Apache-2.0](https://raw.githubusercontent.com/apple/swift-asn1/3b6410f7dee09eb33cdd26260c5fd47fda19b0e2/LICENSE.txt), plus its retained [NOTICE](https://raw.githubusercontent.com/apple/swift-asn1/3b6410f7dee09eb33cdd26260c5fd47fda19b0e2/NOTICE.txt) |
+| swift-crypto 4.5.1 | `47d3869a7291f085c1fb9fb1e6d3b97a793f45c6` | [Archive](https://codeload.github.com/apple/swift-crypto/tar.gz/47d3869a7291f085c1fb9fb1e6d3b97a793f45c6) | [Apache-2.0](https://raw.githubusercontent.com/apple/swift-crypto/47d3869a7291f085c1fb9fb1e6d3b97a793f45c6/LICENSE.txt), plus its retained [NOTICE](https://raw.githubusercontent.com/apple/swift-crypto/47d3869a7291f085c1fb9fb1e6d3b97a793f45c6/NOTICE.txt) |
 | swift-osdi 1.2.0 | `e17d3bcca1224c8ab9ccfaddea7a47580b29b748` | [Archive](https://codeload.github.com/1amageek/swift-osdi/tar.gz/e17d3bcca1224c8ab9ccfaddea7a47580b29b748) | [GPL-3.0-only](https://raw.githubusercontent.com/1amageek/swift-osdi/e17d3bcca1224c8ab9ccfaddea7a47580b29b748/LICENSE), plus its retained [NOTICE](https://raw.githubusercontent.com/1amageek/swift-osdi/e17d3bcca1224c8ab9ccfaddea7a47580b29b748/NOTICE) |
 | ToolQualification 26.1018.0 | `601ff5933396be4ba62c77b8bb0502e2f601f159` | [Archive](https://codeload.github.com/1amageek/ToolQualification/tar.gz/601ff5933396be4ba62c77b8bb0502e2f601f159) | [MIT](https://raw.githubusercontent.com/1amageek/ToolQualification/601ff5933396be4ba62c77b8bb0502e2f601f159/LICENSE) |
+
+The earlier 2026-10-19 inventory recorded swift-osdi 1.0.1 at
+`9e321b082d71528b64c7ca69d640389c0e144cbb`. Its six primary-license and six
+archive endpoint checks remain historical observations of that earlier inventory,
+not the current 1.2.0 source identity. Earlier source, license and execution
+receipts remain bound to their original revisions.
 
 ### Future binary releases
 

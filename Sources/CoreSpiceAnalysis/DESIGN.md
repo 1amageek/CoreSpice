@@ -4,7 +4,7 @@
 
 This SwiftPM module owns solver and analysis execution. Parent: [CoreSpice](../../DESIGN.md). The [EquationConvergence](EquationConvergence/DESIGN.md) child owns explicit unit-aware DC convergence policy and the final physical-validation boundary.
 
-Children: [PrescribedVoltageReduction](PrescribedVoltageReduction/DESIGN.md), [ExactRowAlgebra](ExactRowAlgebra/DESIGN.md), [GeneralizedSchur](GeneralizedSchur/DESIGN.md), [ValidatedTransient](ValidatedTransient/DESIGN.md), [NewtonVoltageLimiting](NewtonVoltageLimiting/DESIGN.md), [CompensatedDC](CompensatedDC/DESIGN.md), [Completion](Completion/DESIGN.md), [TransientValidation](TransientValidation/DESIGN.md), and proposed S4D [CompensatedTransient](CompensatedTransient/DESIGN.md).
+Children: [ValidatedParametricRoot](ValidatedParametricRoot/DESIGN.md), [ValidatedMatrixRegularity](ValidatedMatrixRegularity/DESIGN.md), [PrescribedVoltageReduction](PrescribedVoltageReduction/DESIGN.md), [ExactRowAlgebra](ExactRowAlgebra/DESIGN.md), [GeneralizedSchur](GeneralizedSchur/DESIGN.md), [ValidatedTransient](ValidatedTransient/DESIGN.md), [NewtonVoltageLimiting](NewtonVoltageLimiting/DESIGN.md), [CompensatedDC](CompensatedDC/DESIGN.md), [Completion](Completion/DESIGN.md), [TransientValidation](TransientValidation/DESIGN.md), and proposed S4D [CompensatedTransient](CompensatedTransient/DESIGN.md).
 
 ## Responsibilities and Boundaries
 
@@ -16,6 +16,8 @@ Analyses own Newton iteration, timestep acceptance, and the lifetime of explicit
 |---|---|---|---|---|
 | [CoreSpice](../../DESIGN.md) | parent | Package composition | Owned module boundary | Revalidate direct consumers when contracts change |
 | [NetworkParameters](NetworkParameters/DESIGN.md) | child | Fixed-bias voltage-boundary multiport S/Y/Z and conditional two-port metrics | Explicit port/frequency/reference/limit profile | Whole-history, periodic and internal-pole stability are distinct obligations |
+| [ValidatedParametricRoot](ValidatedParametricRoot/DESIGN.md) | child | Conditional sparse parametric Krawczyk image and contraction check | Source/chart legitimacy remains with its caller; see child qualification scope |
+| [ValidatedTransient](ValidatedTransient/DESIGN.md) | child | Conditional affine barrier and Picard slab numerical checks | Actual field/source-family and history premises remain with callers |
 | [GeneralizedSchur](GeneralizedSchur/DESIGN.md) | child | Pure Swift generalized Schur and all homogeneous entries | Original affine PZ pencils | Dense storage and actual bounded work; no B inverse or rank oracle |
 | [Transient device lifecycle](../CoreSpiceDevices/TransientLifecycle/DESIGN.md) | depends on | Throwing stamps and accepted/trial session boundary | Native solver composition | All run exits must end acquired sessions |
 | [OSDI adapter](../CoreSpiceOSDI/DESIGN.md) | coordinates with | Official-model prepared owners and circuit stamps | Sole compact-model boundary | OSDI physics is external to the Swift analysis algorithms |

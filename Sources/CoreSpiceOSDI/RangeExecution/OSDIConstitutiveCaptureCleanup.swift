@@ -2,7 +2,7 @@ import OSDIRuntime
 import Synchronization
 
 /// Retains helper admission until the exact retryable cleanup completes.
-package final class OSDIConstitutiveCaptureCleanup: Sendable {
+public final class OSDIConstitutiveCaptureCleanup: Sendable {
     private struct State {
         var pending: OSDIPendingPrecisionCleanup?
         var lease: (any Sendable)?
@@ -17,7 +17,7 @@ package final class OSDIConstitutiveCaptureCleanup: Sendable {
         do { try close() }
         catch { preconditionFailure("Unreleased constitutive helper cleanup: \(error)") }
     }
-    package func close() throws(OSDIError) {
+    public func close() throws(OSDIError) {
         let retained = try state.withLock { value throws(OSDIError) -> (OSDIPendingPrecisionCleanup?, (any Sendable)?) in
             guard !value.closing else { throw .libraryInUse }
             value.closing = true

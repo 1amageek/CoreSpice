@@ -36,29 +36,28 @@ flowchart TD
 
 ## Finite prerequisite source publication
 
-This source candidate makes the implementation tree from
-`bb754369fd2e4796eb4ac44ba07856565529a797` available as a dependency prerequisite,
-with the already public `eee5576fddf54cdbad887063668a205dd02b3ebd` as its
-sole Git parent. The implementation, tests, resources, all thirteen products,
-`Package.swift`, and `Package.resolved` retain their exact source-tree identities.
-Only this publication contract and the current dependency distribution inventory
-are updated. The private intermediate commit ancestry is not part of this source
-publication; the final candidate commit and archive digest identify the conveyed
-source independently of that history.
+This candidate conveys the tracked source tree of
+`39443965441b175f57198a1d98706895f5453280` with sole public parent
+`cfcadac5aeff5d95681d2d91c0bf3e75bd35f169`. Production source, tests, resources,
+package products and build-control files retain their selected identities.
+Only these owning publication notes and the fresh resolved-lock origin hash are
+candidate-specific changes. Private intermediate ancestry, local availability
+mirrors, untracked documents and verification outputs are not published source.
 
 | Boundary | Qualification and remaining obligation |
 |---|---|
-| Source availability prerequisite | Exact tracked-tree comparison, six public dependency pins, and an actual bounded public `CoreSpiceIO` profile-parsing client |
-| Previously qualified finite paths | Existing evidence remains scoped to its exact source, inputs, models, backend, and conditions; source equivalence does not enlarge those guarantees |
-| PDK consumer adoption | A separately qualified PDK candidate must pin the new public CoreSpice commit; the unavailable private revision is not an interchangeable public dependency |
-| Complete simulation release | The remaining production gates below, including validated flow and all-phase/all-history guarantees, remain open; this prerequisite publication does not complete RL2 or RL3 |
+| Public source prerequisite | Exact tracked-tree/mode comparison, a clean six-dependency public graph, focused Native fixtures, and a separately linked public consumer |
+| Conditional Flow | The [Native Flow owner](Sources/CoreSpice/NativeExecution/PrescribedVoltageFlow/DESIGN.md) defines checked initial/window/Picard scope, almost-everywhere rates, retained source/model bindings, limits and cleanup |
+| Physical composition | A downstream actual producer must establish candidate, PEX, model, power/ground, numeric rail and common source-family correspondence; a caller label or copied receipt does not supply it |
+| Complete release | Common-family nonemptiness, unrestricted all-phase/all-history composition and remaining production gates are not established by this source publication |
 
-The removed `CoreSpiceCompactModels` product is not restored. Clients of that
-retired product must migrate explicitly to the OSDI boundary. Existing public
-products retain the selected implementation tree; no compatibility claim is made
-for APIs or products removed since the public parent. Distribution remains
-[source-only](docs/distribution-licensing.md), with external model, compiler,
-worker, and numerical-library artifacts supplied separately under their own terms.
+Existing evidence remains limited to its exact source, backend, inputs and
+conditions. No unchanged whole-package or external-model qualification is
+implicitly rerun or enlarged here. The thirteen selected products and explicit
+OSDI compact-model boundary remain intact; no retired model product is restored.
+Distribution is [source-only](docs/distribution-licensing.md), retaining original
+MIT and incorporated GPL/BSD notices and the exact dependency inventory. It does
+not bundle executables, model/compiler images, precision workers or GMP/MPFR.
 
 ## CircuiteFoundation integration
 
@@ -847,6 +846,13 @@ The existing qualified adapter consumes ordinary and compensated point APIs; pub
 range/chart/cover/conditional-identity capabilities do not create a CoreSpice
 consumer. Their adoption boundary is owned by
 [RangeExecution](Sources/CoreSpiceOSDI/RangeExecution/DESIGN.md).
+The approved additive public controlled-preparation boundary is owned by
+[NativeExecution](Sources/CoreSpice/NativeExecution/DESIGN.md#additive-public-controlled-intake).
+It reuses existing Native/SPICE child protocols, with finite separate-module
+public preparation/refusal and conditional Flow evidence recorded by that owner.
+SDK capability or this intake alone does not establish common-family nonemptiness,
+a complete initial cover, Physical integration, all-phase/all-history or release
+qualification.
 The existing CoreSpice host floor remains macOS 27 arm64 and Swift 6.4.0.
 The SDK's macOS 26 support does not lower the consuming simulator's own floor.
 

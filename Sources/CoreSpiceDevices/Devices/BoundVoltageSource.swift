@@ -62,19 +62,29 @@ public struct BoundVoltageSource: BoundDevice, TransientPhysicalResidualContribu
     }
 
     public func accumulatePhysicalResidual(state: SolutionState, add: (Int, Double) -> Void) throws {
+        let values = try pointResidualValues(state: state, voltage: dcVoltage)
+        if let index = posIdx { add(index, values.current) }
+        if let index = negIdx { add(index, -values.current) }
+        add(values.branchRow, values.residual)
+    }
+
+    private func sourceEquation(state: SolutionState, voltage: Double) throws -> Double {
+        try state.checkedVoltage(at: posNode) - state.checkedVoltage(at: negNode) - voltage
+    }
+
+    private func pointResidualValues(state: SolutionState, voltage: Double) throws
+        -> (current: Double, residual: Double, branchRow: Int) {
         if let index = posIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(posNode)) }
         if let index = negIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(negNode)) }
         guard let branchIdx else { throw DeviceBindingError.invalidParameterValue(device: instance.name,
             parameter: "branch", message: "Direct DC residual requires a bound branch") }
         let current = try state.checkedBoundValue(at: branchIdx, for: .branchCurrent(branch))
-        let residual = try state.checkedVoltage(at: posNode) - state.checkedVoltage(at: negNode) - dcVoltage
+        let residual = try sourceEquation(state: state, voltage: voltage)
         guard current.isFinite, residual.isFinite else {
             throw DeviceBindingError.invalidParameterValue(device: instance.name,
                 parameter: "dcResidual", message: "Physical DC source equation is nonfinite")
         }
-        if let index = posIdx { add(index, current) }
-        if let index = negIdx { add(index, -current) }
-        add(branchIdx, residual)
+        return (current, residual, branchIdx)
     }
 
     public func accumulateTransientPhysicalResidual(state: SolutionState, integration: IntegrationState, add: (Int, Double) -> Void) throws {
@@ -103,7 +113,7 @@ public struct BoundVoltageSource: BoundDevice, TransientPhysicalResidualContribu
 
     private func accumulateResidualEnclosure(
         state: SolutionState, voltage excitation: CompensatedEnclosure,
-        add: (Int, CompensatedValue, Double) -> Void
+        add: (Int, CompensatedValue, Double) throws -> Void
     ) throws {
         guard let branchIdx else {
             throw DeviceBindingError.invalidParameterValue(device: instance.name, parameter: "branch",
@@ -113,9 +123,9 @@ public struct BoundVoltageSource: BoundDevice, TransientPhysicalResidualContribu
         let voltage = try PhysicalResidualState.voltageDifference(state, positive: posNode, negative: negNode,
             positiveIndex: posIdx, negativeIndex: negIdx)
         let residual = try voltage.subtracting(excitation)
-        if let index = posIdx { add(index, current.center, current.radius) }
-        if let index = negIdx { add(index, current.center.negated(), current.radius) }
-        add(branchIdx, residual.center, residual.radius)
+        if let index = posIdx { try add(index, current.center, current.radius) }
+        if let index = negIdx { try add(index, current.center.negated(), current.radius) }
+        try add(branchIdx, residual.center, residual.radius)
     }
 
     public func stampDC(into stamper: inout MatrixStamper, state: SolutionState) {
@@ -199,7 +209,7 @@ extension BoundVoltageSource: TransientPhysicalEquationDecomposing, TransientPhy
         let current = try state.checkedBoundValue(at: branchIdx, for: .branchCurrent(branch))
         if let index = posIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(posNode)) }
         if let index = negIdx { _ = try state.checkedBoundValue(at: index, for: .nodeVoltage(negNode)) }
-        let residual = try state.checkedVoltage(at: posNode) - state.checkedVoltage(at: negNode) - waveform.value(at: time)
+        let residual = try sourceEquation(state: state, voltage: waveform.value(at: time))
         try PhysicalResidualState.validate(current, residual, time)
         if let index = posIdx { add(index, current) }; if let index = negIdx { add(index, -current) }
         add(branchIdx, residual)
@@ -227,6 +237,34 @@ extension BoundVoltageSource: TransientPhysicalEquationDecomposing, TransientPhy
 }
 
 extension BoundVoltageSource: IndependentVoltageSourceFactProviding, ContinuousEquationLinearLawProviding {
+    /// Opt-in external-coordinate path; the original DC/Waveform configuration is unchanged.
+    package func makePrescribedVoltageLaw(zeroVoltage: Double, oneVoltage: Double,
+        timeOrigin: Double, timeScale: Double, variableMap: [MNAVariable: Int], checkpoint: () throws -> Void)
+        throws(BoundPrescribedVoltageFailure) -> BoundPrescribedVoltageLaw {
+        try BoundPrescribedVoltageLaw.prepare(source: self, zeroVoltage: zeroVoltage, oneVoltage: oneVoltage,
+            timeOrigin: timeOrigin, timeScale: timeScale, variableMap: variableMap, checkpoint: checkpoint)
+    }
+    internal func accumulatePrescribedResidual(state: SolutionState, voltage: Double,
+        checkpoint: () throws -> Void, add: (Int, Double) throws -> Void) throws {
+        try checkpoint()
+        let values = try pointResidualValues(state: state, voltage: voltage)
+        try checkpoint()
+        if let row = posIdx { try add(row, values.current) }
+        try checkpoint()
+        if let row = negIdx { try add(row, -values.current) }
+        try checkpoint()
+        try add(values.branchRow, values.residual)
+    }
+    internal func accumulatePrescribedResidualEnclosure(state: SolutionState, voltage: CompensatedEnclosure,
+        checkpoint: () throws -> Void, add: (Int, CompensatedValue, Double) throws -> Void) throws {
+        // Admit all endpoint/branch candidates, including omitted ground contributions.
+        for _ in 0..<3 { try checkpoint() }
+        try checkpoint()
+        try accumulateResidualEnclosure(state: state, voltage: voltage) { row, center, radius in
+            try checkpoint()
+            try add(row, center, radius)
+        }
+    }
     package func independentVoltageSourceFact() throws -> IndependentVoltageSourceFact {
         try .init(instance: instance, positiveNode: posNode, negativeNode: negNode, positiveRow: posIdx,
             negativeRow: negIdx, branch: branch, branchRow: branchIdx, dcVoltage: dcVoltage, waveform: waveform)

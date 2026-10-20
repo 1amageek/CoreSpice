@@ -34,15 +34,17 @@ open gates are not certified by ordinary successful simulation traces.
 
 ## Source prerequisite scope
 
-This source publication provides the dependency baseline needed by bounded
-`CoreSpiceIO` profile consumers. It preserves the implementation and thirteen
-products from `bb754369fd2e4796eb4ac44ba07856565529a797`, with only publication
-scope and current dependency-inventory documentation changes, on the public
-`eee5576fddf54cdbad887063668a205dd02b3ebd` parent. See the
+This source publication makes the finite conditional prescribed-voltage Flow API
+and its retained, borrowed source/model scope available to downstream consumers.
+It preserves the committed implementation, tests, resources and all thirteen
+products from `39443965441b175f57198a1d98706895f5453280`, on the sole public
+parent `cfcadac5aeff5d95681d2d91c0bf3e75bd35f169`. See the
 [prerequisite contract](DESIGN.md#finite-prerequisite-source-publication).
-It does not certify the remaining complete-release gates, validated circuit
-flow, or all-phase/all-history guarantees. The retired `CoreSpiceCompactModels`
-product remains removed; migration to the OSDI boundary is explicit.
+The conditional numerical result does not establish common source-family
+nonemptiness, an actual Physical candidate/circuit correspondence, or the
+remaining all-phase/all-history release gates. External model and precision
+worker artifacts are supplied separately under their own terms. This is a source
+prerequisite, without a stable-version or complete-production-release claim.
 
 ## Public products
 

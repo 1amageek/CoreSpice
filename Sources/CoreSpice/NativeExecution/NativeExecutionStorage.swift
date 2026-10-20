@@ -26,11 +26,13 @@ internal final class NativeExecutionStorage: AnalysisResultStorageAccounting {
 
     init(preparation: NativeCircuitPreparationRecord, scalars: Int, retainedBytes: UInt64) throws {
         let copiedReceipts = preparation.osdiLifetime == nil ? 0 : 3 * MemoryLayout<SPICESourceStorageReservation>.stride
-        let metadataBytes = try NativeCircuitExecution.capacitySum(UInt64(MemoryLayout<UInt64>.stride), UInt64(copiedReceipts))
+        let captureHeader = preparation.constitutiveBacking == nil ? 0 : MemoryLayout<NativeConstitutivePreparationBacking>.stride
+        let metadataBytes = try NativeCircuitExecution.capacitySum(UInt64(MemoryLayout<UInt64>.stride),
+            NativeCircuitExecution.capacitySum(UInt64(copiedReceipts), UInt64(captureHeader)))
         try Self.validatePeak(preparation: preparation, floor: preparation.compileCapacity,
             retained: metadataBytes, temporary: 0)
         let metadataReservation: SPICESourceStorageReservation
-        do { metadataReservation = try preparation.resources.reserveStorage(kind: .liveOwnedBytes, byteCount: metadataBytes) }
+        do { metadataReservation = try Self.reserve(preparation: preparation, kind: .liveOwnedBytes, byteCount: metadataBytes) }
         catch { throw NativeCircuitExecution.resourceFailure(error) }
         admittedPreparationCapacity = preparation.compileCapacity
         self.preparation = try preparation.valueEvidence()
@@ -43,6 +45,14 @@ internal final class NativeExecutionStorage: AnalysisResultStorageAccounting {
             try retainClaim(retainedBytes)
         }
         try reserveResultScalars(scalars)
+    }
+
+    private static func reserve(preparation: NativeCircuitPreparationRecord, kind: SPICESourceStorageKind,
+        byteCount: UInt64) throws -> SPICESourceStorageReservation {
+        if let control = preparation.constitutiveBacking?.control {
+            return try control.reserveNativeStorage(kind: kind, byteCount: byteCount)
+        }
+        return try preparation.resources.reserveStorage(kind: kind, byteCount: byteCount)
     }
 
     func reserveResultScalars(_ capacity: Int) throws {
@@ -99,7 +109,7 @@ internal final class NativeExecutionStorage: AnalysisResultStorageAccounting {
 
     private func retainClaim(_ bytes: UInt64) throws {
         let reservation: SPICESourceStorageReservation
-        do { reservation = try preparation.resources.reserveStorage(kind: .liveOwnedBytes, byteCount: bytes) }
+        do { reservation = try Self.reserve(preparation: preparation, kind: .liveOwnedBytes, byteCount: bytes) }
         catch {
             state.withLock { $0.failed = true; $0.retainedBytes -= bytes }
             throw NativeCircuitExecution.resourceFailure(error)
@@ -114,7 +124,7 @@ internal final class NativeExecutionStorage: AnalysisResultStorageAccounting {
     func reserveMaterializationBytes(_ byteCount: UInt64) throws -> MaterializationLease {
         try claim(retained: byteCount, temporary: 0)
         let reservation: SPICESourceStorageReservation
-        do { reservation = try preparation.resources.reserveStorage(kind: .liveOwnedBytes, byteCount: byteCount) }
+        do { reservation = try Self.reserve(preparation: preparation, kind: .liveOwnedBytes, byteCount: byteCount) }
         catch {
             state.withLock { $0.retainedBytes -= byteCount }
             throw NativeCircuitExecution.resourceFailure(error)
@@ -134,7 +144,7 @@ internal final class NativeExecutionStorage: AnalysisResultStorageAccounting {
     private func checkedReserveTemporaryBytes(_ byteCount: UInt64) throws -> any Sendable {
         try claim(retained: 0, temporary: byteCount)
         let reservation: SPICESourceStorageReservation
-        do { reservation = try preparation.resources.reserveStorage(kind: .temporaryBytes, byteCount: byteCount) }
+        do { reservation = try Self.reserve(preparation: preparation, kind: .temporaryBytes, byteCount: byteCount) }
         catch {
             state.withLock { $0.failed = true; $0.temporaryBytes -= byteCount }
             throw NativeCircuitExecution.resourceFailure(error)

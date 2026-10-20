@@ -9,7 +9,7 @@ import CoreSpiceEvent
 import CoreSpiceWaveform
 import CoreSpiceOSDI
 
-public struct SPICENativeSimulation: SPICENativePreparing, SPICENativeExecuting {
+public struct SPICENativeSimulation: SPICENativePreparing, SPICENativeExecuting, NativeConstitutiveSPICEPreparing {
     public init() {}
     public func prepare(_ input: PreparedSPICESimulation, limits: SPICENativeExecutionLimits)
         throws(SPICENativePreparationError) -> PreparedNativeSPICESimulation {
@@ -36,6 +36,19 @@ public struct SPICENativeSimulation: SPICENativePreparing, SPICENativeExecuting 
             let circuit = try await NativeCircuitPreparer().prepare(ir: input.circuit, registry: .standard(),
                 operatingConditions: input.configuration.options.operatingConditions(), limits: limits,
                 numericalLimits: input.configuration.numericalLimits, resources: input.resources, osdi: osdi)
+            return try finishPreparation(input, limits: limits, circuit: circuit)
+        } catch let error as SPICENativePreparationError { throw error }
+        catch { throw .resource(error) }
+    }
+    public func prepare(_ input: PreparedSPICESimulation, limits: SPICENativeExecutionLimits,
+        osdi: SPICEOSDIRuntimeInputs, constitutive: NativeConstitutivePreparationInputs,
+        cancellation: CancellationToken) async throws(SPICENativePreparationError) -> PreparedNativeSPICESimulation {
+        do {
+            let preparer: any NativeConstitutiveCircuitPreparing = NativeCircuitPreparer()
+            let circuit = try await preparer.prepare(ir: input.circuit, registry: .standard(),
+                operatingConditions: input.configuration.options.operatingConditions(), limits: limits,
+                numericalLimits: input.configuration.numericalLimits, resources: input.resources, osdi: osdi,
+                constitutive: constitutive, cancellation: cancellation)
             return try finishPreparation(input, limits: limits, circuit: circuit)
         } catch let error as SPICENativePreparationError { throw error }
         catch { throw .resource(error) }
@@ -86,9 +99,10 @@ public struct SPICENativeSimulation: SPICENativePreparing, SPICENativeExecuting 
             let bytes = try NativePrecisionConfigurationFacts.metadataByteCount(input: input, common: common)
             let (capacity, overflow) = common.compileCapacity.addingReportingOverflow(bytes)
             guard !overflow, capacity <= limits.maximumAllocationBytes else { throw SPICENativePreparationError.capacityExceeded }
-            let reservation = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: bytes)
-            circuit = try circuit.addingRetainedStorage(byteCount: bytes, reservation: reservation)
+            circuit = try circuit.reservingRetainedStorage(byteCount: bytes)
             common = circuit.record
+            guard let reservation = common.reservations.last, reservation.kind == .liveOwnedBytes,
+                  reservation.byteCount == bytes else { throw SPICENativePreparationError.capacityExceeded }
             let actual = try NativePrecisionConfigurationFacts.prepared(input: input, common: common, reservation: reservation)
             let actualBinding = NativePrecisionConfigurationBinding(legacyBaseDigest: legacyIdentity)
             identity = try NativePrecisionConfigurationVerification().identity(actual, binding: actualBinding,

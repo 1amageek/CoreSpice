@@ -3,7 +3,7 @@
 ## Purpose and Scope
 
 Status: implemented Native CPU capability; see supported domain below. Parent: [CoreSpice module](../DESIGN.md).
-No children. Own compilation, actual model/device binding and numerical dispatch
+Children: [GlobalChargeKernel](GlobalChargeKernel/DESIGN.md), [PrescribedVoltageValues](PrescribedVoltageValues/DESIGN.md), [PrescribedVoltageReconstruction](PrescribedVoltageReconstruction/DESIGN.md), [PrescribedVoltageMass](PrescribedVoltageMass/DESIGN.md), [PrescribedVoltageChart](PrescribedVoltageChart/DESIGN.md), [PrescribedVoltageEvolution](PrescribedVoltageEvolution/DESIGN.md), [PrescribedVoltageFlow](PrescribedVoltageFlow/DESIGN.md). Own compilation, actual model/device binding and numerical dispatch
 for a retained IO preparation; prepared analysis coverage follows the source dispatch contract below.
 
 ## Responsibilities and Boundaries
@@ -21,7 +21,11 @@ measurement acceptance and ledger. No new universal Engine or AgentHarness wrapp
 | [IO preparation](../../CoreSpiceIO/SimulationPreparation/DESIGN.md) | depends on | Actual graph/CircuitIR/config and retained IC/nodeset | Immutable executable intent | No source reread/reparse |
 | [Compile](../../CoreSpiceCompile/DESIGN.md) | depends on | StandardCompiler and topology | Actual node/device binding | Admission ceilings precede construction |
 | [Analysis](../../CoreSpiceAnalysis/DESIGN.md) | depends on | Existing DC/transient limits and results | Numerical behavior | No numerical-policy fallback |
+| [ValidatedTransient](../../CoreSpiceAnalysis/ValidatedTransient/DESIGN.md) | coordinates with | Conditional finite Picard numerical checks | Future same-source slab composition uses the existing chart/evolution contracts | Input-family admission, initial physical roots and continuation are separate obligations |
 | [Devices](../../CoreSpiceDevices/DESIGN.md) | depends on | Actual selected model/device semantics | Physics capability | Loaded declarations are not executed model proof |
+| [SDK controlled snapshots](../../../../swift-osdi/Sources/OSDIRuntime/SnapshotConstruction/DESIGN.md) | depends on | Concrete checked preparation comparison, bounded construction and immutable backing leases | Same-model source/setup capture | Arbitrary preparer conformance is not setup authority |
+| [OSDI RangeExecution](../../CoreSpiceOSDI/RangeExecution/DESIGN.md) | depends on | Actual-bound conditional capture and cleanup | Internal source-proof execution on the retained snapshot | A point, local identity or callback value supplies no circuit-flow authority |
+| [PrescribedVoltageFlow](PrescribedVoltageFlow/DESIGN.md) | child | Conditional finite same-family slab composition | Uses this owner's controlled preparation and retained inputs | Its physical-family and initial-root obligations are not granted by preparation |
 | [Host](../../../../Xcircuite/Sources/Xcircuite/ProfileExecution/DESIGN.md) | used by | Prepared plan, observations and output | PDK-before-execution match | Evidence is not release approval |
 
 ## Architecture
@@ -32,6 +36,19 @@ PreparedSPICESimulation -> compile/bind -> PreparedNativeSPICESimulation
 ```
 
 ## Contracts and Invariants
+
+### Native-Only Controlled Constitutive Preparation
+
+The explicit `prepareNativeConstitutive` child-protocol operation creates the same preparation
+control before entering `checkedPrepare`, with initial ordinary floor zero. It
+validates limits, environment and cancellation before control metadata admission,
+and rejects OSDI inputs before compilation. The existing compiler, consuming
+binder, reservation accounting, empty foreign-program backing and final floor
+seal remain the single construction path. Native R/C/V proof support is decided
+by actual sealed producer inspection, not by this operation's name. All later
+inspection, exact algebra, captures and minor checking reuse that one owner and
+remaining allowance. Ordinary public preparation still has no constitutive
+backing; the OSDI snapshot preparation still requires at least one OSDI instance.
 
 ### Cold Precision Configuration Binding
 
@@ -1354,3 +1371,321 @@ reservation with checked arithmetic; lower-owned scratch remains lower-owned.
 No independent budget reset or duplicate physical model preparation is introduced.
 Failure/cancellation closes the existing foreign owner and returns no partial
 completed network result. The typed result retains the same result-storage lease.
+
+
+## Actual-Owned Constitutive Snapshot Preparation
+
+This lane connects the qualified CoreOSDI controlled snapshot and conditional
+capture to the existing exclusive `PreparedNativeCircuit`. Its additive public
+intake contract below is approved; publication and external-consumer qualification
+remain pending until their implementation evidence is recorded. The base
+public `NativeCircuitPreparing` operations keep their ordinary nil-snapshot
+semantics. The existing controlled child requirements supply explicit SDK snapshot
+preparation, semantic profile, options and simulation parameters; Native constructs
+the mandatory control from the original `SPICESourceResourceAccounting` and
+cancellation token. It never accepts a caller-created replacement storage owner.
+The same simulation parameters reach actual model setup and the snapshot.
+
+```text
+original source resource owner + fixed Native limits
+    -> Native preparation control (one Native floor/delta ledger)
+    -> actual model setup -> SDK controlled snapshot -> compiled actual devices
+    -> complete axis/instance/concrete-producer inspection
+    -> actual CoreOSDI sealed access -> operation-5 conditional capture
+    -> same control / cumulative allowance / original snapshot and mapping leases
+```
+
+### Additive Public Controlled Intake
+
+Status: the finite additive public boundary is implemented and qualified by the
+separate-module evidence below. Its concrete-input restriction does not grant
+common-family nonemptiness, a complete initial cover, Physical integration,
+all-phase/all-history guarantees or release qualification.
+
+`NativeConstitutivePreparationInputs` is the existing immutable intake value.
+Its public initializer accepts the concrete SDK
+`OSDINativePrecisionSessionPreparer`, semantic profile, precision options and
+typed simulation parameters. The stored preparer remains package-visible through
+the SDK protocol. An existing package-only initializer accepting any SDK preparer
+is a trusted fixture seam for controlled failures; it is not an external setup or
+certificate-authority extension point. No caller evaluator, proof result or
+replacement accounting control is added to this public intake.
+The existing [CoreOSDI policy and cleanup boundary](../../CoreSpiceOSDI/RangeExecution/DESIGN.md#additive-public-policy-and-cleanup-boundary)
+owns the concrete public capture/range input constructors and accessible typed
+cleanup retry owners used by higher Native operations.
+
+| Existing API | Additive public contract |
+|---|---|
+| `NativeConstitutiveCircuitPreparing: NativeCircuitPreparing` | Publishes its native-only and explicit OSDI controlled preparation requirements; `NativeCircuitPreparer` implements those same operations |
+| `NativeConstitutiveSPICEPreparing: SPICENativePreparing` | Publishes its explicit OSDI controlled preparation requirement; `SPICENativeSimulation` forwards the actual IO preparation into the circuit child protocol, then uses the existing finish path |
+| Base `NativeCircuitPreparing` / `SPICENativePreparing` | Keep their current requirements, defaults and ordinary preparation semantics |
+| `PreparedNativeCircuit` / `PreparedNativeSPICESimulation` | Retain their actual devices, source identities and private controlled backing; this intake does not publish the package capture, chart or algebra helpers |
+
+The concrete SDK initializer is a source-binding condition. A different protocol
+conformer could return a genuine snapshot from another setup with the same image,
+descriptor and topology. Those shared attributes do not establish equality of its
+setup with this circuit's actual model. The public path therefore uses the
+concrete SDK controlled snapshot method, which compares the actual model's
+immutable preparation before serialization. The package fixture seam must not be
+used to claim independent source/setup authority.
+
+CoreOSDI forms one `OSDIPreparationOptions` from the resolved model assignments,
+instance assignments, explicit simulation parameters, operating temperature,
+connected terminal count and evaluation limits. That same value reaches actual
+native setup and controlled snapshot construction. Model/instance scope and Given
+status stay typed; omitted assignments are not synthesized from resolved native
+defaults. STRING input validity and exact controlled preparation comparison remain
+SDK contracts, rather than a claim that arbitrary cold setup bytes have native
+C-string semantics. Native's existing source, topology and compiled mapping
+checks then bind the retained program to the actual circuit.
+
+The controlled SPICE operation consumes the existing `PreparedSPICESimulation`
+intent without source reread or reparse. It forwards that intent's circuit,
+operating conditions, numerical limits and original resources to controlled
+circuit preparation, then runs the existing `finishPreparation`. Source and
+configuration identity, actual cold model facts and metadata reservations retain
+their existing owners. This is an additive host API boundary, not an OSDI export,
+root, trajectory or all-history certificate.
+
+### Fixed Floor and Additional Storage
+
+The ledger composes the existing Native allocation condition with the existing
+source-global reservations. It creates neither an independent work quota nor a
+replacement source-storage policy. Source-global live/temporary ceilings and
+Native `maximumAllocationBytes` are separate simultaneous obligations.
+
+| Phase / payload | Native accounting | Source-global accounting |
+|---|---|---|
+| Ordinary OSDI/preparation/compiler backing | Existing ordinary floor F; existing construction scratch is included at its simultaneous-live boundary | Existing reservations, once; the new control does not reserve these bytes again |
+| SDK controlled snapshot construction | Every outstanding controlled reservation contributes X before allocation; require F+X+delta within the Native ceiling | One reservation through the same original resources; SDK release refunds it |
+| Prepared publication | Seal at original retained ordinary F plus all outstanding controlled X; publish this sum as compileCapacity | Transfer existing leases without re-reservation |
+| Capture/helper/copied coefficients/numerical scratch and output | New reservations contribute to the same post-seal delta; require original sealed floor plus all concurrent deltas within the ceiling | One reservation per distinct allocation; copies share their release owner |
+| Release of a pre-seal snapshot lease after publication | Does not reduce the original sealed floor | Refund actual source reservation on its last release |
+| Release of a post-seal delta lease | Subtract that exact delta once | Refund that reservation on its last release |
+
+Before publication, explicit Native preparation boundaries set F to the existing
+simultaneous ordinary capacity: initial foreign envelope, preparation retained plus
+construction scratch, compiler retained plus compiler scratch, and immutable
+metadata retained plus still-live compiler scratch. A failed floor update leaves
+the previous valid floor unchanged. The final seal removes finished ordinary
+scratch and folds each currently outstanding controlled reservation into the
+original floor exactly once. No snapshot multiplier, measured RSS, or assumed SDK
+allocation count substitutes for the SDK's actual controlled reservation calls.
+The initial ledger's own logical stored fields are admitted before its creation.
+Each wrapped reservation also admits its logical ticket/closure-capture fields;
+these are distinct from the requested SDK payload and exclude allocator headers
+and RSS. Immutable Native program inventory admits its own array payload/header
+before copying program values; SDK program/setup backing remains shared.
+
+Reservations are identified by their pre-seal or post-seal phase. A release from
+the first phase can never subtract a later helper's delta. Publication occurs only
+after all preparation callbacks have returned and the pending-admission count is
+zero. Seal and floor changes explicitly reject a busy or reentrant admission;
+unreserved tickets cannot be folded into the published floor. Ordinary scratch
+is removed from F only after its matching reservation has released. The ledger admits a pending delta
+under its unconditional `Mutex<State>`, releases the lock, then calls the source
+owner. Source refusal rolls back only that pending delta. Every successful lease
+retains the ledger and original source reservation until its last copy releases.
+No source call, callback, model close or helper cleanup occurs under the ledger
+lock. Native execution state may enter the ledger, but ledger code never enters
+Native execution state: the fixed lock order is execution state then ledger state.
+
+`NativeExecutionStorage` joins this ledger only for the explicit snapshot lane;
+its ordinary nil lane retains existing byte and numerical behavior. Its existing
+result-state validation remains valid, while every actual additional source
+reservation also participates in the common ledger. Capture and numerical
+allocation therefore cannot each spend the same remaining Native headroom.
+`NativeCircuitPreparationRecord.valueEvidence()` retains the immutable snapshot
+program owners and their admission, and preserves the original conservative
+Native floor for this lane even after foreign model owners close. This floor is
+not a claim about currently allocated payload or RSS. Closed foreign owners are
+not retained merely to keep source programs alive.
+
+Work checkpoints, including SDK controlled construction and the full declared
+per-session scheduled maximum-work allowance, charge the same original source
+work owner. The allowance is cumulative, is not actual-consumption telemetry, and
+is not refunded on failure or close. All boxes and all instances retain this
+control. This lane does not create a fresh Analysis numerical budget during
+preparation or capture; ordinary numerical invocation ceilings retain their
+existing independent meaning.
+
+### Actual Device Inspection and Authority
+
+A package borrowing operation on `PreparedNativeCircuit` validates the complete
+compiled-axis bijection and every device/IR/name association before opening a
+selected capture. Qualified concrete R/C/V producers must provide their existing
+complete support and exact linear laws joined to that variable map. CoreOSDI owns
+a sealed actual-device access function: it casts to its internal concrete bound
+OSDI producer, rather than trusting a protocol name supplied by a custom device.
+Every raw alias, ground entry, private body coordinate, thermal coordinate and
+internal flow remains represented by the existing actual mapping. Unknown or
+substituted producers refuse. No mutable device array or executable owner escapes.
+
+The operation returns the existing noncopyable CoreOSDI conditional capture.
+Retained immutable program copies preserve their SDK original leases; copied
+claims retain their existing source/quotient/inventory admission. These facts do
+not establish a complete global constant-linear kernel, independent charge
+coordinates, a circuit root, continuation or any history guarantee.
+
+### Failure and Verification Ownership
+
+Failures preserve original resource/control causes. Unpublished model and helper
+cleanup follows the existing OSDI lifetime and cleanupPending path; pending cleanup
+retains every affected reservation until actual close completes. An inspection
+failure does not consume or close the prepared circuit. A capture cannot silently
+open through the ordinary nil-snapshot lane.
+
+`close()` completes the foreign model/helper cleanup that it owns. It does not
+release immutable preparation records or copied source-proof retention still held
+by the caller. Their original reservations refund only at actual final owner
+release; a closed but live record is not a zero-storage baseline.
+
+The per-call capture cancellation token may differ from the original preparation
+token. Inspection checks that call token before startup, and Native checks it and
+Task cancellation again after awaiting the genuine lower session, before returning
+any capture. The original request control remains attached to all subsequent
+capture work. If the call is cancelled during startup, Native closes that actual
+capture before refusal; a failed close preserves cancellation as the primary cause
+and the existing lower cleanup failure and retry owner. SPICE delegation uses the
+same Native boundary. Token identity is not an admission assumption.
+
+`Tests/CoreSpiceOSDINativeTests/NativeConstitutivePreparationTests.swift` owns
+actual Native preparation/capture tests against the original four pinned model
+programs, setups, singleton domains, contexts and precision bits; ordinary missing
+snapshot refusal; concrete-producer/complete-axis refusal; source and Native
+capacity refusal before allocation; shared scheduled-work exhaustion; cancellation;
+failed setup/helper cleanup; copied program/claim lifetime; and final exactly-once
+refund. Existing lower CoreOSDI capture qualification remains a premise rather
+than a substitute for this new Native execution-path evidence. This bounded
+actual-preparation/capture lane is qualified by the owner evidence below; complete
+global identities, circuit roots, continuation and all-history guarantees remain
+outside this lane's authority.
+
+The additive public intake requires one separate-module consumer with neither
+`@testable` access nor the CoreSpice package identity. It uses the concrete input
+initializer and both existing child-protocol existentials with actual qualified
+SDK fixtures, checks resolved receipt/source bindings, and closes all owners before
+checking final refunds. Capacity and cancellation refusals use those same public
+entries. A separate compile-negative client must fail when passing an arbitrary
+SDK preparer conformer to the public initializer. These new boundary checks reuse
+the unchanged internal source/setup/capture evidence above; a public declaration
+alone is not qualification. Consumer compilation and bounded runtime use the
+matching frozen product closure rather than a new default all-products build.
+
+The final separate-module client uses ordinary imports, with neither `@testable`
+nor a CoreSpice package identity. Its existing public Native and SPICE child
+protocols prepare the actual qualified `linear_rc` image through concrete SDK
+inputs; resolved image/setup/source facts, capacity refusal, cancellation and
+final-owner refunds pass. One public conditional Flow call also passes its finite
+endpoint, source scope and contraction checks. The external execution receipt is
+[public-preparation/external-r1/receipt.json](../../../.verification/prescribed-voltage-flow-20261020/public-preparation/external-r1/receipt.json)
+(SHA-256 `c505b029dca184a1533e8c35afcdee1be484916cb1b3d7101673dd0b2e297186`).
+Its `compiled.json` explicitly composes one positive compile/link and three
+unchanged authority-negative runs with the corrected typed scope-negative and
+the previously unexecuted snapshot-negative. The first scope witness inferred
+`Void` and exited successfully; that red is preserved, not counted as a refusal.
+The final five negatives reject the intended concrete-factory, sealed-evaluator
+or borrowed-result boundary. No production or positive-client code changed for
+that one-line negative-fixture correction.
+
+Actual owner cleanup/cancel/refund evidence is tied to the same compiled product;
+external pattern matching and fallible cleanup calls prove accessibility, rather
+than an injected public pending-cleanup event. The Flow child records its new nine
+declarations / ten cases with zero skips, plus unchanged prior Root/Chart reuse
+(18 declarations / 19 cases). The four old `NativeConstitutivePreparationTests`
+declarations skipped by the current fixture environment are excluded from pass
+counts. The public-boundary comprehensive review closed with zero blockers.
+These are finite source-bound qualification facts; the remaining family, initial
+cover, Physical, history and release obligations are unchanged.
+
+
+| Shared state / retained owner | Native storage and entry points | WASM / Embedded contract | Release / external calls |
+|---|---|---|---|
+| Constitutive floor/delta and pending tickets | One unconditional `Mutex<State>`; setPreparingFloor, seal and admission/release mutate only under that lock | No conditional raw-state implementation; the Native OSDI lane is not a WASM/Embedded runtime capability | Source calls and cancellation checks outside the lock; phase-bearing lease releases exactly once |
+| Existing numerical storage counters | Existing unconditional `Mutex<State>` and original mutation entries; actual new-lane source reservations join the same ledger | Existing common declaration unchanged; no portable foreign-worker claim | No reverse ledger-to-storage lock entry; allocation failure rolls back ledger pending/delta |
+| Immutable programs and copied claims | Original SDK backing, program inventory reservation and snapshot-derived capture retention | Immutable Sendable values; target availability follows the owning SDK/adapter | Last program/claim copy keeps its source admission; no ordinary model owner is retained merely for bytes |
+
+### SPICE Metadata and Source-Reexecution Preallocation
+
+Consuming `PreparedNativeCircuit.reservingRetainedStorage` owns the actual
+preallocation boundary. For an ordinary owner it checks the original Native
+capacity and performs the existing one source reservation. For a controlled owner
+it admits a pending ticket against the common floor/delta peak, calls the same
+source owner once outside the lock, then atomically folds that successful ticket
+into the permanent Native floor. Failure or cancellation before commit removes
+only that pending delta. Its returned reservation is retained by the updated
+record and the actual constructed facts/validator; its final release refunds
+source storage but never lowers that request's original conservative Native floor.
+There is no attach-after-external-allocation operation or forgeable receipt join.
+An older copied record still reaches the same live ledger and cannot bypass a
+later floor increase. Before constructing the updated reservation array, controlled
+admission also covers its new count-plus-one payload, the one-element concatenation
+operand and both logical array headers; the existing old array is already in the
+floor. Checked count-derived work is charged before that copy. This metadata and
+the payload share one source reservation while the public payload receipt retains
+its exact requested byte count.
+
+`SPICENativeSimulation.finishPreparation` obtains this admission before constructing
+its actual precision-configuration arrays. The controlled SPICE overload
+uses actual Native preparation then the same finish path, retaining exact source,
+configuration, program and setup identities. `NativeSourceCircuitDeviceBinding`
+uses the same consuming boundary before physical-validation storage is constructed.
+Its baseline source-reexecution row ledger instead uses an ordinary live delta
+lease from the baseline control before reserveCapacity; that lease refunds at its
+actual last owner rather than permanently growing the preparation floor.
+
+NativeOSDIValueEvidence keeps legacy array-capacity accounting unchanged for the
+ordinary lane. For controlled backing, private program/setup bytes are not reserved
+again as immutable metadata: the retained program already owns their SDK lease.
+NativePrecisionConfigurationFacts and SPICE identity encoding read the public
+stored byte counts directly. These count-only paths allocate no byte extraction;
+actual metadata/coordinate/parameter arrays still receive their existing checked
+construction/coexistence admission before allocation.
+
+The CoreOSDI controlled adapter bound excludes only the program/setup backing
+already owned by its mandatory control; its point-state arrays and receipt remain
+in the ordinary adapter envelope. Each combined point session additionally charges
+its full explicit maximumWorkUnits once to that same source owner before startup,
+as a nonrefundable scheduled upper allowance rather than consumed-work telemetry.
+The ordinary nil-snapshot session retains its original accounting behavior.
+
+The controlled public-fixture tests keep their explicit 16 MiB adapter envelope.
+The added actual SPICE/binder test covers both that envelope's ordinary point
+refusal and the existing actual-four-model 1 GiB adapter profile's success under
+unchanged Native 4 GiB and source 8 GiB ceilings. These are explicit caller
+profiles; no retry, default change or ordinary-capacity relaxation connects them.
+Each of the four original model source/setup requests is a separate caller with
+its unchanged source ceiling. Within that caller, point and capture allowances,
+snapshot work and every repeated box share one owner; the test also asserts their
+aggregate allowances across the four independent callers. Grouping all eight
+1-billion-unit scheduled allowances under one 8-billion-unit owner leaves no
+snapshot work and is an explicit quota refusal, not an admissible success fixture.
+
+Finite qualification of this combined path includes actual SPICE finish/reexecution,
+coexisting point/capture preparation, refusal/cancellation and cleanup/retry. The
+capture-only frozen runtime remains an independently preserved lower-stage premise.
+
+| Owner evidence | Qualified scope |
+|---|---|
+| Combined r5: 13 declarations / 17 cases, zero skips | Four original independent source/setup requests with point session absent/present, two same-domain identity queries per mode (16 total), actual SPICE finish and binder, shared work/storage, exact refusal and final refund |
+| Cancellation r7: 2 declarations / 3 cases, zero skips; one finding-limited recheck closed | Distinct call-token cancellation during genuine startup, actual helper close, retained retry authority after cleanup failure, Native/SPICE delegation and owner reuse |
+| Migrated metadata test: 1 declaration; remaining precision owner: 4 declarations, zero skips | Original worker/profile, one-byte-short refusal before source acquisition, one actual acquire/release, worker/semantic/program/numeric mismatch and cancellation |
+| Ordinary Native owner: 57 declarations, zero skips, current objects relinked | Existing storage, sparse capacity, source reexecution and voltage-source inspection paths |
+| OSDI owner partial run: 66 complete passed declarations including original full BULK N schedule | Actual finite composed nil path; the 120-second runner timed out during a different serialized full schedule and is not a whole-owner pass |
+| Existing public-import borrower recompiled against current objects | Public API use without private/package flags, exact source/axis association, cancellation, callback cause and repeated borrow |
+
+The twelve full original numerical schedules belong to a separately filterable
+serialized suite with an eleven-minute suite allowance. The initial 120-second
+whole-owner runner had the wrong granularity; its timeout and cleanup evidence
+are retained. Completed events and the four remaining fast tests close affected
+owner coverage. Unchanged equation/validator/solver kernels, exact legacy model
+artifacts, worker/profile and source-program selection preserve the prior numerical
+qualification premises; the remaining eleven long schedules are not claimed as
+new executions. Source-diff and current-link records explicitly distinguish
+preparation/control/lease changes from those unchanged physical premises.
+
+Local qualification records are indexed by
+`CoreSpice/.verification/native-constitutive-preparation-20261020/aggregate-r8.json`.
+This evidence grants no global constant-linear-kernel, rank, root, flow or history
+authority. Each actual-family source/setup request keeps its own unchanged ceiling;
+all point/capture sessions and boxes within that request share the original owner.

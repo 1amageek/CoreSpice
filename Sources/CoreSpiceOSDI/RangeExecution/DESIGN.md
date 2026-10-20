@@ -34,6 +34,7 @@ smooth constitutive box substitutes for these proofs.
 | [SDK controlled snapshot](../../../../swift-osdi/Sources/OSDIRuntime/SnapshotConstruction/DESIGN.md) | depends on | Controlled immutable source/setup construction | Same request work/storage owner | Public byte-array extraction is separate caller-owned storage |
 | [Timing causal authority](../../../../TimingEngine/Sources/STAEngine/NativeExecution/ConservativeCoupling/DESIGN.md#causal-operating-domain-charge-tube-and-event-admission) | used by, pending composition | Full causal proof obligations | Required admission semantics | Finite traces cannot close PR20 |
 | [ValidatedTransient](../../CoreSpiceAnalysis/ValidatedTransient/DESIGN.md) | coordinates with | Conditional scalar barrier | One lower numerical lemma | No physical certificate |
+| [NativeExecution intake](../../CoreSpice/NativeExecution/DESIGN.md#additive-public-controlled-intake) | used by | Same-owner controlled preparation and public policy intake | Existing Native owner composes these internal captures | Public policy or error visibility does not publish a certificate factory |
 
 ## Architecture
 
@@ -231,11 +232,54 @@ or name-based reconstruction participate in this join.
 
 ### Capture API and Borrow Boundary
 
-The package-only `OSDIConstitutiveCaptureInputs` supplies explicit worker intent,
-artifact source, numeric profile, runtime options, cover and identity limits, and
-the caller's mandatory `LinearSolverExecutionControlling`. CoreOSDI already
-consumes CoreSpiceCompile, so the existing control contract can be injected
-without an Analysis dependency or another budget owner.
+`OSDIConstitutiveCaptureInputs` supplies explicit worker intent, artifact source,
+numeric profile, runtime options, cover and identity limits. The mandatory
+`LinearSolverExecutionControlling` comes from the actual retained snapshot, not
+from this input value. CoreOSDI already consumes CoreSpiceCompile, so the existing
+control contract is reused without an Analysis dependency or another budget owner.
+
+### Additive Public Policy and Cleanup Boundary
+
+Status: the finite additive public policy and cleanup boundary is implemented
+and qualified by the separate-module evidence indexed in the
+[NativeExecution intake contract](../../CoreSpice/NativeExecution/DESIGN.md#additive-public-controlled-intake).
+The existing input and failure values are public for Native composition while
+executing capture helpers remain package-only.
+
+| Existing type | Public boundary | Internal authority retained |
+|---|---|---|
+| `OSDIConstitutiveCaptureInputs` | Concrete `OSDINativePrecisionSessionPreparer`, worker/source, numeric profile, options, cover and identity limits | Constructor fixes `OSDINativePrecisionEvaluator`; arbitrary preparer/evaluator initializer remains a trusted package fixture seam |
+| `OSDISmoothRangeCaptureInputs` | Concrete `OSDINativePrecisionSessionPreparer`, worker/source, numeric profile and options | Arbitrary preparer initializer remains a trusted package fixture seam; actual evaluation already uses the fixed concrete SDK evaluator |
+| `OSDIConstitutiveCaptureFailure` / `OSDISmoothRangeFailure` | Existing typed cases, full primary/secondary causes and `cleanupPending` owner | Wrapping, pending-owner extraction and other helper methods stay nonpublic |
+| `OSDIConstitutiveCaptureCleanup` | Existing retained owner and fallible `close()` retry | Constructor, logical-state accounting, pending SDK owner, lease and synchronization remain nonpublic |
+
+No public constructor accepts an evaluator, callback certificate or replacement
+execution control. The concrete factory creates the required immutable SDK
+operation from the retained program; existing preparation/result binding checks
+remain mandatory. Worker/profile acquisition and the original capacity policies
+are unchanged. Public input construction does not establish a source identity,
+smooth box or circuit proof by itself.
+
+Both failure enums preserve their existing cleanup authority. A caller receiving
+`cleanupPending` retains its exact owner and retries `close()`; a failed retry
+retains the pending SDK cleanup and affected helper lease, and successful retries
+remain idempotent. The existing unconditional Mutex protects only short state
+transitions, with actual cleanup and final lease destruction outside its lock.
+Publishing these existing types introduces no second cleanup state or wrapper.
+
+Qualification separates public accessibility from owner execution. A separate
+client module without package/test access constructs concrete inputs, uses actual
+Native preparation, pattern-matches both public failure enums' pending-cleanup
+cases and type-checks calls to the exact owner's fallible `close()`. An arbitrary
+SDK preparer/evaluator constructor call must fail to compile from that identity.
+Focused existing pending-cleanup, cancellation and last-owner refund tests check
+the actual owner implementation in the same compiled product. Unchanged inputs
+and logic preserve earlier source-binding and smooth-refusal premises. A public
+flow failure followed by external retry is not claimed by this accessibility
+proof. The qualified external conditional Flow success does not inject a pending
+cleanup failure; actual pending-cleanup/cancel/refund runtime remains the existing
+owner evidence on the same compiled implementation. No public failure-injection
+helper or executing capture API is added solely to qualify visibility.
 
 A noncopyable `OSDIConstitutiveCapture` owns one operation-5 SDK session and fixed
 source/instance/mapping/condition facts. It offers synchronous checked-identity
@@ -396,3 +440,129 @@ those session facts against the explicit request before publishing its owner;
 source ChartBinding alone does not identify the numerical execution. Original
 query coordinates/contexts and used precision remain part of the borrowed result
 and the upper retained record, not inferred from the retention token.
+
+
+### Sealed Native Device Access
+
+The package Native composition may request an immutable snapshot program, support
+visitation, or conditional capture through `OSDIConstitutiveBoundDeviceAccess`.
+This boundary accepts a bound-device existential but checks the internal concrete
+`BoundOSDIDevice` before any operation. An external conformance to the package
+capture protocol is not actual-producer authority. Program copies retain their
+original controlled backing without retaining a closed ordinary model owner.
+The Native caller still owns complete axis/instance association, cumulative work
+and storage admission, and original-domain retention. This access adds no global
+kernel, rank, root or flow claim and does not change SDK evaluation or accounting.
+
+
+For simultaneous controlled point/capture preparation, the ordinary precision
+adapter envelope counts state arrays and receipts, while private program/setup
+backing remains under its one controlled SDK reservation. The separate point
+process mapping/arena still requires its full existing Native admission. Both
+point and identity session maximum-work allowances are charged before startup to
+the same request control. Stored byte-count inspection does not materialize the
+SDK's caller-owned public Array copies. Actual copied output data remains a
+separate preadmitted consumer boundary.
+
+## Actual-Bound Smooth Spatial Range Bridge
+
+`OSDISmoothRangeCaptureInputs` supplies the range-session preparation policy,
+worker/source, qualified numeric profile and exact runtime options under the
+[public policy boundary](#additive-public-policy-and-cleanup-boundary). It supplies
+no evaluator. `OSDIConstitutiveBoundDeviceAccess.prepareSmoothRangeCapture` admits
+only the internal concrete bound OSDI producer and its controlled immutable
+snapshot. Preparation checks the actual receipt artifact/descriptor/topology,
+options and ordinary-owner availability. The returned session must match the
+snapshot's complete SDK ChartBinding, worker, profile and options; protocol-3/4/5
+sessions are not substitutes. The runtime worker/profile qualification assumption
+above remains unchanged: the bridge checks request/session equality, not a new
+worker attestation.
+
+```text
+actual bound device + controlled snapshot + same request control
+    -> SDK prepareRange (operation 2) + checked immutable session provenance
+    -> exclusive synchronous concrete evaluateRange on complete lifted box/time
+    -> atomic smooth F/Q/G/C + original inventory + admitted immutable scope
+    -> Native raw C directional action, both one-sided rates, all original rows
+```
+
+`OSDISmoothRangeCapture.withCheckedRange` uses only the concrete SDK native
+range evaluator on the checked exclusive session. The SDK's binding-less v2 spans
+never independently establish provenance. Only an atomic successful smooth-box
+operation, with complete finite ordered F/Q and raw-row-major G/C planes, reaches
+the caller. Demanded nonsmooth/domain/undefined/seam failures propagate without a
+point, chart or derivative fallback. `programHasTimeInput` causes the distinct
+`explicitTimeInput` refusal before publication because no explicit-time Q partial
+is available. No caller flag can assert Qt=0. Spatial C here is the SDK v2
+same-source derivative; formula-root planes from operations 3/4/5 are not promoted.
+
+The immutable `OSDISmoothRangeScope` retains the complete source ChartBinding,
+worker/profile/options, actual snapshot/inventory, all four exact twofold query
+coordinate planes, both original contexts and actual precision. Its scoped
+coordinate/inventory access supports Native's bit-exact scope join before C is
+applied. The upper owner independently admits any copied result plane/action and
+keeps this scope with it. Raw rows and columns are never dropped by the bridge:
+Native must sum every raw alias row and column, use zero ground rates and retain
+body, thermal and internal-flow equations. This is spatial derivative/value
+scope only, not a root, state dimension, continuation, physical current, or
+history certificate.
+
+Every helper charges its full scheduled SDK maximum-work allowance to the same
+original request control before startup. The existing controlled snapshot backing
+is shared under its original lease. Checked preadmission covers the mapping,
+arena, capture/Mutex/cleanup payload, copied inventory and each retained four-plane
+query. Query initialization/copy, shape/order validation and all output scans
+charge host work before the corresponding operation; zero-work checkpoints bound
+cancellation at callbacks. These are managed payload bounds, not allocator/RSS
+claims. Borrowed SDK spans cannot escape the synchronous callback or cross await;
+explicit query copies are necessary for a retained next-stage scope and never
+retain source pointers.
+
+A noncopyable capture and unconditional Mutex storage enforce exclusive checkout.
+No evaluation, callback, foreign close or waiting occurs under that Mutex. All
+success, failure, callback throw and cancellation paths restore or close the same
+session before helper-lease refund. Retryable cleanup preserves the primary cause
+and exact pending cleanup authority under the existing cleanup-only owner; the
+ordinary model's accepted history is never changed. Scope copies keep admission
+until the last copy is released, including after capture/model close.
+
+Qualified `OSDISmoothRangeCaptureTests` owns actual source linear/parabola C planes,
+full raw alias/ground inventory, retained exact query/source scope, repeated-box
+cumulative work, wrong returned source/setup/profile/options, non-OSDI owner,
+missing snapshot, actual time-input/nonsmooth atomic refusal,
+shared work/storage/cancel and cleanup/refund. Existing linear/parabola/time
+images and the public SDK 1.2 worker are reused without recompilation. The new
+test-only `Q=abs(V(p,n))` fixture was compiled once with the existing exact qualified
+compiler; its source/image/export identities remain bound to that separate receipt.
+Native owns complete directional products and original KCL/current containment
+integration; no adapter test alone closes that upper contract.
+
+The finite qualification comprises eight bridge declarations with zero skips:
+five unchanged successes in `runtime-bridge-r3` plus the three corrected test
+cases in `runtime-bridge-r4`, under `.verification/prescribed-voltage-reconstruction-20261020/`.
+The three actual-OSDI Native reconstruction tests also passed, including both
+one-sided chain-rule actions, full original KCL, raw alias/ground aggregation and
+strict reconstructed-current containment. The one comprehensive 24-file review
+closed without a concrete finding. These receipts establish only the checked
+closed-smooth, time-independent conditional spatial scope described above; they
+do not establish roots, flow, source histories or event/STA admission.
+
+The time-refusal test uses the existing analysis-input-normalized image
+`0264f0d0e35850efb1626bcf64710522e3a75686d03b1d86a9b1439266f9d56d`,
+original source `8bb36e3b7e8558a0533c369e9cb595d6bdda56a0cdaf7b697b5c03e2a370c08c`,
+compiler `0de15d26d8f328f62a61c9b5b9b3b4905dce983b74572cf7e317e5042b17e7b8`
+and program `eea8d2ce12b0bbf5395b084cd73263fabcb7d8f9c554adc4e48ab949e817df28`.
+Their existing source/compiler receipt is retained in the SDK's
+`.verification/s4-compiler-precision/analysis-bridge-artifacts/receipt.json`.
+The historical image `a9edeafa4ea91c55f8dde0e17d2bb43e088e2033df3fe952d27f154a8a3b3491`
+was correctly refused before evaluation for an invalid BOOL-to-BOOL IBCAST; its
+red receipt remains unchanged. That refusal is not Qt evidence. Identical source
+does not imply identical compiler, generated image, program or ABI validity.
+
+The resource tests distinguish the 8,552-byte immutable inventory still owned by
+a closed-but-live capture from its already-refunded helper lease. The fixture's
+mapping plus arena payload is 33,554,432 bytes (32 MiB), with capture/Mutex/cleanup
+records additionally admitted. Exact original-baseline comparisons occur after
+the capture's final scope release; retained result scopes independently keep
+their admitted source/query facts alive. No budget, lifetime or production
+behavior changed to make those test assertions pass.

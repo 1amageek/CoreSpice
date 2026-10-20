@@ -196,6 +196,16 @@ justify their coupling. The kernel proves the supplied algebra only; it does not
 infer cross-device cancellation, omit an unproved row or turn a local source
 identity into a whole-circuit fact.
 
+### Existing Prepared-Owner Control Composition
+
+The actual Native global-charge checker may inject its already retained mandatory
+LinearSolverExecutionControlling owner directly. This adds no reset or resource
+policy: the same preparation floor/delta ledger admits exact scratch/result
+storage and charges source-global work. The original budget/storage initializer
+continues to compose AnalysisLinearSolverControl unchanged. Imported Scalar
+payloads may retain an explicit admission lease across package boundaries; this
+is lifetime/accounting, not source-identity authority.
+
 ## Runtime Flows
 
 1. Check cancellation and validate explicit limits, shape and encoded lengths.

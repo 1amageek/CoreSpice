@@ -3,7 +3,7 @@ import OSDIContracts
 import OSDIRuntime
 
 /// Explicit operation-5 execution capabilities; accounting comes from the actual snapshot.
-package struct OSDIConstitutiveCaptureInputs: Sendable {
+public struct OSDIConstitutiveCaptureInputs: Sendable {
     package let preparer: any OSDIPrecisionConstitutiveSessionPreparing
     package let evaluator: any OSDIPrecisionConstitutiveEvaluating
     package let worker: ArtifactAccessIntent
@@ -12,6 +12,14 @@ package struct OSDIConstitutiveCaptureInputs: Sendable {
     package let options: OSDIPrecisionOptions
     package let coverLimits: OSDIPrecisionDecisionCoverLimits
     package let limits: OSDIPrecisionConstitutiveLimits
+    public init(preparer: OSDINativePrecisionSessionPreparer, worker: ArtifactAccessIntent,
+        source: any ArtifactAccessing, numericProfile: ContentDigest, options: OSDIPrecisionOptions,
+        coverLimits: OSDIPrecisionDecisionCoverLimits, limits: OSDIPrecisionConstitutiveLimits) {
+        self.preparer = preparer; evaluator = OSDINativePrecisionEvaluator()
+        self.worker = worker; self.source = source; self.numericProfile = numericProfile
+        self.options = options; self.coverLimits = coverLimits; self.limits = limits
+    }
+    /// Trusted package fixture seam; external callers cannot substitute proof evaluation.
     package init(preparer: any OSDIPrecisionConstitutiveSessionPreparing,
         evaluator: any OSDIPrecisionConstitutiveEvaluating, worker: ArtifactAccessIntent,
         source: any ArtifactAccessing, numericProfile: ContentDigest, options: OSDIPrecisionOptions,

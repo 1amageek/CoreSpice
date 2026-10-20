@@ -5,6 +5,8 @@ import CoreSpiceEvent
 package protocol PrescribedVoltageReducing: Sendable {
     func prepare(axes: [DCEquationKind], sources: [PrescribedVoltageReduction.Source]) throws -> PrescribedVoltageReduction.Plan
     func makeWorkspace(plan: PrescribedVoltageReduction.Plan) throws -> PrescribedVoltageReduction.Workspace
+    func lift(workspace: PrescribedVoltageReduction.Workspace, reducedCoordinates: [CompensatedEnclosure],
+        sourceValues: [CompensatedEnclosure]) throws -> PrescribedVoltageReduction.Lift
     func apply(workspace: PrescribedVoltageReduction.Workspace, reducedCoordinates: [CompensatedEnclosure],
         sourceValues: [CompensatedEnclosure], staticResidual: [CompensatedEnclosure],
         stateChargeRate: [CompensatedEnclosure], prescribedChargeRate: [CompensatedEnclosure],
@@ -94,11 +96,30 @@ package struct PrescribedVoltageReduction: PrescribedVoltageReducing {
         fileprivate var residual: [CompensatedEnclosure]
         fileprivate var sums: [CompensatedEnclosure]
         private let lease: any Sendable
-        fileprivate init(plan: Plan, zero: CompensatedEnclosure, lease: any Sendable) {
+        fileprivate init(plan: Plan, zero: CompensatedEnclosure, lease: any Sendable,
+            cancellation: CancellationToken?) throws {
             self.plan = plan; self.lease = lease
+            try PrescribedVoltageReduction.checkCancellation(cancellation)
             values = .init(repeating: zero, count: plan.axisCount)
+            try PrescribedVoltageReduction.checkCancellation(cancellation)
             residual = .init(repeating: zero, count: plan.axisCount)
+            try PrescribedVoltageReduction.checkCancellation(cancellation)
             sums = .init(repeating: zero, count: plan.axisCount)
+            try PrescribedVoltageReduction.checkCancellation(cancellation)
+        }
+    }
+
+    /// Affine coordinates before current reconstruction; selected currents are deliberately unavailable.
+    package final class Lift: Sendable {
+        package let plan: Plan
+        private let values: [CompensatedEnclosure]
+        private let lease: any Sendable
+        fileprivate init(plan: Plan, values: [CompensatedEnclosure], lease: any Sendable) {
+            self.plan = plan; self.values = values; self.lease = lease
+        }
+        package func coordinate(at row: Int) throws -> CompensatedEnclosure {
+            guard values.indices.contains(row), plan.parent[row] != -2 else { throw Failure.invalidInput }
+            return values[row]
         }
     }
 
@@ -126,18 +147,22 @@ package struct PrescribedVoltageReduction: PrescribedVoltageReducing {
     }
 
     fileprivate final class Owner: Sendable {
-        let control: AnalysisLinearSolverControl
-        init(budget: TransientExecutionBudget, storage: any AnalysisResultStorageAccounting, cancellation: CancellationToken) {
-            control = .init(budget: budget, cancellation: cancellation, storage: storage)
+        let control: any LinearSolverExecutionControlling
+        init(control: any LinearSolverExecutionControlling) {
+            self.control = control
         }
     }
     let limits: Limits
     fileprivate let owner: Owner
     package init(limits: Limits, budget: TransientExecutionBudget,
         storage: any AnalysisResultStorageAccounting, cancellation: CancellationToken) throws {
+        try self.init(limits: limits, control: AnalysisLinearSolverControl(
+            budget: budget, cancellation: cancellation, storage: storage))
+    }
+    package init(limits: Limits, control: any LinearSolverExecutionControlling) throws {
         guard limits.maximumAxes > 0, limits.maximumSources >= 0,
               limits.maximumWorkspaceBytes > 0, limits.maximumResultBytes > 0 else { throw Failure.invalidInput }
-        self.limits = limits; owner = .init(budget: budget, storage: storage, cancellation: cancellation)
+        self.limits = limits; owner = .init(control: control)
         try owner.control.checkpoint(workUnits: 0)
     }
 
@@ -234,14 +259,84 @@ package struct PrescribedVoltageReduction: PrescribedVoltageReducing {
     }
 
     package func makeWorkspace(plan: Plan) throws -> Workspace {
+        try makeWorkspace(plan: plan, additionalCancellation: nil)
+    }
+
+    package func makeWorkspace(plan: Plan, cancellation: CancellationToken) throws -> Workspace {
+        try makeWorkspace(plan: plan, additionalCancellation: cancellation)
+    }
+
+    private func makeWorkspace(plan: Plan, additionalCancellation: CancellationToken?) throws -> Workspace {
+        try Self.checkCancellation(additionalCancellation)
         guard plan.owner === owner else { throw Failure.wrongOwner }
         let cells = try multiply(plan.axisCount, 3)
         let bytes = try multiply(cells, MemoryLayout<CompensatedEnclosure>.stride)
         guard bytes <= limits.maximumWorkspaceBytes else { throw Failure.workspaceLimit }
+        try Self.checkCancellation(additionalCancellation)
         let lease = try owner.control.reserveStorage(byteCount: bytes)
+        try Self.checkCancellation(additionalCancellation)
         try owner.control.checkpoint(workUnits: cells)
+        try Self.checkCancellation(additionalCancellation)
         let zero = try CompensatedEnclosure(center: .zero)
-        return Workspace(plan: plan, zero: zero, lease: lease)
+        let workspace = try Workspace(plan: plan, zero: zero, lease: lease, cancellation: additionalCancellation)
+        try Self.checkCancellation(additionalCancellation)
+        return workspace
+    }
+
+    package func lift(workspace: Workspace, reducedCoordinates: [CompensatedEnclosure],
+        sourceValues: [CompensatedEnclosure]) throws -> Lift {
+        try lift(workspace: workspace, reducedCoordinates: reducedCoordinates,
+            sourceValues: sourceValues, additionalCancellation: nil)
+    }
+
+    package func lift(workspace: Workspace, reducedCoordinates: [CompensatedEnclosure],
+        sourceValues: [CompensatedEnclosure], cancellation: CancellationToken) throws -> Lift {
+        try lift(workspace: workspace, reducedCoordinates: reducedCoordinates,
+            sourceValues: sourceValues, additionalCancellation: cancellation)
+    }
+
+    private func lift(workspace: Workspace, reducedCoordinates: [CompensatedEnclosure],
+        sourceValues: [CompensatedEnclosure], additionalCancellation: CancellationToken?) throws -> Lift {
+        try Self.checkCancellation(additionalCancellation)
+        let plan = workspace.plan
+        guard plan.owner === owner else { throw Failure.wrongOwner }
+        guard reducedCoordinates.count == plan.reducedCount, sourceValues.count == plan.sourceCount else { throw Failure.invalidInput }
+        let zero = try CompensatedEnclosure(center: .zero)
+        var work = Work(control: owner.control, cancellation: additionalCancellation)
+        for row in 0..<plan.axisCount { try work.tick(1); workspace.values[row] = zero }
+        try populateLift(workspace: workspace, reducedCoordinates: reducedCoordinates,
+            sourceValues: sourceValues, zero: zero, work: &work)
+        let bytes = try multiply(plan.axisCount, MemoryLayout<CompensatedEnclosure>.stride)
+        guard bytes <= limits.maximumResultBytes else { throw Failure.resultLimit }
+        try Self.checkCancellation(additionalCancellation)
+        let lease = try owner.control.reserveStorage(byteCount: bytes)
+        try Self.checkCancellation(additionalCancellation)
+        try owner.control.checkpoint(workUnits: plan.axisCount)
+        try Self.checkCancellation(additionalCancellation)
+        var values = [CompensatedEnclosure](repeating: zero, count: plan.axisCount)
+        for row in 0..<plan.axisCount { try work.tick(1); values[row] = workspace.values[row] }
+        try Self.checkCancellation(additionalCancellation)
+        try owner.control.checkpoint(workUnits: 0)
+        try Self.checkCancellation(additionalCancellation)
+        return Lift(plan: plan, values: values, lease: lease)
+    }
+
+    private func populateLift(workspace: Workspace, reducedCoordinates: [CompensatedEnclosure],
+        sourceValues: [CompensatedEnclosure], zero: CompensatedEnclosure, work: inout Work) throws {
+        let plan = workspace.plan, n = plan.axisCount
+        for index in 0..<plan.orderCount {
+            try work.tick(1)
+            let row = plan.order[index]
+            if row == n { continue }
+            let edge = plan.parentSource[row]
+            if edge < 0 {
+                workspace.values[row] = reducedCoordinates[plan.coordinate[row]]
+            } else {
+                let previous = plan.parent[row] == n ? zero : workspace.values[plan.parent[row]]
+                workspace.values[row] = try plan.sign[row] == 1
+                    ? previous.adding(sourceValues[edge]) : previous.subtracting(sourceValues[edge])
+            }
+        }
     }
 
     package func apply(workspace: Workspace, reducedCoordinates: [CompensatedEnclosure],
@@ -268,19 +363,8 @@ package struct PrescribedVoltageReduction: PrescribedVoltageReducing {
                 .adding(prescribedChargeRate[row]).adding(explicitTimeChargeRate[row])
             workspace.sums[row] = workspace.residual[row]
         }
-        for index in 0..<plan.orderCount {
-            try work.tick(1)
-            let row = plan.order[index]
-            if row == n { continue }
-            let edge = plan.parentSource[row]
-            if edge < 0 {
-                workspace.values[row] = reducedCoordinates[plan.coordinate[row]]
-            } else {
-                let previous = plan.parent[row] == n ? zero : workspace.values[plan.parent[row]]
-                workspace.values[row] = try plan.sign[row] == 1
-                    ? previous.adding(sourceValues[edge]) : previous.subtracting(sourceValues[edge])
-            }
-        }
+        try populateLift(workspace: workspace, reducedCoordinates: reducedCoordinates,
+            sourceValues: sourceValues, zero: zero, work: &work)
         for index in (0..<plan.orderCount).reversed() {
             try work.tick(1)
             let row = plan.order[index]
@@ -347,11 +431,23 @@ package struct PrescribedVoltageReduction: PrescribedVoltageReducing {
     private func multiply(_ a: Int, _ b: Int) throws -> Int {
         try TransientExecutionBudget.multiply(a, b, "prescribed voltage capacity")
     }
+    private static func checkCancellation(_ cancellation: CancellationToken?) throws {
+        if let cancellation, cancellation.isCancelled || Task.isCancelled { throw AnalysisError.cancelled }
+    }
     private struct Work {
-        let control: AnalysisLinearSolverControl
+        let control: any LinearSolverExecutionControlling
+        let cancellation: CancellationToken?
         var remaining = 0
+        init(control: any LinearSolverExecutionControlling, cancellation: CancellationToken? = nil) {
+            self.control = control; self.cancellation = cancellation
+        }
         mutating func tick(_ units: Int) throws {
-            if remaining < units { try control.checkpoint(workUnits: 256); remaining += 256 }
+            try PrescribedVoltageReduction.checkCancellation(cancellation)
+            if remaining < units {
+                try control.checkpoint(workUnits: 256)
+                try PrescribedVoltageReduction.checkCancellation(cancellation)
+                remaining += 256
+            }
             remaining -= units
         }
     }

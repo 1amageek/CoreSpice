@@ -1,0 +1,23 @@
+nature Voltage;
+    units = "V";
+    access = V;
+endnature
+nature Current;
+    units = "A";
+    access = I;
+endnature
+discipline electrical;
+    potential Voltage;
+    flow Current;
+enddiscipline
+
+module linear_rc(p, n);
+    inout p, n;
+    electrical p, n;
+    parameter real conductance = 1.0e-3;
+    parameter real capacitance = 2.0e-12;
+    analog begin
+        I(p, n) <+ conductance * V(p, n);
+        I(p, n) <+ ddt(capacitance * V(p, n));
+    end
+endmodule

@@ -145,14 +145,15 @@ struct NativePrecisionConfigurationTests {
         let common = circuit.record
         let bytes = try NativePrecisionConfigurationFacts.metadataByteCount(input: input, common: common)
         #expect(bytes > 0)
-        let released = ReleaseCounter()
+        let released = ReleaseCounter(base: input.resources)
         do {
-            let reservation = SPICESourceStorageReservation(kind: .liveOwnedBytes, byteCount: bytes) { released.value.withLock { $0 += 1 } }
-            let below = replacing(common, maximumBytes: common.compileCapacity + bytes - 1)
-            do { _ = try below.addingRetainedStorage(byteCount: bytes, reservation: reservation); Issue.record("One-byte-short metadata budget succeeded") }
+            let below = replacing(common, maximumBytes: common.compileCapacity + bytes - 1, resources: released)
+            do { _ = try below.reservingRetainedStorage(byteCount: bytes); Issue.record("One-byte-short metadata budget succeeded") }
             catch SPICENativePreparationError.capacityExceeded {}
-            let exact = replacing(common, maximumBytes: common.compileCapacity + bytes)
-            let admitted = try exact.addingRetainedStorage(byteCount: bytes, reservation: reservation)
+            #expect(released.acquired.withLock { $0 } == 0)
+            let exact = replacing(common, maximumBytes: common.compileCapacity + bytes, resources: released)
+            let admitted = try exact.reservingRetainedStorage(byteCount: bytes)
+            #expect(released.acquired.withLock { $0 } == 1)
             #expect(admitted.compileCapacity == common.compileCapacity + bytes)
             #expect(admitted.reservations.last?.byteCount == bytes)
             #expect(released.value.withLock { $0 } == 0)
@@ -165,7 +166,23 @@ struct NativePrecisionConfigurationTests {
         try .init(maximumLiveBytes: 1024 * 1024, maximumTemporaryBytes: 1024 * 1024,
             maximumWorkUnits: 1_000_000, maximumHashedBytes: 1024 * 1024)
     }
-    private final class ReleaseCounter: Sendable { let value = Mutex(0) }
+    private final class ReleaseCounter: SPICESourceResourceAccounting {
+        let value = Mutex(0)
+        let acquired = Mutex(0)
+        let base: any SPICESourceResourceAccounting
+        init(base: any SPICESourceResourceAccounting) { self.base = base }
+        func checkCancellation() throws { try base.checkCancellation() }
+        func charge(_ kind: SPICESourceWorkKind, units: UInt64) throws { try base.charge(kind, units: units) }
+        func chargeHashedBytes(_ byteCount: UInt64) throws { try base.chargeHashedBytes(byteCount) }
+        func reserveStorage(kind: SPICESourceStorageKind, byteCount: UInt64) throws -> SPICESourceStorageReservation {
+            let original = try base.reserveStorage(kind: kind, byteCount: byteCount)
+            acquired.withLock { $0 += 1 }
+            return SPICESourceStorageReservation(kind: kind, byteCount: byteCount) { [self, original] in
+                value.withLock { $0 += 1 }
+                withExtendedLifetime(original) {}
+            }
+        }
+    }
     private func verify(_ facts: NativePrecisionConfigurationFacts, binding: NativePrecisionConfigurationBinding, expected: ContentDigest) throws {
         try NativePrecisionConfigurationVerification().verify(facts, binding: binding, expectedIdentity: expected,
             maximumEncodingBytes: 1024 * 1024, resources: resources())
@@ -189,13 +206,14 @@ struct NativePrecisionConfigurationTests {
             programByteCount: m.programByteCount, setupDigest: m.setupDigest, setupByteCount: m.setupByteCount, semanticProfile: m.semanticProfile,
             workerReference: worker ?? m.workerReference, numericProfile: numeric ?? m.numericProfile, options: options ?? m.options, precisionBits: bits ?? m.precisionBits)
     }
-    private func replacing(_ r: NativeCircuitPreparationRecord, maximumBytes: UInt64) -> NativeCircuitPreparationRecord {
+    private func replacing(_ r: NativeCircuitPreparationRecord, maximumBytes: UInt64,
+        resources: (any SPICESourceResourceAccounting)? = nil) -> NativeCircuitPreparationRecord {
         let limits = SPICENativeExecutionLimits(maximumDeviceCount: r.limits.maximumDeviceCount,
             maximumMatrixDimension: r.limits.maximumMatrixDimension, maximumAllocationBytes: maximumBytes)
         return .init(executionResources: r.executionResources, plan: r.plan, operatingConditions: r.operatingConditions,
             limits: limits, numericalLimits: r.numericalLimits,
             osdiPreparationRecords: r.osdiPreparationRecords, osdiRuntimeInputs: r.osdiRuntimeInputs, osdiVariableKinds: r.osdiVariableKinds,
             osdiLifetime: r.osdiLifetime, diodePreparationReceipts: r.diodePreparationReceipts, mosPreparationReceipts: r.mosPreparationReceipts,
-            resources: r.resources, compileCapacity: r.compileCapacity, reservations: r.reservations)
+            resources: resources ?? r.resources, compileCapacity: r.compileCapacity, reservations: r.reservations)
     }
 }

@@ -183,3 +183,20 @@ snapshot operation. The public ordinary/point preparation requirements and nil
 behavior remain unchanged. The source program retains its original controlled
 backing; no heuristic snapshot allocation/work bound or unadmitted byte extraction
 is used. Publication and qualification prerequisites are owned by RangeExecution.
+
+
+### Controlled Point-Session Backing
+
+When an explicit controlled constitutive snapshot and a point helper are requested
+together, the point helper uses that exact same immutable program. The ordinary
+adapter precision capacity includes the point-state arrays and receipt, while the
+program/setup private backing is admitted only through the snapshot's mandatory
+control. The point process mapping/arena remains separate physical storage owned
+by its existing Native envelope. The default nil-snapshot adapter capacity still
+includes legacy program/setup capacity and is unchanged.
+
+Before the combined point session starts, its full declared maximumWorkUnits is
+charged to the snapshot control as a nonrefundable scheduled upper allowance.
+This is not actual-consumption telemetry. Control failure closes the unpublished
+model through the existing cleanup path; no child is started after failed admission.
+The same request control later governs every conditional capture and query.

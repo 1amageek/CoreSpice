@@ -96,7 +96,7 @@ let package = Package(
                 dependencies: ["CoreSpiceIR", "CoreSpiceDevices", "CoreSpiceCompile",
                                "CoreSpiceDiodeContracts", "CoreSpiceEvaluationContracts",
                                "CoreSpiceEvent"],
-                exclude: ["README.md", "DESIGN.md", "EquationConvergence/DESIGN.md", "Completion/DESIGN.md", "TransientValidation/DESIGN.md", "FrequencyNoise/DESIGN.md", "CompensatedTransient/DESIGN.md", "CompensatedDC/DESIGN.md", "NewtonVoltageLimiting/DESIGN.md", "SparseExecution/DESIGN.md", "ValidatedTransient/DESIGN.md", "NetworkParameters/DESIGN.md", "ExactRowAlgebra/DESIGN.md", "PrescribedVoltageReduction/DESIGN.md", "GeneralizedSchur/DESIGN.md", "GeneralizedSchur/THIRD_PARTY_NOTICES.txt"]),
+                exclude: ["README.md", "DESIGN.md", "EquationConvergence/DESIGN.md", "Completion/DESIGN.md", "TransientValidation/DESIGN.md", "FrequencyNoise/DESIGN.md", "CompensatedTransient/DESIGN.md", "CompensatedDC/DESIGN.md", "NewtonVoltageLimiting/DESIGN.md", "SparseExecution/DESIGN.md", "ValidatedTransient/DESIGN.md", "ValidatedMatrixRegularity/DESIGN.md", "ValidatedParametricRoot/DESIGN.md", "NetworkParameters/DESIGN.md", "ExactRowAlgebra/DESIGN.md", "PrescribedVoltageReduction/DESIGN.md", "GeneralizedSchur/DESIGN.md", "GeneralizedSchur/THIRD_PARTY_NOTICES.txt"]),
 
         // --- Photonic Plugin ---
         // Note: Photonic shaders are provided by CoreSpiceBackend
@@ -120,7 +120,7 @@ let package = Package(
                                .product(name: "CircuiteFoundationFileSystem", package: "CircuiteFoundation"),
                                .product(name: "OSDIContracts", package: "swift-osdi"),
                                .product(name: "OSDIRuntime", package: "swift-osdi")],
-                exclude: ["DESIGN.md", "NativeExecution/DESIGN.md"],
+                exclude: ["DESIGN.md", "NativeExecution/DESIGN.md", "NativeExecution/GlobalChargeKernel/DESIGN.md", "NativeExecution/PrescribedVoltageValues/DESIGN.md", "NativeExecution/PrescribedVoltageReconstruction/DESIGN.md", "NativeExecution/PrescribedVoltageMass/DESIGN.md", "NativeExecution/PrescribedVoltageChart/DESIGN.md", "NativeExecution/PrescribedVoltageEvolution/DESIGN.md", "NativeExecution/PrescribedVoltageFlow/DESIGN.md"],
                 swiftSettings: [.enableExperimentalFeature("Lifetimes"), .enableExperimentalFeature("LifetimeDependence")]),
 
         // --- Production external-process simulation backend ---

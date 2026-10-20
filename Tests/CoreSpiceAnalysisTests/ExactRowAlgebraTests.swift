@@ -342,11 +342,11 @@ struct ExactRowAlgebraTests {
         }
     }
     private final class CancellingControl: LinearSolverExecutionControlling, Sendable {
-        let base: AnalysisLinearSolverControl
+        let base: any LinearSolverExecutionControlling
         let token: CancellationToken
         private let remaining = Mutex<Int?>(nil)
         var interrupted: Bool { token.isCancelled }
-        init(base: AnalysisLinearSolverControl, token: CancellationToken) { self.base = base; self.token = token }
+        init(base: any LinearSolverExecutionControlling, token: CancellationToken) { self.base = base; self.token = token }
         func arm() { remaining.withLock { $0 = 2 } }
         func checkpoint(workUnits: Int) throws {
             try base.checkpoint(workUnits: workUnits)

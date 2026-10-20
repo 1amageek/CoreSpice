@@ -87,8 +87,8 @@ extension SPICENativeSimulation {
                        receipt.program.semanticProfile, receipt.numericProfile] {
             try encoding.field(digest.algorithm.rawValue); try encoding.field(digest.hexadecimalValue)
         }
-        try encoding.integer(UInt64(receipt.program.programBytes.count))
-        try encoding.integer(UInt64(receipt.program.setupBytes.count))
+        try encoding.integer(UInt64(receipt.program.programByteCount))
+        try encoding.integer(UInt64(receipt.program.setupByteCount))
         try encoding.integer(UInt64(receipt.precisionBits))
         let options = receipt.options
         for value in [options.maximumProgramBytes, options.maximumMappingBytes, options.arenaBytes,

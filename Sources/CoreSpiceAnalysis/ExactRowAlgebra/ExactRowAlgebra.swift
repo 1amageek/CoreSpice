@@ -17,7 +17,7 @@ package struct ExactRowAlgebra: ExactRowAlgebraComputing {
         package init(negative: Bool = false, words: [UInt64], denominatorPower: UInt64 = 0) {
             self.init(negative: negative, words: words, denominatorPower: denominatorPower, lease: nil)
         }
-        init(negative: Bool, words: [UInt64], denominatorPower: UInt64 = 0, lease: (any Sendable)?) {
+        package init(negative: Bool, words: [UInt64], denominatorPower: UInt64 = 0, lease: (any Sendable)?) {
             self.negative = negative; self.words = .init(words, lease: lease); self.denominatorPower = denominatorPower
         }
         package static let zero = Self(words: [])
@@ -79,13 +79,17 @@ package struct ExactRowAlgebra: ExactRowAlgebraComputing {
     }
 
     let limits: Limits
-    let control: AnalysisLinearSolverControl
+    let control: any LinearSolverExecutionControlling
     package init(limits: Limits, budget: TransientExecutionBudget,
                  storage: any AnalysisResultStorageAccounting, cancellation: CancellationToken) throws {
+        try self.init(limits: limits, control: AnalysisLinearSolverControl(
+            budget: budget, cancellation: cancellation, storage: storage))
+    }
+    package init(limits: Limits, control: any LinearSolverExecutionControlling) throws {
         guard limits.maximumRows > 0, limits.maximumColumns > 0, limits.maximumIntegerBits > 0,
               limits.maximumWorkspaceBytes > 0, limits.maximumResultBytes > 0 else { throw Failure.invalidInput }
         self.limits = limits
-        control = AnalysisLinearSolverControl(budget: budget, cancellation: cancellation, storage: storage)
+        self.control = control
         try control.checkpoint(workUnits: 0)
     }
 

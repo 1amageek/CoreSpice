@@ -29,6 +29,8 @@ Foundry temperature/noise fidelity is not provided by this Level 3 model.
 | [Lowering](../../CoreSpiceLowering/DESIGN.md) | used by | Model resolution and runtime expression lowering | Prepared numerical input and dependencies | The parser does not implement resistor physics |
 | [Analysis](../../CoreSpiceAnalysis/DESIGN.md) | used by | Checked stamping and noise execution | DC, AC, transient and noise consumers | Device binding does not declare an analysis successful |
 | [ContinuousEquationStructure](../ContinuousEquationStructure/DESIGN.md) | depends on | Complete bound-coordinate support and native R/C/V coefficient bits | Actual prepared-law witnesses | Unknown/custom devices remain unproved; source facts are not jets |
+| [NumericalState](../NumericalState/DESIGN.md) | depends on | Compensated scalar/enclosure arithmetic | Prescribed coordinate voltage and derivative bounds | Arithmetic bounds do not validate the input family |
+| [PrescribedVoltageReduction](../../CoreSpiceAnalysis/PrescribedVoltageReduction/DESIGN.md) | used by | Explicit source values and prescribed charge-rate composition | Conditional downstream consumer | Actual source/axis/history joins remain caller obligations |
 | [TransientLifecycle](../TransientLifecycle/DESIGN.md) | depends on | Explicit original static/reactive decomposition | Native whole-circuit balance consumes scoped contributions | Preserve independent companion validation and typed capability admission |
 
 ## Architecture
@@ -197,6 +199,164 @@ Built-in devices preserve the same bounded breakpoint contract through the
 BoundDevice protocol. Custom implementations own admission before allocating
 their breakpoint output. Host CPU integration tests trace compiler, registry,
 bound waveform, numerical transient and exact accepted time axis.
+
+## Bound Prescribed Voltage Coordinate Law
+
+Status: finite Native lower contract qualified on fixed Swift 6.4, arm64 macOS 27.
+The seven new Devices tests and single actual-source C-parallel-V Analysis test
+pass. The full Devices owner passes 277 tests in 37 suites; prescribed-voltage
+reduction plus the new composition passes 16 tests in two suites, all with zero
+skips. The same implementation/test snapshot has one closed comprehensive source
+review with no findings. The [verification receipt](../../../.verification/bound-prescribed-voltage-law-20261019/final-verification-r1.json)
+binds source hashes, compile/runtime logs and the documentation-only final delta.
+This finite conditional qualification grants no Timing family, history or root
+authority. This section owns only the
+actual ideal-V equation's external-coordinate input law. It is not a new
+waveform, ordinary solver, generic interval provider, or global history checker.
+
+### Construction and Authority
+
+A package-only immutable `BoundPrescribedVoltageLaw` is created by a factory on
+an actual `BoundVoltageSource`. Its initializer is private to its implementation;
+construction retains that concrete bound source and its actual source fact, and
+checks positive/negative/branch identities and rows against the supplied complete
+compiled axis. No public initializer, decoder, caller-defined encloser protocol,
+model-name lookup, or coefficient record can instantiate this producer. The full
+compiled-axis bijection and same-prepared-owner join remain the native caller's
+responsibility; local factory validation does not manufacture that authority.
+
+The law's explicit external coordinate U is not a new MNA unknown. The immutable
+law retains the signed physical voltage at U=0 and U=1 and a positive finite
+source-time scale T. Endpoints follow the actual positive-minus-negative branch
+orientation; a reversed source may therefore have a negative endpoint difference.
+There is no implicit ground rail, assumed 1.8 V supply, or default time scale.
+Its local fixed-size values retain already admitted source/Instance/Waveform COW
+storage; additional retained output storage is admitted by the caller.
+
+```text
+actual BoundVoltageSource + checked axis + explicit signed physical endpoints/T
+    -> bound external-coordinate law
+       -> explicit point U -> physical excitation -> shared actual F kernel
+       -> U interval + left/right derivative intervals -> outward V / Vdot
+       -> source Values/derivatives for existing prescribed-voltage reduction
+host checked Timing primary context + physical rails/time/candidate identity
+    -> separate explicit parametric analysis binding, required before composition
+```
+
+### Finite Point and Interval Contract
+
+Let v0 and v1 denote the exact represented finite endpoint values, delta=v1-v0
+as a real difference of those values, and tau=(t-t0)/T. The owned constitutive law is
+
+    phi(U) = v0 + delta*U,
+    Fpotential = e*iV,  Fbranch = e^T*x - phi(U),  Q = 0,
+    dV/dt(left/right) = delta*(dU/dtau)(left/right)/T.
+
+The source's complete coordinate terms retain their existing signed unit
+incidences, including duplicate terms for equal endpoints and omission only of
+actual ground. Its external partial is -delta on the branch row and zero on
+potential rows; its own charge and external charge partial are exactly zero.
+Other devices' prescribed-input charge rates arise through the whole-circuit
+coordinate lift and are not attributed to this ideal source.
+
+Point evaluation requires an explicit finite U in [0,1]. An absent optional point
+coordinate has a typed missing-coordinate refusal; no midpoint, arbitrary phase,
+history selection, or original-waveform fallback is available. The ordinary
+binary64 point result is a rounded evaluation of the same real phi and F, with
+its certified rounding enclosure kept separate from that point result. The
+interval operation accepts explicit finite ordered normalized bounds within
+[0,1] and separate finite ordered left/right normalized derivative bounds.
+Those input bounds are assumptions supplied by the checked host join, not proof
+of a Timing source family. Both one-sided derivatives are preserved at seams;
+there is no inferred smoothness or unique derivative.
+
+The factory takes explicit zeroVoltage/oneVoltage, timeOrigin/timeScale, the
+compiled variable map and mandatory checkpoint. `point(normalized:at:checkpoint:)`
+returns a rounded voltage, its separate exact-law enclosure and rounding-error
+bound, and the enclosed normalized source time. `enclose` returns source time,
+voltage and separate physical left/right slopes. `externalPartial` encloses the
+branch F_U=-delta and `charge` is exactly zero. The law's residual methods use
+the actual source's checked paired or ordinary state. The paired residual method
+encloses the external U interval at that represented state; whole-box X variation
+uses the separately qualified linear coordinate terms, not an invented state-box
+claim from a SolutionState. No point coordinate or derivative is inserted into
+SolutionState or IntegrationState.
+
+Endpoint subtraction, affine evaluation, derivative multiplication and positive
+T division reuse NumericalState CompensatedValue/CompensatedEnclosure arithmetic.
+Delta is not first rounded to an untracked Double coefficient. Scalar-to-interval
+admission and outward result projection must preserve endpoints, signed zero,
+gradual underflow and finite arithmetic/refusal semantics. A represented point
+or a closed interval result never asserts root existence or exact residual zero.
+No finite time slab is extrapolated to an infinite past.
+
+### Actual Equation Path and Compatibility
+
+BoundVoltageSource's existing private excitation-argument enclosure kernel is
+shared with the explicit-input path. Its ordinary point residual is factored only
+as needed to receive an explicit excitation while retaining the existing checked
+reads, exact subtraction ordering, finite checks and incidence publication.
+Existing DC and source-scaled DC supply their original private dcVoltage;
+ordinary transient methods supply the original private Waveform.value(at:).
+Their DC, pulse, sine and finite PWL semantics, stamps, breakpoints, numerical
+ordering and accepted state remain unchanged. No descriptor or registry defaults
+select the new law. The explicit coordinate path supplies phi(U) to that same
+source equation and is selected instead of, never in addition to, the ordinary
+source contribution for a distinct parametric analysis.
+
+The existing PrescribedVoltageReduction sourceValues/prescribedChargeRate inputs
+are the immediate downstream mathematical consumer. Their current explicit-input
+contract remains conditional; this law does not turn them into an actual-device
+admission or a whole-circuit certificate. The later native composition must bind
+the actual source edge and all other producers' F/Q facts before using them.
+
+### Host Assumptions and Identity
+
+The host must retain a checked Timing initial source context or its exact prepared
+replay, admit only qualified primaryPort origins, and join its candidate endpoint,
+scenario/corner, thresholds, history generation, physical rails, source orientation
+and time to this actual bound source. The resulting parametric analysis identity
+must be distinct from the original native DC/waveform configuration identity and
+bind both inputs plus every selected source mapping. The lower Devices component
+has no Timing dependency and does not accept an arbitrary identity string as proof.
+Both existing time contracts use SI seconds; choosing T=1 and an origin still
+requires that explicit join, and geometryScale is never a time conversion.
+
+The affine external-coordinate law quantifies over every supplied admissible U;
+it does not select or truncate its history. Known-clock all-integer-cycle phases
+and unrestricted admitted absolutely continuous histories remain retained host
+assumptions. No finite PWL or pre-delay pulse is substituted for those families.
+Initial prescribedCellOutput entries remain unproved internal histories. No
+finite-crossing, non-Zeno, unique-history, physical-root, flow or tube authority
+is returned by this component.
+
+### Resources, Failure, and Verification
+
+Every factory, point, interval and source-row visit requires a throwing checkpoint
+from the same existing prepared/run work and cancellation owner. Each finite
+operation is charged before arithmetic/visitation, including omitted ground
+candidates; there is no default callback, quota, reset or retained foreign code.
+Methods use fixed-size immutable values and borrow source/state input; no hot
+string map, dimension-sized allocation, pointer escape or mutable shared owner is
+introduced. Native/WASM/Embedded retain the same state and callback contracts.
+The native caller admits output retention before copying and keeps its prepared
+source/resources alive. A foreign input/state map cannot substitute for the bound
+coordinate identities. Typed failures preserve invalid binding/domain, missing
+point coordinate, nonfinite/overflow/time-scale and caller-control causes. Failed
+queries do not consume, close or mutate the actual source. Any throwing visitor
+prefix is incomplete and must be discarded; no successful partial law is returned.
+
+Devices owner tests will bind real sources and check grounded, reversed, floating
+and coincident incidences, exact coordinate identities, wrong-state maps, omitted
+U, invalid endpoints/domain/T, and overflow. Small exact dyadic rational fixtures
+provide independent V/F/left/right-derivative interval oracles, including extreme
+endpoint cancellation, signed zero and subnormal cases. Original DC/PULSE/sine/PWL
+point/enclosure/stamp regressions must establish the unchanged numerical ordering
+and original past/end behavior. Caller work/cancel failure must interrupt before
+success without resetting counters or invalidating the source. A focused Analysis
+composition fixture must use this actual law with C parallel to V and reconstruct
+iV=-C*dV/dt and all original rows using the existing prescribed-voltage reduction.
+This finite fixture does not establish the later full history/physical join.
 
 ## Resistor Execution Contract
 

@@ -99,7 +99,8 @@ public struct OSDICircuitPreparer: OSDICircuitPreparing, OSDIConstitutiveCircuit
                         guard descriptor.stateCount == 0,
                               precision.precisionBits >= precision.options.minimumPrecisionBits,
                               precision.precisionBits <= precision.options.maximumPrecisionBits else { throw OSDIAdapterFailure.unsupportedAnalysis }
-                        let extra = try OSDIAdapterCapacity.precision(nodeCount: descriptor.nodeCount, options: precision.options)
+                        let extra = try OSDIAdapterCapacity.precision(nodeCount: descriptor.nodeCount, options: precision.options,
+                            includeProgramBacking: constitutiveSnapshot == nil)
                         let (total, overflow) = admittedBytes.addingReportingOverflow(extra)
                         guard !overflow, total <= maximumAdapterBytes else { throw OSDIAdapterFailure.capacityExceeded }
                         admittedBytes = total
@@ -138,6 +139,15 @@ public struct OSDICircuitPreparer: OSDICircuitPreparing, OSDIConstitutiveCircuit
                         } catch { model.close(); throw error }
                     }
                     if let precision = transientPrecision {
+                        if let snapshot = constitutiveSnapshot {
+                            do {
+                                // Scheduled point-session allowance; separate from measured snapshot construction.
+                                try snapshot.control.checkpoint(workUnits: OSDIConstitutiveCapacity.integer(precision.options.maximumWorkUnits))
+                            } catch {
+                                model.close()
+                                throw OSDIAdapterFailure.runtime(.host(operation: "controlled point session allowance", underlying: error))
+                            }
+                        }
                         do {
                             let program: OSDIPrecisionProgram
                             if let snapshot = constitutiveReceipt {

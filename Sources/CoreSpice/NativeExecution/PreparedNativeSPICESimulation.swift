@@ -29,5 +29,9 @@ public struct PreparedNativeSPICESimulation: ~Copyable, Sendable {
             sourceConfigurationIdentity: input.configuration.identity, nativeConfigurationIdentity: configurationIdentity),
             cancellation: cancellation, body)
     }
+    package borrowing func prepareConstitutiveCapture(at index: Int, inputs: OSDIConstitutiveCaptureInputs,
+        cancellation: CancellationToken) async throws -> OSDIConstitutiveCapture {
+        try await circuit.prepareConstitutiveCapture(at: index, inputs: inputs, cancellation: cancellation)
+    }
     internal consuming func takeCircuit() -> PreparedNativeCircuit { circuit }
 }

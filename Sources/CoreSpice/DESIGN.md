@@ -39,8 +39,20 @@ reverse IO-to-CoreSpice edge. The electrical umbrella does not depend on or
 reexport CoreSpiceBackend. GPU clients explicitly select that optional product;
 its implementation is independent of the native Swift circuit algorithms.
 
+The approved additive controlled-preparation API publishes the existing Native
+and SPICE child protocols with their existing immutable input value. The
+[NativeExecution intake contract](NativeExecution/DESIGN.md#additive-public-controlled-intake)
+owns the concrete SDK constructor, package-only fixture seam, actual source/setup
+binding and resource lifetime. Base preparation requirements remain unchanged.
+The finite implementation and separate-module public success/refusal evidence
+are qualified under that child contract. This boundary does not publish internal
+proof algorithms or grant common-family, complete-initial-cover, Physical,
+all-history or release authority.
+
 ## Verification and Change Impact
 
 Existing CoreSpiceTests owns artifact/backend composition. Dedicated native tests
 are indexed by the child. Child changes require actual native API/CLI/host callers;
 external process behavior is rechecked only when its contract changes.
+The controlled-preparation child owns the separate-module public success/refusal,
+compile-negative authority-boundary and final-owner refund evidence.

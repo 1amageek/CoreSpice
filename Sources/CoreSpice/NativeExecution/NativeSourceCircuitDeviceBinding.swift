@@ -72,7 +72,11 @@ public final class NativeSourceCircuitDeviceBinding: SourceResolvingCircuitDevic
         let bytes = try NativeCircuitExecution.capacityProduct(UInt64(maximumReexecutions),
             UInt64(2 * (MemoryLayout<SPICENativeSourceReexecutionRecord>.stride + MemoryLayout<SPICENativeSourceReexecutionCompletion>.stride)))
         guard bytes <= limits.maximumAllocationBytes else { throw SPICENativePreparationError.capacityExceeded }
-        let reservation = try input.resources.reserveStorage(kind: .liveOwnedBytes, byteCount: bytes)
+        let reservation: SPICESourceStorageReservation
+        if let control = baselinePreparation?.constitutiveBacking?.control {
+            reservation = try control.reserveNativeStorage(kind: .liveOwnedBytes, byteCount: bytes)
+            try control.checkpoint(workUnits: maximumReexecutions)
+        } else { reservation = try input.resources.reserveStorage(kind: .liveOwnedBytes, byteCount: bytes) }
         var records: [SPICENativeSourceReexecutionRecord] = []; records.reserveCapacity(maximumReexecutions)
         self.input = input; self.limits = limits; self.maximumReexecutions = maximumReexecutions
         self.cancellation = cancellation; self.reservation = reservation
@@ -255,8 +259,9 @@ public final class NativeSourceCircuitDeviceBinding: SourceResolvingCircuitDevic
         do {
             let bytes = try NativeCircuitExecution.physicalValidationCapacity(record.circuitPreparation)
             if bytes > 0 {
-                let reservation = try input.resources.reserveStorage(kind: .liveOwnedBytes, byteCount: bytes)
-                circuit = try circuit.addingRetainedStorage(byteCount: bytes, reservation: reservation)
+                circuit = try circuit.reservingRetainedStorage(byteCount: bytes)
+                guard let reservation = circuit.record.reservations.last, reservation.kind == .liveOwnedBytes,
+                      reservation.byteCount == bytes else { throw SPICENativePreparationError.capacityExceeded }
                 record = SPICENativeSimulationRecord(input: record.input, circuitPreparation: circuit.record,
                     configurationIdentity: record.configurationIdentity,
                     precisionConfigurationBinding: record.precisionConfigurationBinding,

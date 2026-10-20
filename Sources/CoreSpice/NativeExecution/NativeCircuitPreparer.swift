@@ -8,9 +8,11 @@ import CoreSpiceDiodeContracts
 import CoreSpiceEvaluationContracts
 import CoreSpiceOSDI
 import CoreSpiceOSDIContracts
+import CoreSpiceEvent
+import OSDIRuntime
 
 /// The single owner of native MOS preparation, compilation and consuming binding.
-public struct NativeCircuitPreparer: NativeCircuitPreparing {
+public struct NativeCircuitPreparer: NativeCircuitPreparing, NativeConstitutiveCircuitPreparing {
     public init() {}
     public func prepare(ir: CircuitIR, registry: DeviceRegistry, operatingConditions: OperatingConditions,
                         limits: SPICENativeExecutionLimits, numericalLimits: TransientExecutionLimits,
@@ -32,8 +34,63 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
                         limits: SPICENativeExecutionLimits, numericalLimits: TransientExecutionLimits,
                         resources: any SPICESourceResourceAccounting, osdi: SPICEOSDIRuntimeInputs)
         async throws(SPICENativePreparationError) -> PreparedNativeCircuit {
+        try await prepareWithSnapshot(ir: ir, registry: registry, operatingConditions: operatingConditions,
+            limits: limits, numericalLimits: numericalLimits, resources: resources, osdi: osdi,
+            constitutive: nil, cancellation: nil)
+    }
+    public func prepare(ir: CircuitIR, registry: DeviceRegistry, operatingConditions: OperatingConditions,
+        limits: SPICENativeExecutionLimits, numericalLimits: TransientExecutionLimits,
+        resources: any SPICESourceResourceAccounting, osdi: SPICEOSDIRuntimeInputs,
+        constitutive: NativeConstitutivePreparationInputs, cancellation: CancellationToken)
+        async throws(SPICENativePreparationError) -> PreparedNativeCircuit {
+        try await prepareWithSnapshot(ir: ir, registry: registry, operatingConditions: operatingConditions,
+            limits: limits, numericalLimits: numericalLimits, resources: resources, osdi: osdi,
+            constitutive: constitutive, cancellation: cancellation)
+    }
+    public func prepareNativeConstitutive(ir: CircuitIR, registry: DeviceRegistry, operatingConditions: OperatingConditions,
+        limits: SPICENativeExecutionLimits, numericalLimits: TransientExecutionLimits,
+        resources: any SPICESourceResourceAccounting, cancellation: CancellationToken)
+        throws(SPICENativePreparationError) -> PreparedNativeCircuit {
+        do {
+            guard limits.maximumDeviceCount > 0, limits.maximumMatrixDimension > 0,
+                  limits.maximumAllocationBytes > 0, ir.instances.count <= limits.maximumDeviceCount else {
+                throw SPICENativePreparationError.invalidLimits
+            }
+            do { try numericalLimits.validate() } catch { throw SPICENativePreparationError.invalidLimits }
+            do { try operatingConditions.validateEvaluationEnvironment(ir.evaluationEnvironment) }
+            catch { throw SPICENativePreparationError.evaluationEnvironment(error) }
+            guard !cancellation.isCancelled, !Task.isCancelled else {
+                throw NativeConstitutivePreparationControl.Failure.cancelled
+            }
+            try resources.checkCancellation()
+            for instance in ir.instances {
+                guard !cancellation.isCancelled, !Task.isCancelled else {
+                    throw NativeConstitutivePreparationControl.Failure.cancelled
+                }
+                try resources.checkCancellation()
+                try resources.charge(.retainedElements, units: 1)
+                guard instance.osdi == nil, instance.typeName != "osdi" else {
+                    throw SPICENativePreparationError.unsupportedCapability("Native-only constitutive preparation rejects OSDI")
+                }
+            }
+            let control = try NativeConstitutivePreparationControl.make(resources: resources,
+                maximumBytes: limits.maximumAllocationBytes, ordinaryFloor: 0, cancellation: cancellation)
+            var batch: OSDIPreparedCircuit? = nil
+            return try checkedPrepare(ir: ir, registry: registry, operatingConditions: operatingConditions,
+                limits: limits, numericalLimits: numericalLimits, resources: resources,
+                osdiBatch: &batch, osdiInputs: nil, osdiReservation: nil, osdiCapacity: 0,
+                constitutiveControl: control)
+        } catch let error as SPICENativePreparationError { throw error }
+        catch { throw .resource(error) }
+    }
+    private func prepareWithSnapshot(ir: CircuitIR, registry: DeviceRegistry, operatingConditions: OperatingConditions,
+        limits: SPICENativeExecutionLimits, numericalLimits: TransientExecutionLimits,
+        resources: any SPICESourceResourceAccounting, osdi: SPICEOSDIRuntimeInputs,
+        constitutive: NativeConstitutivePreparationInputs?, cancellation: CancellationToken?)
+        async throws(SPICENativePreparationError) -> PreparedNativeCircuit {
         var batch: OSDIPreparedCircuit? = nil
         var reservation: SPICESourceStorageReservation?
+        var control: NativeConstitutivePreparationControl?
         do {
             guard limits.maximumDeviceCount > 0, limits.maximumMatrixDimension > 0,
                   limits.maximumAllocationBytes > 0, ir.instances.count <= limits.maximumDeviceCount else {
@@ -65,23 +122,38 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
             var perInstance = try add(try add(osdi.loadLimits.maximumMetadataBytes, osdi.loadLimits.maximumStorageBytes),
                 osdi.evaluationLimits.maximumWorkspaceBytes)
             if let precision = osdi.transientPrecision {
-                // Adapter admission separately includes the cold immutable program/setup and paired histories.
+                // The point process mapping/arena is distinct from the shared controlled P/U backing.
                 perInstance = try add(perInstance, try add(precision.options.maximumMappingBytes, precision.options.arenaBytes))
             }
             let capacity = try add(try multiply(UInt64(count), perInstance), osdi.maximumAdapterBytes)
             guard capacity < limits.maximumAllocationBytes else { throw SPICENativePreparationError.capacityExceeded }
             try resources.checkCancellation()
+            if constitutive != nil {
+                guard let cancellation else { throw SPICENativePreparationError.invalidLimits }
+                control = try NativeConstitutivePreparationControl.make(resources: resources,
+                    maximumBytes: limits.maximumAllocationBytes, ordinaryFloor: capacity, cancellation: cancellation)
+            }
             reservation = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: capacity)
+            let snapshot: OSDIConstitutiveSnapshotInputs?
+            if let constitutive, let control {
+                snapshot = OSDIConstitutiveSnapshotInputs(preparer: constitutive.preparer,
+                    semanticProfile: constitutive.semanticProfile, options: constitutive.options,
+                    control: control, simulationParameters: constitutive.simulationParameters)
+            } else { snapshot = nil }
             batch = try await OSDICircuitPreparer().prepare(ir: ir, operatingConditions: operatingConditions,
                 provider: osdi.provider, loadLimits: osdi.loadLimits, evaluationLimits: osdi.evaluationLimits,
                 maximumInstanceCount: osdi.maximumInstanceCount, maximumAdapterBytes: osdi.maximumAdapterBytes,
-                transientPrecision: osdi.transientPrecision)
+                transientPrecision: osdi.transientPrecision, constitutiveSnapshot: snapshot)
             try resources.checkCancellation()
             return try checkedPrepare(ir: ir, registry: registry, operatingConditions: operatingConditions,
                 limits: limits, numericalLimits: numericalLimits, resources: resources,
-                osdiBatch: &batch, osdiInputs: osdi, osdiReservation: reservation, osdiCapacity: capacity)
+                osdiBatch: &batch, osdiInputs: osdi, osdiReservation: reservation, osdiCapacity: capacity,
+                constitutiveControl: control)
         } catch {
-            if let lifetime = batch?.lifetime {
+            let pending: OSDIExecutionLifetime?
+            if control != nil, case OSDIAdapterFailure.cleanupPending(_, let owner) = error { pending = owner }
+            else { pending = nil }
+            if let lifetime = batch?.lifetime ?? pending {
                 do { try lifetime.close() }
                 catch let secondary { throw .osdiCleanup(.init(primary: error, secondary: secondary,
                     lifetime: lifetime, reservations: reservation.map { [$0] } ?? [])) }
@@ -95,7 +167,7 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
                                 limits: SPICENativeExecutionLimits, numericalLimits: TransientExecutionLimits,
                                 resources: any SPICESourceResourceAccounting, osdiBatch: inout OSDIPreparedCircuit?,
                                 osdiInputs: SPICEOSDIRuntimeInputs?, osdiReservation: SPICESourceStorageReservation?,
-                                osdiCapacity: UInt64) throws -> PreparedNativeCircuit {
+                                osdiCapacity: UInt64, constitutiveControl: NativeConstitutivePreparationControl? = nil) throws -> PreparedNativeCircuit {
         guard limits.maximumDeviceCount > 0, limits.maximumMatrixDimension > 0,
               limits.maximumAllocationBytes > 0 else { throw SPICENativePreparationError.invalidLimits }
         do { try numericalLimits.validate() } catch { throw SPICENativePreparationError.invalidLimits }
@@ -150,6 +222,7 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
             throw SPICENativePreparationError.capacityExceeded
         }
         try resources.checkCancellation()
+        try constitutiveControl?.setPreparingFloor(add(preparationBytes, preparationTemporaryBytes))
         let preparationReservation = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: preparationBytes - osdiCapacity)
         var mosOwners = UniqueArray<NativePreparedMOSDevice?>()
         var diodeOwners = UniqueArray<NativePreparedDiodeDevice?>()
@@ -160,6 +233,7 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
             let mosCircuit = try prepareMOSCircuit(circuit, resources: resources, limits: limits, owners: &mosOwners)
             return try prepareDiodeCircuit(mosCircuit, resources: resources, limits: limits, owners: &diodeOwners)
         }()
+        try constitutiveControl?.setPreparingFloor(preparationBytes)
         var dimension = preparedCircuit.branches.count
         for node in preparedCircuit.nodes where node != preparedCircuit.groundNode {
             let (next, overflow) = dimension.addingReportingOverflow(1)
@@ -174,8 +248,9 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
         guard try add(compileBytes, topologyBytes) <= limits.maximumAllocationBytes else {
             throw SPICENativePreparationError.capacityExceeded
         }
+        try constitutiveControl?.setPreparingFloor(add(compileBytes, topologyBytes))
         let compilationReservation = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: topologyBytes)
-        let scratch = try resources.reserveStorage(kind: .temporaryBytes, byteCount: topologyBytes)
+        var scratch: SPICESourceStorageReservation? = try resources.reserveStorage(kind: .temporaryBytes, byteCount: topologyBytes)
         defer { withExtendedLifetime(scratch) {} }
         try resources.charge(.retainedElements, units: envelope.elements)
         var plan: ExecutionPlan
@@ -231,11 +306,13 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
             }
         }
         try resources.checkCancellation()
-        let evidenceBytes = try NativeOSDIValueEvidence.byteCount(records: osdiRecords, resources: resources)
+        let evidenceBytes = try NativeOSDIValueEvidence.byteCount(records: osdiRecords, resources: resources,
+            controlledProgramBacking: constitutiveControl != nil)
         let completeCapacity = try add(compileBytes, evidenceBytes)
         guard try add(completeCapacity, topologyBytes) <= limits.maximumAllocationBytes else {
             throw SPICENativePreparationError.capacityExceeded
         }
+        try constitutiveControl?.setPreparingFloor(add(completeCapacity, topologyBytes))
         let evidenceReservation: SPICESourceStorageReservation?
         if evidenceBytes > 0 {
             evidenceReservation = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: evidenceBytes)
@@ -246,13 +323,36 @@ public struct NativeCircuitPreparer: NativeCircuitPreparing {
         reservations.append(compilationReservation)
         if let evidenceReservation { reservations.append(evidenceReservation) }
         if let osdiReservation { reservations.append(osdiReservation) }
+        let backing: NativeConstitutivePreparationBacking?
+        if let control = constitutiveControl {
+            let bytes = try add(multiply(UInt64(osdiRecords.count), UInt64(MemoryLayout<OSDIPrecisionProgram>.stride)),
+                UInt64(MemoryLayout<[OSDIPrecisionProgram]>.stride))
+            let storage = try control.reserveNativeStorage(kind: .liveOwnedBytes, byteCount: bytes)
+            guard let walk = Int(exactly: try add(UInt64(devices.count), UInt64(osdiRecords.count))) else {
+                throw SPICENativePreparationError.capacityExceeded
+            }
+            try control.checkpoint(workUnits: walk)
+            var programs: [OSDIPrecisionProgram] = []
+            programs.reserveCapacity(osdiRecords.count)
+            for device in devices where device.instance.osdi != nil {
+                guard let program = try OSDIConstitutiveBoundDeviceAccess.snapshot(of: device) else {
+                    throw SPICENativePreparationError.unsupportedCapability("Missing actual constitutive snapshot")
+                }
+                programs.append(program)
+            }
+            guard programs.count == osdiRecords.count else { throw SPICENativePreparationError.capacityExceeded }
+            backing = NativeConstitutivePreparationBacking(programs: programs, control: control, storage: storage)
+        } else { backing = nil }
+        // Release ordinary construction scratch before folding only retained capacity.
+        if constitutiveControl != nil { scratch = nil }
+        let publishedCapacity = try constitutiveControl?.seal(retainedOrdinaryFloor: completeCapacity) ?? completeCapacity
         return PreparedNativeCircuit(record: .init(executionResources: nil, plan: plan, operatingConditions: operatingConditions,
             limits: limits, numericalLimits: numericalLimits,
             osdiPreparationRecords: osdiRecords, osdiRuntimeInputs: osdiInputs,
             osdiVariableKinds: osdiBatch?.variableKinds ?? [:], osdiLifetime: osdiBatch?.lifetime,
             diodePreparationReceipts: diodeReceipts, mosPreparationReceipts: receipts,
-            resources: resources, compileCapacity: completeCapacity,
-            reservations: reservations), devices: devices)
+            resources: resources, compileCapacity: publishedCapacity,
+            reservations: reservations, constitutiveBacking: backing), devices: devices)
     }
     private func context(plan: ExecutionPlan, operatingConditions: OperatingConditions) throws -> BindingContext {
         let structure = plan.matrixStructure

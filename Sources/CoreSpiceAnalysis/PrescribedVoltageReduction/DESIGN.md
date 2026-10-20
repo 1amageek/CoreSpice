@@ -81,10 +81,68 @@ without a successful physical-certificate flag. The upper owner must prove the
 reduced equations, nondependence and source/model authority separately. A C in
 parallel with V has no remaining coordinate but still reconstructs iV=-C*u'.
 
+### Value-Only Affine Lift
+
+The package `lift(workspace:reducedCoordinates:sourceValues:)` operation exposes
+only the pre-current-reconstruction affine coordinates. Its private Lift result
+retains the same plan/control and admitted immutable values. Selected current
+rows are explicitly unavailable to `coordinate(at:)` (typed invalidInput), while
+all retained electrical/internal-flow/thermal rows follow the same source-path
+loop used by apply. No invented F or charge-rate arrays are accepted. Native
+preserves original-domain current intervals separately. The existing apply path
+shares that exact affine loop and retains its original initialization, arithmetic,
+checkpoint order and reconstruction behavior.
+
+### Additional Per-Call Cancellation for the Affine Lift
+
+The new Native voltage-observation consumer accepts a per-call cancellation
+token independently of the preparation token retained by the original mandatory
+control. The additive package overloads are
+`makeWorkspace(plan:cancellation: CancellationToken)` and
+`lift(workspace:reducedCoordinates:sourceValues:cancellation: CancellationToken)`.
+They keep the same Plan, original control and cumulative work/storage ledger.
+They do not construct another controller, budget, owner or mutable token cache.
+Only the new path checks the additional token, raising the existing
+`AnalysisError.cancelled` without publishing a partial Workspace or Lift.
+
+Required token checkpoints precede validation and work, follow every reservation
+before allocation/initialization, follow the original initialization work charge,
+and bracket the existing bounded Work ticks used by zero/fill, affine forest
+traversal and result copy. A control checkpoint can itself call an external
+accountant that cancels the new token; recheck before executing the next unit.
+A cancellation at workspace admission must not proceed to initialize its 3n
+buffers or reserve the later n-element Lift. A cancellation at a work checkpoint
+must not use its prepaid credit to continue traversal or reserve a result.
+Already charged work stays spent; all released storage reservations refund.
+Old overloads retain their original validation/checkpoint order, arithmetic,
+byte/count formulas, initialization and owner behavior. The new token is a
+synchronous operation-local input, not retained by a Plan, Workspace or Lift.
+
+The owning Native observation test constructs the actual original owner with
+live token A, then deterministically cancels distinct token B from the inner
+workspace-reservation callback and the bounded forest-work callback. It checks
+no later Lift reservation/charged work, no partial publication, exact storage
+refund and reuse of the original live owner. The actual red recorded one extra
+Lift reservation in both cases and 272/4 work units after cancellation; typed
+cancellation, refund and reuse otherwise held. Both unchanged cases now pass
+with three reservations and zero later reservations/work. The Native observation
+suites passed ten declarations/thirteen cases and the affected old Root/Chart/
+Flow subset passed twenty-seven declarations/twenty-nine cases, all with zero
+skips. The [single observation review and finding-limited recheck](../../../.verification/prescribed-voltage-flow-observations-20261020/review-r7.json)
+are closed without remaining findings. The old nil-token arithmetic,
+reservation/charge quantities and order, array initialization and traversal
+statements remain source-equivalent after removing the explicit token checks;
+no whole Analysis rerun is claimed for this additive cancellation path.
+
 ## State, Ownership, and Lifecycle
 
-The kernel holds one immutable reference to the mandatory existing budget,
-storage accountant and cancellation token. Plans retain that owner and admitted
+The kernel holds one immutable reference to the mandatory existing
+`LinearSolverExecutionControlling` owner. The controlled constructor borrows the
+caller's cumulative work, cancellation and storage contract without creating or
+resetting a budget. The original constructor constructs the same
+`AnalysisLinearSolverControl` adapter from its budget, storage accountant and
+cancellation token, then delegates with unchanged limit validation and initial
+zero-work cancellation checkpoint. Plans retain that owner and admitted
 immutable arrays; copies and indexed views retain their plan. A workspace is
 non-Sendable, synchronous and operation-local, reusable by its isolated caller.
 It cannot be used with another plan or resource owner. No unsafe storage, pointer
@@ -117,3 +175,9 @@ checked capacity arithmetic, mandatory cumulative work, cancellation, failure
 refunds and copied output lifetimes. Qualification does not extend those finite
 tests into a physical-chart or source-jet theorem. A later actual-device/OSDI
 consumer must establish and test its additional assumptions independently.
+
+[PrescribedVoltageControlTests](../../../Tests/CoreSpiceAnalysisTests/PrescribedVoltageControlTests.swift)
+owns direct mandatory-control injection: pre-spent cumulative work across two
+reductions, unchanged checkpoint/storage failure propagation, and original
+control/lease retention through copied plans and applications. This additive
+constructor changes neither forest arithmetic nor admission quantities/order.

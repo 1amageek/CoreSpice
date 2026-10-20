@@ -1,6 +1,6 @@
 import OSDIRuntime
 
-package enum OSDIConstitutiveCaptureFailure: Error, Sendable {
+public enum OSDIConstitutiveCaptureFailure: Error, Sendable {
     case missingSnapshot
     case invalidBinding
     case capacityExceeded

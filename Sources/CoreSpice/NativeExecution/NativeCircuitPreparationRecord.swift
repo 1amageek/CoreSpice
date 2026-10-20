@@ -23,6 +23,23 @@ public struct NativeCircuitPreparationRecord: Sendable {
     internal let resources: any SPICESourceResourceAccounting
     internal let compileCapacity: UInt64
     internal let reservations: [SPICESourceStorageReservation]
+    internal let constitutiveBacking: NativeConstitutivePreparationBacking?
+
+    internal init(executionResources: AnalysisExecutionResources?, plan: ExecutionPlan,
+        operatingConditions: OperatingConditions, limits: SPICENativeExecutionLimits,
+        numericalLimits: TransientExecutionLimits, osdiPreparationRecords: [NativeOSDIPreparationRecord],
+        osdiRuntimeInputs: SPICEOSDIRuntimeInputs?, osdiVariableKinds: [MNAVariable: OSDIVariableKind],
+        osdiLifetime: OSDIExecutionLifetime?, diodePreparationReceipts: [DiodePreparationReceipt],
+        mosPreparationReceipts: [MOSPreparationReceipt], resources: any SPICESourceResourceAccounting,
+        compileCapacity: UInt64, reservations: [SPICESourceStorageReservation],
+        constitutiveBacking: NativeConstitutivePreparationBacking? = nil) {
+        self.executionResources = executionResources; self.plan = plan; self.operatingConditions = operatingConditions
+        self.limits = limits; self.numericalLimits = numericalLimits; self.osdiPreparationRecords = osdiPreparationRecords
+        self.osdiRuntimeInputs = osdiRuntimeInputs; self.osdiVariableKinds = osdiVariableKinds; self.osdiLifetime = osdiLifetime
+        self.diodePreparationReceipts = diodePreparationReceipts; self.mosPreparationReceipts = mosPreparationReceipts
+        self.resources = resources; self.compileCapacity = compileCapacity; self.reservations = reservations
+        self.constitutiveBacking = constitutiveBacking
+    }
 
     /// Value-only evidence retains IR/compiler/metadata admission while releasing closed foreign execution owners.
     internal func valueEvidence() throws -> Self {
@@ -36,7 +53,8 @@ public struct NativeCircuitPreparationRecord: Sendable {
             osdiRuntimeInputs: osdiRuntimeInputs, osdiVariableKinds: osdiVariableKinds, osdiLifetime: nil,
             diodePreparationReceipts: diodePreparationReceipts, mosPreparationReceipts: mosPreparationReceipts,
             resources: resources,
-            compileCapacity: bytes, reservations: retained)
+            compileCapacity: constitutiveBacking == nil ? bytes : compileCapacity, reservations: retained,
+            constitutiveBacking: constitutiveBacking)
     }
 
     internal func usingExecutionResources(_ resources: AnalysisExecutionResources) throws -> Self {
@@ -46,19 +64,35 @@ public struct NativeCircuitPreparationRecord: Sendable {
             osdiRuntimeInputs: osdiRuntimeInputs, osdiVariableKinds: osdiVariableKinds, osdiLifetime: osdiLifetime,
             diodePreparationReceipts: diodePreparationReceipts, mosPreparationReceipts: mosPreparationReceipts,
             resources: self.resources,
-            compileCapacity: compileCapacity, reservations: reservations)
+            compileCapacity: compileCapacity, reservations: reservations, constitutiveBacking: constitutiveBacking)
     }
 
-    internal func addingRetainedStorage(byteCount: UInt64, reservation: SPICESourceStorageReservation) throws -> Self {
-        let (capacity, overflow) = compileCapacity.addingReportingOverflow(byteCount)
-        guard !overflow, capacity <= limits.maximumAllocationBytes, reservation.byteCount == byteCount,
-              reservation.kind == .liveOwnedBytes else {
-            throw SPICENativePreparationError.capacityExceeded
+    /// Acquires the exact lease before the caller constructs its retained metadata.
+    internal func reservingRetainedStorage(byteCount: UInt64) throws -> Self {
+        let capacity: UInt64
+        let reservation: SPICESourceStorageReservation
+        if let control = constitutiveBacking?.control {
+            // The old array is retained in the floor; reserve both new concatenation payloads before copying.
+            let count = try NativeCircuitExecution.capacitySum(UInt64(reservations.count), 2)
+            let arrayBytes = try NativeCircuitExecution.capacitySum(
+                NativeCircuitExecution.capacityProduct(count, UInt64(MemoryLayout<SPICESourceStorageReservation>.stride)),
+                UInt64(2 * MemoryLayout<[SPICESourceStorageReservation]>.stride))
+            guard let work = Int(exactly: count) else { throw SPICENativePreparationError.capacityExceeded }
+            try control.checkpoint(workUnits: work)
+            let admitted = try control.reserveRetainedFloor(byteCount: byteCount, metadataByteCount: arrayBytes)
+            capacity = admitted.capacity; reservation = admitted.reservation
+        } else {
+            let (next, overflow) = compileCapacity.addingReportingOverflow(byteCount)
+            guard !overflow, next <= limits.maximumAllocationBytes else {
+                throw SPICENativePreparationError.capacityExceeded
+            }
+            reservation = try resources.reserveStorage(kind: .liveOwnedBytes, byteCount: byteCount)
+            capacity = next
         }
         return Self(executionResources: executionResources, plan: plan, operatingConditions: operatingConditions, limits: limits, numericalLimits: numericalLimits,
             osdiPreparationRecords: osdiPreparationRecords, osdiRuntimeInputs: osdiRuntimeInputs, osdiVariableKinds: osdiVariableKinds,
             osdiLifetime: osdiLifetime, diodePreparationReceipts: diodePreparationReceipts, mosPreparationReceipts: mosPreparationReceipts,
             resources: resources, compileCapacity: capacity,
-            reservations: reservations + [reservation])
+            reservations: reservations + [reservation], constitutiveBacking: constitutiveBacking)
     }
 }
