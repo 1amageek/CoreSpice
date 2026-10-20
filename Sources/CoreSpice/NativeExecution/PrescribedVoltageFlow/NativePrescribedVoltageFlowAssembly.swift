@@ -158,7 +158,8 @@ internal enum NativePrescribedVoltageFlowAssembly {
             for index in 0..<m {
                 try tick(2)
                 let bounds = try A.bounds(windowSource.voltages[index])
-                guard try contained(initialSource.voltages[index], lower: bounds.0, upper: bounds.1) else {
+                guard try initialSource.voltages[index] == windowSource.voltages[index]
+                    || contained(initialSource.voltages[index], lower: bounds.0, upper: bounds.1) else {
                     throw Failure.uncertified(.branchJoin, cause: JoinFailure.initialSourceOutsideWindow)
                 }
             }

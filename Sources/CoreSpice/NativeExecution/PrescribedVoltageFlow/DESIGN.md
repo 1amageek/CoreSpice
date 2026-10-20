@@ -159,6 +159,22 @@ Before Picard, require all of the following using compensated containment:
 4. The entire Picard charge box is contained in the parameter box actually
    certified by the window chart.
 
+For item 2, the actual source voltage enclosures are immutable finite
+`CompensatedEnclosure` values from the same bound source law. Their synthesized
+equality compares the normalized finite twofold center and finite nonnegative
+radius, so equal values denote exactly the same enclosed set. Preserve the
+existing window `A.bounds` computation and its fallible validation before any
+identity shortcut. If the initial and window voltage CEs are exactly equal,
+accept their set containment by identity rather than subtracting two independently
+rounded interval expressions. For unequal CEs, retain the existing conservative
+subtraction-based containment unchanged. This changes neither source assumptions,
+rail/time normalization, actual law/query identity nor any arithmetic primitive.
+Finite CE components alone do not justify skipping the existing outer-bound
+overflow checks. The regression must execute the complete public conditional
+flow with the same full normalized [0,1] initial/window family, and must retain a
+real unequal outside-window refusal; initial-set coverage and family nonemptiness
+remain upper obligations.
+
 For item 4, derive exact represented Picard endpoints from the request's CE
 charge box, then outward-enclose those endpoints for the lower chart's CE charge
 parameters BEFORE certification. The hull constructor chooses a represented

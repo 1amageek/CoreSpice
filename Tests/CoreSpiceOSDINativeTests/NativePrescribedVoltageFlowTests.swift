@@ -131,6 +131,54 @@ struct NativePrescribedVoltageFlowTests {
         #expect(resources.live == 0 && resources.temporary == 0)
     }
 
+    @Test func identicalWideSourceEnclosuresJoinTheCompleteConditionalFlow() async throws {
+        let resources = Resources()
+        do {
+            let owner = try fixture(resources: resources, isolated: true)
+            do {
+                let input = NativePrescribedVoltageFlowSource(deviceIndex: 0, zeroVoltage: 0, oneVoltage: 1,
+                    timeOrigin: 0, timeScale: 2, initialNormalized: 0...1, normalized: 0...1,
+                    normalizedDerivativePerSecond: -0.5...0.5)
+                let proposed = NativePrescribedVoltageFlowRequest(
+                    originalLower: try [-1.0, -4, -4, -10].map { try .init(high: $0) },
+                    originalUpper: try [2.0, 4, 4, 10].map { try .init(high: $0) },
+                    startTime: try .init(high: 0.25, low: 0x1p-60), duration: try .init(high: 0.125),
+                    sources: [input], algebraicRows: [1], dynamicInitialCoordinates: [try e(0.49, 0.51)],
+                    initial: try proposal([e(0.4, 0.6), e(-0.25, 1.25)], initial: true),
+                    chargeBox: [try e(0, 2)],
+                    window: try proposal([e(-0.5, 1.5), e(-0.5, 1.5)], initial: false))
+                let result = try await flow(owner, proposed)
+                let row = try #require(result.withScope { $0.preparation.plan.topology.variableMap[.nodeVoltage(p)] })
+                contains(try result.coordinate(at: row), 0)
+                contains(try result.coordinate(at: row), 1)
+                contains(try result.endpointCharge(at: 0), 1)
+                #expect(result.contractionUpperBound == 0)
+                result.withScope { scope in
+                    let actual = scope.sources[0].assumptions
+                    #expect(actual.initialNormalized == (0...1) && actual.normalized == (0...1))
+                    #expect(actual.normalizedDerivativePerSecond == (-0.5...0.5))
+                }
+            } catch { try owner.close(); throw error }
+            try owner.close()
+        }
+        #expect(resources.live == 0 && resources.temporary == 0)
+    }
+
+    @Test func unequalInitialSourceOutsideTheWindowStillRefuses() async throws {
+        let resources = Resources()
+        do {
+            let owner = try fixture(resources: resources, isolated: true)
+            let baseline = resources.live + resources.temporary
+            do {
+                _ = try await flow(owner, request(source: source(initial: 0...1, window: 0.25...0.75)))
+                Issue.record("Unequal initial source outside the window was admitted")
+            } catch NativePrescribedVoltageFlowFailure.invalidInput {}
+            #expect(resources.live + resources.temporary == baseline)
+            try owner.close()
+        }
+        #expect(resources.live == 0 && resources.temporary == 0)
+    }
+
     @Test func fullInitialBoxMustBelongToWindowEvenWhenTheRootAndChargeWouldFit() async throws {
         let owner = try fixture()
         do { _ = try await flow(owner, request(wideInitial: true)); Issue.record("Different chart domain joined only by q0") }
