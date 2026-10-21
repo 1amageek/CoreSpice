@@ -1,13 +1,13 @@
 {
-  "originHash" : "02a72ffa054145c85475989cc6c9293719443f30133fc50697d2adf7c015c013",
+  "originHash" : "4449b129d8f02715cd01038d0a9eac7b909078498f4253f204ac1fd03e261e47",
   "pins" : [
     {
       "identity" : "circuitefoundation",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/1amageek/CircuiteFoundation.git",
       "state" : {
-        "revision" : "4d03b5a561c82a756aaf93860f657733371538dc",
-        "version" : "26.1021.0"
+        "revision" : "7b5ab9cfcd89eccd04e98fb8355bd8ed4d5596c3",
+        "version" : "26.1021.1"
       }
     },
     {
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/1amageek/swift-osdi.git",
       "state" : {
-        "revision" : "010f633892177322b433de3c64548999dbeaa0a1",
-        "version" : "1.2.1"
+        "revision" : "e5909f50a4394cffb37312c30e04302d9decbdc1",
+        "version" : "1.2.2"
       }
     },
     {
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/1amageek/ToolQualification.git",
       "state" : {
-        "revision" : "a72a86f54df23f772f201d2c7366fb1fd7ea8c6a",
-        "version" : "26.1021.0"
+        "revision" : "a89d4bec8fffd12125773588091290c20673202c",
+        "version" : "26.1021.1"
       }
     }
   ],

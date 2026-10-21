@@ -83,11 +83,11 @@ generalized Schur algorithms retain their [Reference-LAPACK BSD-style notice](So
 
 ## Stable dependency successor preparation
 
-This candidate retains public `82eb35e8bc57402880db3529c8a1dc2045349d87`
-implementation and tests. It selects exact CF/TQ `26.1021.0` and swift-osdi `1.2.1`,
-with SignoffToolSupport unchanged at `26.1018.0`. All three selected versions are
-public releases. The fresh canonical HTTPS lock records all six released
-dependencies. Native consumer checks passed 17 tests with no skips; the unchanged
-ordinary four-family OP/AC fixtures passed 8 public API and 8 CLI cases, fresh
-save/reload and independent full-row oracles under the original tolerances.
+This metadata-only successor retains public
+`23b5449db81705a026f921c37b49053e93b69060` implementation, tests and resources.
+It selects exact CF/TQ `26.1021.1` and swift-osdi `1.2.2`, with SignoffToolSupport
+unchanged at `26.1018.0`. The fresh canonical HTTPS lock records the released
+dependencies. Earlier 17-test and four-family API/CLI results keep their original
+`26.1021.0` / SDK `1.2.1` graph scope; no build or runtime is repeated here.
+Final Timing and Physical consumers own new-graph integration.
 See the [owning contract](DESIGN.md#stable-dependency-successor-preparation).

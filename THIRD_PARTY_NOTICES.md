@@ -6,7 +6,7 @@ of a product combined with GPL-covered code.
 
 ## Current source and dependency inventory
 
-This candidate selects released swift-osdi `1.2.1` and CF/TQ `26.1021.0`.
+This candidate selects released swift-osdi `1.2.2` and CF/TQ `26.1021.1`.
 Its fresh canonical HTTPS lock records the six clean public checkouts. The SDK
 LICENSE and NOTICE below were checked at the actual released source revision
 and matched the resolved checkout bytes. The finite consumer scope is recorded
@@ -14,7 +14,7 @@ in the [package design](DESIGN.md#stable-dependency-successor-preparation).
 
 | Material | License and attribution | Exact source |
 |---|---|---|
-| `swift-osdi` 1.2.1: OSDIContracts and OSDIRuntime, including COSDI | GPL-3.0-only; retain its [LICENSE](https://github.com/1amageek/swift-osdi/blob/010f633892177322b433de3c64548999dbeaa0a1/LICENSE) and [NOTICE](https://github.com/1amageek/swift-osdi/blob/010f633892177322b433de3c64548999dbeaa0a1/NOTICE), including separately identified upstream/support terms | Released revision `010f633892177322b433de3c64548999dbeaa0a1`; declared by [Package.swift](Package.swift), confirmed in [Package.resolved](Package.resolved) |
+| `swift-osdi` 1.2.2: OSDIContracts and OSDIRuntime, including COSDI | GPL-3.0-only; retain its [LICENSE](https://github.com/1amageek/swift-osdi/blob/e5909f50a4394cffb37312c30e04302d9decbdc1/LICENSE) and [NOTICE](https://github.com/1amageek/swift-osdi/blob/e5909f50a4394cffb37312c30e04302d9decbdc1/NOTICE), including separately identified upstream/support terms | Released revision `e5909f50a4394cffb37312c30e04302d9decbdc1`; declared by [Package.swift](Package.swift), confirmed in [Package.resolved](Package.resolved) |
 | Unmodified OSDI 0.4 header at `tools/OSDIDCVerification/osdi_0_4.h` | Retained upstream GPL terms: [complete license](ThirdParty/OpenVAF-Reloaded/LICENSE), [attribution](ThirdParty/OpenVAF-Reloaded/NOTICE), [source/license provenance](ThirdParty/OpenVAF-Reloaded/Source.json) | OpenVAF/OpenVAF-Reloaded commit `fdf2522b70f42793f64b1c72f0195c96dea0cc19`; header SHA-256 `0f3eeb9ef3c9f0bea9b3c59f34c632555e2367f6e28722e219d8c3f1d655a16f` |
 | Analytic linear RC verification fixture at `Tests/CoreSpiceOSDITests/Fixtures/global_charge_linear.va` | Retained GPL-3.0-only terms from the swift-osdi verification source; [complete license](ThirdParty/OpenVAF-Reloaded/LICENSE). The separate `global_charge_parabola.va` is newly authored CoreSpice test source under the repository MIT grant | Original `swift-osdi/.verification/s2-full-residuals-capture/input-snapshots/linear_rc.va`, preserved byte-for-byte; SHA-256 `c3155bfc2b2a2447f97dc6d3670e629500489dd9b23e0f96d81c13f96d668d90` |
 | Reference-LAPACK v3.12.1 QZ and supporting numerical algorithms translated into Swift in `Sources/CoreSpiceAnalysis/GeneralizedSchur` | BSD-style three-clause terms; retain the [complete component notice](Sources/CoreSpiceAnalysis/GeneralizedSchur/THIRD_PARTY_NOTICES.txt), including copyright, conditions and all disclaimers | [Fixed upstream LICENSE](https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LICENSE); [component source references](Sources/CoreSpiceAnalysis/GeneralizedSchur/DESIGN.md) |

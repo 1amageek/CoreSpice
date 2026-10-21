@@ -790,28 +790,34 @@ completion requirement remains unclosed by these finite fixtures.
 
 ## Stable dependency successor preparation
 
-This source-identical candidate starts from public
-`82eb35e8bc57402880db3529c8a1dc2045349d87`. It selects canonical HTTPS exact
-CircuiteFoundation `26.1021.0`, ToolQualification `26.1021.0` and swift-osdi
-`1.2.1`. SignoffToolSupport remains exact `26.1018.0`; it has no dependency on
-ToolQualification and gains no new edge. Foundation `26.1021.0` is released at
-`4d03b5a561c82a756aaf93860f657733371538dc`; released ToolQualification is
-`a72a86f54df23f772f201d2c7366fb1fd7ea8c6a` and SDK is
-`010f633892177322b433de3c64548999dbeaa0a1`. Fresh canonical HTTPS resolution
-confirms all six clean public source-control checkouts in the lock. The
-dependency-license inventory identifies these actual released sources.
+This metadata-only successor starts from public
+`23b5449db81705a026f921c37b49053e93b69060`. It selects canonical HTTPS exact
+CircuiteFoundation `26.1021.1` at
+`7b5ab9cfcd89eccd04e98fb8355bd8ed4d5596c3`, ToolQualification `26.1021.1` at
+`a89d4bec8fffd12125773588091290c20673202c` and swift-osdi `1.2.2` at
+`e5909f50a4394cffb37312c30e04302d9decbdc1`. SignoffToolSupport remains exact
+`26.1018.0`; no new dependency edge is introduced. A fresh canonical HTTPS
+resolution must record all six clean public source-control checkouts in the
+tracked lock. The dependency-license inventory identifies these released sources.
 
-No circuit, model, codec, test, limit, license or resource source changes. The
-existing SDK 1.2.0 numerical evidence remains historical and finite. New graph
-qualification bound the six clean public checkouts, the actual production CLI
-and a sealed normal public consumer before testable builds. The affected
-Native/OSDI/CLI selection passed 17 tests in 5 suites with no skips. The unchanged
-ordinary four-family OP/AC fixtures passed 8 API and 8 CLI cases, actual capacity
-refusal/cancellation, fresh save/reload and independent full-row physical oracles
-under their original tolerances. These checks qualify this finite Native consumer
-graph; they do not qualify a new precision worker or expand model/history/range
-coverage. [Third-party notices](THIRD_PARTY_NOTICES.md) and the
-[distribution manifest](docs/distribution-licensing.md) identify the actual released
+All production, test, resource, product, license and file-mode contracts are
+unchanged. Foundation's additive controlled digest construction and decoding
+context leave the previously consumed APIs unchanged; ToolQualification and SDK
+successors preserve their implementation source and complete their own release
+gates. Qualification of this metadata step consists of exact source preservation,
+canonical resolution and dependency-contract composition. No CoreSpice build or
+runtime is claimed on this successor graph. The final Timing and Physical
+consumers own compilation and execution of their new composed graphs.
+
+The previous `26.1021.0` / SDK `1.2.1` graph qualification remains historical:
+17 affected Native/OSDI/CLI tests in 5 suites with no skips, plus 8 API and 8 CLI
+ordinary four-family OP/AC cases, actual capacity refusal/cancellation, fresh
+save/reload and independent full-row physical oracles under their original
+tolerances. Those receipts are reused only with unchanged source, fixtures and
+assumptions, retaining their original graph identities. They do not establish
+new precision-worker, model/history/range or all-corner coverage.
+[Third-party notices](THIRD_PARTY_NOTICES.md) and the
+[distribution manifest](docs/distribution-licensing.md) identify the released
 SDK LICENSE/NOTICE and all six resolved pins. Retain the existing GPL combination,
 Corresponding Source and separately supplied compiler/model/worker boundaries;
 this dependency update grants no external artifact rights or release readiness.
