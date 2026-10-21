@@ -1,7 +1,7 @@
 # Distribution licensing
 
-Current dependency inventory checked: 2026-10-20, after public swift-osdi 1.2.0
-adoption, removal of the native compact models and addition of translated
+Current declared dependency inventory checked: 2026-10-21, after public swift-osdi 1.2.1
+and CF/TQ 26.1021.0 release, removal of the native compact models and addition of translated
 Reference-LAPACK QZ algorithms. This describes
 source and distribution obligations, not release
 readiness or permission clearance for external artifacts.
@@ -16,13 +16,15 @@ Verification tool -> copied OpenVAF OSDI ABI header (retained upstream GPL)
 GeneralizedSchur -> translated Reference-LAPACK v3.12.1 algorithms (BSD-style terms)
 ```
 
-The [package graph](../Package.swift) and [resolved inventory](../Package.resolved)
-pin swift-osdi 1.2.0, revision
-`e17d3bcca1224c8ab9ccfaddea7a47580b29b748`. Its
-[NOTICE](https://github.com/1amageek/swift-osdi/blob/e17d3bcca1224c8ab9ccfaddea7a47580b29b748/NOTICE)
+The [package graph](../Package.swift) selects released swift-osdi 1.2.1, revision
+`010f633892177322b433de3c64548999dbeaa0a1`. Its
+[NOTICE](https://github.com/1amageek/swift-osdi/blob/010f633892177322b433de3c64548999dbeaa0a1/NOTICE)
 declares GPL-3.0-only. This is a direct library dependency, not merely invocation
 of an external compiler. The [MIT grant](../LICENSE) remains on original
 CoreSpice code; it does not make linked GPL or translated third-party material MIT.
+The fresh canonical HTTPS [lock](../Package.resolved) confirms all six clean
+public source-control checkouts. This availability evidence does not qualify
+consumer numerical behavior or any binary distribution.
 
 `Sources/CoreSpiceAnalysis/GeneralizedSchur` contains Swift translations of
 Reference-LAPACK v3.12.1 numerical algorithms. The [component notice](../Sources/CoreSpiceAnalysis/GeneralizedSchur/THIRD_PARTY_NOTICES.txt)
@@ -101,29 +103,32 @@ The release owner must:
 
 ### Exact dependency source manifest
 
-On 2026-10-20, all six current primary-license URLs and the three linked NOTICE
-URLs were retrieved anonymously with HTTP 200; each body matched its exact
-revision's Git blob. All six archive URLs answered anonymous HTTPS HEAD with
-HTTP 200. This confirms
-endpoint availability at that time, not inspection of archive contents or a
-guarantee of future hosting. Preserve source/license files in any archives conveyed.
-This is the resolved inventory; it does not assert every package is linked into
-every product (`swift-asn1`, for example, is not used by the selected `Crypto`
-product).
+On 2026-10-21 the new SDK's exact-revision LICENSE and NOTICE and the new CF/TQ
+LICENSE files were retrieved anonymously over HTTPS. SDK NOTICE retains
+GPL-3.0-only and separately identified upstream/support terms; CF/TQ retain MIT.
+The table records the released source selectors confirmed by fresh canonical
+resolution of the complete six-pin lock. Historical
+endpoint observations do not certify new archive contents or future hosting.
+Preserve source/license files in any archives conveyed. A resolved package need
+not be linked into every product (`swift-asn1`, for example, is not used by the
+selected `Crypto` product).
 
 | Package / version | Exact revision | Source archive | Primary license |
 |---|---|---|---|
-| CircuiteFoundation 26.1018.0 | `5f132c58209123433e0e479e1ea61096e46061ba` | [Archive](https://codeload.github.com/1amageek/CircuiteFoundation/tar.gz/5f132c58209123433e0e479e1ea61096e46061ba) | [MIT](https://raw.githubusercontent.com/1amageek/CircuiteFoundation/5f132c58209123433e0e479e1ea61096e46061ba/LICENSE) |
+| CircuiteFoundation 26.1021.0 | `4d03b5a561c82a756aaf93860f657733371538dc` | [Archive](https://codeload.github.com/1amageek/CircuiteFoundation/tar.gz/4d03b5a561c82a756aaf93860f657733371538dc) | [MIT](https://raw.githubusercontent.com/1amageek/CircuiteFoundation/4d03b5a561c82a756aaf93860f657733371538dc/LICENSE) |
 | SignoffToolSupport 26.1018.0 | `e15ea6cd60ca1957297aafbba839e51a478d735e` | [Archive](https://codeload.github.com/1amageek/SignoffToolSupport/tar.gz/e15ea6cd60ca1957297aafbba839e51a478d735e) | [MIT](https://raw.githubusercontent.com/1amageek/SignoffToolSupport/e15ea6cd60ca1957297aafbba839e51a478d735e/LICENSE) |
 | swift-asn1 1.7.3 | `3b6410f7dee09eb33cdd26260c5fd47fda19b0e2` | [Archive](https://codeload.github.com/apple/swift-asn1/tar.gz/3b6410f7dee09eb33cdd26260c5fd47fda19b0e2) | [Apache-2.0](https://raw.githubusercontent.com/apple/swift-asn1/3b6410f7dee09eb33cdd26260c5fd47fda19b0e2/LICENSE.txt), plus its retained [NOTICE](https://raw.githubusercontent.com/apple/swift-asn1/3b6410f7dee09eb33cdd26260c5fd47fda19b0e2/NOTICE.txt) |
 | swift-crypto 4.5.1 | `47d3869a7291f085c1fb9fb1e6d3b97a793f45c6` | [Archive](https://codeload.github.com/apple/swift-crypto/tar.gz/47d3869a7291f085c1fb9fb1e6d3b97a793f45c6) | [Apache-2.0](https://raw.githubusercontent.com/apple/swift-crypto/47d3869a7291f085c1fb9fb1e6d3b97a793f45c6/LICENSE.txt), plus its retained [NOTICE](https://raw.githubusercontent.com/apple/swift-crypto/47d3869a7291f085c1fb9fb1e6d3b97a793f45c6/NOTICE.txt) |
-| swift-osdi 1.2.0 | `e17d3bcca1224c8ab9ccfaddea7a47580b29b748` | [Archive](https://codeload.github.com/1amageek/swift-osdi/tar.gz/e17d3bcca1224c8ab9ccfaddea7a47580b29b748) | [GPL-3.0-only](https://raw.githubusercontent.com/1amageek/swift-osdi/e17d3bcca1224c8ab9ccfaddea7a47580b29b748/LICENSE), plus its retained [NOTICE](https://raw.githubusercontent.com/1amageek/swift-osdi/e17d3bcca1224c8ab9ccfaddea7a47580b29b748/NOTICE) |
-| ToolQualification 26.1018.0 | `601ff5933396be4ba62c77b8bb0502e2f601f159` | [Archive](https://codeload.github.com/1amageek/ToolQualification/tar.gz/601ff5933396be4ba62c77b8bb0502e2f601f159) | [MIT](https://raw.githubusercontent.com/1amageek/ToolQualification/601ff5933396be4ba62c77b8bb0502e2f601f159/LICENSE) |
+| swift-osdi 1.2.1 | `010f633892177322b433de3c64548999dbeaa0a1` | [Archive](https://codeload.github.com/1amageek/swift-osdi/tar.gz/010f633892177322b433de3c64548999dbeaa0a1) | [GPL-3.0-only](https://raw.githubusercontent.com/1amageek/swift-osdi/010f633892177322b433de3c64548999dbeaa0a1/LICENSE), plus its retained [NOTICE](https://raw.githubusercontent.com/1amageek/swift-osdi/010f633892177322b433de3c64548999dbeaa0a1/NOTICE) |
+| ToolQualification 26.1021.0 | `a72a86f54df23f772f201d2c7366fb1fd7ea8c6a` | [Archive](https://codeload.github.com/1amageek/ToolQualification/tar.gz/a72a86f54df23f772f201d2c7366fb1fd7ea8c6a) | [MIT](https://raw.githubusercontent.com/1amageek/ToolQualification/a72a86f54df23f772f201d2c7366fb1fd7ea8c6a/LICENSE) |
 
 The earlier 2026-10-19 inventory recorded swift-osdi 1.0.1 at
 `9e321b082d71528b64c7ca69d640389c0e144cbb`. Its six primary-license and six
 archive endpoint checks remain historical observations of that earlier inventory,
-not the current 1.2.0 source identity. Earlier source, license and execution
+not the current 1.2.1 source identity. The 2026-10-20 inventory separately recorded
+swift-osdi 1.2.0 at `e17d3bcca1224c8ab9ccfaddea7a47580b29b748`, CF26.1018.0
+at `5f132c58209123433e0e479e1ea61096e46061ba` and TQ26.1018.0 at
+`601ff5933396be4ba62c77b8bb0502e2f601f159`. Earlier source, license and execution
 receipts remain bound to their original revisions.
 
 ### Future binary releases

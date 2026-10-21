@@ -788,12 +788,41 @@ settings and numerical outputs remain unchanged. The original causal/all-corner
 completion requirement remains unclosed by these finite fixtures.
 
 
+## Stable dependency successor preparation
+
+This source-identical candidate starts from public
+`82eb35e8bc57402880db3529c8a1dc2045349d87`. It selects canonical HTTPS exact
+CircuiteFoundation `26.1021.0`, ToolQualification `26.1021.0` and swift-osdi
+`1.2.1`. SignoffToolSupport remains exact `26.1018.0`; it has no dependency on
+ToolQualification and gains no new edge. Foundation `26.1021.0` is released at
+`4d03b5a561c82a756aaf93860f657733371538dc`; released ToolQualification is
+`a72a86f54df23f772f201d2c7366fb1fd7ea8c6a` and SDK is
+`010f633892177322b433de3c64548999dbeaa0a1`. Fresh canonical HTTPS resolution
+confirms all six clean public source-control checkouts in the lock. The
+dependency-license inventory identifies these actual released sources.
+
+No circuit, model, codec, test, limit, license or resource source changes. The
+existing SDK 1.2.0 numerical evidence remains historical and finite. New graph
+qualification bound the six clean public checkouts, the actual production CLI
+and a sealed normal public consumer before testable builds. The affected
+Native/OSDI/CLI selection passed 17 tests in 5 suites with no skips. The unchanged
+ordinary four-family OP/AC fixtures passed 8 API and 8 CLI cases, actual capacity
+refusal/cancellation, fresh save/reload and independent full-row physical oracles
+under their original tolerances. These checks qualify this finite Native consumer
+graph; they do not qualify a new precision worker or expand model/history/range
+coverage. [Third-party notices](THIRD_PARTY_NOTICES.md) and the
+[distribution manifest](docs/distribution-licensing.md) identify the actual released
+SDK LICENSE/NOTICE and all six resolved pins. Retain the existing GPL combination,
+Corresponding Source and separately supplied compiler/model/worker boundaries;
+this dependency update grants no external artifact rights or release readiness.
+
 ## Released OSDI Adoption and Semiconductor Production Gates
 
-This section owns the current migration and the package-level production admission
-matrix. It supersedes the historical S3/S4 local-dependency exception for the final
-evidence of this migration. Earlier receipts remain immutable historical evidence.
-The declared and resolved dependency is public `swift-osdi` exact `1.2.0` at commit
+This section retains the SDK 1.2.0 migration and package-level production admission
+matrix. It superseded the historical S3/S4 local-dependency exception for that
+migration; the successor preparation above owns the new candidate selectors.
+Earlier receipts remain immutable historical evidence.
+The previously qualified declared and resolved dependency was public `swift-osdi` exact `1.2.0` at commit
 `e17d3bcca1224c8ab9ccfaddea7a47580b29b748`, published as a
 [source-only release](https://github.com/1amageek/swift-osdi/releases/tag/1.2.0).
 This adds explicit typed REAL simulation lookup, own-scope Given facts and
@@ -840,7 +869,7 @@ exact retained input. The source/object/binary and evidence join is retained in
 `.verification/sdk-1.1.0-adoption-20261019/consumer-adoption-aggregate-r1.json`.
 This finite consumer compatibility grants no circuit range/root/history authority.
 Historical qualification receipts retain their original dependency and worker
-identities. Public Foundation remains
+identities. That graph used public Foundation
 exact `26.1018.0` at `5f132c58209123433e0e479e1ea61096e46061ba`.
 The existing qualified adapter consumes ordinary and compensated point APIs; published SDK
 range/chart/cover/conditional-identity capabilities do not create a CoreSpice
@@ -884,7 +913,7 @@ continuous-time or whole-circuit guarantee.
 
 The user authorized MIT licensing and stable publication of the required
 ToolQualification metric-policy and SignoffToolSupport process-control APIs.
-Both dependencies use public exact `26.1018.0`: ToolQualification at
+That previously qualified graph used public exact `26.1018.0`: ToolQualification at
 `601ff5933396be4ba62c77b8bb0502e2f601f159` and SignoffToolSupport at
 `e15ea6cd60ca1957297aafbba839e51a478d735e`. Their published source/test bytes
 match the previously qualified compatibility candidates. License and documentation

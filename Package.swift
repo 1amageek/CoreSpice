@@ -3,7 +3,7 @@ import PackageDescription
 
 let circuiteFoundationDependency: Package.Dependency = .package(
     url: "https://github.com/1amageek/CircuiteFoundation.git",
-    exact: "26.1018.0"
+    exact: "26.1021.0"
 )
 
 let signoffToolSupportDependency: Package.Dependency = .package(
@@ -30,8 +30,8 @@ let package = Package(
         .executable(name: "corespice", targets: ["CoreSpiceCLI"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/1amageek/swift-osdi.git", exact: "1.2.0"),
-        .package(url: "https://github.com/1amageek/ToolQualification.git", exact: "26.1018.0"),
+        .package(url: "https://github.com/1amageek/swift-osdi.git", exact: "1.2.1"),
+        .package(url: "https://github.com/1amageek/ToolQualification.git", exact: "26.1021.0"),
         circuiteFoundationDependency,
         signoffToolSupportDependency,
     ],

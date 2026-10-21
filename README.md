@@ -80,3 +80,14 @@ dependency and the incorporated OSDI verification header use GPL-3.0-only. See
 [distribution boundary](docs/distribution-licensing.md) for combined-distribution
 obligations and separately licensed external model artifacts. The translated
 generalized Schur algorithms retain their [Reference-LAPACK BSD-style notice](Sources/CoreSpiceAnalysis/GeneralizedSchur/THIRD_PARTY_NOTICES.txt).
+
+## Stable dependency successor preparation
+
+This candidate retains public `82eb35e8bc57402880db3529c8a1dc2045349d87`
+implementation and tests. It selects exact CF/TQ `26.1021.0` and swift-osdi `1.2.1`,
+with SignoffToolSupport unchanged at `26.1018.0`. All three selected versions are
+public releases. The fresh canonical HTTPS lock records all six released
+dependencies. Native consumer checks passed 17 tests with no skips; the unchanged
+ordinary four-family OP/AC fixtures passed 8 public API and 8 CLI cases, fresh
+save/reload and independent full-row oracles under the original tolerances.
+See the [owning contract](DESIGN.md#stable-dependency-successor-preparation).
